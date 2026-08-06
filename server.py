@@ -1,26 +1,31 @@
 import os
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pandas as pd
 import math
 
-app = Flask(__name__)
-CORS(app)  # Permite peticiones desde cualquier origen (Frontend en Render o Local)
+# Inicializar Flask indicando la carpeta actual para archivos estáticos
+app = Flask(__name__, static_folder='.', static_url_path='')
+CORS(app)
+
+# --- RUTA PRINCIPAL (Para cargar la página web en Render) ---
+@app.route('/')
+def serve_index():
+    return send_from_directory('.', 'index.html')
 
 def erlang_c_sl(A, N, AHT, target_time):
     if N <= A or A <= 0:
         return 0.0
     
-    # Probabilidad de espera (Erlang C)
     sum_terms = sum((A**k) / math.factorial(k) for k in range(int(N)))
     last_term = (A**N) / (math.factorial(int(N)) * (1 - (A / N)))
     pw = last_term / (sum_terms + last_term)
     
-    # Nivel de Servicio (Service Level)
     intensity = N - A
     sl = 1 - (pw * math.exp(-intensity * (target_time / AHT)))
     return round(max(0.0, min(1.0, sl)) * 100, 1)
 
+# --- RUTA DE PROCESAMIENTO API ---
 @app.route('/api/process', methods=['POST'])
 def process_data():
     if 'file' not in request.files:
@@ -39,17 +44,14 @@ def process_data():
 
         df = pd.read_excel(file)
         
-        # Procesamiento básico
         data_processed = []
         for index, row in df.iterrows():
             calls = float(row.get('Llamadas', 0))
             aht = float(row.get('AHT', 180))
             prog = float(row.get('Agentes_Programados', 0))
             
-            # Carga de trabajo en Erlangs
             a_erlang = (calls * aht) / 1800.0 if aht > 0 else 0
             
-            # Cálculo de requeridos aproximado
             req_raw = a_erlang / (1 - merma) if merma < 1 else a_erlang
             req_agents = math.ceil(req_raw)
             
