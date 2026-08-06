@@ -149,7 +149,7 @@
         <!-- Dashboard C-Level -->
         <main class="col-span-12 lg:col-span-9 space-y-6">
 
-            <!-- BARRA DE FILTROS A NIVEL SUPERIOR CON DROPDOWNS DESPLIEGUE HACIA ABAJO -->
+            <!-- BARRA DE FILTROS CON DESPLIEGUE FLOTANTE HACIA ABAJO -->
             <div class="glass-panel p-4 rounded-2xl flex justify-between items-center border border-slate-800/80 flex-wrap gap-4 relative z-50 overflow-visible">
                 <div class="flex items-center gap-3">
                     <div class="p-2.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-xl text-sm">🎯</div>
@@ -172,7 +172,7 @@
                         </select>
                     </div>
 
-                    <!-- DROPDOWN PERSONALIZADO DE FECHA (DESPLIEGUE SIEMPRE HACIA ABAJO) -->
+                    <!-- DROPDOWN PERSONALIZADO DE FECHA -->
                     <div class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Fecha Proyectada</label>
                         <button id="btnDropdownFecha" onclick="toggleFechaDropdown()" class="bg-brand-surface border border-cyan-500/30 text-xs rounded-xl px-3 py-2 text-cyan-300 font-mono-num font-bold focus:outline-none border-cyan-500 transition-all shadow-inner min-w-[180px] h-[36px] flex items-center justify-between gap-2">
@@ -180,13 +180,11 @@
                             <span class="text-[10px] text-cyan-400">▼</span>
                         </button>
 
-                        <!-- Menú Desplegable Flotante Fecha -->
                         <div id="dropdownFechaMenu" class="hidden absolute top-full left-0 mt-2 w-full max-h-56 bg-[#0D1322] border border-cyan-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] divide-y divide-slate-800/60 font-mono-num text-xs text-slate-200">
-                            <!-- Las fechas se pueblan dinámicamente -->
                         </div>
                     </div>
 
-                    <!-- DROPDOWN PERSONALIZADO DE INTERVALO (DESPLIEGUE SIEMPRE HACIA ABAJO) -->
+                    <!-- DROPDOWN PERSONALIZADO DE INTERVALO -->
                     <div class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Intervalo Hora</label>
                         <button id="btnDropdownIntervalo" onclick="toggleIntervaloDropdown()" class="bg-brand-surface border border-emerald-500/30 text-xs rounded-xl px-3 py-2 text-emerald-300 font-mono-num font-bold focus:outline-none border-emerald-500 transition-all shadow-inner min-w-[160px] h-[36px] flex items-center justify-between gap-2">
@@ -194,9 +192,7 @@
                             <span class="text-[10px] text-emerald-400">▼</span>
                         </button>
 
-                        <!-- Menú Desplegable Flotante Intervalo -->
                         <div id="dropdownIntervaloMenu" class="hidden absolute top-full left-0 mt-2 w-full max-h-56 bg-[#0D1322] border border-emerald-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] divide-y divide-slate-800/60 font-mono-num text-xs text-slate-200">
-                            <!-- Los intervalos se pueblan dinámicamente -->
                         </div>
                     </div>
                 </div>
@@ -303,6 +299,11 @@
         let selectedFechaValue = "TODOS";
         let selectedIntervaloValue = "TODOS";
 
+        // Detecta automáticamente la URL dinámica para desarrollo o producción (Render)
+        const API_URL = window.location.origin.includes('127.0.0.1') || window.location.origin.includes('localhost')
+            ? 'http://127.0.0.1:5000/api/process'
+            : `${window.location.origin}/api/process`;
+
         async function procesarWFM() {
             const file = document.getElementById('fileInput').files[0];
             if (!file) {
@@ -320,7 +321,7 @@
             formData.append('dias', document.getElementById('dias').value);
 
             try {
-                const response = await fetch('http://127.0.0.1:5000/api/process', {
+                const response = await fetch(API_URL, {
                     method: 'POST',
                     body: formData
                 });
@@ -358,7 +359,6 @@
             });
         }
 
-        // --- MANEJO DE DROPDOWN FECHAS (DESPLIEGUE HACIA ABAJO) ---
         function poblarFechasDropdown() {
             const campanaSel = document.getElementById('campanaSelect').value;
             let dfCamp = globalData;
@@ -370,7 +370,6 @@
             const menu = document.getElementById('dropdownFechaMenu');
             menu.innerHTML = '';
 
-            // Opción Todos
             const divAll = document.createElement('div');
             divAll.className = 'px-3 py-2 hover:bg-cyan-500/20 cursor-pointer transition-colors text-cyan-300 font-bold';
             divAll.innerText = '📅 TODAS LAS FECHAS';
@@ -399,13 +398,11 @@
             actualizarGrafica();
         }
 
-        // --- MANEJO DE DROPDOWN INTERVALOS (DESPLIEGUE HACIA ABAJO) ---
         function poblarIntervalosDropdown() {
             const intervalos = [...new Set(globalData.map(item => item.Intervalo))].sort();
             const menu = document.getElementById('dropdownIntervaloMenu');
             menu.innerHTML = '';
 
-            // Opción Todos
             const divAll = document.createElement('div');
             divAll.className = 'px-3 py-2 hover:bg-emerald-500/20 cursor-pointer transition-colors text-emerald-300 font-bold';
             divAll.innerText = '⏰ TODOS LOS INTERVALOS';
@@ -434,7 +431,6 @@
             actualizarGrafica();
         }
 
-        // Cerrar dropdowns al hacer clic fuera
         window.addEventListener('click', function(e) {
             const btnF = document.getElementById('btnDropdownFecha');
             const menuF = document.getElementById('dropdownFechaMenu');
@@ -494,28 +490,23 @@
             
             let df = globalData;
 
-            // 1. Filtro de Campaña
             if (campanaSel !== "TODAS") {
                 df = df.filter(item => item.Campaña === campanaSel);
             }
 
-            // 2. Filtro de Fecha Desplegable
             if (selectedFechaValue !== "TODOS") {
                 df = df.filter(item => item.Fecha === selectedFechaValue);
             }
 
-            // 3. Filtro de Intervalo Desplegable
             if (selectedIntervaloValue !== "TODOS") {
                 df = df.filter(item => item.Intervalo === selectedIntervaloValue);
             }
 
-            // 4. Filtro por Selección Manual en Tabla (si existe)
             let dfKpis = df;
             if (selectedTableIntervals.size > 0) {
                 dfKpis = df.filter(item => selectedTableIntervals.has(item.Intervalo));
             }
 
-            // Recálculo de KPIs
             const totCalls = dfKpis.reduce((acc, row) => acc + row.Llamadas, 0);
             const sumLlamadasAht = dfKpis.reduce((acc, row) => acc + (row.Llamadas * row.AHT), 0);
             const avgAht = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
@@ -543,7 +534,6 @@
                 badgeSl.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
             }
 
-            // Agrupación por Intervalo
             const agrupado = {};
             df.forEach(row => {
                 if (!agrupado[row.Intervalo]) {
@@ -599,7 +589,6 @@
                 tbody.appendChild(tr);
             });
 
-            // Gráfica de Capacidad
             if (chartInstance) chartInstance.destroy();
 
             const ctx1 = document.getElementById('wfmChart').getContext('2d');
@@ -623,7 +612,6 @@
                 }
             });
 
-            // Gráfica de SL
             if (slChartInstance) slChartInstance.destroy();
 
             const targetArray = intervalos.map(() => targetSlObj);
