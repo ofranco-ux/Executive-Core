@@ -208,7 +208,7 @@
                 </div>
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
-                    <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Cobertura Malla</p>
+                    <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Staffing Level</p>
                     <p id="kpiFulfillment" class="text-2xl font-black font-mono-num mt-2 text-white">--</p>
                 </div>
 
@@ -296,7 +296,6 @@
             return def;
         }
 
-        // Formato AHT estricto HH:MM (Horas:Minutos)
         function formatAHT(seconds) {
             if (!seconds || seconds <= 0) return "00:00";
             const secs = Math.round(seconds);
@@ -478,7 +477,6 @@
 
             const totCalls = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
             
-            // Ponderación de AHT en segundos para el cálculo del promedio
             const sumLlamadasAht = dfFiltered.reduce((acc, row) => {
                 const calls = Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0;
                 let ahtSegs = Number(getProp(row, ['AHT_Segundos'], 0));
@@ -504,16 +502,15 @@
             const avgReq = (totReq / countRows).toFixed(1);
             const avgProg = (totProg / countRows).toFixed(1);
             const net = (avgProg - avgReq).toFixed(1);
+            
+            // Staffing Level: Staff Programado / Staff Requerido
             const fulfillment = avgReq > 0 ? ((avgProg / avgReq) * 100).toFixed(1) : "100.0";
 
             const sumLlamadasSl = dfFiltered.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
             const avgSl = totCalls > 0 ? (sumLlamadasSl / totCalls).toFixed(1) : "0.0";
 
             document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
-            
-            // Asignación estricta HH:MM al KPI
             document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
-            
             document.getElementById('kpiSl').innerText = avgSl + '%';
             document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
             document.getElementById('kpiNet').innerText = (net >= 0 ? '+' : '') + net;
