@@ -3,23 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Executive Core - WFM Forecast ML</title>
+    <title>Executive Core - WFM Forecast & Capacity AI Engine</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-body: #111318;
-            --bg-sidebar: #1a1d24;
-            --bg-card: #181b22;
-            --border-color: #272b35;
-            --input-bg: #121419;
-            --text-main: #f3f4f6;
-            --text-muted: #9ca3af;
-            --primary-blue: #3b82f6;
-            --primary-blue-hover: #2563eb;
-            --green-accent: #34d399;
-            --red-accent: #f87171;
-            --badge-bg: rgba(52, 211, 153, 0.1);
-            --badge-border: rgba(52, 211, 153, 0.25);
+            --bg-base: #0f172a;
+            --bg-surface: #1e293b;
+            --bg-card: #0f172a;
+            --border: #334155;
+            --border-hover: #475569;
+            --accent-primary: #3b82f6;
+            --accent-primary-hover: #2563eb;
+            --accent-success: #10b981;
+            --accent-danger: #ef4444;
+            --accent-warning: #f59e0b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-dark: #64748b;
         }
 
         * {
@@ -30,194 +30,302 @@
         }
 
         body {
-            background-color: var(--bg-body);
+            background-color: var(--bg-base);
             color: var(--text-main);
             display: flex;
-            min-height: 100vh;
-            overflow-x: hidden;
+            height: 100vh;
+            overflow: hidden;
         }
 
-        /* Sidebar de Configuración */
+        /* Lateral - Parámetros */
         .sidebar {
-            width: 300px;
-            background-color: var(--bg-sidebar);
-            border-right: 1px solid var(--border-color);
-            padding: 28px 20px;
+            width: 310px;
+            background-color: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            padding: 24px;
             display: flex;
             flex-direction: column;
             gap: 20px;
             flex-shrink: 0;
+            overflow-y: auto;
         }
 
-        .sidebar h2 {
-            font-size: 1.25rem;
+        .brand-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .brand-logo {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-weight: 700;
+            font-size: 1.1rem;
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .brand-text h2 {
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
             color: var(--text-main);
-            margin-bottom: 4px;
+        }
+
+        .brand-text p {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+        }
+
+        .form-section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-dark);
+            font-weight: 700;
+            margin-top: 4px;
         }
 
         .form-group {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 6px;
         }
 
         .form-group label {
-            font-size: 0.85rem;
+            font-size: 0.82rem;
             color: var(--text-muted);
-            font-weight: 400;
+            font-weight: 500;
         }
 
-        .form-group input[type="text"],
-        .form-group input[type="number"],
-        .form-group input[type="file"] {
-            background-color: var(--input-bg);
-            border: 1px solid var(--border-color);
+        .form-group input {
+            background-color: var(--bg-base);
+            border: 1px solid var(--border);
             color: var(--text-main);
             padding: 10px 12px;
-            border-radius: 6px;
-            font-size: 0.9rem;
+            border-radius: 8px;
+            font-size: 0.88rem;
             outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
-            width: 100%;
+            transition: all 0.2s ease;
         }
 
         .form-group input:focus {
-            border-color: var(--primary-blue);
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
         }
 
-        /* Input de archivo estilizado */
         input[type="file"]::file-selector-button {
-            background-color: #2a2f3d;
+            background-color: #334155;
             color: #ffffff;
             border: none;
             padding: 6px 12px;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 0.8rem;
+            font-size: 0.78rem;
+            font-weight: 500;
             margin-right: 10px;
             transition: background-color 0.2s;
         }
 
         input[type="file"]::file-selector-button:hover {
-            background-color: #373e50;
+            background-color: #475569;
         }
 
-        .btn-submit {
-            background-color: var(--primary-blue);
-            color: #ffffff;
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
             border: none;
             padding: 12px;
-            border-radius: 6px;
+            border-radius: 8px;
             font-weight: 600;
             font-size: 0.9rem;
             cursor: pointer;
-            transition: background-color 0.2s, transform 0.1s;
-            margin-top: 10px;
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+            margin-top: 8px;
         }
 
-        .btn-submit:hover {
-            background-color: var(--primary-blue-hover);
+        .btn-primary:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
         }
 
-        .btn-submit:active {
-            transform: scale(0.98);
-        }
-
-        .btn-submit:disabled {
-            background-color: #2d3748;
-            color: #718096;
+        .btn-primary:disabled {
+            background: #334155;
+            color: #64748b;
             cursor: not-allowed;
+            transform: none;
             box-shadow: none;
         }
 
-        /* Contenido Principal Dashboard */
-        .main-content {
+        /* Panel Principal */
+        .main-wrapper {
             flex: 1;
-            padding: 32px 40px;
             display: flex;
             flex-direction: column;
-            gap: 24px;
-            overflow-y: auto;
+            overflow: hidden;
+            background-color: var(--bg-base);
         }
 
-        .header-container {
+        /* Barrax Top */
+        .top-navbar {
+            padding: 20px 32px;
+            background-color: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 8px;
         }
 
-        .header-title {
-            font-size: 1.85rem;
+        .page-title h1 {
+            font-size: 1.35rem;
             font-weight: 700;
             letter-spacing: -0.02em;
         }
 
-        .badge-ml {
-            background-color: var(--badge-bg);
-            color: var(--green-accent);
-            border: 1px solid var(--badge-border);
-            padding: 6px 16px;
+        .badge-status {
+            background-color: rgba(16, 185, 129, 0.12);
+            color: var(--accent-success);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            padding: 6px 14px;
             border-radius: 20px;
-            font-size: 0.82rem;
-            font-weight: 500;
+            font-size: 0.78rem;
+            font-weight: 600;
             display: inline-flex;
             align-items: center;
             gap: 6px;
         }
 
-        .badge-ml::before {
+        .badge-status::before {
             content: '';
-            width: 7px;
-            height: 7px;
-            background-color: var(--green-accent);
+            width: 6px;
+            height: 6px;
+            background-color: var(--accent-success);
             border-radius: 50%;
-            display: inline-block;
         }
 
-        /* Tabla Estilizada */
-        .table-card {
-            background-color: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
+        /* Filtros Interactivos Dynamic Bar */
+        .filter-toolbar {
+            padding: 16px 32px;
+            background-color: #111827;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .filter-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .filter-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-control label {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .filter-control select {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 7px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            outline: none;
+            cursor: pointer;
+            transition: border-color 0.2s;
+            min-width: 140px;
+        }
+
+        .filter-control select:focus {
+            border-color: var(--accent-primary);
+        }
+
+        .btn-reset-filters {
+            background-color: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-left: auto;
+        }
+
+        .btn-reset-filters:hover {
+            background-color: var(--bg-surface);
+            color: var(--text-main);
+        }
+
+        /* Contenido de Resultados */
+        .content-area {
+            flex: 1;
+            padding: 24px 32px;
             overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
         }
 
-        .table-responsive {
-            max-height: calc(100vh - 140px);
-            overflow-y: auto;
-            overflow-x: auto;
+        .table-card {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        .table-scroll-container {
+            flex: 1;
+            overflow: auto;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
+            font-size: 0.85rem;
             text-align: left;
-            font-size: 0.88rem;
         }
 
         thead {
             position: sticky;
             top: 0;
-            background-color: #14171d;
+            background-color: #0f172a;
             z-index: 10;
         }
 
         th {
             color: var(--text-muted);
             font-weight: 600;
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border-color);
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
             white-space: nowrap;
         }
 
         td {
-            padding: 14px 20px;
-            border-bottom: 1px solid var(--border-color);
+            padding: 12px 18px;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.4);
             color: var(--text-main);
             white-space: nowrap;
         }
@@ -226,53 +334,94 @@
             background-color: rgba(255, 255, 255, 0.02);
         }
 
-        .cell-bold {
+        .tag-camp {
             font-weight: 600;
             color: #ffffff;
         }
 
-        .cell-delta {
+        .val-delta {
             font-weight: 600;
         }
 
-        .cell-sl {
+        .val-sl {
             font-weight: 600;
         }
 
-        /* Spinner Carga */
-        .loading-state {
-            display: none;
+        /* Estado Vacio / Carga */
+        .empty-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-dark);
             text-align: center;
-            padding: 60px 20px;
-            background-color: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
+            gap: 12px;
+        }
+
+        .empty-placeholder svg {
+            width: 48px;
+            height: 48px;
+            stroke: var(--text-dark);
+        }
+
+        .loading-box {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            gap: 16px;
         }
 
         .spinner {
-            width: 36px;
-            height: 36px;
+            width: 40px;
+            height: 40px;
             border: 3px solid rgba(255, 255, 255, 0.1);
-            border-top: 3px solid var(--primary-blue);
+            border-top: 3px solid var(--accent-primary);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
-            margin: 0 auto 16px auto;
         }
 
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* Scrollbar custom */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-base);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
     </style>
 </head>
 <body>
 
-    <!-- Panel Izquierdo: Parámetros WFM -->
+    <!-- Panel Lateral: Parámetros -->
     <div class="sidebar">
-        <h2>Parámetros WFM</h2>
+        <div class="brand-header">
+            <div class="brand-logo">EC</div>
+            <div class="brand-text">
+                <h2>Executive Core</h2>
+                <p>Engine WFM AI v4.2</p>
+            </div>
+        </div>
+
         <form id="wfm-form">
+            <div class="form-section-title">Datos & Modelo</div>
+            
             <div class="form-group">
-                <label for="file">Archivo Excel (.xlsx)</label>
+                <label for="file">Archivo Histórico Excel</label>
                 <input type="file" id="file" name="file" accept=".xlsx, .xls" required>
             </div>
 
@@ -280,6 +429,8 @@
                 <label for="dias">Días a Proyectar</label>
                 <input type="number" id="dias" name="dias" value="30" min="1" max="90">
             </div>
+
+            <div class="form-section-title" style="margin-top: 8px;">Métricas SLA</div>
 
             <div class="form-group">
                 <label for="target_sl">SLA Objetivo (%)</label>
@@ -296,64 +447,115 @@
                 <input type="number" id="merma" name="merma" value="30" step="1">
             </div>
 
-            <button type="submit" class="btn-submit" id="btn-submit">Procesar Pronóstico</button>
+            <button type="submit" class="btn-primary" id="btn-submit">Procesar Pronóstico</button>
         </form>
     </div>
 
-    <!-- Panel Derecho: Visualización Dashboard -->
-    <div class="main-content">
-        <div class="header-container">
-            <h1 class="header-title">Motor Predictivo Executive Core</h1>
-            <span class="badge-ml">ML Ridge + Holt-Winters Activo</span>
+    <!-- Contenido Principal -->
+    <div class="main-wrapper">
+        
+        <!-- Header Superior -->
+        <div class="top-navbar">
+            <div class="page-title">
+                <h1>Pronóstico y Cobertura de Personal</h1>
+            </div>
+            <span class="badge-status">Ensamble ML Híbrido Activo</span>
         </div>
 
-        <div id="loading" class="loading-state">
-            <div class="spinner"></div>
-            <p style="color: var(--text-muted); font-size: 0.9rem;">Ejecutando modelo ML e integrando malla de turnos...</p>
+        <!-- Barra de Filtros Dinámicos -->
+        <div class="filter-toolbar">
+            <span class="filter-label">Filtros:</span>
+
+            <div class="filter-control">
+                <label for="filter-campana">Campaña:</label>
+                <select id="filter-campana">
+                    <option value="ALL">Todas las Campañas</option>
+                </select>
+            </div>
+
+            <div class="filter-control">
+                <label for="filter-fecha">Fecha:</label>
+                <select id="filter-fecha">
+                    <option value="ALL">Todas las Fechas</option>
+                </select>
+            </div>
+
+            <div class="filter-control">
+                <label for="filter-intervalo">Intervalo:</label>
+                <select id="filter-intervalo">
+                    <option value="ALL">Todos los Intervalos</option>
+                </select>
+            </div>
+
+            <button class="btn-reset-filters" id="btn-reset-filters">Restablecer Filtros</button>
         </div>
 
-        <div class="table-card" id="table-card" style="display: none;">
-            <div class="table-responsive">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Campaña</th>
-                            <th>Fecha</th>
-                            <th>Día</th>
-                            <th>Intervalo</th>
-                            <th>Llamadas (ML)</th>
-                            <th>AHT (s)</th>
-                            <th>Agentes Req.</th>
-                            <th>Agentes Prog.</th>
-                            <th>Delta Staffing</th>
-                            <th>SL Proyectado</th>
-                        </tr>
-                    </thead>
-                    <tbody id="table-body">
-                        <!-- Carga dinámica -->
-                    </tbody>
-                </table>
+        <!-- Área de Datos -->
+        <div class="content-area">
+            <div class="table-card">
+                
+                <!-- Placeholder Inicial -->
+                <div id="placeholder-state" class="empty-placeholder">
+                    <svg fill="none" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <p>Sube tu archivo `historico.xlsx` y haz clic en <strong>Procesar Pronóstico</strong></p>
+                </div>
+
+                <!-- Spinner Carga -->
+                <div id="loading-state" class="loading-box">
+                    <div class="spinner"></div>
+                    <p style="color: var(--text-muted); font-size: 0.88rem;">Entrenando modelo de Machine Learning y generando malla Erlang C...</p>
+                </div>
+
+                <!-- Tabla de Resultados -->
+                <div id="table-wrapper" class="table-scroll-container" style="display: none;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Campaña</th>
+                                <th>Fecha</th>
+                                <th>Día</th>
+                                <th>Intervalo</th>
+                                <th>Llamadas (ML)</th>
+                                <th>AHT (s)</th>
+                                <th>Agentes Req.</th>
+                                <th>Agentes Prog.</th>
+                                <th>Delta Staffing</th>
+                                <th>SL Proyectado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body">
+                            <!-- Filas generadas dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+
             </div>
         </div>
+
     </div>
 
     <script>
+        let rawDataSet = [];
+
         document.getElementById('wfm-form').addEventListener('submit', async function(e) {
             e.preventDefault();
 
             const formData = new FormData(e.target);
-            const loading = document.getElementById('loading');
-            const tableCard = document.getElementById('table-card');
-            const tableBody = document.getElementById('table-body');
+            const placeholder = document.getElementById('placeholder-state');
+            const loading = document.getElementById('loading-state');
+            const tableWrapper = document.getElementById('table-wrapper');
             const btnSubmit = document.getElementById('btn-submit');
 
-            loading.style.display = 'block';
-            tableCard.style.display = 'none';
+            placeholder.style.display = 'none';
+            tableWrapper.style.display = 'none';
+            loading.style.display = 'flex';
             btnSubmit.disabled = true;
             btnSubmit.innerText = 'Calculando...';
 
             try {
-                // Ruta relativa directa a Render
+                // Petición a la API mediante ruta relativa
                 const response = await fetch('/api/process', {
                     method: 'POST',
                     body: formData
@@ -361,43 +563,98 @@
 
                 if (!response.ok) {
                     const err = await response.json();
-                    throw new Error(err.error || 'Error en el servidor');
+                    throw new Error(err.error || 'Error procesando la solicitud en el servidor.');
                 }
 
-                const data = await response.json();
-                tableBody.innerHTML = '';
+                rawDataSet = await response.json();
 
-                data.forEach(row => {
-                    const tr = document.createElement('tr');
+                // Poblar dropdowns de filtros dinámicos
+                poblarFiltros(rawDataSet);
 
-                    const deltaColor = row.Delta_Net_Staffing >= 0 ? 'var(--green-accent)' : 'var(--red-accent)';
-                    const slColor = row.SL_Proyectado >= 80 ? 'var(--green-accent)' : 'var(--red-accent)';
-
-                    tr.innerHTML = `
-                        <td class="cell-bold">${row.Campaña}</td>
-                        <td>${row.Fecha}</td>
-                        <td>${row.Día_Semana}</td>
-                        <td>${row.Intervalo}</td>
-                        <td>${row.Llamadas}</td>
-                        <td>${row.AHT}</td>
-                        <td>${row.Agentes_Requeridos}</td>
-                        <td>${row.Agentes_Programados_Reales}</td>
-                        <td class="cell-delta" style="color: ${deltaColor};">${row.Delta_Net_Staffing}</td>
-                        <td class="cell-sl" style="color: ${slColor};">${row.SL_Proyectado}%</td>
-                    `;
-                    tableBody.appendChild(tr);
-                });
+                // Renderizar la tabla inicial
+                aplicarFiltrosYRenderizar();
 
                 loading.style.display = 'none';
-                tableCard.style.display = 'block';
+                tableWrapper.style.display = 'block';
 
             } catch (error) {
-                alert('Error al procesar el archivo: ' + error.message);
+                alert('Error al procesar el pronóstico: ' + error.message);
                 loading.style.display = 'none';
+                placeholder.style.display = 'flex';
             } finally {
                 btnSubmit.disabled = false;
                 btnSubmit.innerText = 'Procesar Pronóstico';
             }
+        });
+
+        // Llenar Filtros Dinámicos sin duplicados
+        function poblarFiltros(data) {
+            const campanas = [...new Set(data.map(item => item.Campaña))].sort();
+            const fechas = [...new Set(data.map(item => item.Fecha))].sort();
+            const intervalos = [...new Set(data.map(item => item.Intervalo))].sort();
+
+            const selCampana = document.getElementById('filter-campana');
+            const selFecha = document.getElementById('filter-fecha');
+            const selIntervalo = document.getElementById('filter-intervalo');
+
+            selCampana.innerHTML = '<option value="ALL">Todas las Campañas</option>';
+            selFecha.innerHTML = '<option value="ALL">Todas las Fechas</option>';
+            selIntervalo.innerHTML = '<option value="ALL">Todos los Intervalos</option>';
+
+            campanas.forEach(c => selCampana.innerHTML += `<option value="${c}">${c}</option>`);
+            fechas.forEach(f => selFecha.innerHTML += `<option value="${f}">${f}</option>`);
+            intervalos.forEach(i => selIntervalo.innerHTML += `<option value="${i}">${i}</option>`);
+        }
+
+        // Aplicar Filtros Interactivos en Tiempo Real
+        function aplicarFiltrosYRenderizar() {
+            const valCampana = document.getElementById('filter-campana').value;
+            const valFecha = document.getElementById('filter-fecha').value;
+            const valIntervalo = document.getElementById('filter-intervalo').value;
+
+            const datasetFiltrado = rawDataSet.filter(item => {
+                const matchCampana = (valCampana === 'ALL' || item.Campaña === valCampana);
+                const matchFecha = (valFecha === 'ALL' || item.Fecha === valFecha);
+                const matchIntervalo = (valIntervalo === 'ALL' || item.Intervalo === valIntervalo);
+                return matchCampana && matchFecha && matchIntervalo;
+            });
+
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            // Mostrar máximo 600 filas para mantener la pantalla fluida
+            datasetFiltrado.slice(0, 600).forEach(row => {
+                const tr = document.createElement('tr');
+
+                const deltaColor = row.Delta_Net_Staffing >= 0 ? 'var(--accent-success)' : 'var(--accent-danger)';
+                const slColor = row.SL_Proyectado >= 80 ? 'var(--accent-success)' : 'var(--accent-danger)';
+
+                tr.innerHTML = `
+                    <td class="tag-camp">${row.Campaña}</td>
+                    <td>${row.Fecha}</td>
+                    <td>${row.Día_Semana}</td>
+                    <td>${row.Intervalo}</td>
+                    <td>${row.Llamadas}</td>
+                    <td>${row.AHT}</td>
+                    <td>${row.Agentes_Requeridos}</td>
+                    <td>${row.Agentes_Programados_Reales}</td>
+                    <td class="val-delta" style="color: ${deltaColor};">${row.Delta_Net_Staffing}</td>
+                    <td class="val-sl" style="color: ${slColor};">${row.SL_Proyectado}%</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Eventos de los filtros
+        document.getElementById('filter-campana').addEventListener('change', aplicarFiltrosYRenderizar);
+        document.getElementById('filter-fecha').addEventListener('change', aplicarFiltrosYRenderizar);
+        document.getElementById('filter-intervalo').addEventListener('change', aplicarFiltrosYRenderizar);
+
+        document.getElementById('btn-reset-filters').addEventListener('click', function() {
+            document.getElementById('filter-campana').value = 'ALL';
+            document.getElementById('filter-fecha').value = 'ALL';
+            document.getElementById('filter-intervalo').value = 'ALL';
+            aplicarFiltrosYRenderizar();
         });
     </script>
 </body>
