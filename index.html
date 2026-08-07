@@ -59,7 +59,6 @@
         .font-mono-num {
             font-family: 'JetBrains Mono', monospace;
         }
-        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: #070A11; }
         ::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 99px; }
@@ -72,7 +71,7 @@
 </head>
 <body class="p-6 md:p-8 min-h-screen">
 
-    <!-- Header Corporativo Premium C-Level -->
+    <!-- Header Corporativo Premium -->
     <header class="flex justify-between items-center glass-panel rounded-2xl p-6 mb-8 border-b border-white/10 relative overflow-hidden">
         <div class="absolute -left-10 -top-10 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div class="flex items-center gap-5 z-10">
@@ -149,7 +148,7 @@
         <!-- Dashboard C-Level -->
         <main class="col-span-12 lg:col-span-9 space-y-6">
 
-            <!-- BARRA DE FILTROS CON DESPLIEGUE FLOTANTE HACIA ABAJO -->
+            <!-- BARRA DE FILTROS -->
             <div class="glass-panel p-4 rounded-2xl flex justify-between items-center border border-slate-800/80 flex-wrap gap-4 relative z-50 overflow-visible">
                 <div class="flex items-center gap-3">
                     <div class="p-2.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-xl text-sm">🎯</div>
@@ -161,10 +160,10 @@
                 
                 <div class="flex items-center gap-3 flex-wrap">
                     <button id="btnResetTableFilter" onclick="resetTableFilter()" class="hidden bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold py-2 px-3 rounded-xl transition duration-200 font-mono">
-                        🔄 Resetear Filtro Tabla
+                        🔄 Resetear Filtro
                     </button>
 
-                    <!-- SELECTOR DE CAMPAÑA -->
+                    <!-- CAMPAÑA -->
                     <div class="flex flex-col">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Campaña</label>
                         <select id="campanaSelect" onchange="actualizarFechasYGrafica()" class="bg-brand-surface border border-violet-500/30 text-xs rounded-xl px-3 py-2 text-violet-300 font-mono-num font-bold focus:outline-none focus:border-violet-500 transition-all shadow-inner min-w-[170px] h-[36px]">
@@ -172,7 +171,7 @@
                         </select>
                     </div>
 
-                    <!-- DROPDOWN PERSONALIZADO DE FECHA -->
+                    <!-- FECHA -->
                     <div class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Fecha Proyectada</label>
                         <button id="btnDropdownFecha" onclick="toggleFechaDropdown()" class="bg-brand-surface border border-cyan-500/30 text-xs rounded-xl px-3 py-2 text-cyan-300 font-mono-num font-bold focus:outline-none border-cyan-500 transition-all shadow-inner min-w-[180px] h-[36px] flex items-center justify-between gap-2">
@@ -184,7 +183,7 @@
                         </div>
                     </div>
 
-                    <!-- DROPDOWN PERSONALIZADO DE INTERVALO -->
+                    <!-- INTERVALO -->
                     <div class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Intervalo Hora</label>
                         <button id="btnDropdownIntervalo" onclick="toggleIntervaloDropdown()" class="bg-brand-surface border border-emerald-500/30 text-xs rounded-xl px-3 py-2 text-emerald-300 font-mono-num font-bold focus:outline-none border-emerald-500 transition-all shadow-inner min-w-[160px] h-[36px] flex items-center justify-between gap-2">
@@ -198,7 +197,7 @@
                 </div>
             </div>
 
-            <!-- Cards Métricas Rediseñadas C-Level -->
+            <!-- Cards Métricas -->
             <div class="grid grid-cols-5 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Volumen Tráfico</p>
@@ -229,12 +228,12 @@
                 </div>
             </div>
 
-            <!-- Gráfica 1: Curva de Capacidad -->
+            <!-- Gráfica 1 -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl">
                 <div class="flex justify-between items-center mb-6">
                     <div>
                         <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">Balance Intradía: Capacidad vs. Roster Real</h3>
-                        <p class="text-xs text-slate-400 font-medium mt-0.5">Evolución por intervalo de 30 minutos entre requerimiento y la plantilla programada</p>
+                        <p class="text-xs text-slate-400 font-medium mt-0.5">Evolución por intervalo de 30 minutos entre requerimiento y plantilla programada</p>
                     </div>
                 </div>
                 <div class="h-60">
@@ -242,7 +241,7 @@
                 </div>
             </div>
 
-            <!-- Gráfica 2: Audit Service Level -->
+            <!-- Gráfica 2 -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t border-violet-500/20">
                 <div class="mb-4">
                     <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📈 Auditoría de Service Level (% SL) por Intervalo</h3>
@@ -253,7 +252,7 @@
                 </div>
             </div>
 
-            <!-- Tabla de Auditoría Detallada -->
+            <!-- Tabla de Auditoría -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-cyan-500">
                 <div class="flex justify-between items-center mb-4">
                     <div>
@@ -299,6 +298,14 @@
         let selectedFechaValue = "TODOS";
         let selectedIntervaloValue = "TODOS";
 
+        // Helper para obtener valores tolerante a nombres de propiedad
+        function getProp(row, keys, def = '') {
+            for (let k of keys) {
+                if (row[k] !== undefined && row[k] !== null) return row[k];
+            }
+            return def;
+        }
+
         async function procesarWFM() {
             const file = document.getElementById('fileInput').files[0];
             if (!file) {
@@ -316,29 +323,32 @@
             formData.append('dias', document.getElementById('dias').value);
 
             try {
-                // Ruta relativa compatible con ejecucion local y despliegue en Render
                 const response = await fetch('/api/process', {
                     method: 'POST',
                     body: formData
                 });
                 
-                globalData = await response.json();
-                
-                if (response.ok) {
-                    poblarCampanas();
-                    poblarFechasDropdown();
-                    poblarIntervalosDropdown();
-                    resetTableFilterAndRefresh();
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                    globalData = await response.json();
+                    if (response.ok && Array.isArray(globalData)) {
+                        poblarCampanas();
+                        poblarFechasDropdown();
+                        poblarIntervalosDropdown();
+                        resetTableFilterAndRefresh();
+                    } else {
+                        alert("Error del modelo: " + (globalData.error || "Formato de respuesta inválido"));
+                    }
                 } else {
-                    alert("Error del servidor: " + (globalData.error || "Error al procesar el archivo"));
+                    alert("Error en la respuesta del servidor. Intenta de nuevo.");
                 }
             } catch (e) {
-                alert("Error de comunicación: El servidor en Render aún se está iniciando o la conexión falló. Intenta de nuevo en 30 segundos.\n\nDetalle: " + e.message);
+                alert("Error de conexión: " + e.message);
             }
         }
 
         function poblarCampanas() {
-            const campanas = [...new Set(globalData.map(item => item.Campaña))];
+            const campanas = [...new Set(globalData.map(item => String(getProp(item, ['Campaña', 'Campana'], 'General'))))].filter(Boolean);
             const select = document.getElementById('campanaSelect');
             select.innerHTML = '';
 
@@ -359,10 +369,10 @@
             const campanaSel = document.getElementById('campanaSelect').value;
             let dfCamp = globalData;
             if (campanaSel !== "TODAS") {
-                dfCamp = globalData.filter(item => item.Campaña === campanaSel);
+                dfCamp = globalData.filter(item => String(getProp(item, ['Campaña', 'Campana'], 'General')) === campanaSel);
             }
 
-            const fechas = [...new Set(dfCamp.map(item => item.Fecha))].sort();
+            const fechas = [...new Set(dfCamp.map(item => String(getProp(item, ['Fecha'], '')).split(' ')[0]))].filter(Boolean).sort();
             const menu = document.getElementById('dropdownFechaMenu');
             menu.innerHTML = '';
 
@@ -383,8 +393,7 @@
 
         function toggleFechaDropdown() {
             document.getElementById('dropdownIntervaloMenu').classList.add('hidden');
-            const menu = document.getElementById('dropdownFechaMenu');
-            menu.classList.toggle('hidden');
+            document.getElementById('dropdownFechaMenu').classList.toggle('hidden');
         }
 
         function seleccionarFecha(value, label) {
@@ -395,7 +404,7 @@
         }
 
         function poblarIntervalosDropdown() {
-            const intervalos = [...new Set(globalData.map(item => item.Intervalo))].sort();
+            const intervalos = [...new Set(globalData.map(item => String(getProp(item, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
             const menu = document.getElementById('dropdownIntervaloMenu');
             menu.innerHTML = '';
 
@@ -416,8 +425,7 @@
 
         function toggleIntervaloDropdown() {
             document.getElementById('dropdownFechaMenu').classList.add('hidden');
-            const menu = document.getElementById('dropdownIntervaloMenu');
-            menu.classList.toggle('hidden');
+            document.getElementById('dropdownIntervaloMenu').classList.toggle('hidden');
         }
 
         function seleccionarIntervalo(value, label) {
@@ -470,8 +478,7 @@
 
             if (selectedTableIntervals.size > 0) {
                 document.getElementById('btnResetTableFilter').classList.remove('hidden');
-                const listText = Array.from(selectedTableIntervals).join(', ');
-                document.getElementById('tableSelectionLabel').innerText = `Intervalo(s) filtrado(s) en tabla: ${listText}`;
+                document.getElementById('tableSelectionLabel').innerText = `Intervalo(s) filtrado(s): ${Array.from(selectedTableIntervals).join(', ')}`;
             } else {
                 document.getElementById('btnResetTableFilter').classList.add('hidden');
                 document.getElementById('tableSelectionLabel').innerText = "Selecciona campaña, fecha e intervalo deseados";
@@ -487,32 +494,36 @@
             let df = globalData;
 
             if (campanaSel !== "TODAS") {
-                df = df.filter(item => item.Campaña === campanaSel);
+                df = df.filter(item => String(getProp(item, ['Campaña', 'Campana'], 'General')) === campanaSel);
             }
 
             if (selectedFechaValue !== "TODOS") {
-                df = df.filter(item => item.Fecha === selectedFechaValue);
+                df = df.filter(item => String(getProp(item, ['Fecha'], '')).startsWith(selectedFechaValue));
             }
 
             if (selectedIntervaloValue !== "TODOS") {
-                df = df.filter(item => item.Intervalo === selectedIntervaloValue);
+                df = df.filter(item => String(getProp(item, ['Intervalo'], '00:00')) === selectedIntervaloValue);
             }
 
             let dfKpis = df;
             if (selectedTableIntervals.size > 0) {
-                dfKpis = df.filter(item => selectedTableIntervals.has(item.Intervalo));
+                dfKpis = df.filter(item => selectedTableIntervals.has(String(getProp(item, ['Intervalo'], '00:00'))));
             }
 
-            const totCalls = dfKpis.reduce((acc, row) => acc + row.Llamadas, 0);
-            const sumLlamadasAht = dfKpis.reduce((acc, row) => acc + (row.Llamadas * row.AHT), 0);
+            const totCalls = dfKpis.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas'], 0)) || 0), 0);
+            const sumLlamadasAht = dfKpis.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas'], 0)) || 0) * (Number(getProp(row, ['AHT'], 180)) || 180)), 0);
             const avgAht = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
 
-            const avgReq = (dfKpis.reduce((acc, row) => acc + row.Agentes_Requeridos, 0) / (dfKpis.length || 1)).toFixed(1);
-            const avgProg = (dfKpis.reduce((acc, row) => acc + row.Agentes_Programados_Reales, 0) / (dfKpis.length || 1)).toFixed(1);
+            const totReq = dfKpis.reduce((acc, row) => acc + (Number(getProp(row, ['Agentes_Requeridos'], 0)) || 0), 0);
+            const totProg = dfKpis.reduce((acc, row) => acc + (Number(getProp(row, ['Agentes_Programados_Reales'], 0)) || 0), 0);
+            const countRows = dfKpis.length || 1;
+
+            const avgReq = (totReq / countRows).toFixed(1);
+            const avgProg = (totProg / countRows).toFixed(1);
             const net = (avgProg - avgReq).toFixed(1);
             const fulfillment = avgReq > 0 ? ((avgProg / avgReq) * 100).toFixed(1) : "100.0";
 
-            const sumLlamadasSl = dfKpis.reduce((acc, row) => acc + (row.Llamadas * row.SL_Proyectado), 0);
+            const sumLlamadasSl = dfKpis.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
             const avgSl = totCalls > 0 ? (sumLlamadasSl / totCalls).toFixed(1) : "0.0";
 
             document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
@@ -532,15 +543,16 @@
 
             const agrupado = {};
             df.forEach(row => {
-                if (!agrupado[row.Intervalo]) {
-                    agrupado[row.Intervalo] = { req: 0, prog: 0, llamadas: 0, ahtSum: 0, slSum: 0, count: 0 };
+                const inter = String(getProp(row, ['Intervalo'], '00:00'));
+                if (!agrupado[inter]) {
+                    agrupado[inter] = { req: 0, prog: 0, llamadas: 0, ahtSum: 0, slSum: 0, count: 0 };
                 }
-                agrupado[row.Intervalo].req += row.Agentes_Requeridos;
-                agrupado[row.Intervalo].prog += row.Agentes_Programados_Reales;
-                agrupado[row.Intervalo].llamadas += row.Llamadas;
-                agrupado[row.Intervalo].ahtSum += row.AHT;
-                agrupado[row.Intervalo].slSum += row.SL_Proyectado;
-                agrupado[row.Intervalo].count += 1;
+                agrupado[inter].req += Number(getProp(row, ['Agentes_Requeridos'], 0)) || 0;
+                agrupado[inter].prog += Number(getProp(row, ['Agentes_Programados_Reales'], 0)) || 0;
+                agrupado[inter].llamadas += Number(getProp(row, ['Llamadas'], 0)) || 0;
+                agrupado[inter].ahtSum += Number(getProp(row, ['AHT'], 180)) || 180;
+                agrupado[inter].slSum += Number(getProp(row, ['SL_Proyectado'], 0)) || 0;
+                agrupado[inter].count += 1;
             });
 
             const intervalos = Object.keys(agrupado).sort();
@@ -663,16 +675,16 @@
 
             globalData.forEach(row => {
                 const values = [
-                    row.Campaña,
-                    row.Fecha,
-                    row.Día_Semana,
-                    row.Intervalo,
-                    row.Llamadas,
-                    row.AHT,
-                    row.Agentes_Requeridos,
-                    row.Agentes_Programados_Reales,
-                    row.Delta_Net_Staffing,
-                    row.SL_Proyectado
+                    getProp(row, ['Campaña', 'Campana'], 'General'),
+                    getProp(row, ['Fecha'], ''),
+                    getProp(row, ['Día_Semana', 'Dia_Semana'], ''),
+                    getProp(row, ['Intervalo'], '00:00'),
+                    getProp(row, ['Llamadas'], 0),
+                    getProp(row, ['AHT'], 0),
+                    getProp(row, ['Agentes_Requeridos'], 0),
+                    getProp(row, ['Agentes_Programados_Reales'], 0),
+                    getProp(row, ['Delta_Net_Staffing'], 0),
+                    getProp(row, ['SL_Proyectado'], 0)
                 ];
                 csvRows.push(values.join(","));
             });
