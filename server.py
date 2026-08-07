@@ -2,18 +2,21 @@ import os
 import math
 import gc
 import re
-from datetime import datetime, time
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pandas as pd
 
-app = Flask(__name__, static_folder='.', static_url_path='')
+# Definir la ruta absoluta del directorio base para evitar pantallas en blanco / 404
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
 CORS(app)
 
+# --- RUTAS FRONTEND & ARCHIVOS ESTÁTICOS ---
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
-    return send_from_directory('.', 'index.html')
+    return send_from_directory(BASE_DIR, 'index.html')
 
 @app.route('/favicon.ico')
 def favicon():
@@ -30,6 +33,10 @@ def clean_num(val, default=0.0):
         return default
 
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
+    """
+    Cálculo iterativo eficiente de Erlang C para evitar consumo excesivo 
+    de RAM y desbordamientos en el servidor.
+    """
     if N <= A or A <= 0 or N <= 0:
         return 0.0
     try:
@@ -51,7 +58,7 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         return 0.0
 
 def parse_time_str(t_str):
-    """ Convierte HH:MM a minutos desde medianoche """
+    """ Convierte formato HH:MM a minutos desde medianoche """
     try:
         parts = str(t_str).strip().split(':')
         return int(parts[0]) * 60 + int(parts[1])
@@ -60,8 +67,8 @@ def parse_time_str(t_str):
 
 def construir_matriz_plantilla(xls_file):
     """
-    Lee la hoja Platilla/Plantilla y construye un mapa de capacidad:
-    (Campaña, Día_Semana_LOWER, Intervalo_HH:MM) -> Agentes_Presentes
+    Parsea la hoja Platilla/Plantilla y construye un mapa de capacidad:
+    (Campaña, Día_Semana, Intervalo) -> Agentes_Presentes
     """
     try:
         sheet_names = xls_file.sheet_names
@@ -94,7 +101,6 @@ def construir_matriz_plantilla(xls_file):
                     m_out = parse_time_str(h_out)
 
                     if m_in is not None and m_out is not None:
-                        # Iterar intervalos de 30 minutos
                         cur = m_in
                         while cur < m_out:
                             hh = cur // 60
@@ -109,7 +115,7 @@ def construir_matriz_plantilla(xls_file):
 
         return malla
     except Exception as e:
-        print("Error parseando plantilla:", e)
+        print("Error procesando hoja plantilla:", e)
         return {}
 
 def encontrar_columna(df, posibles_nombres):
@@ -120,6 +126,7 @@ def encontrar_columna(df, posibles_nombres):
             return columnas_df[pos_clean]
     return None
 
+# --- RUTAS BACKEND API ---
 @app.route('/api/process', methods=['POST', 'GET'])
 @app.route('/api/process/', methods=['POST', 'GET'])
 def process_data():
@@ -140,10 +147,10 @@ def process_data():
 
         xls_file = pd.ExcelFile(file)
         
-        # 1. Mapear capacidad real desde la hoja Platilla
+        # 1. Mapear capacidad real desde la hoja Platilla / Plantilla
         matriz_roster = construir_matriz_plantilla(xls_file)
 
-        # 2. Leer hoja de llamadas
+        # 2. Identificar y cargar hoja de llamadas
         sheet_calls = xls_file.sheet_names[0]
         for s in xls_file.sheet_names:
             if 'llam' in s.lower() or 'hist' in s.lower():
@@ -177,6 +184,7 @@ def process_data():
             fecha_val = str(row.get(col_fecha, '')).split(' ')[0] if col_fecha and not pd.isna(row.get(col_fecha)) else ''
             dia_val = str(row.get(col_dia, '')).strip() if col_dia and not pd.isna(row.get(col_dia)) else ''
             
+            # Formatear intervalo de 09:00:00 a 09:00
             inter_raw = str(row.get(col_inter, '00:00')) if col_inter and not pd.isna(row.get(col_inter)) else '00:00'
             intervalo_val = str(inter_raw).strip()
             if len(intervalo_val.split(':')) == 3:
@@ -186,7 +194,7 @@ def process_data():
             req_raw = a_erlang / (1.0 - merma) if merma < 1.0 else a_erlang
             req_agents = math.ceil(req_raw)
 
-            # 3. Determinar Agentes Programados desde la hoja Platilla o la columna
+            # 3. Determinar Agentes Programados según la pestaña Platilla o la columna
             key_roster = (campana_val.lower(), dia_val.lower(), intervalo_val)
             if key_roster in matriz_roster:
                 prog = matriz_roster[key_roster]
@@ -220,6 +228,10 @@ def process_data():
     except Exception as e:
         gc.collect()
         return jsonify({'error': f"Error al procesar el archivo: {str(e)}"}), 500
+
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({'error': 'La ruta solicitada no existe en el servidor Python'}), 404
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
