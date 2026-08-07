@@ -6,8 +6,11 @@ from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pandas as pd
+import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import Ridge
 
-# Ruta absoluta del directorio base para evitar problemas al servir archivos estáticos
+# Ruta absoluta del directorio base
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
@@ -34,9 +37,6 @@ def clean_num(val, default=0.0):
         return default
 
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
-    """
-    Cálculo iterativo eficiente de Erlang C para optimizar memoria RAM en Render.
-    """
     if N <= A or A <= 0 or N <= 0:
         return 0.0
     try:
@@ -58,7 +58,6 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         return 0.0
 
 def parse_time_str(t_str):
-    """ Convierte formato HH:MM a minutos desde medianoche """
     try:
         parts = str(t_str).strip().split(':')
         return int(parts[0]) * 60 + int(parts[1])
@@ -66,10 +65,6 @@ def parse_time_str(t_str):
         return None
 
 def construir_matriz_plantilla(xls_file):
-    """
-    Parsea la hoja Platilla / Plantilla y construye un mapa de capacidad:
-    (Campaña, Día_Semana, Intervalo) -> Agentes_Presentes
-    """
     try:
         sheet_names = xls_file.sheet_names
         sheet_plantilla = None
@@ -126,12 +121,21 @@ def encontrar_columna(df, posibles_nombres):
             return columnas_df[pos_clean]
     return None
 
+def crear_features_ml(df, col_fecha):
+    """ Crea variables predictivas para Machine Learning """
+    df['DayOfWeek'] = df[col_fecha].dt.weekday
+    df['DayOfMonth'] = df[col_fecha].dt.day
+    df['Month'] = df[col_fecha].dt.month
+    df['IsWeekend'] = df['DayOfWeek'].apply(lambda x: 1 if x >= 5 else 0)
+    df['TimeIndex'] = (df[col_fecha] - df[col_fecha].min()).dt.days
+    return df
+
 # --- RUTAS BACKEND API ---
 @app.route('/api/process', methods=['POST', 'GET'])
 @app.route('/api/process/', methods=['POST', 'GET'])
 def process_data():
     if request.method == 'GET':
-        return jsonify({'status': 'API operativa en Render'}), 200
+        return jsonify({'status': 'API operativa con Machine Learning en Render'}), 200
 
     if 'file' not in request.files:
         return jsonify({'error': 'No se recibió ningún archivo.'}), 400
@@ -147,11 +151,8 @@ def process_data():
         dias_futuros = int(clean_num(request.form.get('dias'), 30))
 
         xls_file = pd.ExcelFile(file)
-        
-        # 1. Mapear capacidad real desde la hoja Platilla
         matriz_roster = construir_matriz_plantilla(xls_file)
 
-        # 2. Cargar datos históricos de tráfico
         sheet_calls = xls_file.sheet_names[0]
         for s in xls_file.sheet_names:
             if 'llam' in s.lower() or 'hist' in s.lower():
@@ -167,84 +168,111 @@ def process_data():
         col_dia = encontrar_columna(df, ['Día', 'Dia', 'Día_Semana', 'Dia_Semana'])
         col_fecha = encontrar_columna(df, ['Fecha', 'Date'])
 
-        # 3. Determinar la última fecha en el histórico para proyectar a partir del día siguiente
-        fecha_maxima = datetime.now()
-        if col_fecha:
-            fechas_parsed = pd.to_datetime(df[col_fecha], errors='coerce')
-            if not fechas_parsed.dropna().empty:
-                fecha_maxima = fechas_parsed.max()
+        # Normalizar fecha
+        df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce')
+        df = df.dropna(subset=[col_fecha])
 
+        fecha_maxima = df[col_fecha].max()
         fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
 
-        records = df.to_dict(orient='records')
-        del df
+        # -------------------------------------------------------------
+        # ENTRENAMIENTO MODELO DE MACHINE LEARNING (VOLUMEN DIARIO)
+        # -------------------------------------------------------------
+        # Agrupar a nivel diario por campaña
+        df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
+        df_diario = crear_features_ml(df_diario, col_fecha)
+
+        modelos_ml = {}
+        campanas_unicas = df[col_camp].unique()
+
+        feature_cols = ['DayOfWeek', 'DayOfMonth', 'Month', 'IsWeekend', 'TimeIndex']
+
+        for camp in campanas_unicas:
+            sub_df = df_diario[df_diario[col_camp] == camp]
+            if len(sub_df) > 10:
+                X = sub_df[feature_cols]
+                y = sub_df[col_calls]
+                # Random Forest Regressor para capturar estacionalidad y tendencia
+                rf = RandomForestRegressor(n_estimators=50, random_state=42, max_depth=8)
+                rf.fit(X, y)
+                modelos_ml[camp] = rf
+
+        # -------------------------------------------------------------
+        # PERFILADORES INTRADÍA (DISTRIBUCIÓN POR INTERVALO Y AHT)
+        # -------------------------------------------------------------
+        # Calcular proporciones históricas por (Campaña, Día_Semana, Intervalo)
+        df['Dia_Semana_Clean'] = df[col_dia].astype(str).str.strip().str.lower() if col_dia else df[col_fecha].dt.day_name()
+        
+        # Formatear intervalo
+        df['Inter_Clean'] = df[col_inter].astype(str).str.strip()
+        df['Inter_Clean'] = df['Inter_Clean'].apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
+
+        perfil_intradia = df.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
+            avg_calls=(col_calls, 'mean'),
+            avg_aht=(col_aht, 'mean')
+        ).reset_index()
+
+        # Normalizar llamadas a porcentaje diario por campaña y día
+        totales_dia = perfil_intradia.groupby([col_camp, 'Dia_Semana_Clean'])['avg_calls'].transform('sum')
+        perfil_intradia['weight'] = np.where(totales_dia > 0, perfil_intradia['avg_calls'] / totales_dia, 0)
+
+        mapa_perfil = {}
+        for _, r in perfil_intradia.iterrows():
+            key = (r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean'])
+            mapa_perfil[key] = {'weight': r['weight'], 'aht': r['avg_aht']}
+
+        intervalos_unicos = sorted(df['Inter_Clean'].unique())
+
+        del df, df_diario
         gc.collect()
 
-        # 4. Construir perfiles promedios por (Campaña, Día_Semana, Intervalo)
-        perfiles_historicos = {}
-        for row in records:
-            calls = clean_num(row.get(col_calls) if col_calls else 0, 0.0)
-            aht = clean_num(row.get(col_aht) if col_aht else 180, 180.0)
-            campana_val = str(row.get(col_camp, 'General')).strip() if col_camp and not pd.isna(row.get(col_camp)) else 'General'
-            dia_val = str(row.get(col_dia, '')).strip().lower() if col_dia and not pd.isna(row.get(col_dia)) else ''
-            
-            inter_raw = str(row.get(col_inter, '00:00')).strip() if col_inter and not pd.isna(row.get(col_inter)) else '00:00'
-            intervalo_val = str(inter_raw).strip()
-            if len(intervalo_val.split(':')) == 3:
-                intervalo_val = ':'.join(intervalo_val.split(':')[:2])
-
-            key = (campana_val, dia_val, intervalo_val)
-            if key not in perfiles_historicos:
-                perfiles_historicos[key] = {'calls': [], 'aht': []}
-            perfiles_historicos[key]['calls'].append(calls)
-            perfiles_historicos[key]['aht'].append(aht)
-
-        mapa_promedios = {}
-        for k, v in perfiles_historicos.items():
-            mapa_promedios[k] = {
-                'calls': sum(v['calls']) / len(v['calls']) if v['calls'] else 0,
-                'aht': sum(v['aht']) / len(v['aht']) if v['aht'] else 180
-            }
-
-        del records
-        del perfiles_historicos
-        gc.collect()
-
+        # -------------------------------------------------------------
+        # GENERACIÓN DEL FORECAST DE MACHINE LEARNING A FUTURO
+        # -------------------------------------------------------------
         dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
-
-        # 5. Generar Forecast iniciando en el DÍA POSTERIOR al último dato histórico
+        min_date_global = fecha_maxima - timedelta(days=217) # Referencia temporal
+        
         data_processed = []
-
-        campanas_unicas = sorted(list(set(k[0] for k in mapa_promedios.keys())))
-        intervalos_unicos = sorted(list(set(k[2] for k in mapa_promedios.keys())))
 
         for d in range(dias_futuros):
             fecha_actual = fecha_inicio_forecast + timedelta(days=d)
             str_fecha = fecha_actual.strftime('%Y-%m-%d')
             nombre_dia = dias_espanol[fecha_actual.weekday()]
 
+            # Construir vector de features para este día futuro
+            feat_vector = pd.DataFrame([{
+                'DayOfWeek': fecha_actual.weekday(),
+                'DayOfMonth': fecha_actual.day,
+                'Month': fecha_actual.month,
+                'IsWeekend': 1 if fecha_actual.weekday() >= 5 else 0,
+                'TimeIndex': (fecha_actual - min_date_global).days
+            }])
+
             for camp in campanas_unicas:
+                # Predicción del modelo ML para el total diario de la campaña
+                if camp in modelos_ml:
+                    volumen_diario_pred = max(0, float(modelos_ml[camp].predict(feat_vector)[0]))
+                else:
+                    volumen_diario_pred = 100.0
+
                 for inter in intervalos_unicos:
-                    key_hist = (camp, nombre_dia, inter)
-                    
-                    if key_hist in mapa_promedios:
-                        calls = mapa_promedios[key_hist]['calls']
-                        aht = mapa_promedios[key_hist]['aht']
-                    else:
-                        calls = 0.0
-                        aht = 180.0
+                    key_p = (camp, nombre_dia, inter)
+                    info_p = mapa_perfil.get(key_p, {'weight': 1.0 / len(intervalos_unicos), 'aht': 180.0})
+
+                    calls = volumen_diario_pred * info_p['weight']
+                    aht = info_p['aht'] if info_p['aht'] > 0 else 180.0
 
                     a_erlang = (calls * aht) / 1800.0 if aht > 0 else 0.0
                     req_raw = a_erlang / (1.0 - merma) if merma < 1.0 else a_erlang
                     req_agents = math.ceil(req_raw)
 
-                    key_roster = (camp.lower(), nombre_dia.lower(), inter)
+                    key_roster = (str(camp).lower(), nombre_dia.lower(), inter)
                     prog = matriz_roster.get(key_roster, req_agents)
 
                     sl = erlang_c_sl_optimizado(a_erlang, prog, aht, target_time)
 
                     data_processed.append({
-                        'Campaña': camp,
+                        'Campaña': str(camp),
                         'Fecha': str_fecha,
                         'Día_Semana': nombre_dia.capitalize(),
                         'Intervalo': inter,
