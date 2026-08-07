@@ -6,11 +6,8 @@ from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pandas as pd
-import numpy as np
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import Ridge
 
-# Ruta absoluta del directorio base
+# Definir la ruta absoluta del directorio base
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
@@ -121,21 +118,30 @@ def encontrar_columna(df, posibles_nombres):
             return columnas_df[pos_clean]
     return None
 
-def crear_features_ml(df, col_fecha):
-    """ Crea variables predictivas para Machine Learning """
-    df['DayOfWeek'] = df[col_fecha].dt.weekday
-    df['DayOfMonth'] = df[col_fecha].dt.day
-    df['Month'] = df[col_fecha].dt.month
-    df['IsWeekend'] = df['DayOfWeek'].apply(lambda x: 1 if x >= 5 else 0)
-    df['TimeIndex'] = (df[col_fecha] - df[col_fecha].min()).dt.days
-    return df
+def calcular_tendencia_lineal(valores):
+    """ Regresión lineal simple sin depender de librerías externas """
+    n = len(valores)
+    if n < 2:
+        return 0.0, valores[0] if n == 1 else 0.0
+    x = list(range(n))
+    sum_x = sum(x)
+    sum_y = sum(valores)
+    sum_xy = sum(i * j for i, j in zip(x, valores))
+    sum_x2 = sum(i ** 2 for i in x)
+    
+    denom = (n * sum_x2 - sum_x ** 2)
+    if denom == 0:
+        return 0.0, sum_y / n
+    slope = (n * sum_xy - sum_x * sum_y) / denom
+    intercept = (sum_y - slope * sum_x) / n
+    return slope, intercept
 
 # --- RUTAS BACKEND API ---
 @app.route('/api/process', methods=['POST', 'GET'])
 @app.route('/api/process/', methods=['POST', 'GET'])
 def process_data():
     if request.method == 'GET':
-        return jsonify({'status': 'API operativa con Machine Learning en Render'}), 200
+        return jsonify({'status': 'API predictiva activa en Render'}), 200
 
     if 'file' not in request.files:
         return jsonify({'error': 'No se recibió ningún archivo.'}), 400
@@ -168,7 +174,7 @@ def process_data():
         col_dia = encontrar_columna(df, ['Día', 'Dia', 'Día_Semana', 'Dia_Semana'])
         col_fecha = encontrar_columna(df, ['Fecha', 'Date'])
 
-        # Normalizar fecha
+        # Normalizar fechas
         df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce')
         df = df.dropna(subset=[col_fecha])
 
@@ -176,34 +182,34 @@ def process_data():
         fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
 
         # -------------------------------------------------------------
-        # ENTRENAMIENTO MODELO DE MACHINE LEARNING (VOLUMEN DIARIO)
+        # MODELO PREDICTIVO SERIE TEMPORAL POR CAMPAÑA
         # -------------------------------------------------------------
-        # Agrupar a nivel diario por campaña
         df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
-        df_diario = crear_features_ml(df_diario, col_fecha)
-
-        modelos_ml = {}
         campanas_unicas = df[col_camp].unique()
 
-        feature_cols = ['DayOfWeek', 'DayOfMonth', 'Month', 'IsWeekend', 'TimeIndex']
-
+        modelos_pronostico = {}
         for camp in campanas_unicas:
-            sub_df = df_diario[df_diario[col_camp] == camp]
-            if len(sub_df) > 10:
-                X = sub_df[feature_cols]
-                y = sub_df[col_calls]
-                # Random Forest Regressor para capturar estacionalidad y tendencia
-                rf = RandomForestRegressor(n_estimators=50, random_state=42, max_depth=8)
-                rf.fit(X, y)
-                modelos_ml[camp] = rf
+            sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha)
+            volumenes = sub[col_calls].tolist()
+            if len(volumenes) > 1:
+                slope, intercept = calcular_tendencia_lineal(volumenes)
+                promedio_base = sum(volumenes) / len(volumenes)
+            else:
+                slope, intercept = 0.0, volumenes[0] if volumenes else 100.0
+                promedio_base = intercept
+            
+            modelos_pronostico[camp] = {
+                'slope': slope,
+                'intercept': intercept,
+                'len_hist': len(volumenes),
+                'promedio_base': promedio_base
+            }
 
         # -------------------------------------------------------------
-        # PERFILADORES INTRADÍA (DISTRIBUCIÓN POR INTERVALO Y AHT)
+        # PROFILE CURVE INTRADÍA (FACTOR DÍA_SEMANA E INTERVALO)
         # -------------------------------------------------------------
-        # Calcular proporciones históricas por (Campaña, Día_Semana, Intervalo)
-        df['Dia_Semana_Clean'] = df[col_dia].astype(str).str.strip().str.lower() if col_dia else df[col_fecha].dt.day_name()
+        df['Dia_Semana_Clean'] = df[col_dia].astype(str).str.strip().str.lower() if col_dia else df[col_fecha].dt.day_name().str.lower()
         
-        # Formatear intervalo
         df['Inter_Clean'] = df[col_inter].astype(str).str.strip()
         df['Inter_Clean'] = df['Inter_Clean'].apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
 
@@ -212,9 +218,11 @@ def process_data():
             avg_aht=(col_aht, 'mean')
         ).reset_index()
 
-        # Normalizar llamadas a porcentaje diario por campaña y día
         totales_dia = perfil_intradia.groupby([col_camp, 'Dia_Semana_Clean'])['avg_calls'].transform('sum')
-        perfil_intradia['weight'] = np.where(totales_dia > 0, perfil_intradia['avg_calls'] / totales_dia, 0)
+        perfil_intradia['weight'] = [
+            (c / t) if t > 0 else 0 
+            for c, t in zip(perfil_intradia['avg_calls'], totales_dia)
+        ]
 
         mapa_perfil = {}
         for _, r in perfil_intradia.iterrows():
@@ -227,11 +235,9 @@ def process_data():
         gc.collect()
 
         # -------------------------------------------------------------
-        # GENERACIÓN DEL FORECAST DE MACHINE LEARNING A FUTURO
+        # GENERACIÓN DEL FORECAST PROYECTADO A FUTURO
         # -------------------------------------------------------------
         dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
-        min_date_global = fecha_maxima - timedelta(days=217) # Referencia temporal
-        
         data_processed = []
 
         for d in range(dias_futuros):
@@ -239,27 +245,20 @@ def process_data():
             str_fecha = fecha_actual.strftime('%Y-%m-%d')
             nombre_dia = dias_espanol[fecha_actual.weekday()]
 
-            # Construir vector de features para este día futuro
-            feat_vector = pd.DataFrame([{
-                'DayOfWeek': fecha_actual.weekday(),
-                'DayOfMonth': fecha_actual.day,
-                'Month': fecha_actual.month,
-                'IsWeekend': 1 if fecha_actual.weekday() >= 5 else 0,
-                'TimeIndex': (fecha_actual - min_date_global).days
-            }])
-
             for camp in campanas_unicas:
-                # Predicción del modelo ML para el total diario de la campaña
-                if camp in modelos_ml:
-                    volumen_diario_pred = max(0, float(modelos_ml[camp].predict(feat_vector)[0]))
-                else:
-                    volumen_diario_pred = 100.0
+                mod = modelos_pronostico.get(camp, {'slope': 0.0, 'intercept': 100.0, 'len_hist': 10, 'promedio_base': 100.0})
+                idx_futuro = mod['len_hist'] + d
+                
+                # Predicción con tendencia
+                volumen_predicho_diario = mod['intercept'] + mod['slope'] * idx_futuro
+                if volumen_predicho_diario < (mod['promedio_base'] * 0.2):
+                    volumen_predicho_diario = mod['promedio_base']
 
                 for inter in intervalos_unicos:
                     key_p = (camp, nombre_dia, inter)
-                    info_p = mapa_perfil.get(key_p, {'weight': 1.0 / len(intervalos_unicos), 'aht': 180.0})
+                    info_p = mapa_perfil.get(key_p, {'weight': 1.0 / max(len(intervalos_unicos), 1), 'aht': 180.0})
 
-                    calls = volumen_diario_pred * info_p['weight']
+                    calls = volumen_predicho_diario * info_p['weight']
                     aht = info_p['aht'] if info_p['aht'] > 0 else 180.0
 
                     a_erlang = (calls * aht) / 1800.0 if aht > 0 else 0.0
