@@ -3,691 +3,320 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Executive Core — C-Suite Analytics</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            bg: '#070A11',
-                            card: '#0D1322',
-                            cardBorder: 'rgba(255, 255, 255, 0.07)',
-                            accentCian: '#06B6D4',
-                            accentViolet: '#8B5CF6',
-                            accentEmerald: '#10B981',
-                            accentRose: '#F43F5E',
-                            surface: '#141C2E'
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-
+    <title>Executive Core - WFM & Forecast AI Engine</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { 
-            font-family: 'Plus Jakarta Sans', sans-serif; 
-            background-color: #070A11; 
-            color: #F1F5F9; 
-            background-image: radial-gradient(circle at 50% 0%, rgba(14, 165, 233, 0.08) 0%, transparent 50%),
-                              radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.05) 0%, transparent 40%);
-            background-attachment: fixed;
+        :root {
+            --bg-color: #121417;
+            --card-bg: #1e2228;
+            --border-color: #2e3440;
+            --primary-color: #3b82f6;
+            --primary-hover: #2563eb;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
         }
-        .glass-panel { 
-            background: rgba(13, 19, 34, 0.75); 
-            backdrop-filter: blur(20px); 
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.07); 
-            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
         }
-        .glass-panel-hover {
-            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            min-height: 100vh;
         }
-        .glass-panel-hover:hover {
-            border-color: rgba(6, 182, 212, 0.3);
-            transform: translateY(-3px);
-            box-shadow: 0 25px 50px -12px rgba(6, 182, 212, 0.15);
+
+        /* Sidebar de Configuración */
+        .sidebar {
+            width: 320px;
+            background-color: var(--card-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
         }
-        .font-mono-num {
-            font-family: 'JetBrains Mono', monospace;
+
+        .sidebar h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 8px;
         }
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
-        ::-webkit-scrollbar-track { background: #070A11; }
-        ::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 99px; }
-        ::-webkit-scrollbar-thumb:hover { background: #06B6D4; }
-        
-        .glow-cyan {
-            box-shadow: 0 0 25px -5px rgba(6, 182, 212, 0.4);
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .form-group input {
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            border-color: var(--primary-color);
+        }
+
+        .btn-submit {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-top: 12px;
+        }
+
+        .btn-submit:hover {
+            background-color: var(--primary-hover);
+        }
+
+        /* Panel Principal */
+        .main-content {
+            flex: 1;
+            padding: 32px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+
+        .status-badge {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--accent-green);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        /* Tabla de Resultados */
+        .table-container {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.875rem;
+        }
+
+        th {
+            background-color: rgba(0, 0, 0, 0.2);
+            color: var(--text-muted);
+            font-weight: 600;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Indicador de Carga */
+        .loading-overlay {
+            display: none;
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border-top: 3px solid var(--primary-color);
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
-<body class="p-6 md:p-8 min-h-screen">
+<body>
 
-    <!-- Header Corporativo -->
-    <header class="flex justify-between items-center glass-panel rounded-2xl p-6 mb-8 border-b border-white/10 relative overflow-hidden">
-        <div class="absolute -left-10 -top-10 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div class="flex items-center gap-5 z-10">
-            <div class="w-2.5 h-10 bg-gradient-to-b from-cyan-400 via-indigo-500 to-violet-600 rounded-full glow-cyan"></div>
-            <div>
-                <div class="flex items-center gap-3">
-                    <h1 class="text-2xl font-black text-white tracking-tight">Executive Core</h1>
-                </div>
-                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning — Workforce Management Engine</p>
-            </div>
-        </div>
-    </header>
-
-    <!-- Layout Principal -->
-    <div class="grid grid-cols-12 gap-8">
-
-        <!-- Panel de Control Izquierdo -->
-        <aside class="col-span-12 lg:col-span-3 glass-panel p-6 rounded-2xl space-y-6 h-fit relative">
-            <div class="flex items-center justify-between pb-4 border-b border-slate-800/80">
-                <h2 class="text-xs font-black text-slate-200 uppercase tracking-widest flex items-center gap-2">
-                    <span class="text-cyan-400">⚡</span> Parámetros de Control
-                </h2>
-                <span class="text-[10px] text-slate-500 font-mono">SETTINGS</span>
+    <!-- Sidebar de Parámetros -->
+    <div class="sidebar">
+        <h2>Parámetros WFM</h2>
+        <form id="upload-form">
+            <div class="form-group">
+                <label for="file">Archivo Excel (.xlsx)</label>
+                <input type="file" id="file" name="file" accept=".xlsx, .xls" required>
             </div>
             
-            <div>
-                <label class="block text-xs font-bold text-slate-300 mb-2">Cargar Master Excel (<span class="text-emerald-400 font-mono">historico.xlsx</span>)</label>
-                <div class="relative">
-                    <input type="file" id="fileInput" accept=".xlsx, .xls" class="block w-full text-xs text-slate-400 file:mr-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-cyan-500/20 file:text-cyan-300 hover:file:bg-cyan-500/30 border border-slate-800 rounded-xl cursor-pointer bg-slate-900/60 p-1.5 transition-all"/>
-                </div>
+            <div class="form-group">
+                <label for="dias">Días a Proyectar</label>
+                <input type="number" id="dias" name="dias" value="30" min="1" max="90">
             </div>
 
-            <div class="space-y-4 pt-2">
-                <p class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Restricciones SLA & Malla</p>
-                
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80 focus-within:border-cyan-500/50 transition-colors">
-                        <label class="block text-[10px] text-slate-400 font-medium mb-1">Target SL (%)</label>
-                        <input type="number" id="targetSl" value="80" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
-                    </div>
-                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80 focus-within:border-cyan-500/50 transition-colors">
-                        <label class="block text-[10px] text-slate-400 font-medium mb-1">Target ASA (s)</label>
-                        <input type="number" id="targetTime" value="20" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
-                    </div>
-                </div>
-
-                <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80 focus-within:border-cyan-500/50 transition-colors">
-                    <label class="block text-[10px] text-slate-400 font-medium mb-1">Shrinkage Total (%)</label>
-                    <input type="number" id="merma" value="20" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
-                        <label class="block text-[10px] text-slate-400 font-medium mb-1">Hora Apertura</label>
-                        <input type="text" id="hInicio" value="09:00" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
-                    </div>
-                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
-                        <label class="block text-[10px] text-slate-400 font-medium mb-1">Hora Cierre</label>
-                        <input type="text" id="hFin" value="20:00" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
-                    </div>
-                </div>
-
-                <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
-                    <label class="block text-[10px] text-slate-400 font-medium mb-1">Horizonte Proyección (Días)</label>
-                    <input type="number" id="dias" value="30" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
-                </div>
+            <div class="form-group">
+                <label for="target_sl">SLA Objetivo (%)</label>
+                <input type="number" id="target_sl" name="target_sl" value="80" step="1">
             </div>
 
-            <button onclick="procesarWFM()" class="w-full bg-gradient-to-r from-cyan-500 via-blue-600 to-violet-600 hover:from-cyan-400 hover:to-violet-500 text-white font-black py-4 px-4 rounded-xl text-xs transition-all duration-300 shadow-lg shadow-cyan-500/20 uppercase tracking-wider mt-4 hover:shadow-cyan-500/40 active:scale-[0.98]">
-                🚀 PROCESAR MODELO EXECUTIVE
-            </button>
-        </aside>
-
-        <!-- Dashboard C-Level -->
-        <main class="col-span-12 lg:col-span-9 space-y-6">
-
-            <!-- BARRA DE FILTROS -->
-            <div class="glass-panel p-4 rounded-2xl flex justify-between items-center border border-slate-800/80 flex-wrap gap-4 relative z-50 overflow-visible">
-                <div class="flex items-center gap-3">
-                    <div class="p-2.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-xl text-sm">🎯</div>
-                    <div>
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Filtros Operativos Intradía</p>
-                        <p id="tableSelectionLabel" class="text-xs text-slate-200 font-medium">Selecciona campaña, fecha e intervalo deseados</p>
-                    </div>
-                </div>
-                
-                <div class="flex items-center gap-3 flex-wrap">
-                    <button id="btnResetTableFilter" onclick="resetTableFilter()" class="hidden bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold py-2 px-3 rounded-xl transition duration-200 font-mono">
-                        🔄 Resetear Filtro
-                    </button>
-
-                    <!-- CAMPAÑA -->
-                    <div class="flex flex-col">
-                        <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Campaña</label>
-                        <select id="campanaSelect" onchange="actualizarFechasYGrafica()" class="bg-brand-surface border border-violet-500/30 text-xs rounded-xl px-3 py-2 text-violet-300 font-mono-num font-bold focus:outline-none focus:border-violet-500 transition-all shadow-inner min-w-[170px] h-[36px]">
-                            <option value="TODAS">🎧 TODAS LAS CAMPAÑAS</option>
-                        </select>
-                    </div>
-
-                    <!-- FECHA -->
-                    <div class="flex flex-col relative">
-                        <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Fecha Proyectada</label>
-                        <button id="btnDropdownFecha" onclick="toggleFechaDropdown()" class="bg-brand-surface border border-cyan-500/30 text-xs rounded-xl px-3 py-2 text-cyan-300 font-mono-num font-bold focus:outline-none border-cyan-500 transition-all shadow-inner min-w-[180px] h-[36px] flex items-center justify-between gap-2">
-                            <span id="fechaSelectedText">📅 TODAS LAS FECHAS</span>
-                            <span class="text-[10px] text-cyan-400">▼</span>
-                        </button>
-
-                        <div id="dropdownFechaMenu" class="hidden absolute top-full left-0 mt-2 w-full max-h-56 bg-[#0D1322] border border-cyan-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] divide-y divide-slate-800/60 font-mono-num text-xs text-slate-200">
-                        </div>
-                    </div>
-
-                    <!-- INTERVALO -->
-                    <div class="flex flex-col relative">
-                        <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Intervalo Hora</label>
-                        <button id="btnDropdownIntervalo" onclick="toggleIntervaloDropdown()" class="bg-brand-surface border border-emerald-500/30 text-xs rounded-xl px-3 py-2 text-emerald-300 font-mono-num font-bold focus:outline-none border-emerald-500 transition-all shadow-inner min-w-[160px] h-[36px] flex items-center justify-between gap-2">
-                            <span id="intervaloSelectedText">⏰ TODOS LOS INTERVALOS</span>
-                            <span class="text-[10px] text-emerald-400">▼</span>
-                        </button>
-
-                        <div id="dropdownIntervaloMenu" class="hidden absolute top-full left-0 mt-2 w-full max-h-56 bg-[#0D1322] border border-emerald-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] divide-y divide-slate-800/60 font-mono-num text-xs text-slate-200">
-                        </div>
-                    </div>
-                </div>
+            <div class="form-group">
+                <label for="target_time">Tiempo Objetivo (seg)</label>
+                <input type="number" id="target_time" name="target_time" value="20" step="1">
             </div>
 
-            <!-- Cards Métricas -->
-            <div class="grid grid-cols-5 gap-4">
-                <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
-                    <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Volumen Tráfico</p>
-                    <p id="kpiCalls" class="text-2xl font-black font-mono-num mt-2 text-white">--</p>
-                </div>
-
-                <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
-                    <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">AHT Promedio</p>
-                    <p id="kpiAht" class="text-2xl font-black font-mono-num mt-2 text-white">--</p>
-                </div>
-
-                <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden border-t-2 border-t-cyan-400">
-                    <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">SL Proyectado</p>
-                        <span id="badgeSl" class="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold">--</span>
-                    </div>
-                    <p id="kpiSl" class="text-2xl font-black font-mono-num mt-2 text-white">--</p>
-                </div>
-
-                <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
-                    <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Cobertura Malla</p>
-                    <p id="kpiFulfillment" class="text-2xl font-black font-mono-num mt-2 text-white">--</p>
-                </div>
-
-                <div class="glass-card glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
-                    <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Net Staffing</p>
-                    <p id="kpiNet" class="text-2xl font-black font-mono-num mt-2 text-white">--</p>
-                </div>
+            <div class="form-group">
+                <label for="merma">Merma / Shrinkage (%)</label>
+                <input type="number" id="merma" name="merma" value="20" step="1">
             </div>
 
-            <!-- Gráfica 1 -->
-            <div class="glass-panel p-6 rounded-2xl shadow-2xl">
-                <div class="flex justify-between items-center mb-6">
-                    <div>
-                        <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">Balance Intradía: Capacidad vs. Roster Real</h3>
-                        <p class="text-xs text-slate-400 font-medium mt-0.5">Evolución por intervalo de 30 minutos entre requerimiento y plantilla programada</p>
-                    </div>
-                </div>
-                <div class="h-60">
-                    <canvas id="wfmChart"></canvas>
-                </div>
-            </div>
-
-            <!-- Gráfica 2 -->
-            <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t border-violet-500/20">
-                <div class="mb-4">
-                    <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📈 Auditoría de Service Level (% SL) por Intervalo</h3>
-                    <p class="text-xs text-slate-400 font-medium mt-0.5">Evolución del Nivel de Servicio proyectado vs. Línea de Meta Target</p>
-                </div>
-                <div class="h-52">
-                    <canvas id="slChart"></canvas>
-                </div>
-            </div>
-
-            <!-- Tabla de Auditoría -->
-            <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-cyan-500">
-                <div class="flex justify-between items-center mb-4">
-                    <div>
-                        <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📊 Matriz de Auditoría Intradía</h3>
-                        <p class="text-xs text-slate-400 font-medium mt-0.5">💡 Haz clic en cualquier fila para filtrar los indicadores superiores</p>
-                    </div>
-                    <button onclick="exportarCSV()" class="bg-brand-surface hover:bg-slate-800 text-cyan-400 border border-cyan-500/30 text-xs font-bold py-2 px-4 rounded-xl transition duration-200 flex items-center gap-2 font-mono">
-                        <span>📥</span> Exportar CSV
-                    </button>
-                </div>
-
-                <div class="overflow-x-auto max-h-80 border border-slate-800/80 rounded-xl">
-                    <table class="w-full text-left text-xs text-slate-300 cursor-pointer">
-                        <thead class="bg-brand-surface text-slate-400 font-bold uppercase tracking-wider text-[9px] sticky top-0 border-b border-slate-800">
-                            <tr>
-                                <th class="py-3 px-4">Intervalo</th>
-                                <th class="py-3 px-4">Llamadas</th>
-                                <th class="py-3 px-4">AHT (s)</th>
-                                <th class="py-3 px-4">Agentes Req.</th>
-                                <th class="py-3 px-4">Agentes Prog.</th>
-                                <th class="py-3 px-4">Net Staffing</th>
-                                <th class="py-3 px-4">SL Proyectado (%)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="intervalTableBody" class="divide-y divide-slate-800/50 font-mono-num text-[11px]">
-                            <tr>
-                                <td colspan="7" class="text-center py-6 text-slate-500 font-sans">Cargue datos para poblar la matriz intradía...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-        </main>
+            <button type="submit" class="btn-submit" id="btn-submit">Procesar Pronóstico</button>
+        </form>
     </div>
 
-    <!-- Script Cliente -->
+    <!-- Contenido Principal -->
+    <div class="main-content">
+        <div class="header">
+            <h1>Motor Predictivo Executive Core</h1>
+            <span class="status-badge">ML Ridge + Holt-Winters Activo</span>
+        </div>
+
+        <div id="loading" class="loading-overlay">
+            <div class="spinner"></div>
+            <p>Entrenando modelos y generando proyección futura...</p>
+        </div>
+
+        <div class="table-container" id="results-container" style="display: none;">
+            <table id="data-table">
+                <thead>
+                    <tr>
+                        <th>Campaña</th>
+                        <th>Fecha</th>
+                        <th>Día</th>
+                        <th>Intervalo</th>
+                        <th>Llamadas (ML)</th>
+                        <th>AHT (s)</th>
+                        <th>Agentes Req.</th>
+                        <th>Agentes Prog.</th>
+                        <th>Delta Staffing</th>
+                        <th>SL Proyectado</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <!-- Registros dinámicos -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <script>
-        let globalData = [];
-        let chartInstance = null;
-        let slChartInstance = null;
-        let selectedTableIntervals = new Set();
-        let selectedFechaValue = "TODOS";
-        let selectedIntervaloValue = "TODOS";
+        document.getElementById('upload-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
 
-        function getProp(row, keys, def = '') {
-            for (let k of keys) {
-                if (row[k] !== undefined && row[k] !== null) return row[k];
-            }
-            return def;
-        }
+            const form = e.target;
+            const formData = new FormData(form);
 
-        async function procesarWFM() {
-            const file = document.getElementById('fileInput').files[0];
-            if (!file) {
-                alert("Por favor selecciona tu archivo historico.xlsx");
-                return;
-            }
+            const loading = document.getElementById('loading');
+            const resultsContainer = document.getElementById('results-container');
+            const tableBody = document.getElementById('table-body');
+            const btnSubmit = document.getElementById('btn-submit');
 
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('target_sl', document.getElementById('targetSl').value);
-            formData.append('target_time', document.getElementById('targetTime').value);
-            formData.append('merma', document.getElementById('merma').value);
+            loading.style.display = 'block';
+            resultsContainer.style.display = 'none';
+            btnSubmit.disabled = true;
+            btnSubmit.innerText = 'Procesando...';
 
             try {
+                // LLAMADA RELATIVA A LA API (Soporta Render sin importar el dominio)
                 const response = await fetch('/api/process', {
                     method: 'POST',
                     body: formData
                 });
-                
-                globalData = await response.json();
-                
-                if (response.ok && Array.isArray(globalData)) {
-                    poblarCampanas();
-                    poblarFechasDropdown();
-                    poblarIntervalosDropdown();
-                    resetTableFilterAndRefresh();
-                } else {
-                    alert("Error procesando los datos: " + (globalData.error || "Formato no válido"));
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Error en el servidor');
                 }
-            } catch (e) {
-                alert("Error de conexión: " + e.message);
-            }
-        }
 
-        function poblarCampanas() {
-            const campanas = [...new Set(globalData.map(item => String(getProp(item, ['Campaña', 'Campana'], 'General'))))].filter(Boolean);
-            const select = document.getElementById('campanaSelect');
-            select.innerHTML = '';
+                const data = await response.json();
 
-            const optAll = document.createElement('option');
-            optAll.value = "TODAS";
-            optAll.innerText = "🎧 TODAS LAS CAMPAÑAS";
-            select.appendChild(optAll);
+                // Limpiar tabla previa
+                tableBody.innerHTML = '';
 
-            campanas.forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c;
-                opt.innerText = `🎧 ${c}`;
-                select.appendChild(opt);
-            });
-        }
+                // Renderizar primeros 500 registros para fluidez en pantalla
+                data.slice(0, 500).forEach(row => {
+                    const tr = document.createElement('tr');
+                    
+                    const deltaColor = row.Delta_Net_Staffing >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+                    const slColor = row.SL_Proyectado >= 80 ? 'var(--accent-green)' : 'var(--accent-red)';
 
-        function poblarFechasDropdown() {
-            const campanaSel = document.getElementById('campanaSelect').value;
-            let dfCamp = globalData;
-            if (campanaSel !== "TODAS") {
-                dfCamp = globalData.filter(item => String(getProp(item, ['Campaña', 'Campana'], 'General')) === campanaSel);
-            }
+                    tr.innerHTML = `
+                        <td><strong>${row.Campaña}</strong></td>
+                        <td>${row.Fecha}</td>
+                        <td>${row.Día_Semana}</td>
+                        <td>${row.Intervalo}</td>
+                        <td>${row.Llamadas}</td>
+                        <td>${row.AHT}</td>
+                        <td>${row.Agentes_Requeridos}</td>
+                        <td>${row.Agentes_Programados_Reales}</td>
+                        <td style="color: ${deltaColor}; font-weight: 600;">${row.Delta_Net_Staffing}</td>
+                        <td style="color: ${slColor}; font-weight: 600;">${row.SL_Proyectado}%</td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
 
-            const fechas = [...new Set(dfCamp.map(item => String(getProp(item, ['Fecha'], '')).split(' ')[0]))].filter(Boolean).sort();
-            const menu = document.getElementById('dropdownFechaMenu');
-            menu.innerHTML = '';
+                loading.style.display = 'none';
+                resultsContainer.style.display = 'block';
 
-            const divAll = document.createElement('div');
-            divAll.className = 'px-3 py-2 hover:bg-cyan-500/20 cursor-pointer transition-colors text-cyan-300 font-bold';
-            divAll.innerText = '📅 TODAS LAS FECHAS';
-            divAll.onclick = () => seleccionarFecha('TODOS', '📅 TODAS LAS FECHAS');
-            menu.appendChild(divAll);
-
-            fechas.forEach(f => {
-                const div = document.createElement('div');
-                div.className = 'px-3 py-2 hover:bg-cyan-500/20 cursor-pointer transition-colors text-slate-200';
-                div.innerText = f;
-                div.onclick = () => seleccionarFecha(f, f);
-                menu.appendChild(div);
-            });
-        }
-
-        function toggleFechaDropdown() {
-            document.getElementById('dropdownIntervaloMenu').classList.add('hidden');
-            document.getElementById('dropdownFechaMenu').classList.toggle('hidden');
-        }
-
-        function seleccionarFecha(value, label) {
-            selectedFechaValue = value;
-            document.getElementById('fechaSelectedText').innerText = label;
-            document.getElementById('dropdownFechaMenu').classList.add('hidden');
-            actualizarGrafica();
-        }
-
-        function poblarIntervalosDropdown() {
-            const intervalos = [...new Set(globalData.map(item => String(getProp(item, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
-            const menu = document.getElementById('dropdownIntervaloMenu');
-            menu.innerHTML = '';
-
-            const divAll = document.createElement('div');
-            divAll.className = 'px-3 py-2 hover:bg-emerald-500/20 cursor-pointer transition-colors text-emerald-300 font-bold';
-            divAll.innerText = '⏰ TODOS LOS INTERVALOS';
-            divAll.onclick = () => seleccionarIntervalo('TODOS', '⏰ TODOS LOS INTERVALOS');
-            menu.appendChild(divAll);
-
-            intervalos.forEach(inter => {
-                const div = document.createElement('div');
-                div.className = 'px-3 py-2 hover:bg-emerald-500/20 cursor-pointer transition-colors text-slate-200';
-                div.innerText = `⏰ ${inter}`;
-                div.onclick = () => seleccionarIntervalo(inter, `⏰ ${inter}`);
-                menu.appendChild(div);
-            });
-        }
-
-        function toggleIntervaloDropdown() {
-            document.getElementById('dropdownFechaMenu').classList.add('hidden');
-            document.getElementById('dropdownIntervaloMenu').classList.toggle('hidden');
-        }
-
-        function seleccionarIntervalo(value, label) {
-            selectedIntervaloValue = value;
-            document.getElementById('intervaloSelectedText').innerText = label;
-            document.getElementById('dropdownIntervaloMenu').classList.add('hidden');
-            actualizarGrafica();
-        }
-
-        window.addEventListener('click', function(e) {
-            const btnF = document.getElementById('btnDropdownFecha');
-            const menuF = document.getElementById('dropdownFechaMenu');
-            if (btnF && menuF && !btnF.contains(e.target) && !menuF.contains(e.target)) {
-                menuF.classList.add('hidden');
-            }
-
-            const btnI = document.getElementById('btnDropdownIntervalo');
-            const menuI = document.getElementById('dropdownIntervaloMenu');
-            if (btnI && menuI && !btnI.contains(e.target) && !menuI.contains(e.target)) {
-                menuI.classList.add('hidden');
+            } catch (error) {
+                alert('Error procesando los datos: ' + error.message);
+                loading.style.display = 'none';
+            } finally {
+                btnSubmit.disabled = false;
+                btnSubmit.innerText = 'Procesar Pronóstico';
             }
         });
-
-        function actualizarFechasYGrafica() {
-            poblarFechasDropdown();
-            seleccionarFecha('TODOS', '📅 TODAS LAS FECHAS');
-            resetTableFilterAndRefresh();
-        }
-
-        function resetTableFilterAndRefresh() {
-            selectedTableIntervals.clear();
-            document.getElementById('btnResetTableFilter').classList.add('hidden');
-            document.getElementById('tableSelectionLabel').innerText = "Selecciona campaña, fecha e intervalo deseados";
-            actualizarGrafica();
-        }
-
-        function resetTableFilter() {
-            selectedTableIntervals.clear();
-            document.getElementById('btnResetTableFilter').classList.add('hidden');
-            document.getElementById('tableSelectionLabel').innerText = "Selecciona campaña, fecha e intervalo deseados";
-            actualizarGrafica();
-        }
-
-        function toggleTableInterval(intervalo) {
-            if (selectedTableIntervals.has(intervalo)) {
-                selectedTableIntervals.delete(intervalo);
-            } else {
-                selectedTableIntervals.add(intervalo);
-            }
-
-            if (selectedTableIntervals.size > 0) {
-                document.getElementById('btnResetTableFilter').classList.remove('hidden');
-                document.getElementById('tableSelectionLabel').innerText = `Intervalo(s) filtrado(s): ${Array.from(selectedTableIntervals).join(', ')}`;
-            } else {
-                document.getElementById('btnResetTableFilter').classList.add('hidden');
-                document.getElementById('tableSelectionLabel').innerText = "Selecciona campaña, fecha e intervalo deseados";
-            }
-
-            actualizarGrafica();
-        }
-
-        function actualizarGrafica() {
-            const campanaSel = document.getElementById('campanaSelect').value;
-            const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
-            
-            let df = globalData;
-
-            if (campanaSel !== "TODAS") {
-                df = df.filter(item => String(getProp(item, ['Campaña', 'Campana'], 'General')) === campanaSel);
-            }
-
-            if (selectedFechaValue !== "TODOS") {
-                df = df.filter(item => String(getProp(item, ['Fecha'], '')).startsWith(selectedFechaValue));
-            }
-
-            if (selectedIntervaloValue !== "TODOS") {
-                df = df.filter(item => String(getProp(item, ['Intervalo'], '00:00')) === selectedIntervaloValue);
-            }
-
-            let dfKpis = df;
-            if (selectedTableIntervals.size > 0) {
-                dfKpis = df.filter(item => selectedTableIntervals.has(String(getProp(item, ['Intervalo'], '00:00'))));
-            }
-
-            const totCalls = dfKpis.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
-            const sumLlamadasAht = dfKpis.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['AHT'], 180)) || 180)), 0);
-            const avgAht = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
-
-            const totReq = dfKpis.reduce((acc, row) => acc + (Number(getProp(row, ['Agentes_Requeridos'], 0)) || 0), 0);
-            const totProg = dfKpis.reduce((acc, row) => acc + (Number(getProp(row, ['Agentes_Programados_Reales'], 0)) || 0), 0);
-            const countRows = dfKpis.length || 1;
-
-            const avgReq = (totReq / countRows).toFixed(1);
-            const avgProg = (totProg / countRows).toFixed(1);
-            const net = (avgProg - avgReq).toFixed(1);
-            const fulfillment = avgReq > 0 ? ((avgProg / avgReq) * 100).toFixed(1) : "100.0";
-
-            const sumLlamadasSl = dfKpis.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
-            const avgSl = totCalls > 0 ? (sumLlamadasSl / totCalls).toFixed(1) : "0.0";
-
-            document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
-            document.getElementById('kpiAht').innerText = avgAht + 's';
-            document.getElementById('kpiSl').innerText = avgSl + '%';
-            document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
-            document.getElementById('kpiNet').innerText = (net >= 0 ? '+' : '') + net;
-
-            const badgeSl = document.getElementById('badgeSl');
-            if (parseFloat(avgSl) >= targetSlObj) {
-                badgeSl.innerText = 'TARGET OK';
-                badgeSl.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
-            } else {
-                badgeSl.innerText = 'BAJO TARGET';
-                badgeSl.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
-            }
-
-            const agrupado = {};
-            df.forEach(row => {
-                const inter = String(getProp(row, ['Intervalo'], '00:00'));
-                if (!agrupado[inter]) {
-                    agrupado[inter] = { req: 0, prog: 0, llamadas: 0, ahtSum: 0, slSum: 0, count: 0 };
-                }
-                agrupado[inter].req += Number(getProp(row, ['Agentes_Requeridos'], 0)) || 0;
-                agrupado[inter].prog += Number(getProp(row, ['Agentes_Programados_Reales'], 0)) || 0;
-                agrupado[inter].llamadas += Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0;
-                agrupado[inter].ahtSum += Number(getProp(row, ['AHT'], 180)) || 180;
-                agrupado[inter].slSum += Number(getProp(row, ['SL_Proyectado'], 0)) || 0;
-                agrupado[inter].count += 1;
-            });
-
-            const intervalos = Object.keys(agrupado).sort();
-            const req = intervalos.map(i => (agrupado[i].req / agrupado[i].count).toFixed(1));
-            const prog = intervalos.map(i => (agrupado[i].prog / agrupado[i].count).toFixed(1));
-            const llamadasArr = intervalos.map(i => Math.round(agrupado[i].llamadas / agrupado[i].count));
-            const ahtArr = intervalos.map(i => Math.round(agrupado[i].ahtSum / agrupado[i].count));
-            const slArr = intervalos.map(i => (agrupado[i].slSum / agrupado[i].count).toFixed(1));
-            const deltas = intervalos.map(i => (agrupado[i].prog / agrupado[i].count - agrupado[i].req / agrupado[i].count).toFixed(1));
-
-            const tbody = document.getElementById('intervalTableBody');
-            tbody.innerHTML = '';
-
-            intervalos.forEach((inter, idx) => {
-                const rowLlamadas = llamadasArr[idx];
-                const rowAht = ahtArr[idx];
-                const rowReq = req[idx];
-                const rowProg = prog[idx];
-                const rowDelta = deltas[idx];
-                const rowSl = slArr[idx];
-
-                const isSelected = selectedTableIntervals.has(inter);
-                const deltaColor = rowDelta >= 0 ? 'text-cyan-400 font-bold' : 'text-rose-400 font-bold';
-                const slBadge = parseFloat(rowSl) >= targetSlObj
-                    ? `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">${rowSl}%</span>`
-                    : `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">${rowSl}%</span>`;
-
-                const tr = document.createElement('tr');
-                tr.onclick = () => toggleTableInterval(inter);
-                tr.className = `transition-all duration-200 ${isSelected ? 'bg-cyan-500/10 border-l-4 border-l-cyan-400 font-bold' : 'hover:bg-slate-800/40'}`;
-                tr.innerHTML = `
-                    <td class="py-2.5 px-4 font-bold text-slate-200 flex items-center gap-2">
-                        <span class="text-[10px] ${isSelected ? 'text-cyan-400 animate-ping' : 'text-slate-600'}">●</span> ${inter}
-                    </td>
-                    <td class="py-2.5 px-4 text-slate-300">${rowLlamadas.toLocaleString()}</td>
-                    <td class="py-2.5 px-4 text-slate-300">${rowAht}s</td>
-                    <td class="py-2.5 px-4 text-violet-400 font-bold">${rowReq}</td>
-                    <td class="py-2.5 px-4 text-emerald-400 font-bold">${rowProg}</td>
-                    <td class="py-2.5 px-4 ${deltaColor}">${rowDelta >= 0 ? '+' : ''}${rowDelta}</td>
-                    <td class="py-2.5 px-4">${slBadge}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-
-            if (chartInstance) chartInstance.destroy();
-
-            const ctx1 = document.getElementById('wfmChart').getContext('2d');
-            chartInstance = new Chart(ctx1, {
-                type: 'line',
-                data: {
-                    labels: intervalos,
-                    datasets: [
-                        { label: 'Demanda Erlang C (FTEs)', data: req, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.08)', fill: true, tension: 0.35, borderWidth: 3 },
-                        { label: 'Plantilla Programada (Roster)', data: prog, borderColor: '#10B981', borderDash: [4, 4], tension: 0.35, borderWidth: 2.5 }
-                    ]
-                },
-                options: { 
-                    responsive: true, 
-                    maintainAspectRatio: false, 
-                    plugins: { legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } } }, 
-                    scales: { 
-                        x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
-                        y: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
-                    } 
-                }
-            });
-
-            if (slChartInstance) slChartInstance.destroy();
-
-            const targetArray = intervalos.map(() => targetSlObj);
-            const ctx2 = document.getElementById('slChart').getContext('2d');
-            
-            slChartInstance = new Chart(ctx2, {
-                type: 'line',
-                data: {
-                    labels: intervalos,
-                    datasets: [
-                        { 
-                            label: 'SL Proyectado (%)', 
-                            data: slArr, 
-                            borderColor: '#8B5CF6', 
-                            backgroundColor: 'rgba(139, 92, 246, 0.12)', 
-                            fill: true, 
-                            tension: 0.3, 
-                            borderWidth: 2.5,
-                            pointRadius: intervalos.map(i => selectedTableIntervals.has(i) ? 7 : 3),
-                            pointHoverRadius: 8,
-                            pointBackgroundColor: intervalos.map((i, idx) => selectedTableIntervals.has(i) ? '#06B6D4' : (parseFloat(slArr[idx]) >= targetSlObj ? '#10B981' : '#F43F5E'))
-                        },
-                        { 
-                            label: `Meta Target (${targetSlObj}%)`, 
-                            data: targetArray, 
-                            borderColor: '#F59E0B', 
-                            borderDash: [3, 3], 
-                            borderWidth: 1.5,
-                            pointRadius: 0
-                        }
-                    ]
-                },
-                options: { 
-                    responsive: true, 
-                    maintainAspectRatio: false, 
-                    plugins: { legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11 } } } }, 
-                    scales: { 
-                        x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
-                        y: { min: 0, max: 100, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
-                    } 
-                }
-            });
-        }
-
-        function exportarCSV() {
-            if (!globalData || globalData.length === 0) {
-                alert("No hay datos cargados para exportar.");
-                return;
-            }
-
-            const headers = ["Campana", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT_Segs", "Agentes_Requeridos", "Agentes_Programados", "Delta_Net_Staffing", "SL_Proyectado_Pct"];
-            const csvRows = [headers.join(",")];
-
-            globalData.forEach(row => {
-                const values = [
-                    getProp(row, ['Campaña', 'Campana'], 'General'),
-                    getProp(row, ['Fecha'], ''),
-                    getProp(row, ['Día_Semana', 'Dia_Semana'], ''),
-                    getProp(row, ['Intervalo'], '00:00'),
-                    getProp(row, ['Llamadas', 'Recibidas'], 0),
-                    getProp(row, ['AHT'], 0),
-                    getProp(row, ['Agentes_Requeridos'], 0),
-                    getProp(row, ['Agentes_Programados_Reales'], 0),
-                    getProp(row, ['Delta_Net_Staffing'], 0),
-                    getProp(row, ['SL_Proyectado'], 0)
-                ];
-                csvRows.push(values.join(","));
-            });
-
-            const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.setAttribute('href', url);
-            a.setAttribute('download', `WFM_Reporte_Ejecutivo_${new Date().toISOString().slice(0,10)}.csv`);
-            a.click();
-        }
     </script>
 </body>
 </html>
