@@ -3,19 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Executive Core - WFM Forecast & Capacity AI Engine</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>Executive Core - WFM Analytics & AI Forecast</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Chart.js para Gráficos Interactivos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg-base: #0f172a;
-            --bg-surface: #1e293b;
-            --bg-card: #0f172a;
-            --border: #334155;
-            --border-hover: #475569;
-            --accent-primary: #3b82f6;
-            --accent-primary-hover: #2563eb;
-            --accent-success: #10b981;
-            --accent-danger: #ef4444;
+            --bg-base: #090d16;
+            --bg-card: #131b2e;
+            --bg-card-hover: #182238;
+            --border: #232f48;
+            --accent-blue: #3b82f6;
+            --accent-cyan: #06b6d4;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
             --accent-warning: #f59e0b;
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
@@ -26,7 +27,7 @@
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Inter', sans-serif;
+            font-family: 'Plus Jakarta Sans', sans-serif;
         }
 
         body {
@@ -40,17 +41,17 @@
         /* Lateral - Parámetros */
         .sidebar {
             width: 310px;
-            background-color: var(--bg-surface);
+            background-color: var(--bg-card);
             border-right: 1px solid var(--border);
             padding: 24px;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 18px;
             flex-shrink: 0;
             overflow-y: auto;
         }
 
-        .brand-header {
+        .brand {
             display: flex;
             align-items: center;
             gap: 12px;
@@ -58,36 +59,39 @@
             border-bottom: 1px solid var(--border);
         }
 
-        .brand-logo {
-            width: 36px;
-            height: 36px;
-            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-            border-radius: 8px;
+        .brand-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #3b82f6, #06b6d4);
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 700;
-            font-size: 1.1rem;
+            font-weight: 800;
+            font-size: 1.2rem;
             color: #fff;
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
         }
 
-        .brand-text h2 {
-            font-size: 1rem;
-            font-weight: 700;
-            letter-spacing: -0.01em;
-            color: var(--text-main);
+        .brand-info h2 {
+            font-size: 1.1rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            background: linear-gradient(to right, #ffffff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
-        .brand-text p {
+        .brand-info p {
             font-size: 0.72rem;
-            color: var(--text-muted);
+            color: var(--accent-cyan);
+            font-weight: 600;
         }
 
-        .form-section-title {
-            font-size: 0.75rem;
+        .section-title {
+            font-size: 0.72rem;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.08em;
             color: var(--text-dark);
             font-weight: 700;
             margin-top: 4px;
@@ -100,9 +104,9 @@
         }
 
         .form-group label {
-            font-size: 0.82rem;
+            font-size: 0.8rem;
             color: var(--text-muted);
-            font-weight: 500;
+            font-weight: 600;
         }
 
         .form-group input {
@@ -111,54 +115,55 @@
             color: var(--text-main);
             padding: 10px 12px;
             border-radius: 8px;
-            font-size: 0.88rem;
+            font-size: 0.85rem;
             outline: none;
             transition: all 0.2s ease;
         }
 
         .form-group input:focus {
-            border-color: var(--accent-primary);
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
         }
 
         input[type="file"]::file-selector-button {
-            background-color: #334155;
+            background-color: #1e293b;
             color: #ffffff;
-            border: none;
+            border: 1px solid var(--border);
             padding: 6px 12px;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 0.78rem;
-            font-weight: 500;
+            font-size: 0.75rem;
+            font-weight: 600;
             margin-right: 10px;
-            transition: background-color 0.2s;
+            transition: all 0.2s;
         }
 
         input[type="file"]::file-selector-button:hover {
-            background-color: #475569;
+            background-color: #334155;
         }
 
-        .btn-primary {
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
+        .btn-submit {
+            background: linear-gradient(135deg, #3b82f6, #06b6d4);
             color: white;
             border: none;
             padding: 12px;
             border-radius: 8px;
-            font-weight: 600;
+            font-weight: 700;
             font-size: 0.9rem;
             cursor: pointer;
             transition: all 0.2s ease;
-            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
-            margin-top: 8px;
+            box-shadow: 0 4px 20px rgba(6, 182, 212, 0.25);
+            margin-top: 10px;
         }
 
-        .btn-primary:hover {
+        .btn-submit:hover {
             opacity: 0.95;
             transform: translateY(-1px);
+            box-shadow: 0 6px 24px rgba(6, 182, 212, 0.35);
         }
 
-        .btn-primary:disabled {
-            background: #334155;
+        .btn-submit:disabled {
+            background: #1e293b;
             color: #64748b;
             cursor: not-allowed;
             transform: none;
@@ -166,55 +171,55 @@
         }
 
         /* Panel Principal */
-        .main-wrapper {
+        .main-content {
             flex: 1;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            background-color: var(--bg-base);
         }
 
-        /* Barrax Top */
-        .top-navbar {
-            padding: 20px 32px;
-            background-color: var(--bg-surface);
+        /* Top Bar */
+        .top-bar {
+            padding: 16px 28px;
+            background-color: var(--bg-card);
             border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
-        .page-title h1 {
-            font-size: 1.35rem;
-            font-weight: 700;
+        .top-bar h1 {
+            font-size: 1.25rem;
+            font-weight: 800;
             letter-spacing: -0.02em;
         }
 
-        .badge-status {
-            background-color: rgba(16, 185, 129, 0.12);
-            color: var(--accent-success);
+        .status-badge {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--accent-green);
             border: 1px solid rgba(16, 185, 129, 0.25);
             padding: 6px 14px;
             border-radius: 20px;
-            font-size: 0.78rem;
-            font-weight: 600;
-            display: inline-flex;
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: flex;
             align-items: center;
             gap: 6px;
         }
 
-        .badge-status::before {
+        .status-badge::before {
             content: '';
             width: 6px;
             height: 6px;
-            background-color: var(--accent-success);
+            background-color: var(--accent-green);
             border-radius: 50%;
+            box-shadow: 0 0 8px var(--accent-green);
         }
 
-        /* Filtros Interactivos Dynamic Bar */
-        .filter-toolbar {
-            padding: 16px 32px;
-            background-color: #111827;
+        /* Barra de Filtros */
+        .filter-bar {
+            padding: 12px 28px;
+            background-color: #0d1322;
             border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
@@ -222,110 +227,189 @@
             flex-wrap: wrap;
         }
 
-        .filter-label {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--text-dark);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .filter-control {
+        .filter-item {
             display: flex;
             align-items: center;
             gap: 8px;
         }
 
-        .filter-control label {
-            font-size: 0.82rem;
+        .filter-item label {
+            font-size: 0.78rem;
             color: var(--text-muted);
-            font-weight: 500;
+            font-weight: 600;
         }
 
-        .filter-control select {
-            background-color: var(--bg-surface);
+        .filter-item select {
+            background-color: var(--bg-card);
             border: 1px solid var(--border);
             color: var(--text-main);
-            padding: 7px 12px;
+            padding: 6px 12px;
             border-radius: 6px;
-            font-size: 0.85rem;
+            font-size: 0.82rem;
             outline: none;
             cursor: pointer;
-            transition: border-color 0.2s;
-            min-width: 140px;
+            min-width: 150px;
         }
 
-        .filter-control select:focus {
-            border-color: var(--accent-primary);
-        }
-
-        .btn-reset-filters {
-            background-color: transparent;
+        .btn-reset {
+            background: transparent;
             border: 1px solid var(--border);
             color: var(--text-muted);
             padding: 6px 12px;
             border-radius: 6px;
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             cursor: pointer;
             transition: all 0.2s;
             margin-left: auto;
+            font-weight: 600;
         }
 
-        .btn-reset-filters:hover {
-            background-color: var(--bg-surface);
-            color: var(--text-main);
+        .btn-reset:hover {
+            background: var(--bg-card);
+            color: #fff;
         }
 
-        /* Contenido de Resultados */
-        .content-area {
+        /* Dashboard Body Scrollable */
+        .dashboard-body {
             flex: 1;
-            padding: 24px 32px;
-            overflow: hidden;
+            padding: 24px 28px;
+            overflow-y: auto;
             display: flex;
             flex-direction: column;
+            gap: 20px;
         }
 
-        .table-card {
-            background-color: var(--bg-surface);
+        /* Cards Indicadores KPIs */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+
+        .kpi-card {
+            background-color: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 10px;
-            height: 100%;
+            border-radius: 12px;
+            padding: 18px 20px;
             display: flex;
             flex-direction: column;
+            gap: 8px;
+            position: relative;
             overflow: hidden;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s;
         }
 
-        .table-scroll-container {
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            background-color: var(--bg-card-hover);
+        }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+        }
+
+        .kpi-card.blue::before { background-color: var(--accent-blue); }
+        .kpi-card.cyan::before { background-color: var(--accent-cyan); }
+        .kpi-card.green::before { background-color: var(--accent-green); }
+        .kpi-card.warning::before { background-color: var(--accent-warning); }
+
+        .kpi-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            font-weight: 700;
+        }
+
+        .kpi-value {
+            font-size: 1.6rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .kpi-sub {
+            font-size: 0.72rem;
+            color: var(--text-dark);
+            font-weight: 600;
+        }
+
+        /* Grid de Gráficos */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 16px;
+        }
+
+        .chart-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            height: 290px;
+        }
+
+        .chart-header {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--text-main);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chart-container {
             flex: 1;
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Tabla de Resultados */
+        .table-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .table-responsive {
+            max-height: 320px;
             overflow: auto;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.85rem;
+            font-size: 0.83rem;
             text-align: left;
         }
 
         thead {
             position: sticky;
             top: 0;
-            background-color: #0f172a;
+            background-color: #0b111e;
             z-index: 10;
         }
 
         th {
             color: var(--text-muted);
-            font-weight: 600;
-            padding: 14px 18px;
+            font-weight: 700;
+            padding: 12px 16px;
             border-bottom: 1px solid var(--border);
             white-space: nowrap;
         }
 
         td {
-            padding: 12px 18px;
-            border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+            padding: 10px 16px;
+            border-bottom: 1px solid rgba(35, 47, 72, 0.5);
             color: var(--text-main);
             white-space: nowrap;
         }
@@ -334,51 +418,21 @@
             background-color: rgba(255, 255, 255, 0.02);
         }
 
-        .tag-camp {
-            font-weight: 600;
-            color: #ffffff;
-        }
-
-        .val-delta {
-            font-weight: 600;
-        }
-
-        .val-sl {
-            font-weight: 600;
-        }
-
-        /* Estado Vacio / Carga */
-        .empty-placeholder {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            color: var(--text-dark);
-            text-align: center;
-            gap: 12px;
-        }
-
-        .empty-placeholder svg {
-            width: 48px;
-            height: 48px;
-            stroke: var(--text-dark);
-        }
-
-        .loading-box {
+        /* Spinners y Estados */
+        .loading-overlay {
             display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100%;
+            padding: 60px;
             gap: 16px;
         }
 
         .spinner {
-            width: 40px;
-            height: 40px;
+            width: 42px;
+            height: 42px;
             border: 3px solid rgba(255, 255, 255, 0.1);
-            border-top: 3px solid var(--accent-primary);
+            border-top: 3px solid var(--accent-cyan);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
@@ -388,40 +442,34 @@
             100% { transform: rotate(360deg); }
         }
 
-        /* Scrollbar custom */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: var(--bg-base);
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #475569;
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 80px;
+            color: var(--text-dark);
+            gap: 12px;
         }
     </style>
 </head>
 <body>
 
-    <!-- Panel Lateral: Parámetros -->
+    <!-- Panel Lateral de Configuración -->
     <div class="sidebar">
-        <div class="brand-header">
-            <div class="brand-logo">EC</div>
-            <div class="brand-text">
+        <div class="brand">
+            <div class="brand-icon">EC</div>
+            <div class="brand-info">
                 <h2>Executive Core</h2>
                 <p>Engine WFM AI v4.2</p>
             </div>
         </div>
 
         <form id="wfm-form">
-            <div class="form-section-title">Datos & Modelo</div>
+            <div class="section-title">Origen de Datos</div>
             
             <div class="form-group">
-                <label for="file">Archivo Histórico Excel</label>
+                <label for="file">Histórico (.xlsx)</label>
                 <input type="file" id="file" name="file" accept=".xlsx, .xls" required>
             </div>
 
@@ -430,7 +478,7 @@
                 <input type="number" id="dias" name="dias" value="30" min="1" max="90">
             </div>
 
-            <div class="form-section-title" style="margin-top: 8px;">Métricas SLA</div>
+            <div class="section-title" style="margin-top: 6px;">SLA & Operación</div>
 
             <div class="form-group">
                 <label for="target_sl">SLA Objetivo (%)</label>
@@ -438,7 +486,7 @@
             </div>
 
             <div class="form-group">
-                <label for="target_time">Tiempo Objetivo (seg)</label>
+                <label for="target_time">Tiempo Objetivo (s)</label>
                 <input type="number" id="target_time" name="target_time" value="20" step="1">
             </div>
 
@@ -447,115 +495,143 @@
                 <input type="number" id="merma" name="merma" value="30" step="1">
             </div>
 
-            <button type="submit" class="btn-primary" id="btn-submit">Procesar Pronóstico</button>
+            <button type="submit" class="btn-submit" id="btn-submit">Procesar Pronóstico</button>
         </form>
     </div>
 
-    <!-- Contenido Principal -->
-    <div class="main-wrapper">
+    <!-- Panel Principal -->
+    <div class="main-content">
         
-        <!-- Header Superior -->
-        <div class="top-navbar">
-            <div class="page-title">
-                <h1>Pronóstico y Cobertura de Personal</h1>
-            </div>
-            <span class="badge-status">Ensamble ML Híbrido Activo</span>
+        <div class="top-bar">
+            <h1>Executive Analytics Dashboard</h1>
+            <div class="status-badge">ML Ridge + Holt-Winters Ensemble</div>
         </div>
 
-        <!-- Barra de Filtros Dinámicos -->
-        <div class="filter-toolbar">
-            <span class="filter-label">Filtros:</span>
-
-            <div class="filter-control">
-                <label for="filter-campana">Campaña:</label>
-                <select id="filter-campana">
-                    <option value="ALL">Todas las Campañas</option>
-                </select>
+        <!-- Filtros Interactivos -->
+        <div class="filter-bar">
+            <div class="filter-item">
+                <label for="f-campana">Campaña:</label>
+                <select id="f-campana"><option value="ALL">Todas</option></select>
             </div>
-
-            <div class="filter-control">
-                <label for="filter-fecha">Fecha:</label>
-                <select id="filter-fecha">
-                    <option value="ALL">Todas las Fechas</option>
-                </select>
+            <div class="filter-item">
+                <label for="f-fecha">Fecha:</label>
+                <select id="f-fecha"><option value="ALL">Todas</option></select>
             </div>
-
-            <div class="filter-control">
-                <label for="filter-intervalo">Intervalo:</label>
-                <select id="filter-intervalo">
-                    <option value="ALL">Todos los Intervalos</option>
-                </select>
+            <div class="filter-item">
+                <label for="f-intervalo">Intervalo:</label>
+                <select id="f-intervalo"><option value="ALL">Todos</option></select>
             </div>
-
-            <button class="btn-reset-filters" id="btn-reset-filters">Restablecer Filtros</button>
+            <button class="btn-reset" id="btn-reset">Restablecer Filtros</button>
         </div>
 
-        <!-- Área de Datos -->
-        <div class="content-area">
-            <div class="table-card">
+        <div class="dashboard-body">
+            
+            <!-- Indicador Carga / Placeholder -->
+            <div id="loading" class="loading-overlay">
+                <div class="spinner"></div>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">Ejecutando ensamble de Machine Learning y modelo Erlang C...</p>
+            </div>
+
+            <div id="placeholder" class="empty-state">
+                <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 1312 9 3 13 12 19 3 21 12"/><path d="M12 2v20"/></svg>
+                <p>Carga tu archivo <strong>historico.xlsx</strong> y haz clic en <strong>Procesar Pronóstico</strong></p>
+            </div>
+
+            <div id="dashboard-content" style="display: none; flex-direction: column; gap: 20px;">
                 
-                <!-- Placeholder Inicial -->
-                <div id="placeholder-state" class="empty-placeholder">
-                    <svg fill="none" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                    </svg>
-                    <p>Sube tu archivo `historico.xlsx` y haz clic en <strong>Procesar Pronóstico</strong></p>
+                <!-- KPI Cards -->
+                <div class="kpi-grid">
+                    <div class="kpi-card blue">
+                        <span class="kpi-title">Volumen Total Llamadas</span>
+                        <span class="kpi-value" id="kpi-calls">0</span>
+                        <span class="kpi-sub">Pronosticado por ML</span>
+                    </div>
+                    <div class="kpi-card cyan">
+                        <span class="kpi-title">AHT Promedio</span>
+                        <span class="kpi-value" id="kpi-aht">0s</span>
+                        <span class="kpi-sub">Tiempo medio de operación</span>
+                    </div>
+                    <div class="kpi-card warning">
+                        <span class="kpi-title">Cobertura de Personal</span>
+                        <span class="kpi-value" id="kpi-staff">0 / 0</span>
+                        <span class="kpi-sub">Req vs Prog (Agentes)</span>
+                    </div>
+                    <div class="kpi-card green">
+                        <span class="kpi-title">SL Proyectado General</span>
+                        <span class="kpi-value" id="kpi-sl">0%</span>
+                        <span class="kpi-sub">SLA estimado con Erlang C</span>
+                    </div>
                 </div>
 
-                <!-- Spinner Carga -->
-                <div id="loading-state" class="loading-box">
-                    <div class="spinner"></div>
-                    <p style="color: var(--text-muted); font-size: 0.88rem;">Entrenando modelo de Machine Learning y generando malla Erlang C...</p>
+                <!-- Gráficos -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <span>Perfil Intradía: Llamadas vs Agentes Requeridos</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chart-intraday"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <span>Balance Net Staffing (Delta)</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chart-staffing"></canvas>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Tabla de Resultados -->
-                <div id="table-wrapper" class="table-scroll-container" style="display: none;">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Campaña</th>
-                                <th>Fecha</th>
-                                <th>Día</th>
-                                <th>Intervalo</th>
-                                <th>Llamadas (ML)</th>
-                                <th>AHT (s)</th>
-                                <th>Agentes Req.</th>
-                                <th>Agentes Prog.</th>
-                                <th>Delta Staffing</th>
-                                <th>SL Proyectado</th>
-                            </tr>
-                        </thead>
-                        <tbody id="table-body">
-                            <!-- Filas generadas dinámicamente -->
-                        </tbody>
-                    </table>
+                <div class="table-card">
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Campaña</th>
+                                    <th>Fecha</th>
+                                    <th>Día</th>
+                                    <th>Intervalo</th>
+                                    <th>Llamadas (ML)</th>
+                                    <th>AHT (s)</th>
+                                    <th>Agentes Req.</th>
+                                    <th>Agentes Prog.</th>
+                                    <th>Delta Staffing</th>
+                                    <th>SL Proyectado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body"></tbody>
+                        </table>
+                    </div>
                 </div>
 
             </div>
+
         </div>
 
     </div>
 
     <script>
-        let rawDataSet = [];
+        let fullData = [];
+        let chartIntradayInstance = null;
+        let chartStaffingInstance = null;
 
         document.getElementById('wfm-form').addEventListener('submit', async function(e) {
             e.preventDefault();
 
             const formData = new FormData(e.target);
-            const placeholder = document.getElementById('placeholder-state');
-            const loading = document.getElementById('loading-state');
-            const tableWrapper = document.getElementById('table-wrapper');
+            const loading = document.getElementById('loading');
+            const placeholder = document.getElementById('placeholder');
+            const dashboardContent = document.getElementById('dashboard-content');
             const btnSubmit = document.getElementById('btn-submit');
 
-            placeholder.style.display = 'none';
-            tableWrapper.style.display = 'none';
             loading.style.display = 'flex';
+            placeholder.style.display = 'none';
+            dashboardContent.style.display = 'none';
             btnSubmit.disabled = true;
-            btnSubmit.innerText = 'Calculando...';
 
             try {
-                // Petición a la API mediante ruta relativa
                 const response = await fetch('/api/process', {
                     method: 'POST',
                     body: formData
@@ -563,74 +639,81 @@
 
                 if (!response.ok) {
                     const err = await response.json();
-                    throw new Error(err.error || 'Error procesando la solicitud en el servidor.');
+                    throw new Error(err.error || 'Error procesando los datos');
                 }
 
-                rawDataSet = await response.json();
+                fullData = await response.json();
 
-                // Poblar dropdowns de filtros dinámicos
-                poblarFiltros(rawDataSet);
-
-                // Renderizar la tabla inicial
-                aplicarFiltrosYRenderizar();
+                poblarFiltros(fullData);
+                actualizarDashboard();
 
                 loading.style.display = 'none';
-                tableWrapper.style.display = 'block';
+                dashboardContent.style.display = 'flex';
 
             } catch (error) {
-                alert('Error al procesar el pronóstico: ' + error.message);
+                alert('Error al generar el pronóstico: ' + error.message);
                 loading.style.display = 'none';
                 placeholder.style.display = 'flex';
             } finally {
                 btnSubmit.disabled = false;
-                btnSubmit.innerText = 'Procesar Pronóstico';
             }
         });
 
-        // Llenar Filtros Dinámicos sin duplicados
         function poblarFiltros(data) {
-            const campanas = [...new Set(data.map(item => item.Campaña))].sort();
-            const fechas = [...new Set(data.map(item => item.Fecha))].sort();
-            const intervalos = [...new Set(data.map(item => item.Intervalo))].sort();
+            const campanas = [...new Set(data.map(i => i.Campaña))].sort();
+            const fechas = [...new Set(data.map(i => i.Fecha))].sort();
+            const intervalos = [...new Set(data.map(i => i.Intervalo))].sort();
 
-            const selCampana = document.getElementById('filter-campana');
-            const selFecha = document.getElementById('filter-fecha');
-            const selIntervalo = document.getElementById('filter-intervalo');
+            const sCamp = document.getElementById('f-campana');
+            const sFecha = document.getElementById('f-fecha');
+            const sInter = document.getElementById('f-intervalo');
 
-            selCampana.innerHTML = '<option value="ALL">Todas las Campañas</option>';
-            selFecha.innerHTML = '<option value="ALL">Todas las Fechas</option>';
-            selIntervalo.innerHTML = '<option value="ALL">Todos los Intervalos</option>';
+            sCamp.innerHTML = '<option value="ALL">Todas las Campañas</option>';
+            sFecha.innerHTML = '<option value="ALL">Todas las Fechas</option>';
+            sInter.innerHTML = '<option value="ALL">Todos los Intervalos</option>';
 
-            campanas.forEach(c => selCampana.innerHTML += `<option value="${c}">${c}</option>`);
-            fechas.forEach(f => selFecha.innerHTML += `<option value="${f}">${f}</option>`);
-            intervalos.forEach(i => selIntervalo.innerHTML += `<option value="${i}">${i}</option>`);
+            campanas.forEach(c => sCamp.innerHTML += `<option value="${c}">${c}</option>`);
+            fechas.forEach(f => sFecha.innerHTML += `<option value="${f}">${f}</option>`);
+            intervalos.forEach(i => sInter.innerHTML += `<option value="${i}">${i}</option>`);
         }
 
-        // Aplicar Filtros Interactivos en Tiempo Real
-        function aplicarFiltrosYRenderizar() {
-            const valCampana = document.getElementById('filter-campana').value;
-            const valFecha = document.getElementById('filter-fecha').value;
-            const valIntervalo = document.getElementById('filter-intervalo').value;
+        function actualizarDashboard() {
+            const valCamp = document.getElementById('f-campana').value;
+            const valFecha = document.getElementById('f-fecha').value;
+            const valInter = document.getElementById('f-intervalo').value;
 
-            const datasetFiltrado = rawDataSet.filter(item => {
-                const matchCampana = (valCampana === 'ALL' || item.Campaña === valCampana);
-                const matchFecha = (valFecha === 'ALL' || item.Fecha === valFecha);
-                const matchIntervalo = (valIntervalo === 'ALL' || item.Intervalo === valIntervalo);
-                return matchCampana && matchFecha && matchIntervalo;
+            const filtered = fullData.filter(d => {
+                return (valCamp === 'ALL' || d.Campaña === valCamp) &&
+                       (valFecha === 'ALL' || d.Fecha === valFecha) &&
+                       (valInter === 'ALL' || d.Intervalo === valInter);
             });
 
+            // 1. Recalcular KPIs
+            const totalCalls = filtered.reduce((acc, curr) => acc + curr.Llamadas, 0);
+            const avgAht = filtered.length > 0 ? Math.round(filtered.reduce((acc, curr) => acc + curr.AHT, 0) / filtered.length) : 0;
+            const totalReq = filtered.reduce((acc, curr) => acc + curr.Agentes_Requeridos, 0);
+            const totalProg = filtered.reduce((acc, curr) => acc + curr.Agentes_Programados_Reales, 0);
+            const avgSL = filtered.length > 0 ? (filtered.reduce((acc, curr) => acc + curr.SL_Proyectado, 0) / filtered.length).toFixed(1) : 0;
+
+            document.getElementById('kpi-calls').innerText = totalCalls.toLocaleString();
+            document.getElementById('kpi-aht').innerText = avgAht + 's';
+            document.getElementById('kpi-staff').innerText = `${totalReq} / ${totalProg}`;
+            document.getElementById('kpi-sl').innerText = avgSL + '%';
+
+            // 2. Actualizar Gráficos
+            renderizarGraficos(filtered);
+
+            // 3. Renderizar Tabla
             const tbody = document.getElementById('table-body');
             tbody.innerHTML = '';
 
-            // Mostrar máximo 600 filas para mantener la pantalla fluida
-            datasetFiltrado.slice(0, 600).forEach(row => {
+            filtered.slice(0, 500).forEach(row => {
                 const tr = document.createElement('tr');
-
-                const deltaColor = row.Delta_Net_Staffing >= 0 ? 'var(--accent-success)' : 'var(--accent-danger)';
-                const slColor = row.SL_Proyectado >= 80 ? 'var(--accent-success)' : 'var(--accent-danger)';
+                const deltaColor = row.Delta_Net_Staffing >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+                const slColor = row.SL_Proyectado >= 80 ? 'var(--accent-green)' : 'var(--accent-red)';
 
                 tr.innerHTML = `
-                    <td class="tag-camp">${row.Campaña}</td>
+                    <td><strong>${row.Campaña}</strong></td>
                     <td>${row.Fecha}</td>
                     <td>${row.Día_Semana}</td>
                     <td>${row.Intervalo}</td>
@@ -638,23 +721,88 @@
                     <td>${row.AHT}</td>
                     <td>${row.Agentes_Requeridos}</td>
                     <td>${row.Agentes_Programados_Reales}</td>
-                    <td class="val-delta" style="color: ${deltaColor};">${row.Delta_Net_Staffing}</td>
-                    <td class="val-sl" style="color: ${slColor};">${row.SL_Proyectado}%</td>
+                    <td style="color: ${deltaColor}; font-weight:700;">${row.Delta_Net_Staffing}</td>
+                    <td style="color: ${slColor}; font-weight:700;">${row.SL_Proyectado}%</td>
                 `;
                 tbody.appendChild(tr);
             });
         }
 
-        // Eventos de los filtros
-        document.getElementById('filter-campana').addEventListener('change', aplicarFiltrosYRenderizar);
-        document.getElementById('filter-fecha').addEventListener('change', aplicarFiltrosYRenderizar);
-        document.getElementById('filter-intervalo').addEventListener('change', aplicarFiltrosYRenderizar);
+        function renderizarGraficos(data) {
+            // Agrupar por Intervalo para el gráfico
+            const grouped = {};
+            data.forEach(d => {
+                if (!grouped[d.Intervalo]) {
+                    grouped[d.Intervalo] = { calls: 0, req: 0, delta: 0, count: 0 };
+                }
+                grouped[d.Intervalo].calls += d.Llamadas;
+                grouped[d.Intervalo].req += d.Agentes_Requeridos;
+                grouped[d.Intervalo].delta += d.Delta_Net_Staffing;
+                grouped[d.Intervalo].count += 1;
+            });
 
-        document.getElementById('btn-reset-filters').addEventListener('click', function() {
-            document.getElementById('filter-campana').value = 'ALL';
-            document.getElementById('filter-fecha').value = 'ALL';
-            document.getElementById('filter-intervalo').value = 'ALL';
-            aplicarFiltrosYRenderizar();
+            const labels = Object.keys(grouped).sort();
+            const callsData = labels.map(l => grouped[l].calls);
+            const reqData = labels.map(l => grouped[l].req);
+            const deltaData = labels.map(l => Math.round(grouped[l].delta / grouped[l].count));
+
+            // Gráfico 1: Intraday Calls vs Req
+            if (chartIntradayInstance) chartIntradayInstance.destroy();
+            const ctx1 = document.getElementById('chart-intraday').getContext('2d');
+            chartIntradayInstance = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Llamadas', data: callsData, borderColor: '#06b6d4', backgroundColor: 'rgba(6,182,212,0.1)', fill: true, tension: 0.3 },
+                        { label: 'Agentes Req.', data: reqData, borderColor: '#3b82f6', backgroundColor: 'transparent', borderDash: [4, 4], tension: 0.3 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
+                    scales: {
+                        x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } },
+                        y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } }
+                    }
+                }
+            });
+
+            // Gráfico 2: Net Staffing Delta
+            if (chartStaffingInstance) chartStaffingInstance.destroy();
+            const ctx2 = document.getElementById('chart-staffing').getContext('2d');
+            chartStaffingInstance = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Delta Staffing',
+                        data: deltaData,
+                        backgroundColor: deltaData.map(v => v >= 0 ? '#10b981' : '#ef4444')
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { display: false } },
+                        y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } }
+                    }
+                }
+            });
+        }
+
+        document.getElementById('f-campana').addEventListener('change', actualizarDashboard);
+        document.getElementById('f-fecha').addEventListener('change', actualizarDashboard);
+        document.getElementById('f-intervalo').addEventListener('change', actualizarDashboard);
+
+        document.getElementById('btn-reset').addEventListener('click', function() {
+            document.getElementById('f-campana').value = 'ALL';
+            document.getElementById('f-fecha').value = 'ALL';
+            document.getElementById('f-intervalo').value = 'ALL';
+            actualizarDashboard();
         });
     </script>
 </body>
