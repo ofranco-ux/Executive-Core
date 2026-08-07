@@ -8,7 +8,7 @@ from flask_cors import CORS
 import pandas as pd
 import numpy as np
 
-# Ruta absoluta del directorio base para evitar errores 404/pantallas en blanco
+# Ruta absoluta del directorio base para evitar errores 404
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
@@ -35,9 +35,7 @@ def clean_num(val, default=0.0):
         return default
 
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
-    """
-    Cálculo iterativo eficiente de Erlang C para optimizar memoria RAM en Render.
-    """
+    """ Cálculo iterativo eficiente de Erlang C para optimizar memoria RAM """
     if N <= A or A <= 0 or N <= 0:
         return 0.0
     try:
@@ -59,7 +57,6 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         return 0.0
 
 def parse_time_str(t_str):
-    """ Convierte formato HH:MM a minutos desde medianoche """
     try:
         parts = str(t_str).strip().split(':')
         return int(parts[0]) * 60 + int(parts[1])
@@ -67,10 +64,6 @@ def parse_time_str(t_str):
         return None
 
 def construir_matriz_plantilla(xls_file):
-    """
-    Parsea la hoja Platilla / Plantilla y construye un mapa de capacidad:
-    (Campaña, Día_Semana, Intervalo) -> Agentes_Presentes
-    """
     try:
         sheet_names = xls_file.sheet_names
         sheet_plantilla = None
@@ -128,13 +121,9 @@ def encontrar_columna(df, posibles_nombres):
     return None
 
 # ---------------------------------------------------------------------
-# MOTOR DE MACHINE LEARNING: REGRESIÓN RIDGE AUTORREGRESIVA L2 (NATIVO)
+# MOTOR 1: REGRESIÓN RIDGE AUTORREGRESIVA L2
 # ---------------------------------------------------------------------
 def entrenar_ridge_ml(X, y, l2_reg=10.0):
-    """
-    Entrena una Regresión Ridge con Regularización L2 usando álgebra matricial de NumPy.
-    Resuelve: W = (X^T X + lambda I)^-1 X^T y
-    """
     X_b = np.c_[np.ones((X.shape[0], 1)), X]
     mean = np.mean(X_b[:, 1:], axis=0)
     std = np.std(X_b[:, 1:], axis=0) + 1e-8
@@ -143,7 +132,7 @@ def entrenar_ridge_ml(X, y, l2_reg=10.0):
     X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
     
     I = np.eye(X_norm.shape[1])
-    I[0, 0] = 0.0 # No regularizar la intersección (bias)
+    I[0, 0] = 0.0
     
     try:
         weights = np.linalg.inv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
@@ -160,31 +149,51 @@ def predecir_ridge_ml(weights, mean, std, X_new):
     return float(pred[0])
 
 def extraer_features_fecha(fecha, volumenes_hist, trend_idx):
-    """
-    Genera el vector de variables predictivas para Machine Learning
-    """
     day_of_week = fecha.weekday()
     day_of_month = fecha.day
     is_weekend = 1.0 if day_of_week >= 5 else 0.0
     is_quincena = 1.0 if day_of_month in [1, 15, 16, 30, 31] else 0.0
     
-    # Lags históricos
     lag_1 = volumenes_hist[-1] if len(volumenes_hist) >= 1 else 100.0
     lag_7 = volumenes_hist[-7] if len(volumenes_hist) >= 7 else lag_1
     lag_14 = volumenes_hist[-14] if len(volumenes_hist) >= 14 else lag_7
 
-    # One-Hot Encoding para Días de la Semana (7 variables)
     dow_encoded = [1.0 if day_of_week == i else 0.0 for i in range(7)]
+    return [lag_1, lag_7, lag_14, float(day_of_month), is_weekend, is_quincena, float(trend_idx)] + dow_encoded
 
-    features = [lag_1, lag_7, lag_14, float(day_of_month), is_weekend, is_quincena, float(trend_idx)] + dow_encoded
-    return features
+# ---------------------------------------------------------------------
+# MOTOR 2: HOLT-WINTERS TRIPLE EXPONENTIAL SMOOTHING (ADDITIVE)
+# ---------------------------------------------------------------------
+def holt_winters_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=30):
+    n = len(series)
+    if n < season_len * 2:
+        return [np.mean(series) if len(series) > 0 else 100.0] * n_preds
+    
+    level = np.mean(series[:season_len])
+    trend = (np.mean(series[season_len:2*season_len]) - np.mean(series[:season_len])) / season_len
+    seasonals = [series[i] - level for i in range(season_len)]
+    
+    for i in range(n):
+        val = series[i]
+        last_level, last_trend = level, trend
+        st_prev = seasonals[i % season_len]
+        
+        level = alpha * (val - st_prev) + (1 - alpha) * (last_level + last_trend)
+        trend = beta * (level - last_level) + (1 - beta) * last_trend
+        seasonals[i % season_len] = gamma * (val - level) + (1 - gamma) * st_prev
+        
+    preds = []
+    for m in range(1, n_preds + 1):
+        p = level + m * trend + seasonals[(n + m - 1) % season_len]
+        preds.append(max(0.0, float(p)))
+    return preds
 
 # --- RUTAS BACKEND API ---
 @app.route('/api/process', methods=['POST', 'GET'])
 @app.route('/api/process/', methods=['POST', 'GET'])
 def process_data():
     if request.method == 'GET':
-        return jsonify({'status': 'API operativa con ML Ridge en Render'}), 200
+        return jsonify({'status': 'API operativa con Ensamble ML Híbrido en Render'}), 200
 
     if 'file' not in request.files:
         return jsonify({'error': 'No se recibió ningún archivo.'}), 400
@@ -217,21 +226,25 @@ def process_data():
         col_dia = encontrar_columna(df, ['Día', 'Dia', 'Día_Semana', 'Dia_Semana'])
         col_fecha = encontrar_columna(df, ['Fecha', 'Date'])
 
-        # Normalizar fechas
+        # Normalizar fechas y filtrar valores válidos
         df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce')
         df = df.dropna(subset=[col_fecha])
 
         fecha_maxima = df[col_fecha].max()
         fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
 
+        # AHT global por campaña para fallback seguro
+        aht_global_campana = df.groupby(col_camp)[col_aht].apply(lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 180.0).to_dict()
+
         # -------------------------------------------------------------
-        # 1. ENTRENAMIENTO MODELOS ML RIDGE POR CAMPAÑA
+        # 1. ENTRENAMIENTO ENSAMBLE ML (RIDGE + HOLT-WINTERS)
         # -------------------------------------------------------------
         df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
         campanas_unicas = df[col_camp].unique()
 
         modelos_ml = {}
         historial_volumenes = {}
+        hw_forecasts = {}
 
         for camp in campanas_unicas:
             sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
@@ -239,9 +252,10 @@ def process_data():
             volumenes_list = sub[col_calls].tolist()
             historial_volumenes[camp] = list(volumenes_list)
 
-            X_data = []
-            y_data = []
+            # Generar pronóstico Holt-Winters para los N días futuros
+            hw_forecasts[camp] = holt_winters_predict(volumenes_list, season_len=7, n_preds=dias_futuros)
 
+            X_data, y_data = [], []
             for i in range(14, len(sub)):
                 f = fechas_list[i]
                 v_hist = volumenes_list[:i]
@@ -250,8 +264,7 @@ def process_data():
                 y_data.append(volumenes_list[i])
 
             if len(X_data) > 10:
-                X_arr = np.array(X_data)
-                y_arr = np.array(y_data)
+                X_arr, y_arr = np.array(X_data), np.array(y_data)
                 weights, mean, std = entrenar_ridge_ml(X_arr, y_arr, l2_reg=10.0)
                 modelos_ml[camp] = {
                     'weights': weights,
@@ -263,7 +276,7 @@ def process_data():
                 modelos_ml[camp] = None
 
         # -------------------------------------------------------------
-        # 2. PROFILE CURVE INTRADÍA (FACTOR DÍA_SEMANA E INTERVALO)
+        # 2. PROFILE CURVE INTRADÍA (DISTRIBUCIÓN Y AHT PONDERADO)
         # -------------------------------------------------------------
         df['Dia_Semana_Clean'] = df[col_dia].astype(str).str.strip().str.lower() if col_dia else df[col_fecha].dt.day_name().str.lower()
         
@@ -272,7 +285,7 @@ def process_data():
 
         perfil_intradia = df.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
             avg_calls=(col_calls, 'mean'),
-            avg_aht=(col_aht, 'mean')
+            avg_aht=(col_aht, lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 0)
         ).reset_index()
 
         totales_dia = perfil_intradia.groupby([col_camp, 'Dia_Semana_Clean'])['avg_calls'].transform('sum')
@@ -292,7 +305,7 @@ def process_data():
         gc.collect()
 
         # -------------------------------------------------------------
-        # 3. PREDICCIÓN AUTORREGRESIVA RECURSIVA FUTURA (ML)
+        # 3. GENERACIÓN DEL FORECAST ENSAMBLADO FUTURO
         # -------------------------------------------------------------
         dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
         data_processed = []
@@ -309,24 +322,31 @@ def process_data():
 
                 model_info = modelos_ml.get(camp)
                 if model_info:
-                    volumen_predicho_diario = predecir_ridge_ml(
+                    vol_ridge = predecir_ridge_ml(
                         model_info['weights'], model_info['mean'], model_info['std'], feat_futuras
                     )
-                    # Control de límites (piso y techo lógico)
-                    volumen_predicho_diario = max(volumen_predicho_diario, model_info['promedio_base'] * 0.15)
+                    vol_ridge = max(vol_ridge, model_info['promedio_base'] * 0.15)
                 else:
-                    volumen_predicho_diario = np.mean(hist_vol[-7:]) if hist_vol else 100.0
+                    vol_ridge = np.mean(hist_vol[-7:]) if hist_vol else 100.0
 
-                # Guardar en la serie autorregresiva para que los próximos días usen esta predicción como Lag_1
+                vol_hw = hw_forecasts[camp][d] if d < len(hw_forecasts[camp]) else vol_ridge
+
+                # Ensamble Ponderado: 60% Holt-Winters (captura picos) + 40% Ridge (estabiliza tendencia)
+                volumen_predicho_diario = (0.60 * vol_hw) + (0.40 * vol_ridge)
+
                 historial_volumenes[camp].append(volumen_predicho_diario)
 
-                # Distribución intradía y Erlang C
+                # Distribución intradía e Erlang C
                 for inter in intervalos_unicos:
                     key_p = (camp, nombre_dia, inter)
-                    info_p = mapa_perfil.get(key_p, {'weight': 1.0 / max(len(intervalos_unicos), 1), 'aht': 180.0})
+                    info_p = mapa_perfil.get(key_p, {'weight': 1.0 / max(len(intervalos_unicos), 1), 'aht': 0})
 
                     calls = volumen_predicho_diario * info_p['weight']
-                    aht = info_p['aht'] if info_p['aht'] > 0 else 180.0
+                    
+                    # Fallback AHT inteligente
+                    aht = info_p['aht']
+                    if aht <= 0 or pd.isna(aht):
+                        aht = aht_global_campana.get(camp, 180.0)
 
                     a_erlang = (calls * aht) / 1800.0 if aht > 0 else 0.0
                     req_raw = a_erlang / (1.0 - merma) if merma < 1.0 else a_erlang
