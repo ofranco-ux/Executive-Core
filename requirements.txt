@@ -2,4 +2,5 @@ flask
 flask-cors
 pandas
 openpyxl
+python-calamine
 gunicorn
