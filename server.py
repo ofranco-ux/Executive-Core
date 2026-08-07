@@ -6,8 +6,9 @@ from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pandas as pd
+import numpy as np
 
-# Definir la ruta absoluta del directorio base para evitar errores 404/pantallas en blanco
+# Ruta absoluta del directorio base para evitar errores 404/pantallas en blanco
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
@@ -126,30 +127,64 @@ def encontrar_columna(df, posibles_nombres):
             return columnas_df[pos_clean]
     return None
 
-def calcular_tendencia_lineal(valores):
-    """ Regresión lineal simple nativa para proyectar la tendencia diaria """
-    n = len(valores)
-    if n < 2:
-        return 0.0, valores[0] if n == 1 else 0.0
-    x = list(range(n))
-    sum_x = sum(x)
-    sum_y = sum(valores)
-    sum_xy = sum(i * j for i, j in zip(x, valores))
-    sum_x2 = sum(i ** 2 for i in x)
+# ---------------------------------------------------------------------
+# MOTOR DE MACHINE LEARNING: REGRESIÓN RIDGE AUTORREGRESIVA L2 (NATIVO)
+# ---------------------------------------------------------------------
+def entrenar_ridge_ml(X, y, l2_reg=10.0):
+    """
+    Entrena una Regresión Ridge con Regularización L2 usando álgebra matricial de NumPy.
+    Resuelve: W = (X^T X + lambda I)^-1 X^T y
+    """
+    X_b = np.c_[np.ones((X.shape[0], 1)), X]
+    mean = np.mean(X_b[:, 1:], axis=0)
+    std = np.std(X_b[:, 1:], axis=0) + 1e-8
     
-    denom = (n * sum_x2 - sum_x ** 2)
-    if denom == 0:
-        return 0.0, sum_y / n
-    slope = (n * sum_xy - sum_x * sum_y) / denom
-    intercept = (sum_y - slope * sum_x) / n
-    return slope, intercept
+    X_norm = X_b.copy()
+    X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
+    
+    I = np.eye(X_norm.shape[1])
+    I[0, 0] = 0.0 # No regularizar la intersección (bias)
+    
+    try:
+        weights = np.linalg.inv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
+    except np.linalg.LinAlgError:
+        weights = np.linalg.pinv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
+        
+    return weights, mean, std
+
+def predecir_ridge_ml(weights, mean, std, X_new):
+    X_b = np.c_[np.ones((X_new.shape[0], 1)), X_new]
+    X_norm = X_b.copy()
+    X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
+    pred = X_norm @ weights
+    return float(pred[0])
+
+def extraer_features_fecha(fecha, volumenes_hist, trend_idx):
+    """
+    Genera el vector de variables predictivas para Machine Learning
+    """
+    day_of_week = fecha.weekday()
+    day_of_month = fecha.day
+    is_weekend = 1.0 if day_of_week >= 5 else 0.0
+    is_quincena = 1.0 if day_of_month in [1, 15, 16, 30, 31] else 0.0
+    
+    # Lags históricos
+    lag_1 = volumenes_hist[-1] if len(volumenes_hist) >= 1 else 100.0
+    lag_7 = volumenes_hist[-7] if len(volumenes_hist) >= 7 else lag_1
+    lag_14 = volumenes_hist[-14] if len(volumenes_hist) >= 14 else lag_7
+
+    # One-Hot Encoding para Días de la Semana (7 variables)
+    dow_encoded = [1.0 if day_of_week == i else 0.0 for i in range(7)]
+
+    features = [lag_1, lag_7, lag_14, float(day_of_month), is_weekend, is_quincena, float(trend_idx)] + dow_encoded
+    return features
 
 # --- RUTAS BACKEND API ---
 @app.route('/api/process', methods=['POST', 'GET'])
 @app.route('/api/process/', methods=['POST', 'GET'])
 def process_data():
     if request.method == 'GET':
-        return jsonify({'status': 'API operativa con Machine Learning en Render'}), 200
+        return jsonify({'status': 'API operativa con ML Ridge en Render'}), 200
 
     if 'file' not in request.files:
         return jsonify({'error': 'No se recibió ningún archivo.'}), 400
@@ -190,31 +225,45 @@ def process_data():
         fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
 
         # -------------------------------------------------------------
-        # 1. MODELO DE TENDENCIA Y VOLUMEN DIARIO POR CAMPAÑA
+        # 1. ENTRENAMIENTO MODELOS ML RIDGE POR CAMPAÑA
         # -------------------------------------------------------------
         df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
         campanas_unicas = df[col_camp].unique()
 
-        modelos_pronostico = {}
+        modelos_ml = {}
+        historial_volumenes = {}
+
         for camp in campanas_unicas:
-            sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha)
-            volumenes = sub[col_calls].tolist()
-            if len(volumenes) > 1:
-                slope, intercept = calcular_tendencia_lineal(volumenes)
-                promedio_base = sum(volumenes) / len(volumenes)
+            sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
+            fechas_list = sub[col_fecha].tolist()
+            volumenes_list = sub[col_calls].tolist()
+            historial_volumenes[camp] = list(volumenes_list)
+
+            X_data = []
+            y_data = []
+
+            for i in range(14, len(sub)):
+                f = fechas_list[i]
+                v_hist = volumenes_list[:i]
+                feat = extraer_features_fecha(f, v_hist, trend_idx=i)
+                X_data.append(feat)
+                y_data.append(volumenes_list[i])
+
+            if len(X_data) > 10:
+                X_arr = np.array(X_data)
+                y_arr = np.array(y_data)
+                weights, mean, std = entrenar_ridge_ml(X_arr, y_arr, l2_reg=10.0)
+                modelos_ml[camp] = {
+                    'weights': weights,
+                    'mean': mean,
+                    'std': std,
+                    'promedio_base': np.mean(y_arr)
+                }
             else:
-                slope, intercept = 0.0, volumenes[0] if volumenes else 100.0
-                promedio_base = intercept
-            
-            modelos_pronostico[camp] = {
-                'slope': slope,
-                'intercept': intercept,
-                'len_hist': len(volumenes),
-                'promedio_base': promedio_base
-            }
+                modelos_ml[camp] = None
 
         # -------------------------------------------------------------
-        # 2. PROFILE CURVE INTRADÍA (DISTRIBUCIÓN POR DÍA E INTERVALO)
+        # 2. PROFILE CURVE INTRADÍA (FACTOR DÍA_SEMANA E INTERVALO)
         # -------------------------------------------------------------
         df['Dia_Semana_Clean'] = df[col_dia].astype(str).str.strip().str.lower() if col_dia else df[col_fecha].dt.day_name().str.lower()
         
@@ -243,7 +292,7 @@ def process_data():
         gc.collect()
 
         # -------------------------------------------------------------
-        # 3. GENERACIÓN DEL FORECAST FUTURO (DÍA POSTERIOR AL HISTÓRICO)
+        # 3. PREDICCIÓN AUTORREGRESIVA RECURSIVA FUTURA (ML)
         # -------------------------------------------------------------
         dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
         data_processed = []
@@ -254,14 +303,24 @@ def process_data():
             nombre_dia = dias_espanol[fecha_actual.weekday()]
 
             for camp in campanas_unicas:
-                mod = modelos_pronostico.get(camp, {'slope': 0.0, 'intercept': 100.0, 'len_hist': 10, 'promedio_base': 100.0})
-                idx_futuro = mod['len_hist'] + d
-                
-                # Predicción con tendencia
-                volumen_predicho_diario = mod['intercept'] + mod['slope'] * idx_futuro
-                if volumen_predicho_diario < (mod['promedio_base'] * 0.2):
-                    volumen_predicho_diario = mod['promedio_base']
+                hist_vol = historial_volumenes[camp]
+                trend_idx = len(hist_vol)
+                feat_futuras = np.array([extraer_features_fecha(fecha_actual, hist_vol, trend_idx)])
 
+                model_info = modelos_ml.get(camp)
+                if model_info:
+                    volumen_predicho_diario = predecir_ridge_ml(
+                        model_info['weights'], model_info['mean'], model_info['std'], feat_futuras
+                    )
+                    # Control de límites (piso y techo lógico)
+                    volumen_predicho_diario = max(volumen_predicho_diario, model_info['promedio_base'] * 0.15)
+                else:
+                    volumen_predicho_diario = np.mean(hist_vol[-7:]) if hist_vol else 100.0
+
+                # Guardar en la serie autorregresiva para que los próximos días usen esta predicción como Lag_1
+                historial_volumenes[camp].append(volumen_predicho_diario)
+
+                # Distribución intradía y Erlang C
                 for inter in intervalos_unicos:
                     key_p = (camp, nombre_dia, inter)
                     info_p = mapa_perfil.get(key_p, {'weight': 1.0 / max(len(intervalos_unicos), 1), 'aht': 180.0})
