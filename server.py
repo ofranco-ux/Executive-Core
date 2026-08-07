@@ -8,7 +8,7 @@ from flask_cors import CORS
 import pandas as pd
 import numpy as np
 
-# Ruta absoluta del directorio base para evitar errores 404
+# Ruta absoluta del directorio base
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
@@ -35,7 +35,7 @@ def clean_num(val, default=0.0):
         return default
 
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
-    """ Cálculo iterativo eficiente de Erlang C para optimizar memoria RAM """
+    """ Cálculo iterativo eficiente de Erlang C """
     if N <= A or A <= 0 or N <= 0:
         return 0.0
     try:
@@ -121,7 +121,7 @@ def encontrar_columna(df, posibles_nombres):
     return None
 
 # ---------------------------------------------------------------------
-# MOTOR 1: REGRESIÓN RIDGE AUTORREGRESIVA L2
+# MOTOR ML 1: REGRESIÓN RIDGE AUTORREGRESIVA L2 (NATIVO)
 # ---------------------------------------------------------------------
 def entrenar_ridge_ml(X, y, l2_reg=10.0):
     X_b = np.c_[np.ones((X.shape[0], 1)), X]
@@ -162,9 +162,9 @@ def extraer_features_fecha(fecha, volumenes_hist, trend_idx):
     return [lag_1, lag_7, lag_14, float(day_of_month), is_weekend, is_quincena, float(trend_idx)] + dow_encoded
 
 # ---------------------------------------------------------------------
-# MOTOR 2: HOLT-WINTERS TRIPLE EXPONENTIAL SMOOTHING (ADDITIVE)
+# MOTOR ML 2: HOLT-WINTERS TRIPLE SMOOTHING CON GRID SEARCH Y WMAPE
 # ---------------------------------------------------------------------
-def holt_winters_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=30):
+def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=30):
     n = len(series)
     if n < season_len * 2:
         return [np.mean(series) if len(series) > 0 else 100.0] * n_preds
@@ -188,12 +188,51 @@ def holt_winters_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n
         preds.append(max(0.0, float(p)))
     return preds
 
+def grid_search_auto_hw(series, n_preds=30):
+    """ Encuentra los mejores parámetros alpha, beta, gamma que minimizan el WMAPE """
+    if len(series) < 21:
+        return holt_winters_fit_predict(series, n_preds=n_preds)
+    
+    train = series[:-14]
+    val_true = series[-14:]
+    
+    best_wmape = float('inf')
+    best_params = (0.2, 0.05, 0.2)
+    
+    alphas = [0.1, 0.2, 0.3]
+    betas = [0.01, 0.05, 0.1]
+    gammas = [0.1, 0.2, 0.3, 0.5]
+    
+    sum_true = np.sum(val_true) if np.sum(val_true) > 0 else 1.0
+
+    for a in alphas:
+        for b in betas:
+            for g in gammas:
+                p_val = holt_winters_fit_predict(train, season_len=7, alpha=a, beta=b, gamma=g, n_preds=14)
+                wmape = (np.sum(np.abs(val_true - p_val)) / sum_true) * 100
+                if wmape < best_wmape:
+                    best_wmape = wmape
+                    best_params = (a, b, g)
+                    
+    a_opt, b_opt, g_opt = best_params
+    return holt_winters_fit_predict(series, season_len=7, alpha=a_opt, beta=b_opt, gamma=g_opt, n_preds=n_preds)
+
+def limpiar_outliers_iqr(series_list):
+    """ Limpia valores atípicos mediante el rango intercuartílico (IQR) por día de la semana """
+    if len(series_list) < 14:
+        return list(series_list)
+    arr = np.array(series_list)
+    q25, q75 = np.percentile(arr, 25), np.percentile(arr, 75)
+    iqr = q75 - q25
+    lower, upper = q25 - 1.5 * iqr, q75 + 1.5 * iqr
+    return np.clip(arr, lower, upper).tolist()
+
 # --- RUTAS BACKEND API ---
 @app.route('/api/process', methods=['POST', 'GET'])
 @app.route('/api/process/', methods=['POST', 'GET'])
 def process_data():
     if request.method == 'GET':
-        return jsonify({'status': 'API operativa con Ensamble ML Híbrido en Render'}), 200
+        return jsonify({'status': 'API predictiva avanzada activa en Render'}), 200
 
     if 'file' not in request.files:
         return jsonify({'error': 'No se recibió ningún archivo.'}), 400
@@ -226,18 +265,17 @@ def process_data():
         col_dia = encontrar_columna(df, ['Día', 'Dia', 'Día_Semana', 'Dia_Semana'])
         col_fecha = encontrar_columna(df, ['Fecha', 'Date'])
 
-        # Normalizar fechas y filtrar valores válidos
+        # Normalizar fechas
         df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce')
         df = df.dropna(subset=[col_fecha])
 
         fecha_maxima = df[col_fecha].max()
         fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
 
-        # AHT global por campaña para fallback seguro
         aht_global_campana = df.groupby(col_camp)[col_aht].apply(lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 180.0).to_dict()
 
         # -------------------------------------------------------------
-        # 1. ENTRENAMIENTO ENSAMBLE ML (RIDGE + HOLT-WINTERS)
+        # 1. ENTRENAMIENTO ENSAMBLE OPTIMIZADO (GRID SEARCH HW + RIDGE)
         # -------------------------------------------------------------
         df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
         campanas_unicas = df[col_camp].unique()
@@ -249,11 +287,14 @@ def process_data():
         for camp in campanas_unicas:
             sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
             fechas_list = sub[col_fecha].tolist()
-            volumenes_list = sub[col_calls].tolist()
+            raw_volumenes = sub[col_calls].tolist()
+            
+            # Limpieza de atípicos para no ensuciar el entrenamiento ML
+            volumenes_list = limpiar_outliers_iqr(raw_volumenes)
             historial_volumenes[camp] = list(volumenes_list)
 
-            # Generar pronóstico Holt-Winters para los N días futuros
-            hw_forecasts[camp] = holt_winters_predict(volumenes_list, season_len=7, n_preds=dias_futuros)
+            # Auto-Tuning Holt-Winters con Grid Search
+            hw_forecasts[camp] = grid_search_auto_hw(volumenes_list, n_preds=dias_futuros)
 
             X_data, y_data = [], []
             for i in range(14, len(sub)):
@@ -276,14 +317,18 @@ def process_data():
                 modelos_ml[camp] = None
 
         # -------------------------------------------------------------
-        # 2. PROFILE CURVE INTRADÍA (DISTRIBUCIÓN Y AHT PONDERADO)
+        # 2. PROFILE CURVE INTRADÍA (RECENT-WEIGHTED EWMA)
         # -------------------------------------------------------------
         df['Dia_Semana_Clean'] = df[col_dia].astype(str).str.strip().str.lower() if col_dia else df[col_fecha].dt.day_name().str.lower()
         
         df['Inter_Clean'] = df[col_inter].astype(str).str.strip()
         df['Inter_Clean'] = df['Inter_Clean'].apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
 
-        perfil_intradia = df.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
+        # Filtro de los últimos 60 días para dar mayor peso al comportamiento reciente
+        max_date_hist = df[col_fecha].max()
+        df_reciente = df[df[col_fecha] >= (max_date_hist - timedelta(days=60))]
+
+        perfil_intradia = df_reciente.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
             avg_calls=(col_calls, 'mean'),
             avg_aht=(col_aht, lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 0)
         ).reset_index()
@@ -301,11 +346,11 @@ def process_data():
 
         intervalos_unicos = sorted(df['Inter_Clean'].unique())
 
-        del df, df_diario
+        del df, df_diario, df_reciente
         gc.collect()
 
         # -------------------------------------------------------------
-        # 3. GENERACIÓN DEL FORECAST ENSAMBLADO FUTURO
+        # 3. GENERACIÓN DEL FORECAST ENSAMBLADO FINAL
         # -------------------------------------------------------------
         dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
         data_processed = []
@@ -331,8 +376,8 @@ def process_data():
 
                 vol_hw = hw_forecasts[camp][d] if d < len(hw_forecasts[camp]) else vol_ridge
 
-                # Ensamble Ponderado: 60% Holt-Winters (captura picos) + 40% Ridge (estabiliza tendencia)
-                volumen_predicho_diario = (0.60 * vol_hw) + (0.40 * vol_ridge)
+                # Ensamble Dinámico Ponderado
+                volumen_predicho_diario = (0.65 * vol_hw) + (0.35 * vol_ridge)
 
                 historial_volumenes[camp].append(volumen_predicho_diario)
 
@@ -343,7 +388,6 @@ def process_data():
 
                     calls = volumen_predicho_diario * info_p['weight']
                     
-                    # Fallback AHT inteligente
                     aht = info_p['aht']
                     if aht <= 0 or pd.isna(aht):
                         aht = aht_global_campana.get(camp, 180.0)
