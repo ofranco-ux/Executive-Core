@@ -7,7 +7,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pandas as pd
 
-# Definir la ruta absoluta del directorio base para evitar pantallas en blanco / 404
+# Ruta absoluta del directorio base para evitar problemas al servir archivos estáticos
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
@@ -35,8 +35,7 @@ def clean_num(val, default=0.0):
 
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
     """
-    Cálculo iterativo eficiente de Erlang C para evitar desbordamiento 
-    de memoria (Memory Limit 512MB de Render).
+    Cálculo iterativo eficiente de Erlang C para optimizar memoria RAM en Render.
     """
     if N <= A or A <= 0 or N <= 0:
         return 0.0
@@ -166,12 +165,22 @@ def process_data():
         col_camp = encontrar_columna(df, ['Campaña', 'Campana', 'Ring Group', 'Skill'])
         col_inter = encontrar_columna(df, ['Intervalo', 'Hora'])
         col_dia = encontrar_columna(df, ['Día', 'Dia', 'Día_Semana', 'Dia_Semana'])
+        col_fecha = encontrar_columna(df, ['Fecha', 'Date'])
+
+        # 3. Determinar la última fecha en el histórico para proyectar a partir del día siguiente
+        fecha_maxima = datetime.now()
+        if col_fecha:
+            fechas_parsed = pd.to_datetime(df[col_fecha], errors='coerce')
+            if not fechas_parsed.dropna().empty:
+                fecha_maxima = fechas_parsed.max()
+
+        fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
 
         records = df.to_dict(orient='records')
         del df
         gc.collect()
 
-        # 3. Construir perfiles promedios por (Campaña, Día_Semana, Intervalo)
+        # 4. Construir perfiles promedios por (Campaña, Día_Semana, Intervalo)
         perfiles_historicos = {}
         for row in records:
             calls = clean_num(row.get(col_calls) if col_calls else 0, 0.0)
@@ -203,15 +212,14 @@ def process_data():
 
         dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
 
-        # 4. Generar Proyección Futura desde HOY hacia N Días
+        # 5. Generar Forecast iniciando en el DÍA POSTERIOR al último dato histórico
         data_processed = []
-        fecha_inicio = datetime.now()
 
         campanas_unicas = sorted(list(set(k[0] for k in mapa_promedios.keys())))
         intervalos_unicos = sorted(list(set(k[2] for k in mapa_promedios.keys())))
 
         for d in range(dias_futuros):
-            fecha_actual = fecha_inicio + timedelta(days=d)
+            fecha_actual = fecha_inicio_forecast + timedelta(days=d)
             str_fecha = fecha_actual.strftime('%Y-%m-%d')
             nombre_dia = dias_espanol[fecha_actual.weekday()]
 
@@ -226,12 +234,10 @@ def process_data():
                         calls = 0.0
                         aht = 180.0
 
-                    # Cálculo Erlang C y requerimiento
                     a_erlang = (calls * aht) / 1800.0 if aht > 0 else 0.0
                     req_raw = a_erlang / (1.0 - merma) if merma < 1.0 else a_erlang
                     req_agents = math.ceil(req_raw)
 
-                    # Obtener programados desde la matriz Platilla
                     key_roster = (camp.lower(), nombre_dia.lower(), inter)
                     prog = matriz_roster.get(key_roster, req_agents)
 
