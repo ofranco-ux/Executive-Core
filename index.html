@@ -3,263 +3,227 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Executive Core - Enterprise WFM Intelligence System</title>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <title>NICE IEX WFM - Executive Core Analytics Engine</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;600&family=Segoe+UI:wght@400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg-app: #080b11;
-            --bg-panel: #0f172a;
-            --bg-card: #141e33;
-            --bg-input: #0a0f1d;
-            --border: #1e293b;
-            --border-highlight: #334155;
+            /* Paleta Institucional NICE IEX */
+            --nice-blue: #0052cc;
+            --nice-blue-dark: #003d99;
+            --nice-bg-app: #0f141d;
+            --nice-bg-panel: #18202e;
+            --nice-bg-card: #1f293d;
+            --nice-border: #2a374f;
+            --nice-border-light: #3a4b68;
             
-            --primary: #2563eb;
-            --primary-cyan: #06b6d4;
-            --success: #10b981;
-            --danger: #f43f5e;
-            --warning: #f59e0b;
+            --nice-success: #00c853;
+            --nice-danger: #ff3d00;
+            --nice-warning: #ffab00;
+            --nice-info: #00b0ff;
             
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
+            --text-primary: #ffffff;
+            --text-secondary: #a0aec0;
             --text-muted: #64748b;
-            --font-mono: 'JetBrains Mono', monospace;
+            --font-mono: 'Roboto Mono', monospace;
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
         }
 
         body {
-            background-color: var(--bg-app);
+            background-color: var(--nice-bg-app);
             color: var(--text-primary);
             display: flex;
+            flex-direction: column;
             height: 100vh;
             overflow: hidden;
         }
 
-        /* Lateral - Control Panel */
-        .sidebar {
-            width: 320px;
-            background-color: var(--bg-panel);
-            border-right: 1px solid var(--border);
+        /* 1. Header Principal NICE Systems */
+        .nice-header {
+            background: linear-gradient(90deg, var(--nice-blue-dark), var(--nice-blue));
+            height: 48px;
+            padding: 0 20px;
             display: flex;
-            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+            z-index: 30;
             flex-shrink: 0;
-            z-index: 20;
         }
 
-        .sys-header {
-            padding: 20px 24px;
-            border-bottom: 1px solid var(--border);
+        .nice-brand {
             display: flex;
             align-items: center;
             gap: 12px;
-            background: rgba(15, 23, 42, 0.6);
         }
 
-        .sys-logo {
-            width: 36px;
-            height: 36px;
-            background: linear-gradient(135deg, #2563eb, #06b6d4);
-            border-radius: 8px;
+        .nice-logo {
+            font-weight: 800;
+            font-size: 1.1rem;
+            letter-spacing: 0.05em;
+            color: #fff;
+            background: rgba(255,255,255,0.15);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .nice-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #ffffff;
+            letter-spacing: 0.02em;
+        }
+
+        .nice-status {
+            background: rgba(0, 200, 83, 0.2);
+            border: 1px solid var(--nice-success);
+            color: #ffffff;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.72rem;
+            font-weight: 600;
             display: flex;
             align-items: center;
-            justify-content: center;
-            font-weight: 800;
-            font-size: 0.95rem;
-            color: #fff;
-            letter-spacing: -0.05em;
-            box-shadow: 0 0 15px rgba(37, 99, 235, 0.3);
+            gap: 6px;
         }
 
-        .sys-title h1 {
-            font-size: 0.95rem;
-            font-weight: 800;
-            letter-spacing: 0.02em;
-            text-transform: uppercase;
-            color: #fff;
+        .nice-status::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background-color: var(--nice-success);
+            border-radius: 50%;
+            box-shadow: 0 0 6px var(--nice-success);
         }
 
-        .sys-title p {
-            font-size: 0.68rem;
-            color: var(--primary-cyan);
-            font-weight: 600;
-            letter-spacing: 0.05em;
+        /* Layout Principal Body */
+        .app-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
         }
 
-        .sidebar-body {
-            padding: 20px 24px;
+        /* 2. Lateral de Control - Parametrización WFM */
+        .sidebar {
+            width: 300px;
+            background-color: var(--nice-bg-panel);
+            border-right: 1px solid var(--nice-border);
             display: flex;
             flex-direction: column;
-            gap: 18px;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header {
+            padding: 14px 18px;
+            background-color: rgba(0,0,0,0.2);
+            border-bottom: 1px solid var(--nice-border);
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-secondary);
+        }
+
+        .sidebar-content {
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
             overflow-y: auto;
             flex: 1;
         }
 
-        .param-group-title {
-            font-size: 0.68rem;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: var(--text-muted);
-            font-weight: 700;
-            margin-bottom: 2px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .param-group-title::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background-color: var(--border);
-        }
-
-        .field-group {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .field-group label {
-            font-size: 0.78rem;
+        .field-label {
+            font-size: 0.75rem;
             color: var(--text-secondary);
             font-weight: 600;
+            margin-bottom: 4px;
+            display: block;
         }
 
-        .field-group input {
-            background-color: var(--bg-input);
-            border: 1px solid var(--border);
-            color: var(--text-primary);
-            padding: 9px 12px;
-            border-radius: 6px;
+        .field-input {
+            width: 100%;
+            background-color: var(--nice-bg-app);
+            border: 1px solid var(--nice-border);
+            color: #fff;
+            padding: 8px 10px;
+            border-radius: 4px;
             font-size: 0.85rem;
             font-family: var(--font-mono);
             outline: none;
-            transition: all 0.15s ease;
+            transition: border-color 0.15s;
         }
 
-        .field-group input:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+        .field-input:focus {
+            border-color: var(--nice-info);
         }
 
         input[type="file"]::file-selector-button {
-            background-color: #1e293b;
+            background-color: var(--nice-card);
             color: #fff;
-            border: 1px solid var(--border-highlight);
-            padding: 5px 10px;
-            border-radius: 4px;
+            border: 1px solid var(--nice-border-light);
+            padding: 4px 8px;
+            border-radius: 3px;
             cursor: pointer;
             font-size: 0.72rem;
             font-weight: 600;
             margin-right: 8px;
-            transition: all 0.15s;
         }
 
-        input[type="file"]::file-selector-button:hover {
-            background-color: #334155;
-        }
-
-        .btn-process {
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        .btn-run {
+            background: linear-gradient(180deg, var(--nice-blue), var(--nice-blue-dark));
             color: #fff;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 12px;
-            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 10px;
+            border-radius: 4px;
             font-weight: 700;
-            font-size: 0.85rem;
-            letter-spacing: 0.03em;
+            font-size: 0.82rem;
             text-transform: uppercase;
+            letter-spacing: 0.05em;
             cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.25);
-            margin-top: 8px;
+            transition: all 0.15s;
+            box-shadow: 0 3px 8px rgba(0,82,204,0.3);
+            margin-top: 6px;
         }
 
-        .btn-process:hover {
-            background: linear-gradient(135deg, #1d4ed8, #1e40af);
-            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+        .btn-run:hover {
+            filter: brightness(1.15);
         }
 
-        .btn-process:disabled {
-            background: #1e293b;
-            color: #475569;
+        .btn-run:disabled {
+            background: #2a374f;
+            color: #64748b;
             cursor: not-allowed;
             box-shadow: none;
-            border-color: transparent;
         }
 
-        /* Workspace Área */
+        /* 3. Panel de Trabajo Workstation */
         .workspace {
             flex: 1;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            background-color: var(--bg-app);
+            background-color: var(--nice-bg-app);
         }
 
-        /* Header de Estado WFM */
-        .wfm-navbar {
-            padding: 14px 28px;
-            background-color: var(--bg-panel);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .nav-info {
+        /* Query Ribbon Toolbar */
+        .iex-ribbon {
+            background-color: var(--nice-bg-panel);
+            border-bottom: 1px solid var(--nice-border);
+            padding: 10px 24px;
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 18px;
+            flex-wrap: wrap;
         }
 
-        .nav-info h2 {
-            font-size: 1.1rem;
-            font-weight: 800;
-            letter-spacing: -0.01em;
-        }
-
-        .nav-badge {
-            background: rgba(16, 185, 129, 0.1);
-            color: var(--success);
-            border: 1px solid rgba(16, 185, 129, 0.25);
-            padding: 4px 10px;
-            border-radius: 4px;
-            font-size: 0.7rem;
-            font-family: var(--font-mono);
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .nav-badge::before {
-            content: '';
-            width: 6px;
-            height: 6px;
-            background-color: var(--success);
-            border-radius: 50%;
-            box-shadow: 0 0 6px var(--success);
-        }
-
-        /* Global Filters Ribbon */
-        .filter-ribbon {
-            padding: 10px 28px;
-            background-color: #0b1120;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-
-        .ribbon-label {
+        .ribbon-tag {
             font-size: 0.7rem;
             font-weight: 700;
             text-transform: uppercase;
@@ -267,129 +231,124 @@
             letter-spacing: 0.08em;
         }
 
-        .ribbon-select-group {
+        .ribbon-item {
             display: flex;
             align-items: center;
             gap: 8px;
         }
 
-        .ribbon-select-group label {
+        .ribbon-item label {
             font-size: 0.75rem;
             color: var(--text-secondary);
             font-weight: 600;
         }
 
-        .ribbon-select-group select {
-            background-color: var(--bg-panel);
-            border: 1px solid var(--border);
-            color: var(--text-primary);
-            padding: 5px 10px;
+        .ribbon-item select {
+            background-color: var(--nice-bg-app);
+            border: 1px solid var(--nice-border);
+            color: #fff;
+            padding: 4px 8px;
             border-radius: 4px;
             font-size: 0.8rem;
             outline: none;
+            min-width: 150px;
             cursor: pointer;
-            min-width: 160px;
         }
 
-        .btn-reset-filters {
+        .btn-clear {
             background: transparent;
-            border: 1px solid var(--border);
+            border: 1px solid var(--nice-border-light);
             color: var(--text-secondary);
-            padding: 5px 12px;
+            padding: 4px 10px;
             border-radius: 4px;
             font-size: 0.75rem;
             font-weight: 600;
             cursor: pointer;
             margin-left: auto;
-            transition: all 0.15s;
         }
 
-        .btn-reset-filters:hover {
-            background-color: var(--bg-panel);
+        .btn-clear:hover {
+            background-color: var(--nice-bg-card);
             color: #fff;
-            border-color: var(--border-highlight);
         }
 
-        /* Viewport Scannable */
-        .viewport-body {
+        /* Viewport Scrollable */
+        .viewport-content {
             flex: 1;
-            padding: 20px 28px;
+            padding: 20px 24px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
             gap: 16px;
         }
 
-        /* Executive KPI Bar */
+        /* KPI Scorecard Grid */
         .kpi-row {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 14px;
+            gap: 12px;
         }
 
-        .kpi-box {
-            background-color: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 16px;
+        .kpi-card {
+            background-color: var(--nice-bg-card);
+            border: 1px solid var(--nice-border);
+            border-radius: 6px;
+            padding: 14px 16px;
             display: flex;
             flex-direction: column;
-            gap: 6px;
-            position: relative;
+            gap: 4px;
+            border-top: 3px solid var(--nice-blue);
         }
 
-        .kpi-box-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+        .kpi-card.green { border-top-color: var(--nice-success); }
+        .kpi-card.yellow { border-top-color: var(--nice-warning); }
+        .kpi-card.cyan { border-top-color: var(--nice-info); }
 
-        .kpi-box-title {
+        .kpi-title {
             font-size: 0.68rem;
             text-transform: uppercase;
             letter-spacing: 0.08em;
-            color: var(--text-muted);
+            color: var(--text-secondary);
             font-weight: 700;
         }
 
-        .kpi-box-val {
-            font-size: 1.5rem;
+        .kpi-val {
+            font-size: 1.45rem;
             font-weight: 800;
             font-family: var(--font-mono);
             letter-spacing: -0.02em;
         }
 
-        .kpi-box-sub {
-            font-size: 0.7rem;
-            color: var(--text-secondary);
-            font-weight: 500;
+        .kpi-sub {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            font-weight: 600;
         }
 
-        /* Gráficos analytics */
-        .analytics-row {
+        /* Visualización Gráfica Analytics */
+        .charts-row {
             display: grid;
             grid-template-columns: 2fr 1fr;
-            gap: 14px;
+            gap: 12px;
         }
 
-        .analytics-card {
-            background-color: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
+        .chart-card {
+            background-color: var(--nice-bg-card);
+            border: 1px solid var(--nice-border);
+            border-radius: 6px;
             padding: 16px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            height: 280px;
+            gap: 10px;
+            height: 270px;
         }
 
-        .analytics-card-title {
+        .chart-head {
             font-size: 0.8rem;
             font-weight: 700;
-            color: var(--text-primary);
+            color: #fff;
             display: flex;
             justify-content: space-between;
-            align-items: center;
         }
 
         .chart-box {
@@ -399,18 +358,16 @@
             height: 100%;
         }
 
-        /* Data Grid Table IEX Style */
+        /* IEX Staffing Grid Table */
         .grid-card {
-            background-color: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
+            background-color: var(--nice-bg-card);
+            border: 1px solid var(--nice-border);
+            border-radius: 6px;
             overflow: hidden;
-            display: flex;
-            flex-direction: column;
         }
 
-        .grid-responsive {
-            max-height: 360px;
+        .grid-scroll {
+            max-height: 340px;
             overflow: auto;
         }
 
@@ -424,60 +381,48 @@
         thead {
             position: sticky;
             top: 0;
-            background-color: #0c1322;
+            background-color: #121824;
             z-index: 10;
         }
 
         th {
-            color: var(--text-muted);
+            color: var(--text-secondary);
             font-weight: 700;
-            font-size: 0.7rem;
+            font-size: 0.68rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
             padding: 10px 14px;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid var(--nice-border);
             white-space: nowrap;
         }
 
         td {
             padding: 8px 14px;
-            border-bottom: 1px solid rgba(30, 41, 59, 0.6);
-            color: var(--text-primary);
+            border-bottom: 1px solid rgba(42, 55, 79, 0.5);
+            color: #fff;
             font-family: var(--font-mono);
             white-space: nowrap;
         }
 
         tbody tr:hover {
-            background-color: rgba(255, 255, 255, 0.025);
+            background-color: rgba(255, 255, 255, 0.03);
         }
 
-        .td-bold {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-weight: 700;
-            color: #fff;
-        }
-
-        .badge-delta {
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-weight: 700;
-        }
-
-        /* Estados vacíos / loaders */
-        .sys-spinner-box {
+        /* System Loaders / Placeholders */
+        .nice-loader {
             display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             padding: 60px;
-            gap: 16px;
+            gap: 14px;
         }
 
-        .sys-spinner {
-            width: 36px;
-            height: 36px;
-            border: 3px solid rgba(255, 255, 255, 0.08);
-            border-top: 3px solid var(--primary-cyan);
+        .spinner {
+            width: 38px;
+            height: 38px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top: 3px solid var(--nice-info);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
@@ -487,7 +432,7 @@
             100% { transform: rotate(360deg); }
         }
 
-        .sys-placeholder {
+        .nice-placeholder {
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -498,190 +443,177 @@
             text-align: center;
         }
 
-        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: var(--bg-app); }
-        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+        ::-webkit-scrollbar-track { background: var(--nice-bg-app); }
+        ::-webkit-scrollbar-thumb { background: var(--nice-border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--nice-border-light); }
     </style>
 </head>
 <body>
 
-    <!-- Sidebar de Control de Parámetros -->
-    <div class="sidebar">
-        <div class="sys-header">
-            <div class="sys-logo">WFM</div>
-            <div class="sys-title">
-                <h1>Executive Core</h1>
-                <p>Enterprise Forecast v4.2</p>
-            </div>
+    <!-- Header Principal NICE Systems -->
+    <header class="nice-header">
+        <div class="nice-brand">
+            <span class="nice-logo">NICE</span>
+            <span class="nice-title">IEX Workforce Management — Predictive AI Engine</span>
         </div>
+        <div class="nice-status">SIMULATION ACTIVE (Ridge + Holt-Winters)</div>
+    </header>
 
-        <div class="sidebar-body">
-            <form id="wfm-form">
-                <div class="param-group-title">Origen de Datos</div>
-                
-                <div class="field-group" style="margin-bottom: 12px;">
-                    <label for="file">Archivo Histórico (.xlsx)</label>
-                    <input type="file" id="file" name="file" accept=".xlsx, .xls" required>
-                </div>
-
-                <div class="field-group" style="margin-bottom: 12px;">
-                    <label for="dias">Horizonte a Proyectar (Días)</label>
-                    <input type="number" id="dias" name="dias" value="30" min="1" max="90">
-                </div>
-
-                <div class="param-group-title" style="margin-top: 8px;">Configuración SLA / Staff</div>
-
-                <div class="field-group" style="margin-bottom: 12px;">
-                    <label for="target_sl">Objetivo Service Level (%)</label>
-                    <input type="number" id="target_sl" name="target_sl" value="80" step="1">
-                </div>
-
-                <div class="field-group" style="margin-bottom: 12px;">
-                    <label for="target_time">Tiempo de Respuesta (s)</label>
-                    <input type="number" id="target_time" name="target_time" value="20" step="1">
-                </div>
-
-                <div class="field-group" style="margin-bottom: 16px;">
-                    <label for="merma">Merma / Shrinkage (%)</label>
-                    <input type="number" id="merma" name="merma" value="30" step="1">
-                </div>
-
-                <button type="submit" class="btn-process" id="btn-submit">Ejecutar Modelo ML</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Workspace Principal -->
-    <div class="workspace">
+    <div class="app-container">
         
-        <div class="wfm-navbar">
-            <div class="nav-info">
-                <h2>IEX Forecast Analytics</h2>
-            </div>
-            <div class="nav-badge">Ensamble Ridge + Holt-Winters Operativo</div>
-        </div>
-
-        <!-- Global Ribbon Filters -->
-        <div class="filter-ribbon">
-            <span class="ribbon-label">Filtros Globales:</span>
-
-            <div class="ribbon-select-group">
-                <label for="f-campana">Campaña:</label>
-                <select id="f-campana"><option value="ALL">Todas las Campañas</option></select>
-            </div>
-
-            <div class="ribbon-select-group">
-                <label for="f-fecha">Fecha:</label>
-                <select id="f-fecha"><option value="ALL">Todas las Fechas</option></select>
-            </div>
-
-            <div class="ribbon-select-group">
-                <label for="f-intervalo">Intervalo:</label>
-                <select id="f-intervalo"><option value="ALL">Todos los Intervalos</option></select>
-            </div>
-
-            <button class="btn-reset-filters" id="btn-reset">Limpiar Filtros</button>
-        </div>
-
-        <!-- Viewport -->
-        <div class="viewport-body">
+        <!-- Sidebar de Parámetros WFM -->
+        <aside class="sidebar">
+            <div class="sidebar-header">Parámetros de Simulación</div>
             
-            <div id="loading" class="sys-spinner-box">
-                <div class="sys-spinner"></div>
-                <p style="color: var(--text-secondary); font-size: 0.82rem; font-family: var(--font-mono);">Entrenando modelos Ridge + Holt-Winters y calculando Erlang C...</p>
+            <div class="sidebar-content">
+                <form id="wfm-form">
+                    <div style="margin-bottom: 12px;">
+                        <label class="field-label" for="file">Archivo Histórico (.xlsx)</label>
+                        <input class="field-input" type="file" id="file" name="file" accept=".xlsx, .xls" required>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                        <label class="field-label" for="dias">Horizonte a Proyectar (Días)</label>
+                        <input class="field-input" type="number" id="dias" name="dias" value="30" min="1" max="90">
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                        <label class="field-label" for="target_sl">Objetivo Service Level (%)</label>
+                        <input class="field-input" type="number" id="target_sl" name="target_sl" value="80" step="1">
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                        <label class="field-label" for="target_time">Tiempo Objetivo (seg)</label>
+                        <input class="field-input" type="number" id="target_time" name="target_time" value="20" step="1">
+                    </div>
+
+                    <div style="margin-bottom: 18px;">
+                        <label class="field-label" for="merma">Merma / Shrinkage (%)</label>
+                        <input class="field-input" type="number" id="merma" name="merma" value="30" step="1">
+                    </div>
+
+                    <button type="submit" class="btn-run" id="btn-submit">Ejecutar Forecast</button>
+                </form>
+            </div>
+        </aside>
+
+        <!-- Workspace Principal -->
+        <main class="workspace">
+            
+            <!-- IEX Ribbon Filter Toolbar -->
+            <div class="iex-ribbon">
+                <span class="ribbon-tag">IEX Query Ribbon:</span>
+
+                <div class="ribbon-item">
+                    <label for="f-campana">Campaña / Skill:</label>
+                    <select id="f-campana"><option value="ALL">Todas las Campañas</option></select>
+                </div>
+
+                <div class="ribbon-item">
+                    <label for="f-fecha">Fecha:</label>
+                    <select id="f-fecha"><option value="ALL">Todas las Fechas</option></select>
+                </div>
+
+                <div class="ribbon-item">
+                    <label for="f-intervalo">Intervalo:</label>
+                    <select id="f-intervalo"><option value="ALL">Todos los Intervalos</option></select>
+                </div>
+
+                <button class="btn-clear" id="btn-reset">Restablecer Filtros</button>
             </div>
 
-            <div id="placeholder" class="sys-placeholder">
-                <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 13l6-9 4 9 6-9 2 9"/><path d="M12 2v20"/></svg>
-                <p style="font-size: 0.88rem;">Carga tu archivo <strong>historico.xlsx</strong> para activar el panel predictivo de WFM.</p>
-            </div>
-
-            <div id="dashboard" style="display: none; flex-direction: column; gap: 16px;">
+            <!-- Viewport Analytics -->
+            <div class="viewport-content">
                 
-                <!-- KPI Executive Grid -->
-                <div class="kpi-row">
-                    <div class="kpi-box">
-                        <div class="kpi-box-header">
-                            <span class="kpi-box-title">Volumen Total (Offered)</span>
-                        </div>
-                        <span class="kpi-box-val" id="kpi-calls" style="color: var(--primary-cyan);">0</span>
-                        <span class="kpi-box-sub">Llamadas estimadas ML</span>
-                    </div>
-
-                    <div class="kpi-box">
-                        <div class="kpi-box-header">
-                            <span class="kpi-box-title">AHT Ponderado</span>
-                        </div>
-                        <span class="kpi-box-val" id="kpi-aht" style="color: #fff;">0s</span>
-                        <span class="kpi-box-sub">Tiempo medio de manejo</span>
-                    </div>
-
-                    <div class="kpi-box">
-                        <div class="kpi-box-header">
-                            <span class="kpi-box-title">Agentes Req. vs Prog.</span>
-                        </div>
-                        <span class="kpi-box-val" id="kpi-staff" style="color: var(--warning);">0 / 0</span>
-                        <span class="kpi-box-sub">Net Staffing Balance</span>
-                    </div>
-
-                    <div class="kpi-box">
-                        <div class="kpi-box-header">
-                            <span class="kpi-box-title">Service Level Global</span>
-                        </div>
-                        <span class="kpi-box-val" id="kpi-sl" style="color: var(--success);">0%</span>
-                        <span class="kpi-box-sub">Modelo Erlang C</span>
-                    </div>
+                <div id="loading" class="nice-loader">
+                    <div class="spinner"></div>
+                    <p style="color: var(--text-secondary); font-size: 0.82rem; font-family: var(--font-mono);">Procesando serie temporal autorregresiva y matriz Erlang C...</p>
                 </div>
 
-                <!-- Gráficos de Análisis -->
-                <div class="analytics-row">
-                    <div class="analytics-card">
-                        <div class="analytics-card-title">
-                            <span>Perfil Intradía: Tráfico de Llamadas vs. Malla de Agentes</span>
-                        </div>
-                        <div class="chart-box">
-                            <canvas id="chart-intraday"></canvas>
-                        </div>
-                    </div>
-
-                    <div class="analytics-card">
-                        <div class="analytics-card-title">
-                            <span>Net Staffing Delta (Faltante / Excedente)</span>
-                        </div>
-                        <div class="chart-box">
-                            <canvas id="chart-staffing"></canvas>
-                        </div>
-                    </div>
+                <div id="placeholder" class="nice-placeholder">
+                    <svg width="42" height="42" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 13l6-9 4 9 6-9 2 9"/><path d="M12 2v20"/></svg>
+                    <p style="font-size: 0.88rem;">Carga el archivo <strong>historico.xlsx</strong> para activar el panel IEX Forecast Analytics.</p>
                 </div>
 
-                <!-- Tabla Tabular IEX Style -->
-                <div class="grid-card">
-                    <div class="grid-responsive">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Campaña</th>
-                                    <th>Fecha</th>
-                                    <th>Día</th>
-                                    <th>Intervalo</th>
-                                    <th>Llamadas (ML)</th>
-                                    <th>AHT (s)</th>
-                                    <th>Agentes Req.</th>
-                                    <th>Agentes Prog.</th>
-                                    <th>Delta Staffing</th>
-                                    <th>SL Proyectado</th>
-                                </tr>
-                            </thead>
-                            <tbody id="table-body"></tbody>
-                        </table>
+                <div id="dashboard" style="display: none; flex-direction: column; gap: 16px;">
+                    
+                    <!-- KPI Scorecards -->
+                    <div class="kpi-row">
+                        <div class="kpi-card cyan">
+                            <span class="kpi-title">Offered Volume (Llamadas)</span>
+                            <span class="kpi-val" id="kpi-calls" style="color: var(--nice-info);">0</span>
+                            <span class="kpi-sub">Pronosticado por ML Ensemble</span>
+                        </div>
+
+                        <div class="kpi-card">
+                            <span class="kpi-title">Average Handle Time (AHT)</span>
+                            <span class="kpi-val" id="kpi-aht" style="color: #fff;">0s</span>
+                            <span class="kpi-sub">AHT promedio ponderado</span>
+                        </div>
+
+                        <div class="kpi-card yellow">
+                            <span class="kpi-title">FTE Requirement vs Scheduled</span>
+                            <span class="kpi-val" id="kpi-staff" style="color: var(--nice-warning);">0 / 0</span>
+                            <span class="kpi-sub">Balance de dotación de personal</span>
+                        </div>
+
+                        <div class="kpi-card green">
+                            <span class="kpi-title">Projected Service Level</span>
+                            <span class="kpi-val" id="kpi-sl" style="color: var(--nice-success);">0%</span>
+                            <span class="kpi-sub">SLA acumulado Erlang C</span>
+                        </div>
                     </div>
+
+                    <!-- Visualización Gráfica Analytics -->
+                    <div class="charts-row">
+                        <div class="chart-card">
+                            <div class="chart-head">
+                                <span>IEX Intraday Profile: Offered Volume vs Staffing Mesh</span>
+                            </div>
+                            <div class="chart-box">
+                                <canvas id="chart-intraday"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="chart-card">
+                            <div class="chart-head">
+                                <span>Net Staffing Heatmap (Delta FTE)</span>
+                            </div>
+                            <div class="chart-box">
+                                <canvas id="chart-staffing"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Data Grid Tabular IEX -->
+                    <div class="grid-card">
+                        <div class="grid-scroll">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Campaña</th>
+                                        <th>Fecha</th>
+                                        <th>Día</th>
+                                        <th>Intervalo</th>
+                                        <th>Llamadas (ML)</th>
+                                        <th>AHT (s)</th>
+                                        <th>Agentes Req.</th>
+                                        <th>Agentes Prog.</th>
+                                        <th>Delta Staffing</th>
+                                        <th>SL Proyectado</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
                 </div>
 
             </div>
 
-        </div>
+        </main>
 
     </div>
 
@@ -724,7 +656,7 @@
                 dashboard.style.display = 'flex';
 
             } catch (error) {
-                alert('Error al ejecutar el modelo: ' + error.message);
+                alert('Error al ejecutar la simulación IEX: ' + error.message);
                 loading.style.display = 'none';
                 placeholder.style.display = 'flex';
             } finally {
@@ -761,7 +693,7 @@
                        (valInter === 'ALL' || d.Intervalo === valInter);
             });
 
-            // KPIs
+            // Recalcular KPIs
             const totalCalls = filtered.reduce((acc, curr) => acc + curr.Llamadas, 0);
             const avgAht = filtered.length > 0 ? Math.round(filtered.reduce((acc, curr) => acc + curr.AHT, 0) / filtered.length) : 0;
             const totalReq = filtered.reduce((acc, curr) => acc + curr.Agentes_Requeridos, 0);
@@ -775,17 +707,17 @@
 
             renderizarGraficos(filtered);
 
-            // Data Grid Tabular
+            // Poblar Data Grid
             const tbody = document.getElementById('table-body');
             tbody.innerHTML = '';
 
             filtered.slice(0, 500).forEach(row => {
                 const tr = document.createElement('tr');
-                const deltaColor = row.Delta_Net_Staffing >= 0 ? 'var(--success)' : 'var(--danger)';
-                const slColor = row.SL_Proyectado >= 80 ? 'var(--success)' : 'var(--danger)';
+                const deltaColor = row.Delta_Net_Staffing >= 0 ? 'var(--nice-success)' : 'var(--nice-danger)';
+                const slColor = row.SL_Proyectado >= 80 ? 'var(--nice-success)' : 'var(--nice-danger)';
 
                 tr.innerHTML = `
-                    <td class="td-bold">${row.Campaña}</td>
+                    <td style="font-weight:700; color:#fff;">${row.Campaña}</td>
                     <td>${row.Fecha}</td>
                     <td>${row.Día_Semana}</td>
                     <td>${row.Intervalo}</td>
@@ -817,7 +749,7 @@
             const reqData = labels.map(l => grouped[l].req);
             const deltaData = labels.map(l => Math.round(grouped[l].delta / grouped[l].count));
 
-            // Chart 1: Intraday
+            // Chart 1: Intraday Calls vs Req
             if (chartIntradayInstance) chartIntradayInstance.destroy();
             const ctx1 = document.getElementById('chart-intraday').getContext('2d');
             chartIntradayInstance = new Chart(ctx1, {
@@ -825,22 +757,22 @@
                 data: {
                     labels: labels,
                     datasets: [
-                        { label: 'Llamadas ML', data: callsData, borderColor: '#06b6d4', backgroundColor: 'rgba(6,182,212,0.08)', fill: true, tension: 0.3, borderWidth: 2 },
-                        { label: 'Agentes Req.', data: reqData, borderColor: '#2563eb', backgroundColor: 'transparent', borderDash: [4, 4], tension: 0.3, borderWidth: 2 }
+                        { label: 'Offered Volume (ML)', data: callsData, borderColor: '#00b0ff', backgroundColor: 'rgba(0,176,255,0.08)', fill: true, tension: 0.3, borderWidth: 2 },
+                        { label: 'FTE Required', data: reqData, borderColor: '#0052cc', backgroundColor: 'transparent', borderDash: [4, 4], tension: 0.3, borderWidth: 2 }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10, family: 'Plus Jakarta Sans' } } } },
+                    plugins: { legend: { labels: { color: '#a0aec0', font: { size: 10 } } } },
                     scales: {
-                        x: { ticks: { color: '#64748b', font: { size: 9, family: 'JetBrains Mono' } }, grid: { color: '#1e293b' } },
-                        y: { ticks: { color: '#64748b', font: { size: 9, family: 'JetBrains Mono' } }, grid: { color: '#1e293b' } }
+                        x: { ticks: { color: '#64748b', font: { size: 9, family: 'Roboto Mono' } }, grid: { color: '#2a374f' } },
+                        y: { ticks: { color: '#64748b', font: { size: 9, family: 'Roboto Mono' } }, grid: { color: '#2a374f' } }
                     }
                 }
             });
 
-            // Chart 2: Net Staffing Delta
+            // Chart 2: Net Staffing Delta Heatmap
             if (chartStaffingInstance) chartStaffingInstance.destroy();
             const ctx2 = document.getElementById('chart-staffing').getContext('2d');
             chartStaffingInstance = new Chart(ctx2, {
@@ -848,10 +780,10 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Net Staffing',
+                        label: 'Net Staffing Delta',
                         data: deltaData,
-                        backgroundColor: deltaData.map(v => v >= 0 ? '#10b981' : '#f43f5e'),
-                        borderRadius: 3
+                        backgroundColor: deltaData.map(v => v >= 0 ? '#00c853' : '#ff3d00'),
+                        borderRadius: 2
                     }]
                 },
                 options: {
@@ -859,8 +791,8 @@
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
-                        x: { ticks: { color: '#64748b', font: { size: 8, family: 'JetBrains Mono' } }, grid: { display: false } },
-                        y: { ticks: { color: '#64748b', font: { size: 9, family: 'JetBrains Mono' } }, grid: { color: '#1e293b' } }
+                        x: { ticks: { color: '#64748b', font: { size: 8, family: 'Roboto Mono' } }, grid: { display: false } },
+                        y: { ticks: { color: '#64748b', font: { size: 9, family: 'Roboto Mono' } }, grid: { color: '#2a374f' } }
                     }
                 }
             });
