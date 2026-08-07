@@ -42,6 +42,18 @@ def clean_num(val, default=0.0):
     except Exception:
         return default
 
+def format_aht_str(seconds):
+    """ Convierte segundos a formato HH:MM:SS o MM:SS """
+    if pd.isna(seconds) or seconds is None or seconds <= 0:
+        return "00:00"
+    secs = int(round(seconds))
+    hrs = secs // 3600
+    mins = (secs % 3600) // 60
+    s = secs % 60
+    if hrs > 0:
+        return f"{hrs:02d}:{mins:02d}:{s:02d}"
+    return f"{mins:02d}:{s:02d}"
+
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
     """ Cálculo iterativo eficiente de Erlang C """
     if N <= A or A <= 0 or N <= 0:
@@ -337,7 +349,7 @@ def process_data():
         df['Inter_Clean'] = df[col_inter].astype(str).str.strip()
         df['Inter_Clean'] = df['Inter_Clean'].apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
 
-        # Filtrar registros históricos que estén strictly dentro de la ventana de servicio
+        # Filtrar registros históricos que estén estrictamente dentro de la ventana de servicio
         df['En_Ventana'] = df.apply(lambda r: esta_en_ventana_servicio(r[col_camp], r['Inter_Clean']), axis=1)
         df_filtrado = df[df['En_Ventana']].copy()
 
@@ -435,7 +447,8 @@ def process_data():
                         'Día_Semana': nombre_dia.capitalize(),
                         'Intervalo': inter,
                         'Llamadas': int(round(calls)),
-                        'AHT': int(round(aht)),
+                        'AHT': format_aht_str(aht),
+                        'AHT_Segundos': int(round(aht)),
                         'Agentes_Requeridos': req_agents,
                         'Agentes_Programados_Reales': round(prog_efectivo, 1),
                         'Delta_Net_Staffing': delta_net,
