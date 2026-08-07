@@ -9,7 +9,6 @@ import pandas as pd
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
 
-# --- RUTAS FRONTEND & ARCHIVOS ESTÁTICOS ---
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
@@ -17,7 +16,6 @@ def serve_index():
 
 @app.route('/favicon.ico')
 def favicon():
-    # Evita el error 404 cuando el navegador solicita el icono de la página
     return '', 204
 
 def clean_num(val, default=0.0):
@@ -59,7 +57,6 @@ def encontrar_columna(df, posibles_nombres):
             return columnas_df[pos_clean]
     return None
 
-# --- RUTAS BACKEND API ---
 @app.route('/api/process', methods=['POST', 'GET'])
 @app.route('/api/process/', methods=['POST', 'GET'])
 def process_data():
@@ -84,13 +81,14 @@ def process_data():
             file.seek(0)
             df = pd.read_excel(file, engine='openpyxl')
 
-        col_calls = encontrar_columna(df, ['Llamadas', 'Calls', 'Volumen', 'Ofrecidas', 'Llamadas_Ofrecidas'])
-        col_aht = encontrar_columna(df, ['AHT', 'TMO', 'Handle_Time', 'Tiempo_Manejo', 'AHT_Segs'])
-        col_prog = encontrar_columna(df, ['Agentes_Programados', 'Programados', 'Agentes', 'Roster', 'FTEs', 'Agentes_Programados_Reales'])
-        col_camp = encontrar_columna(df, ['Campaña', 'Campana', 'Skill', 'Servicio', 'Project'])
-        col_fecha = encontrar_columna(df, ['Fecha', 'Date', 'Day'])
-        col_inter = encontrar_columna(df, ['Intervalo', 'Hora', 'Interval', 'Half_Hour'])
-        col_dia = encontrar_columna(df, ['Día_Semana', 'Dia_Semana', 'Dia', 'Day_Of_Week'])
+        # Detección inteligente de columnas adaptada a historico.xlsx
+        col_calls = encontrar_columna(df, ['Recibidas', 'Llamadas', 'Calls', 'Volumen', 'Ofrecidas'])
+        col_aht = encontrar_columna(df, ['AHT', 'TMO', 'Handle_Time'])
+        col_prog = encontrar_columna(df, ['Agentes_Programados', 'Programados', 'Agentes', 'Roster'])
+        col_camp = encontrar_columna(df, ['Campaña', 'Campana', 'Ring Group', 'Skill'])
+        col_fecha = encontrar_columna(df, ['Fecha', 'Date'])
+        col_inter = encontrar_columna(df, ['Intervalo', 'Hora'])
+        col_dia = encontrar_columna(df, ['Día', 'Dia', 'Día_Semana', 'Dia_Semana'])
 
         if col_fecha:
             df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce').dt.strftime('%Y-%m-%d')
@@ -109,7 +107,12 @@ def process_data():
             campana_val = str(row.get(col_camp, 'General')) if col_camp and not pd.isna(row.get(col_camp)) else 'General'
             fecha_val = str(row.get(col_fecha, '')).split(' ')[0] if col_fecha and not pd.isna(row.get(col_fecha)) else ''
             dia_val = str(row.get(col_dia, '')) if col_dia and not pd.isna(row.get(col_dia)) else ''
-            intervalo_val = str(row.get(col_inter, '00:00')) if col_inter and not pd.isna(row.get(col_inter)) else '00:00'
+            
+            # Limpieza del intervalo para quitar segundos de 09:00:00 -> 09:00
+            inter_raw = str(row.get(col_inter, '00:00')) if col_inter and not pd.isna(row.get(col_inter)) else '00:00'
+            intervalo_val = str(inter_raw).strip()
+            if len(intervalo_val.split(':')) == 3:
+                intervalo_val = ':'.join(intervalo_val.split(':')[:2])
 
             a_erlang = (calls * aht) / 1800.0 if aht > 0 else 0.0
             req_raw = a_erlang / (1.0 - merma) if merma < 1.0 else a_erlang
