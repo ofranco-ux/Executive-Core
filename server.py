@@ -14,6 +14,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
 CORS(app)
 
+# MAPEO DE VENTANAS DE SERVICIO POR CAMPAÑA (HH:MM)
+VENTANAS_SERVICIO = {
+    'experiencias liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},  # 09:00 a 21:00
+    'experiencias suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60},  # 09:00 a 21:00
+    'retenciones liverpool':   {'inicio': 9 * 60, 'fin': 20 * 60},  # 09:00 a 20:00
+    'retenciones suburbia':    {'inicio': 9 * 60, 'fin': 20 * 60}   # 09:00 a 20:00
+}
+
 # --- RUTAS FRONTEND & ARCHIVOS ESTÁTICOS ---
 @app.route('/')
 @app.route('/index.html')
@@ -62,6 +70,20 @@ def parse_time_str(t_str):
         return int(parts[0]) * 60 + int(parts[1])
     except Exception:
         return None
+
+def esta_en_ventana_servicio(campana, intervalo_str):
+    """ Verifica si un intervalo HH:MM está dentro de la ventana de servicio de la campaña """
+    camp_key = str(campana).strip().lower()
+    minutos_inter = parse_time_str(intervalo_str)
+    
+    if minutos_inter is None:
+        return True
+        
+    ventana = VENTANAS_SERVICIO.get(camp_key)
+    if not ventana:
+        return True  # Si no está definida la campaña, se incluye por defecto
+        
+    return ventana['inicio'] <= minutos_inter < ventana['fin']
 
 def construir_matriz_plantilla(xls_file):
     try:
@@ -120,9 +142,7 @@ def encontrar_columna(df, posibles_nombres):
             return columnas_df[pos_clean]
     return None
 
-# ---------------------------------------------------------------------
-# MOTOR ML 1: REGRESIÓN RIDGE AUTORREGRESIVA L2
-# ---------------------------------------------------------------------
+# --- MOTOR ML 1: REGRESIÓN RIDGE ---
 def entrenar_ridge_ml(X, y, l2_reg=10.0):
     X_b = np.c_[np.ones((X.shape[0], 1)), X]
     mean = np.mean(X_b[:, 1:], axis=0)
@@ -161,9 +181,7 @@ def extraer_features_fecha(fecha, volumenes_hist, trend_idx):
     dow_encoded = [1.0 if day_of_week == i else 0.0 for i in range(7)]
     return [lag_1, lag_7, lag_14, float(day_of_month), is_weekend, is_quincena, float(trend_idx)] + dow_encoded
 
-# ---------------------------------------------------------------------
-# MOTOR ML 2: HOLT-WINTERS TRIPLE SMOOTHING CON GRID SEARCH Y WMAPE
-# ---------------------------------------------------------------------
+# --- MOTOR ML 2: HOLT-WINTERS ---
 def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=30):
     n = len(series)
     if n < season_len * 2:
@@ -189,7 +207,6 @@ def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.
     return preds
 
 def grid_search_auto_hw(series, n_preds=30):
-    """ Encuentra los mejores parámetros alpha, beta, gamma que minimizan el WMAPE """
     if len(series) < 21:
         return holt_winters_fit_predict(series, n_preds=n_preds)
     
@@ -218,7 +235,6 @@ def grid_search_auto_hw(series, n_preds=30):
     return holt_winters_fit_predict(series, season_len=7, alpha=a_opt, beta=b_opt, gamma=g_opt, n_preds=n_preds)
 
 def limpiar_outliers_iqr(series_list):
-    """ Limpia valores atípicos mediante el rango intercuartílico (IQR) """
     if len(series_list) < 14:
         return list(series_list)
     arr = np.array(series_list)
@@ -227,7 +243,7 @@ def limpiar_outliers_iqr(series_list):
     lower, upper = q25 - 1.5 * iqr, q75 + 1.5 * iqr
     return np.clip(arr, lower, upper).tolist()
 
-# --- RUTAS BACKEND API ---
+# --- API ENDPOINTS ---
 @app.route('/api/process', methods=['POST', 'GET'])
 @app.route('/api/process/', methods=['POST', 'GET'])
 def process_data():
@@ -274,7 +290,7 @@ def process_data():
         aht_global_campana = df.groupby(col_camp)[col_aht].apply(lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 180.0).to_dict()
 
         # -------------------------------------------------------------
-        # 1. ENTRENAMIENTO ENSAMBLE OPTIMIZADO (GRID SEARCH HW + RIDGE)
+        # 1. ENTRENAMIENTO ENSAMBLE OPTIMIZADO ML POR CAMPAÑA
         # -------------------------------------------------------------
         df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
         campanas_unicas = df[col_camp].unique()
@@ -314,15 +330,19 @@ def process_data():
                 modelos_ml[camp] = None
 
         # -------------------------------------------------------------
-        # 2. PROFILE CURVE INTRADÍA
+        # 2. PROFILE CURVE INTRADÍA FILTRADO POR VENTANA DE SERVICIO
         # -------------------------------------------------------------
         df['Dia_Semana_Clean'] = df[col_dia].astype(str).str.strip().str.lower() if col_dia else df[col_fecha].dt.day_name().str.lower()
         
         df['Inter_Clean'] = df[col_inter].astype(str).str.strip()
         df['Inter_Clean'] = df['Inter_Clean'].apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
 
-        max_date_hist = df[col_fecha].max()
-        df_reciente = df[df[col_fecha] >= (max_date_hist - timedelta(days=60))]
+        # Filtrar registros históricos que estén estrictamente dentro de la ventana de servicio
+        df['En_Ventana'] = df.apply(lambda r: esta_en_ventana_servicio(r[col_camp], r['Inter_Clean']), axis=1)
+        df_filtrado = df[df['En_Ventana']].copy()
+
+        max_date_hist = df_filtrado[col_fecha].max()
+        df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_date_hist - timedelta(days=60))]
 
         perfil_intradia = df_reciente.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
             avg_calls=(col_calls, 'mean'),
@@ -340,13 +360,17 @@ def process_data():
             key = (r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean'])
             mapa_perfil[key] = {'weight': r['weight'], 'aht': r['avg_aht']}
 
-        intervalos_unicos = sorted(df['Inter_Clean'].unique())
+        # Obtener intervalos únicos dentro de las ventanas operativas
+        intervalos_operativos_por_camp = {}
+        for camp in campanas_unicas:
+            inters_camp = df_filtrado[df_filtrado[col_camp] == camp]['Inter_Clean'].unique().tolist()
+            intervalos_operativos_por_camp[camp] = sorted([i for i in inters_camp if esta_en_ventana_servicio(camp, i)])
 
-        del df, df_diario, df_reciente
+        del df, df_diario, df_filtrado, df_reciente
         gc.collect()
 
         # -------------------------------------------------------------
-        # 3. GENERACIÓN DEL FORECAST ENSAMBLADO FINAL
+        # 3. PREDICCIÓN Y CÁLCULO DE ERLANG C
         # -------------------------------------------------------------
         dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
         data_processed = []
@@ -373,12 +397,14 @@ def process_data():
                 vol_hw = hw_forecasts[camp][d] if d < len(hw_forecasts[camp]) else vol_ridge
 
                 volumen_predicho_diario = (0.65 * vol_hw) + (0.35 * vol_ridge)
-
                 historial_volumenes[camp].append(volumen_predicho_diario)
 
-                for inter in intervalos_unicos:
+                # Iterar únicamente en los intervalos válidos según la ventana de servicio
+                intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
+
+                for inter in intervalos_validos:
                     key_p = (camp, nombre_dia, inter)
-                    info_p = mapa_perfil.get(key_p, {'weight': 1.0 / max(len(intervalos_unicos), 1), 'aht': 0})
+                    info_p = mapa_perfil.get(key_p, {'weight': 0.0, 'aht': 0.0})
 
                     calls = volumen_predicho_diario * info_p['weight']
                     
@@ -386,14 +412,14 @@ def process_data():
                     if aht <= 0 or pd.isna(aht):
                         aht = aht_global_campana.get(camp, 180.0)
 
-                    a_erlang = (calls * aht) / 1800.0 if aht > 0 else 0.0
+                    a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
                     req_raw = a_erlang / (1.0 - merma) if merma < 1.0 else a_erlang
-                    req_agents = math.ceil(req_raw)
+                    req_agents = math.ceil(req_raw) if calls > 0 else 0
 
                     key_roster = (str(camp).lower(), nombre_dia.lower(), inter)
                     prog = matriz_roster.get(key_roster, req_agents)
 
-                    sl = erlang_c_sl_optimizado(a_erlang, prog, aht, target_time)
+                    sl = erlang_c_sl_optimizado(a_erlang, prog, aht, target_time) if calls > 0 else 100.0
 
                     data_processed.append({
                         'Campaña': str(camp),
