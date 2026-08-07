@@ -4,11 +4,9 @@ from flask_cors import CORS
 import pandas as pd
 import math
 
-# Inicializar Flask indicando la carpeta actual para archivos estáticos
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
 
-# --- RUTA PRINCIPAL (Para cargar la página web en Render) ---
 @app.route('/')
 def serve_index():
     return send_from_directory('.', 'index.html')
@@ -25,11 +23,12 @@ def erlang_c_sl(A, N, AHT, target_time):
     sl = 1 - (pw * math.exp(-intensity * (target_time / AHT)))
     return round(max(0.0, min(1.0, sl)) * 100, 1)
 
-# --- RUTA DE PROCESAMIENTO API ---
+# Acepta tanto con diagonal al final como sin ella
 @app.route('/api/process', methods=['POST'])
+@app.route('/api/process/', methods=['POST'])
 def process_data():
     if 'file' not in request.files:
-        return jsonify({'error': 'No se envió ningún archivo'}), 400
+        return jsonify({'error': 'No se envió ningún archivo Excel'}), 400
     
     file = request.files['file']
     if file.filename == '':
@@ -42,6 +41,7 @@ def process_data():
         h_inicio = request.form.get('h_inicio', '09:00')
         h_fin = request.form.get('h_fin', '20:00')
 
+        # Leer archivo Excel
         df = pd.read_excel(file)
         
         data_processed = []
@@ -51,7 +51,6 @@ def process_data():
             prog = float(row.get('Agentes_Programados', 0))
             
             a_erlang = (calls * aht) / 1800.0 if aht > 0 else 0
-            
             req_raw = a_erlang / (1 - merma) if merma < 1 else a_erlang
             req_agents = math.ceil(req_raw)
             
@@ -73,7 +72,7 @@ def process_data():
         return jsonify(data_processed)
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f"Error interno procesando Excel: {str(e)}"}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
