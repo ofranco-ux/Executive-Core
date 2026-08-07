@@ -137,50 +137,51 @@
         <!-- Dashboard C-Level -->
         <main class="col-span-12 lg:col-span-9 space-y-6">
 
-            <!-- BARRA DE FILTROS -->
+            <!-- BARRA DE FILTROS MULTI-SELECCIÓN -->
             <div class="glass-panel p-4 rounded-2xl flex justify-between items-center border border-slate-800/80 flex-wrap gap-4 relative z-50 overflow-visible">
                 <div class="flex items-center gap-3">
                     <div class="p-2.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-xl text-sm">🎯</div>
                     <div>
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Filtros Operativos Intradía</p>
-                        <p id="tableSelectionLabel" class="text-xs text-slate-200 font-medium">Selecciona campaña, fecha e intervalo deseados</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Filtros Operativos Intradía (Multiselección)</p>
+                        <p id="tableSelectionLabel" class="text-xs text-slate-200 font-medium">Selecciona una o más campañas, fechas e intervalos</p>
                     </div>
                 </div>
                 
                 <div class="flex items-center gap-3 flex-wrap">
-                    <button id="btnResetTableFilter" onclick="resetTableFilter()" class="hidden bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold py-2 px-3 rounded-xl transition duration-200 font-mono">
-                        🔄 Resetear Filtro
+                    <button id="btnResetTableFilter" onclick="resetAllFilters()" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold py-2 px-3 rounded-xl transition duration-200 font-mono">
+                        🔄 Resetear Filtros
                     </button>
 
-                    <!-- CAMPAÑA -->
-                    <div class="flex flex-col">
-                        <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Campaña</label>
-                        <select id="campanaSelect" onchange="actualizarFechasYGrafica()" class="bg-brand-surface border border-violet-500/30 text-xs rounded-xl px-3 py-2 text-violet-300 font-mono-num font-bold focus:outline-none focus:border-violet-500 transition-all shadow-inner min-w-[170px] h-[36px]">
-                            <option value="TODAS">🎧 TODAS LAS CAMPAÑAS</option>
-                        </select>
-                    </div>
-
-                    <!-- FECHA -->
+                    <!-- MULTI-CAMPAÑA -->
                     <div class="flex flex-col relative">
-                        <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Fecha Proyectada</label>
-                        <button id="btnDropdownFecha" onclick="toggleFechaDropdown()" class="bg-brand-surface border border-cyan-500/30 text-xs rounded-xl px-3 py-2 text-cyan-300 font-mono-num font-bold focus:outline-none border-cyan-500 transition-all shadow-inner min-w-[180px] h-[36px] flex items-center justify-between gap-2">
-                            <span id="fechaSelectedText">📅 TODAS LAS FECHAS</span>
-                            <span class="text-[10px] text-cyan-400">▼</span>
+                        <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Campaña(s)</label>
+                        <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-brand-surface border border-violet-500/30 text-xs rounded-xl px-3 py-2 text-violet-300 font-mono-num font-bold focus:outline-none border-violet-500 transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
+                            <span id="campanaSelectedText">🎧 TODAS (3)</span>
+                            <span class="text-[10px] text-violet-400">▼</span>
                         </button>
-
-                        <div id="dropdownFechaMenu" class="hidden absolute top-full left-0 mt-2 w-full max-h-56 bg-[#0D1322] border border-cyan-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] divide-y divide-slate-800/60 font-mono-num text-xs text-slate-200">
+                        <div id="dropdownCampanaMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#0D1322] border border-violet-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200">
                         </div>
                     </div>
 
-                    <!-- INTERVALO -->
+                    <!-- MULTI-FECHA -->
                     <div class="flex flex-col relative">
-                        <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Intervalo Hora</label>
-                        <button id="btnDropdownIntervalo" onclick="toggleIntervaloDropdown()" class="bg-brand-surface border border-emerald-500/30 text-xs rounded-xl px-3 py-2 text-emerald-300 font-mono-num font-bold focus:outline-none border-emerald-500 transition-all shadow-inner min-w-[160px] h-[36px] flex items-center justify-between gap-2">
-                            <span id="intervaloSelectedText">⏰ TODOS LOS INTERVALOS</span>
+                        <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Fecha(s)</label>
+                        <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-brand-surface border border-cyan-500/30 text-xs rounded-xl px-3 py-2 text-cyan-300 font-mono-num font-bold focus:outline-none border-cyan-500 transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
+                            <span id="fechaSelectedText">📅 TODAS (30)</span>
+                            <span class="text-[10px] text-cyan-400">▼</span>
+                        </button>
+                        <div id="dropdownFechaMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#0D1322] border border-cyan-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200">
+                        </div>
+                    </div>
+
+                    <!-- MULTI-INTERVALO -->
+                    <div class="flex flex-col relative">
+                        <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Intervalo(s)</label>
+                        <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-brand-surface border border-emerald-500/30 text-xs rounded-xl px-3 py-2 text-emerald-300 font-mono-num font-bold focus:outline-none border-emerald-500 transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
+                            <span id="intervaloSelectedText">⏰ TODOS (24)</span>
                             <span class="text-[10px] text-emerald-400">▼</span>
                         </button>
-
-                        <div id="dropdownIntervaloMenu" class="hidden absolute top-full left-0 mt-2 w-full max-h-56 bg-[#0D1322] border border-emerald-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] divide-y divide-slate-800/60 font-mono-num text-xs text-slate-200">
+                        <div id="dropdownIntervaloMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#0D1322] border border-emerald-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200">
                         </div>
                     </div>
                 </div>
@@ -246,7 +247,7 @@
                 <div class="flex justify-between items-center mb-4">
                     <div>
                         <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📊 Matriz de Auditoría Intradía</h3>
-                        <p class="text-xs text-slate-400 font-medium mt-0.5">💡 Haz clic en cualquier fila para filtrar los indicadores superiores</p>
+                        <p class="text-xs text-slate-400 font-medium mt-0.5">💡 Presiona sobre cualquier fila para conmutar la selección del intervalo</p>
                     </div>
                     <button onclick="exportarCSV()" class="bg-brand-surface hover:bg-slate-800 text-cyan-400 border border-cyan-500/30 text-xs font-bold py-2 px-4 rounded-xl transition duration-200 flex items-center gap-2 font-mono">
                         <span>📥</span> Exportar CSV
@@ -283,9 +284,11 @@
         let globalData = [];
         let chartInstance = null;
         let slChartInstance = null;
-        let selectedTableIntervals = new Set();
-        let selectedFechaValue = "TODOS";
-        let selectedIntervaloValue = "TODOS";
+        
+        // CONJUNTOS PARA MULTI-SELECCIÓN
+        let selectedCampanas = new Set();
+        let selectedFechas = new Set();
+        let selectedIntervalos = new Set();
 
         function getProp(row, keys, def = '') {
             for (let k of keys) {
@@ -321,10 +324,8 @@
                 globalData = await response.json();
                 
                 if (response.ok && Array.isArray(globalData)) {
-                    poblarCampanas();
-                    poblarFechasDropdown();
-                    poblarIntervalosDropdown();
-                    resetTableFilterAndRefresh();
+                    inicializarFiltrosMultiples();
+                    actualizarGrafica();
                 } else {
                     alert("Error procesando los datos: " + (globalData.error || "Formato no válido"));
                 }
@@ -336,183 +337,156 @@
             }
         }
 
-        function poblarCampanas() {
-            const campanas = [...new Set(globalData.map(item => String(getProp(item, ['Campaña', 'Campana'], 'General'))))].filter(Boolean);
-            const select = document.getElementById('campanaSelect');
-            select.innerHTML = '';
+        function inicializarFiltrosMultiples() {
+            // Campañas
+            const campanas = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).sort();
+            selectedCampanas = new Set(campanas);
+            renderMenuOptions('Campana', campanas, selectedCampanas);
 
-            const optAll = document.createElement('option');
-            optAll.value = "TODAS";
-            optAll.innerText = "🎧 TODAS LAS CAMPAÑAS";
-            select.appendChild(optAll);
+            // Fechas
+            const fechas = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0]))].filter(Boolean).sort();
+            selectedFechas = new Set(fechas);
+            renderMenuOptions('Fecha', fechas, selectedFechas);
 
-            campanas.forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c;
-                opt.innerText = `🎧 ${c}`;
-                select.appendChild(opt);
+            // Intervalos
+            const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
+            selectedIntervalos = new Set(intervalos);
+            renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
+
+            actualizarTextosBotones();
+        }
+
+        function renderMenuOptions(type, allOptions, setRef) {
+            const menu = document.getElementById(`dropdown${type}Menu`);
+            menu.innerHTML = '';
+
+            // Opción Seleccionar Todo
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'flex items-center justify-between p-2 pb-2 mb-1 border-b border-slate-800 text-[11px] font-bold';
+            headerDiv.innerHTML = `
+                <button type="button" onclick="selectAllFilter('${type}', true)" class="text-cyan-400 hover:underline">Todos</button>
+                <button type="button" onclick="selectAllFilter('${type}', false)" class="text-rose-400 hover:underline">Ninguno</button>
+            `;
+            menu.appendChild(headerDiv);
+
+            allOptions.forEach(opt => {
+                const label = document.createElement('label');
+                label.className = 'flex items-center gap-2 p-1.5 hover:bg-slate-800/60 rounded cursor-pointer transition-colors';
+                
+                const isChecked = setRef.has(opt);
+                label.innerHTML = `
+                    <input type="checkbox" value="${opt}" ${isChecked ? 'checked' : ''} onchange="onCheckboxChange('${type}', '${opt}', this.checked)" class="rounded bg-slate-900 border-slate-700 text-cyan-500 focus:ring-0">
+                    <span class="truncate">${opt}</span>
+                `;
+                menu.appendChild(label);
             });
         }
 
-        function poblarFechasDropdown() {
-            const campanaSel = document.getElementById('campanaSelect').value;
-            let dfCamp = globalData;
-            if (campanaSel !== "TODAS") {
-                dfCamp = globalData.filter(item => String(getProp(item, ['Campaña', 'Campana'], 'General')) === campanaSel);
+        function onCheckboxChange(type, value, checked) {
+            let setRef = type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos);
+            if (checked) {
+                setRef.add(value);
+            } else {
+                setRef.delete(value);
+            }
+            actualizarTextosBotones();
+            actualizarGrafica();
+        }
+
+        function selectAllFilter(type, selectAll) {
+            let setRef = type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos);
+            
+            let allOptions = [];
+            if (type === 'Campana') {
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean);
+            } else if (type === 'Fecha') {
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0]))].filter(Boolean);
+            } else {
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean);
             }
 
-            const fechas = [...new Set(dfCamp.map(item => String(getProp(item, ['Fecha'], '')).split(' ')[0]))].filter(Boolean).sort();
-            const menu = document.getElementById('dropdownFechaMenu');
-            menu.innerHTML = '';
+            if (selectAll) {
+                allOptions.forEach(o => setRef.add(o));
+            } else {
+                setRef.clear();
+            }
 
-            const divAll = document.createElement('div');
-            divAll.className = 'px-3 py-2 hover:bg-cyan-500/20 cursor-pointer transition-colors text-cyan-300 font-bold';
-            divAll.innerText = '📅 TODAS LAS FECHAS';
-            divAll.onclick = () => seleccionarFecha('TODOS', '📅 TODAS LAS FECHAS');
-            menu.appendChild(divAll);
-
-            fechas.forEach(f => {
-                const div = document.createElement('div');
-                div.className = 'px-3 py-2 hover:bg-cyan-500/20 cursor-pointer transition-colors text-slate-200';
-                div.innerText = f;
-                div.onclick = () => seleccionarFecha(f, f);
-                menu.appendChild(div);
-            });
-        }
-
-        function toggleFechaDropdown() {
-            document.getElementById('dropdownIntervaloMenu').classList.add('hidden');
-            document.getElementById('dropdownFechaMenu').classList.toggle('hidden');
-        }
-
-        function seleccionarFecha(value, label) {
-            selectedFechaValue = value;
-            document.getElementById('fechaSelectedText').innerText = label;
-            document.getElementById('dropdownFechaMenu').classList.add('hidden');
+            renderMenuOptions(type, allOptions.sort(), setRef);
+            actualizarTextosBotones();
             actualizarGrafica();
         }
 
-        function poblarIntervalosDropdown() {
-            const intervalos = [...new Set(globalData.map(item => String(getProp(item, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
-            const menu = document.getElementById('dropdownIntervaloMenu');
-            menu.innerHTML = '';
-
-            const divAll = document.createElement('div');
-            divAll.className = 'px-3 py-2 hover:bg-emerald-500/20 cursor-pointer transition-colors text-emerald-300 font-bold';
-            divAll.innerText = '⏰ TODOS LOS INTERVALOS';
-            divAll.onclick = () => seleccionarIntervalo('TODOS', '⏰ TODOS LOS INTERVALOS');
-            menu.appendChild(divAll);
-
-            intervalos.forEach(inter => {
-                const div = document.createElement('div');
-                div.className = 'px-3 py-2 hover:bg-emerald-500/20 cursor-pointer transition-colors text-slate-200';
-                div.innerText = `⏰ ${inter}`;
-                div.onclick = () => seleccionarIntervalo(inter, `⏰ ${inter}`);
-                menu.appendChild(div);
+        function toggleDropdown(type) {
+            ['Campana', 'Fecha', 'Intervalo'].forEach(t => {
+                if (t !== type) document.getElementById(`dropdown${t}Menu`).classList.add('hidden');
             });
-        }
-
-        function toggleIntervaloDropdown() {
-            document.getElementById('dropdownFechaMenu').classList.add('hidden');
-            document.getElementById('dropdownIntervaloMenu').classList.toggle('hidden');
-        }
-
-        function seleccionarIntervalo(value, label) {
-            selectedIntervaloValue = value;
-            document.getElementById('intervaloSelectedText').innerText = label;
-            document.getElementById('dropdownIntervaloMenu').classList.add('hidden');
-            actualizarGrafica();
+            document.getElementById(`dropdown${type}Menu`).classList.toggle('hidden');
         }
 
         window.addEventListener('click', function(e) {
-            const btnF = document.getElementById('btnDropdownFecha');
-            const menuF = document.getElementById('dropdownFechaMenu');
-            if (btnF && menuF && !btnF.contains(e.target) && !menuF.contains(e.target)) {
-                menuF.classList.add('hidden');
-            }
-
-            const btnI = document.getElementById('btnDropdownIntervalo');
-            const menuI = document.getElementById('dropdownIntervaloMenu');
-            if (btnI && menuI && !btnI.contains(e.target) && !menuI.contains(e.target)) {
-                menuI.classList.add('hidden');
-            }
+            ['Campana', 'Fecha', 'Intervalo'].forEach(type => {
+                const btn = document.getElementById(`btnDropdown${type}`);
+                const menu = document.getElementById(`dropdown${type}Menu`);
+                if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) {
+                    menu.classList.add('hidden');
+                }
+            });
         });
 
-        function actualizarFechasYGrafica() {
-            poblarFechasDropdown();
-            seleccionarFecha('TODOS', '📅 TODAS LAS FECHAS');
-            resetTableFilterAndRefresh();
+        function actualizarTextosBotones() {
+            const totC = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).length;
+            const totF = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0]))].filter(Boolean).length;
+            const totI = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).length;
+
+            document.getElementById('campanaSelectedText').innerText = `🎧 SELECC. (${selectedCampanas.size}/${totC})`;
+            document.getElementById('fechaSelectedText').innerText = `📅 SELECC. (${selectedFechas.size}/${totF})`;
+            document.getElementById('intervaloSelectedText').innerText = `⏰ SELECC. (${selectedIntervalos.size}/${totI})`;
         }
 
-        function resetTableFilterAndRefresh() {
-            selectedTableIntervals.clear();
-            document.getElementById('btnResetTableFilter').classList.add('hidden');
-            document.getElementById('tableSelectionLabel').innerText = "Selecciona campaña, fecha e intervalo deseados";
+        function resetAllFilters() {
+            inicializarFiltrosMultiples();
             actualizarGrafica();
         }
 
-        function resetTableFilter() {
-            selectedTableIntervals.clear();
-            document.getElementById('btnResetTableFilter').classList.add('hidden');
-            document.getElementById('tableSelectionLabel').innerText = "Selecciona campaña, fecha e intervalo deseados";
-            actualizarGrafica();
-        }
-
-        function toggleTableInterval(intervalo) {
-            if (selectedTableIntervals.has(intervalo)) {
-                selectedTableIntervals.delete(intervalo);
+        function toggleTableInterval(inter) {
+            if (selectedIntervalos.has(inter)) {
+                selectedIntervalos.delete(inter);
             } else {
-                selectedTableIntervals.add(intervalo);
+                selectedIntervalos.add(inter);
             }
-
-            if (selectedTableIntervals.size > 0) {
-                document.getElementById('btnResetTableFilter').classList.remove('hidden');
-                document.getElementById('tableSelectionLabel').innerText = `Intervalo(s) filtrado(s): ${Array.from(selectedTableIntervals).join(', ')}`;
-            } else {
-                document.getElementById('btnResetTableFilter').classList.add('hidden');
-                document.getElementById('tableSelectionLabel').innerText = "Selecciona campaña, fecha e intervalo deseados";
-            }
-
+            
+            const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
+            renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
+            actualizarTextosBotones();
             actualizarGrafica();
         }
 
         function actualizarGrafica() {
-            const campanaSel = document.getElementById('campanaSelect').value;
             const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
-            
-            let df = globalData;
 
-            if (campanaSel !== "TODAS") {
-                df = df.filter(item => String(getProp(item, ['Campaña', 'Campana'], 'General')) === campanaSel);
-            }
+            // Filtrar matriz global por los 3 conjuntos de multiselect
+            const dfFiltered = globalData.filter(item => {
+                const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
+                const f = String(getProp(item, ['Fecha'], '')).split(' ')[0];
+                const i = String(getProp(item, ['Intervalo'], '00:00'));
+                
+                return selectedCampanas.has(c) && selectedFechas.has(f) && selectedIntervalos.has(i);
+            });
 
-            if (selectedFechaValue !== "TODOS") {
-                df = df.filter(item => String(getProp(item, ['Fecha'], '')).startsWith(selectedFechaValue));
-            }
-
-            if (selectedIntervaloValue !== "TODOS") {
-                df = df.filter(item => String(getProp(item, ['Intervalo'], '00:00')) === selectedIntervaloValue);
-            }
-
-            let dfKpis = df;
-            if (selectedTableIntervals.size > 0) {
-                dfKpis = df.filter(item => selectedTableIntervals.has(String(getProp(item, ['Intervalo'], '00:00'))));
-            }
-
-            const totCalls = dfKpis.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
-            const sumLlamadasAht = dfKpis.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['AHT'], 180)) || 180)), 0);
+            const totCalls = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
+            const sumLlamadasAht = dfFiltered.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['AHT'], 180)) || 180)), 0);
             const avgAht = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
 
-            const totReq = dfKpis.reduce((acc, row) => acc + (Number(getProp(row, ['Agentes_Requeridos'], 0)) || 0), 0);
-            const totProg = dfKpis.reduce((acc, row) => acc + (Number(getProp(row, ['Agentes_Programados_Reales'], 0)) || 0), 0);
-            const countRows = dfKpis.length || 1;
+            const totReq = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Agentes_Requeridos'], 0)) || 0), 0);
+            const totProg = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Agentes_Programados_Reales'], 0)) || 0), 0);
+            const countRows = dfFiltered.length || 1;
 
             const avgReq = (totReq / countRows).toFixed(1);
             const avgProg = (totProg / countRows).toFixed(1);
             const net = (avgProg - avgReq).toFixed(1);
             const fulfillment = avgReq > 0 ? ((avgProg / avgReq) * 100).toFixed(1) : "100.0";
 
-            const sumLlamadasSl = dfKpis.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
+            const sumLlamadasSl = dfFiltered.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
             const avgSl = totCalls > 0 ? (sumLlamadasSl / totCalls).toFixed(1) : "0.0";
 
             document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
@@ -530,8 +504,9 @@
                 badgeSl.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
             }
 
+            // Agrupación para gráficos por intervalo
             const agrupado = {};
-            df.forEach(row => {
+            dfFiltered.forEach(row => {
                 const inter = String(getProp(row, ['Intervalo'], '00:00'));
                 if (!agrupado[inter]) {
                     agrupado[inter] = { req: 0, prog: 0, llamadas: 0, ahtSum: 0, slSum: 0, count: 0 };
@@ -563,7 +538,6 @@
                 const rowDelta = deltas[idx];
                 const rowSl = slArr[idx];
 
-                const isSelected = selectedTableIntervals.has(inter);
                 const deltaColor = rowDelta >= 0 ? 'text-cyan-400 font-bold' : 'text-rose-400 font-bold';
                 const slBadge = parseFloat(rowSl) >= targetSlObj
                     ? `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">${rowSl}%</span>`
@@ -571,10 +545,10 @@
 
                 const tr = document.createElement('tr');
                 tr.onclick = () => toggleTableInterval(inter);
-                tr.className = `transition-all duration-200 ${isSelected ? 'bg-cyan-500/10 border-l-4 border-l-cyan-400 font-bold' : 'hover:bg-slate-800/40'}`;
+                tr.className = `transition-all duration-200 hover:bg-slate-800/40`;
                 tr.innerHTML = `
                     <td class="py-2.5 px-4 font-bold text-slate-200 flex items-center gap-2">
-                        <span class="text-[10px] ${isSelected ? 'text-cyan-400 animate-ping' : 'text-slate-600'}">●</span> ${inter}
+                        <span class="text-[10px] text-cyan-400">●</span> ${inter}
                     </td>
                     <td class="py-2.5 px-4 text-slate-300">${rowLlamadas.toLocaleString()}</td>
                     <td class="py-2.5 px-4 text-slate-300">${rowAht}s</td>
@@ -627,9 +601,9 @@
                             fill: true, 
                             tension: 0.3, 
                             borderWidth: 2.5,
-                            pointRadius: intervalos.map(i => selectedTableIntervals.has(i) ? 7 : 3),
+                            pointRadius: 3,
                             pointHoverRadius: 8,
-                            pointBackgroundColor: intervalos.map((i, idx) => selectedTableIntervals.has(i) ? '#06B6D4' : (parseFloat(slArr[idx]) >= targetSlObj ? '#10B981' : '#F43F5E'))
+                            pointBackgroundColor: slArr.map(s => parseFloat(s) >= targetSlObj ? '#10B981' : '#F43F5E')
                         },
                         { 
                             label: `Meta Target (${targetSlObj}%)`, 
