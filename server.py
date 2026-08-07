@@ -2,6 +2,7 @@ import os
 import math
 import gc
 import re
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pandas as pd
@@ -34,8 +35,8 @@ def clean_num(val, default=0.0):
 
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
     """
-    Cálculo iterativo eficiente de Erlang C para evitar consumo excesivo 
-    de RAM y desbordamientos en el servidor.
+    Cálculo iterativo eficiente de Erlang C para evitar desbordamiento 
+    de memoria (Memory Limit 512MB de Render).
     """
     if N <= A or A <= 0 or N <= 0:
         return 0.0
@@ -67,7 +68,7 @@ def parse_time_str(t_str):
 
 def construir_matriz_plantilla(xls_file):
     """
-    Parsea la hoja Platilla/Plantilla y construye un mapa de capacidad:
+    Parsea la hoja Platilla / Plantilla y construye un mapa de capacidad:
     (Campaña, Día_Semana, Intervalo) -> Agentes_Presentes
     """
     try:
@@ -144,13 +145,14 @@ def process_data():
         target_sl = clean_num(request.form.get('target_sl'), 80.0)
         target_time = clean_num(request.form.get('target_time'), 20.0)
         merma = clean_num(request.form.get('merma'), 20.0) / 100.0
+        dias_futuros = int(clean_num(request.form.get('dias'), 30))
 
         xls_file = pd.ExcelFile(file)
         
-        # 1. Mapear capacidad real desde la hoja Platilla / Plantilla
+        # 1. Mapear capacidad real desde la hoja Platilla
         matriz_roster = construir_matriz_plantilla(xls_file)
 
-        # 2. Identificar y cargar hoja de llamadas
+        # 2. Cargar datos históricos de tráfico
         sheet_calls = xls_file.sheet_names[0]
         for s in xls_file.sheet_names:
             if 'llam' in s.lower() or 'hist' in s.lower():
@@ -161,68 +163,94 @@ def process_data():
 
         col_calls = encontrar_columna(df, ['Recibidas', 'Llamadas', 'Calls', 'Volumen', 'Ofrecidas'])
         col_aht = encontrar_columna(df, ['AHT', 'TMO', 'Handle_Time'])
-        col_prog = encontrar_columna(df, ['Agentes_Programados', 'Programados', 'Agentes', 'Roster'])
         col_camp = encontrar_columna(df, ['Campaña', 'Campana', 'Ring Group', 'Skill'])
-        col_fecha = encontrar_columna(df, ['Fecha', 'Date'])
         col_inter = encontrar_columna(df, ['Intervalo', 'Hora'])
         col_dia = encontrar_columna(df, ['Día', 'Dia', 'Día_Semana', 'Dia_Semana'])
-
-        if col_fecha:
-            df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce').dt.strftime('%Y-%m-%d')
 
         records = df.to_dict(orient='records')
         del df
         gc.collect()
 
-        data_processed = []
-
+        # 3. Construir perfiles promedios por (Campaña, Día_Semana, Intervalo)
+        perfiles_historicos = {}
         for row in records:
             calls = clean_num(row.get(col_calls) if col_calls else 0, 0.0)
             aht = clean_num(row.get(col_aht) if col_aht else 180, 180.0)
+            campana_val = str(row.get(col_camp, 'General')).strip() if col_camp and not pd.isna(row.get(col_camp)) else 'General'
+            dia_val = str(row.get(col_dia, '')).strip().lower() if col_dia and not pd.isna(row.get(col_dia)) else ''
             
-            campana_val = str(row.get(col_camp, 'General')) if col_camp and not pd.isna(row.get(col_camp)) else 'General'
-            fecha_val = str(row.get(col_fecha, '')).split(' ')[0] if col_fecha and not pd.isna(row.get(col_fecha)) else ''
-            dia_val = str(row.get(col_dia, '')).strip() if col_dia and not pd.isna(row.get(col_dia)) else ''
-            
-            # Formatear intervalo de 09:00:00 a 09:00
-            inter_raw = str(row.get(col_inter, '00:00')) if col_inter and not pd.isna(row.get(col_inter)) else '00:00'
+            inter_raw = str(row.get(col_inter, '00:00')).strip() if col_inter and not pd.isna(row.get(col_inter)) else '00:00'
             intervalo_val = str(inter_raw).strip()
             if len(intervalo_val.split(':')) == 3:
                 intervalo_val = ':'.join(intervalo_val.split(':')[:2])
 
-            a_erlang = (calls * aht) / 1800.0 if aht > 0 else 0.0
-            req_raw = a_erlang / (1.0 - merma) if merma < 1.0 else a_erlang
-            req_agents = math.ceil(req_raw)
+            key = (campana_val, dia_val, intervalo_val)
+            if key not in perfiles_historicos:
+                perfiles_historicos[key] = {'calls': [], 'aht': []}
+            perfiles_historicos[key]['calls'].append(calls)
+            perfiles_historicos[key]['aht'].append(aht)
 
-            # 3. Determinar Agentes Programados según la pestaña Platilla o la columna
-            key_roster = (campana_val.lower(), dia_val.lower(), intervalo_val)
-            if key_roster in matriz_roster:
-                prog = matriz_roster[key_roster]
-            else:
-                prog_val = row.get(col_prog) if col_prog else None
-                if prog_val is not None and not pd.isna(prog_val):
-                    prog = int(clean_num(prog_val, req_agents))
-                else:
-                    prog = req_agents
+        mapa_promedios = {}
+        for k, v in perfiles_historicos.items():
+            mapa_promedios[k] = {
+                'calls': sum(v['calls']) / len(v['calls']) if v['calls'] else 0,
+                'aht': sum(v['aht']) / len(v['aht']) if v['aht'] else 180
+            }
 
-            sl = erlang_c_sl_optimizado(a_erlang, prog, aht, target_time)
-            
-            data_processed.append({
-                'Campaña': campana_val,
-                'Fecha': fecha_val,
-                'Día_Semana': dia_val,
-                'Intervalo': intervalo_val,
-                'Llamadas': int(calls),
-                'AHT': int(aht),
-                'Agentes_Requeridos': req_agents,
-                'Agentes_Programados_Reales': prog,
-                'Delta_Net_Staffing': round(prog - req_agents, 1),
-                'SL_Proyectado': sl
-            })
-            
         del records
+        del perfiles_historicos
         gc.collect()
 
+        dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
+
+        # 4. Generar Proyección Futura desde HOY hacia N Días
+        data_processed = []
+        fecha_inicio = datetime.now()
+
+        campanas_unicas = sorted(list(set(k[0] for k in mapa_promedios.keys())))
+        intervalos_unicos = sorted(list(set(k[2] for k in mapa_promedios.keys())))
+
+        for d in range(dias_futuros):
+            fecha_actual = fecha_inicio + timedelta(days=d)
+            str_fecha = fecha_actual.strftime('%Y-%m-%d')
+            nombre_dia = dias_espanol[fecha_actual.weekday()]
+
+            for camp in campanas_unicas:
+                for inter in intervalos_unicos:
+                    key_hist = (camp, nombre_dia, inter)
+                    
+                    if key_hist in mapa_promedios:
+                        calls = mapa_promedios[key_hist]['calls']
+                        aht = mapa_promedios[key_hist]['aht']
+                    else:
+                        calls = 0.0
+                        aht = 180.0
+
+                    # Cálculo Erlang C y requerimiento
+                    a_erlang = (calls * aht) / 1800.0 if aht > 0 else 0.0
+                    req_raw = a_erlang / (1.0 - merma) if merma < 1.0 else a_erlang
+                    req_agents = math.ceil(req_raw)
+
+                    # Obtener programados desde la matriz Platilla
+                    key_roster = (camp.lower(), nombre_dia.lower(), inter)
+                    prog = matriz_roster.get(key_roster, req_agents)
+
+                    sl = erlang_c_sl_optimizado(a_erlang, prog, aht, target_time)
+
+                    data_processed.append({
+                        'Campaña': camp,
+                        'Fecha': str_fecha,
+                        'Día_Semana': nombre_dia.capitalize(),
+                        'Intervalo': inter,
+                        'Llamadas': int(round(calls)),
+                        'AHT': int(round(aht)),
+                        'Agentes_Requeridos': req_agents,
+                        'Agentes_Programados_Reales': prog,
+                        'Delta_Net_Staffing': round(prog - req_agents, 1),
+                        'SL_Proyectado': sl
+                    })
+
+        gc.collect()
         return jsonify(data_processed)
 
     except Exception as e:
