@@ -299,11 +299,6 @@
         let selectedFechaValue = "TODOS";
         let selectedIntervaloValue = "TODOS";
 
-        // Detecta automáticamente la URL dinámica para desarrollo o producción (Render)
-        const API_URL = window.location.origin.includes('127.0.0.1') || window.location.origin.includes('localhost')
-            ? 'http://127.0.0.1:5000/api/process'
-            : `${window.location.origin}/api/process`;
-
         async function procesarWFM() {
             const file = document.getElementById('fileInput').files[0];
             if (!file) {
@@ -321,7 +316,8 @@
             formData.append('dias', document.getElementById('dias').value);
 
             try {
-                const response = await fetch(API_URL, {
+                // Ruta relativa compatible con ejecucion local y despliegue en Render
+                const response = await fetch('/api/process', {
                     method: 'POST',
                     body: formData
                 });
@@ -334,10 +330,10 @@
                     poblarIntervalosDropdown();
                     resetTableFilterAndRefresh();
                 } else {
-                    alert("Error al procesar: " + globalData.error);
+                    alert("Error del servidor: " + (globalData.error || "Error al procesar el archivo"));
                 }
             } catch (e) {
-                alert("Error de conexión con el servidor Python. Asegúrate de ejecutar server.py");
+                alert("Error de comunicación: El servidor en Render aún se está iniciando o la conexión falló. Intenta de nuevo en 30 segundos.\n\nDetalle: " + e.message);
             }
         }
 
