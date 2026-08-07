@@ -1,6 +1,7 @@
 import os
 import math
 import gc
+import re
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pandas as pd
@@ -12,22 +13,24 @@ CORS(app)
 def serve_index():
     return send_from_directory('.', 'index.html')
 
+def clean_num(val, default=0.0):
+    if pd.isna(val) or val is None:
+        return default
+    try:
+        # Convertir a string, quitar espacios y caracteres no numéricos excepto punto y coma
+        val_str = str(val).strip().replace(',', '.')
+        val_str = re.sub(r'[^0-9.]', '', val_str)
+        return float(val_str) if val_str else default
+    except Exception:
+        return default
+
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
-    """
-    Cálculo eficiente de Erlang C usando división iterativa para prevenir 
-    desbordamiento de memoria (Memory Limit 512MB de Render).
-    """
     if N <= A or A <= 0 or N <= 0:
         return 0.0
-    
     try:
         sum_terms = 1.0
         current_term = 1.0
-        int_N = int(N)
-        
-        # Límite preventivo
-        if int_N > 1000:
-            int_N = 1000
+        int_N = min(int(N), 1000)
 
         for k in range(1, int_N):
             current_term *= (A / k)
@@ -42,6 +45,15 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
     except (OverflowError, ZeroDivisionError):
         return 0.0
 
+def encontrar_columna(df, posibles_nombres):
+    """ Busca columnas ignorando mayúsculas, minúsculas, espacios y acentos """
+    columnas_df = {str(c).strip().lower(): c for c in df.columns}
+    for pos in posibles_nombres:
+        pos_clean = pos.strip().lower()
+        if pos_clean in columnas_df:
+            return columnas_df[pos_clean]
+    return None
+
 @app.route('/api/process', methods=['POST'])
 @app.route('/api/process/', methods=['POST'])
 def process_data():
@@ -53,22 +65,28 @@ def process_data():
         return jsonify({'error': 'Nombre de archivo vacío.'}), 400
 
     try:
-        target_sl = float(request.form.get('target_sl', 80))
-        target_time = float(request.form.get('target_time', 20))
-        merma = float(request.form.get('merma', 20)) / 100.0
+        target_sl = clean_num(request.form.get('target_sl'), 80.0)
+        target_time = clean_num(request.form.get('target_time'), 20.0)
+        merma = clean_num(request.form.get('merma'), 20.0) / 100.0
 
-        # Intentar leer Excel de forma eficiente
         try:
             df = pd.read_excel(file, engine='calamine')
         except Exception:
             file.seek(0)
             df = pd.read_excel(file, engine='openpyxl')
 
-        df.columns = [str(col).strip() for col in df.columns]
+        # Detección inteligente de columnas
+        col_calls = encontrar_columna(df, ['Llamadas', 'Calls', 'Volumen', 'Ofrecidas', 'Llamadas_Ofrecidas'])
+        col_aht = encontrar_columna(df, ['AHT', 'TMO', 'Handle_Time', 'Tiempo_Manejo', 'AHT_Segs'])
+        col_prog = encontrar_columna(df, ['Agentes_Programados', 'Programados', 'Agentes', 'Roster', 'FTEs', 'Agentes_Programados_Reales'])
+        col_camp = encontrar_columna(df, ['Campaña', 'Campana', 'Skill', 'Servicio', 'Project'])
+        col_fecha = encontrar_columna(df, ['Fecha', 'Date', 'Day'])
+        col_inter = encontrar_columna(df, ['Intervalo', 'Hora', 'Interval', 'Half_Hour'])
+        col_dia = encontrar_columna(df, ['Día_Semana', 'Dia_Semana', 'Dia', 'Day_Of_Week'])
 
-        # Normalización de fechas a formato YYYY-MM-DD
-        if 'Fecha' in df.columns:
-            df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce').dt.strftime('%Y-%m-%d')
+        # Normalización de fechas
+        if col_fecha:
+            df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce').dt.strftime('%Y-%m-%d')
 
         records = df.to_dict(orient='records')
         del df
@@ -77,12 +95,14 @@ def process_data():
         data_processed = []
 
         for row in records:
-            calls = float(row.get('Llamadas', 0) or 0)
-            aht = float(row.get('AHT', 180) or 180)
-            prog = float(row.get('Agentes_Programados', 0) or 0)
+            calls = clean_num(row.get(col_calls) if col_calls else 0, 0.0)
+            aht = clean_num(row.get(col_aht) if col_aht else 180, 180.0)
+            prog = clean_num(row.get(col_prog) if col_prog else 0, 0.0)
             
-            # Limpieza estricta de string de fecha
-            fecha_val = str(row.get('Fecha', '')).split(' ')[0] if row.get('Fecha') else ''
+            campana_val = str(row.get(col_camp, 'General')) if col_camp and not pd.isna(row.get(col_camp)) else 'General'
+            fecha_val = str(row.get(col_fecha, '')).split(' ')[0] if col_fecha and not pd.isna(row.get(col_fecha)) else ''
+            dia_val = str(row.get(col_dia, '')) if col_dia and not pd.isna(row.get(col_dia)) else ''
+            intervalo_val = str(row.get(col_inter, '00:00')) if col_inter and not pd.isna(row.get(col_inter)) else '00:00'
 
             a_erlang = (calls * aht) / 1800.0 if aht > 0 else 0.0
             req_raw = a_erlang / (1.0 - merma) if merma < 1.0 else a_erlang
@@ -92,10 +112,10 @@ def process_data():
             sl = erlang_c_sl_optimizado(a_erlang, eval_agents, aht, target_time)
             
             data_processed.append({
-                'Campaña': str(row.get('Campaña', row.get('Campana', 'General'))),
+                'Campaña': campana_val,
                 'Fecha': fecha_val,
-                'Día_Semana': str(row.get('Día_Semana', row.get('Dia_Semana', ''))),
-                'Intervalo': str(row.get('Intervalo', '00:00')),
+                'Día_Semana': dia_val,
+                'Intervalo': intervalo_val,
                 'Llamadas': int(calls),
                 'AHT': int(aht),
                 'Agentes_Requeridos': req_agents,
