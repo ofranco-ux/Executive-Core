@@ -156,7 +156,7 @@
                     <div class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Campaña(s)</label>
                         <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-brand-surface border border-violet-500/30 text-xs rounded-xl px-3 py-2 text-violet-300 font-mono-num font-bold focus:outline-none border-violet-500 transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
-                            <span id="campanaSelectedText">🎧 TODAS (3)</span>
+                            <span id="campanaSelectedText">🎧 SELECC. (0)</span>
                             <span class="text-[10px] text-violet-400">▼</span>
                         </button>
                         <div id="dropdownCampanaMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#0D1322] border border-violet-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200">
@@ -167,7 +167,7 @@
                     <div class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Fecha(s)</label>
                         <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-brand-surface border border-cyan-500/30 text-xs rounded-xl px-3 py-2 text-cyan-300 font-mono-num font-bold focus:outline-none border-cyan-500 transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
-                            <span id="fechaSelectedText">📅 TODAS (30)</span>
+                            <span id="fechaSelectedText">📅 SELECC. (0)</span>
                             <span class="text-[10px] text-cyan-400">▼</span>
                         </button>
                         <div id="dropdownFechaMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#0D1322] border border-cyan-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200">
@@ -178,7 +178,7 @@
                     <div class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Intervalo(s)</label>
                         <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-brand-surface border border-emerald-500/30 text-xs rounded-xl px-3 py-2 text-emerald-300 font-mono-num font-bold focus:outline-none border-emerald-500 transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
-                            <span id="intervaloSelectedText">⏰ TODOS (24)</span>
+                            <span id="intervaloSelectedText">⏰ SELECC. (0)</span>
                             <span class="text-[10px] text-emerald-400">▼</span>
                         </button>
                         <div id="dropdownIntervaloMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#0D1322] border border-emerald-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200">
@@ -260,7 +260,7 @@
                             <tr>
                                 <th class="py-3 px-4">Intervalo</th>
                                 <th class="py-3 px-4">Llamadas</th>
-                                <th class="py-3 px-4">AHT (s)</th>
+                                <th class="py-3 px-4">AHT (HH:MM)</th>
                                 <th class="py-3 px-4">Agentes Req.</th>
                                 <th class="py-3 px-4">Agentes Prog.</th>
                                 <th class="py-3 px-4">Net Staffing</th>
@@ -285,7 +285,6 @@
         let chartInstance = null;
         let slChartInstance = null;
         
-        // CONJUNTOS PARA MULTI-SELECCIÓN
         let selectedCampanas = new Set();
         let selectedFechas = new Set();
         let selectedIntervalos = new Set();
@@ -295,6 +294,15 @@
                 if (row[k] !== undefined && row[k] !== null) return row[k];
             }
             return def;
+        }
+
+        // Formato AHT estricto HH:MM (Horas:Minutos)
+        function formatAHT(seconds) {
+            if (!seconds || seconds <= 0) return "00:00";
+            const secs = Math.round(seconds);
+            const hrs = Math.floor(secs / 3600);
+            const mins = Math.floor((secs % 3600) / 60);
+            return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
         }
 
         async function procesarWFM() {
@@ -338,17 +346,14 @@
         }
 
         function inicializarFiltrosMultiples() {
-            // Campañas
             const campanas = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).sort();
             selectedCampanas = new Set(campanas);
             renderMenuOptions('Campana', campanas, selectedCampanas);
 
-            // Fechas
             const fechas = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0]))].filter(Boolean).sort();
             selectedFechas = new Set(fechas);
             renderMenuOptions('Fecha', fechas, selectedFechas);
 
-            // Intervalos
             const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
             selectedIntervalos = new Set(intervalos);
             renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
@@ -360,7 +365,6 @@
             const menu = document.getElementById(`dropdown${type}Menu`);
             menu.innerHTML = '';
 
-            // Opción Seleccionar Todo
             const headerDiv = document.createElement('div');
             headerDiv.className = 'flex items-center justify-between p-2 pb-2 mb-1 border-b border-slate-800 text-[11px] font-bold';
             headerDiv.innerHTML = `
@@ -464,7 +468,6 @@
         function actualizarGrafica() {
             const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
 
-            // Filtrar matriz global por los 3 conjuntos de multiselect
             const dfFiltered = globalData.filter(item => {
                 const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
                 const f = String(getProp(item, ['Fecha'], '')).split(' ')[0];
@@ -474,8 +477,25 @@
             });
 
             const totCalls = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
-            const sumLlamadasAht = dfFiltered.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['AHT'], 180)) || 180)), 0);
-            const avgAht = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
+            
+            // Ponderación de AHT en segundos para el cálculo del promedio
+            const sumLlamadasAht = dfFiltered.reduce((acc, row) => {
+                const calls = Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0;
+                let ahtSegs = Number(getProp(row, ['AHT_Segundos'], 0));
+                
+                if (!ahtSegs) {
+                    const valAht = getProp(row, ['AHT'], 180);
+                    if (typeof valAht === 'string' && valAht.includes(':')) {
+                        const parts = valAht.split(':').map(Number);
+                        ahtSegs = parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + parts[1];
+                    } else {
+                        ahtSegs = Number(valAht) || 180;
+                    }
+                }
+                return acc + (calls * ahtSegs);
+            }, 0);
+
+            const avgAhtSegs = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
 
             const totReq = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Agentes_Requeridos'], 0)) || 0), 0);
             const totProg = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Agentes_Programados_Reales'], 0)) || 0), 0);
@@ -490,7 +510,10 @@
             const avgSl = totCalls > 0 ? (sumLlamadasSl / totCalls).toFixed(1) : "0.0";
 
             document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
-            document.getElementById('kpiAht').innerText = avgAht + 's';
+            
+            // Asignación estricta HH:MM al KPI
+            document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
+            
             document.getElementById('kpiSl').innerText = avgSl + '%';
             document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
             document.getElementById('kpiNet').innerText = (net >= 0 ? '+' : '') + net;
@@ -504,17 +527,28 @@
                 badgeSl.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
             }
 
-            // Agrupación para gráficos por intervalo
             const agrupado = {};
             dfFiltered.forEach(row => {
                 const inter = String(getProp(row, ['Intervalo'], '00:00'));
+                
+                let ahtSegs = Number(getProp(row, ['AHT_Segundos'], 0));
+                if (!ahtSegs) {
+                    const valAht = getProp(row, ['AHT'], 180);
+                    if (typeof valAht === 'string' && valAht.includes(':')) {
+                        const parts = valAht.split(':').map(Number);
+                        ahtSegs = parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + parts[1];
+                    } else {
+                        ahtSegs = Number(valAht) || 180;
+                    }
+                }
+
                 if (!agrupado[inter]) {
                     agrupado[inter] = { req: 0, prog: 0, llamadas: 0, ahtSum: 0, slSum: 0, count: 0 };
                 }
                 agrupado[inter].req += Number(getProp(row, ['Agentes_Requeridos'], 0)) || 0;
                 agrupado[inter].prog += Number(getProp(row, ['Agentes_Programados_Reales'], 0)) || 0;
                 agrupado[inter].llamadas += Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0;
-                agrupado[inter].ahtSum += Number(getProp(row, ['AHT'], 180)) || 180;
+                agrupado[inter].ahtSum += ahtSegs;
                 agrupado[inter].slSum += Number(getProp(row, ['SL_Proyectado'], 0)) || 0;
                 agrupado[inter].count += 1;
             });
@@ -523,7 +557,7 @@
             const req = intervalos.map(i => (agrupado[i].req / agrupado[i].count).toFixed(1));
             const prog = intervalos.map(i => (agrupado[i].prog / agrupado[i].count).toFixed(1));
             const llamadasArr = intervalos.map(i => Math.round(agrupado[i].llamadas / agrupado[i].count));
-            const ahtArr = intervalos.map(i => Math.round(agrupado[i].ahtSum / agrupado[i].count));
+            const ahtSegsArr = intervalos.map(i => Math.round(agrupado[i].ahtSum / agrupado[i].count));
             const slArr = intervalos.map(i => (agrupado[i].slSum / agrupado[i].count).toFixed(1));
             const deltas = intervalos.map(i => (agrupado[i].prog / agrupado[i].count - agrupado[i].req / agrupado[i].count).toFixed(1));
 
@@ -532,7 +566,7 @@
 
             intervalos.forEach((inter, idx) => {
                 const rowLlamadas = llamadasArr[idx];
-                const rowAht = ahtArr[idx];
+                const rowAhtSegs = ahtSegsArr[idx];
                 const rowReq = req[idx];
                 const rowProg = prog[idx];
                 const rowDelta = deltas[idx];
@@ -551,7 +585,7 @@
                         <span class="text-[10px] text-cyan-400">●</span> ${inter}
                     </td>
                     <td class="py-2.5 px-4 text-slate-300">${rowLlamadas.toLocaleString()}</td>
-                    <td class="py-2.5 px-4 text-slate-300">${rowAht}s</td>
+                    <td class="py-2.5 px-4 text-slate-300">${formatAHT(rowAhtSegs)}</td>
                     <td class="py-2.5 px-4 text-violet-400 font-bold">${rowReq}</td>
                     <td class="py-2.5 px-4 text-emerald-400 font-bold">${rowProg}</td>
                     <td class="py-2.5 px-4 ${deltaColor}">${rowDelta >= 0 ? '+' : ''}${rowDelta}</td>
@@ -633,7 +667,7 @@
                 return;
             }
 
-            const headers = ["Campana", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT_Segs", "Agentes_Requeridos", "Agentes_Programados", "Delta_Net_Staffing", "SL_Proyectado_Pct"];
+            const headers = ["Campana", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT", "Agentes_Requeridos", "Agentes_Programados", "Delta_Net_Staffing", "SL_Proyectado_Pct"];
             const csvRows = [headers.join(",")];
 
             globalData.forEach(row => {
@@ -643,7 +677,7 @@
                     getProp(row, ['Día_Semana', 'Dia_Semana'], ''),
                     getProp(row, ['Intervalo'], '00:00'),
                     getProp(row, ['Llamadas', 'Recibidas'], 0),
-                    getProp(row, ['AHT'], 0),
+                    getProp(row, ['AHT'], '00:00'),
                     getProp(row, ['Agentes_Requeridos'], 0),
                     getProp(row, ['Agentes_Programados_Reales'], 0),
                     getProp(row, ['Delta_Net_Staffing'], 0),
