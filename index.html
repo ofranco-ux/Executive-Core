@@ -79,6 +79,7 @@
             <div>
                 <div class="flex items-center gap-3">
                     <h1 class="text-2xl font-black text-white tracking-tight">Executive Core</h1>
+                    <span id="tagModoOps" class="hidden text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider">Vista Operaciones</span>
                 </div>
                 <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning — Workforce Management Engine</p>
             </div>
@@ -88,8 +89,8 @@
     <!-- Layout Principal -->
     <div class="grid grid-cols-12 gap-8">
 
-        <!-- Panel de Control Izquierdo -->
-        <aside class="col-span-12 lg:col-span-3 glass-panel p-6 rounded-2xl space-y-6 h-fit relative">
+        <!-- Panel de Control Izquierdo (Ocultable en Modo Operaciones) -->
+        <aside id="panelControl" class="col-span-12 lg:col-span-3 glass-panel p-6 rounded-2xl space-y-6 h-fit relative">
             <div class="flex items-center justify-between pb-4 border-b border-slate-800/80">
                 <h2 class="text-xs font-black text-slate-200 uppercase tracking-widest flex items-center gap-2">
                     <span class="text-cyan-400">⚡</span> Parámetros de Control
@@ -135,7 +136,7 @@
         </aside>
 
         <!-- Dashboard C-Level -->
-        <main class="col-span-12 lg:col-span-9 space-y-6">
+        <main id="dashboardMain" class="col-span-12 lg:col-span-9 space-y-6">
 
             <!-- BARRA DE FILTROS MULTI-SELECCIÓN -->
             <div class="glass-panel p-4 rounded-2xl flex justify-between items-center border border-slate-800/80 flex-wrap gap-4 relative z-50 overflow-visible">
@@ -288,6 +289,26 @@
         let selectedCampanas = new Set();
         let selectedFechas = new Set();
         let selectedIntervalos = new Set();
+
+        // DETECCION DE MODO OPERACIONES VÍA URL (?mode=operaciones)
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const mode = urlParams.get('mode') || urlParams.get('role');
+
+            if (mode === 'operaciones' || mode === 'ops') {
+                const aside = document.getElementById('panelControl');
+                const main = document.getElementById('dashboardMain');
+                const tag = document.getElementById('tagModoOps');
+
+                if (aside) aside.style.display = 'none';
+                if (tag) tag.classList.remove('hidden');
+                
+                if (main) {
+                    main.classList.remove('lg:col-span-9');
+                    main.classList.add('lg:col-span-12');
+                }
+            }
+        });
 
         function getProp(row, keys, def = '') {
             for (let k of keys) {
