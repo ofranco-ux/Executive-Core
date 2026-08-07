@@ -13,6 +13,10 @@ def serve_index():
     return send_from_directory('.', 'index.html')
 
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
+    """
+    Cálculo eficiente de Erlang C usando división iterativa para prevenir 
+    desbordamiento de memoria (Memory Limit 512MB de Render).
+    """
     if N <= A or A <= 0 or N <= 0:
         return 0.0
     
@@ -21,7 +25,7 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         current_term = 1.0
         int_N = int(N)
         
-        # Limite preventivo para evitar loops largos
+        # Límite preventivo
         if int_N > 1000:
             int_N = 1000
 
@@ -53,7 +57,7 @@ def process_data():
         target_time = float(request.form.get('target_time', 20))
         merma = float(request.form.get('merma', 20)) / 100.0
 
-        # Intentar leer Excel de la forma más liviana posible
+        # Intentar leer Excel de forma eficiente
         try:
             df = pd.read_excel(file, engine='calamine')
         except Exception:
@@ -62,18 +66,24 @@ def process_data():
 
         df.columns = [str(col).strip() for col in df.columns]
 
-        data_processed = []
-        
-        # Procesamiento por dict para minimizar overhead de pandas en memoria
+        # Normalización de fechas a formato YYYY-MM-DD
+        if 'Fecha' in df.columns:
+            df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce').dt.strftime('%Y-%m-%d')
+
         records = df.to_dict(orient='records')
-        del df  # Liberar dataframe de la memoria RAM
+        del df
         gc.collect()
+
+        data_processed = []
 
         for row in records:
             calls = float(row.get('Llamadas', 0) or 0)
             aht = float(row.get('AHT', 180) or 180)
             prog = float(row.get('Agentes_Programados', 0) or 0)
             
+            # Limpieza estricta de string de fecha
+            fecha_val = str(row.get('Fecha', '')).split(' ')[0] if row.get('Fecha') else ''
+
             a_erlang = (calls * aht) / 1800.0 if aht > 0 else 0.0
             req_raw = a_erlang / (1.0 - merma) if merma < 1.0 else a_erlang
             req_agents = math.ceil(req_raw)
@@ -83,7 +93,7 @@ def process_data():
             
             data_processed.append({
                 'Campaña': str(row.get('Campaña', row.get('Campana', 'General'))),
-                'Fecha': str(row.get('Fecha', '')),
+                'Fecha': fecha_val,
                 'Día_Semana': str(row.get('Día_Semana', row.get('Dia_Semana', ''))),
                 'Intervalo': str(row.get('Intervalo', '00:00')),
                 'Llamadas': int(calls),
@@ -95,7 +105,7 @@ def process_data():
             })
             
         del records
-        gc.collect()  # Forzar liberación de RAM final
+        gc.collect()
 
         return jsonify(data_processed)
 
