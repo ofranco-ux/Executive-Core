@@ -337,7 +337,7 @@ def process_data():
         df['Inter_Clean'] = df[col_inter].astype(str).str.strip()
         df['Inter_Clean'] = df['Inter_Clean'].apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
 
-        # Filtrar registros históricos que estén estrictamente dentro de la ventana de servicio
+        # Filtrar registros históricos que estén strictly dentro de la ventana de servicio
         df['En_Ventana'] = df.apply(lambda r: esta_en_ventana_servicio(r[col_camp], r['Inter_Clean']), axis=1)
         df_filtrado = df[df['En_Ventana']].copy()
 
@@ -370,7 +370,7 @@ def process_data():
         gc.collect()
 
         # -------------------------------------------------------------
-        # 3. PREDICCIÓN Y CÁLCULO DE ERLANG C
+        # 3. PREDICCIÓN Y CÁLCULO DE ERLANG C (SHRINKAGE EN PROGRAMADO)
         # -------------------------------------------------------------
         dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
         data_processed = []
@@ -399,7 +399,6 @@ def process_data():
                 volumen_predicho_diario = (0.65 * vol_hw) + (0.35 * vol_ridge)
                 historial_volumenes[camp].append(volumen_predicho_diario)
 
-                # Iterar únicamente en los intervalos válidos según la ventana de servicio
                 intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
 
                 for inter in intervalos_validos:
@@ -413,13 +412,22 @@ def process_data():
                         aht = aht_global_campana.get(camp, 180.0)
 
                     a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
-                    req_raw = a_erlang / (1.0 - merma) if merma < 1.0 else a_erlang
-                    req_agents = math.ceil(req_raw) if calls > 0 else 0
+                    
+                    # 1. REQUERIDO PURO (Erlang C directo para agentes en mesa)
+                    req_agents = math.ceil(a_erlang) if calls > 0 else 0
 
+                    # 2. PROGRAMADO NOMINAL (Malla / Roster)
                     key_roster = (str(camp).lower(), nombre_dia.lower(), inter)
-                    prog = matriz_roster.get(key_roster, req_agents)
+                    prog_nominal = matriz_roster.get(key_roster, req_agents)
 
-                    sl = erlang_c_sl_optimizado(a_erlang, prog, aht, target_time) if calls > 0 else 100.0
+                    # 3. PROGRAMADO EFECTIVO (Aplica Shrinkage a la plantilla disponible)
+                    prog_efectivo = prog_nominal * (1.0 - merma) if calls > 0 else 0.0
+
+                    # 4. SL CALCULADO CON LA PLANTILLA EFECTIVA EN MESA
+                    sl = erlang_c_sl_optimizado(a_erlang, prog_efectivo, aht, target_time) if calls > 0 else 100.0
+
+                    # 5. DELTA (Net Staffing = Programado Efectivo vs Requerido en mesa)
+                    delta_net = round(prog_efectivo - req_agents, 1) if calls > 0 else 0.0
 
                     data_processed.append({
                         'Campaña': str(camp),
@@ -429,8 +437,8 @@ def process_data():
                         'Llamadas': int(round(calls)),
                         'AHT': int(round(aht)),
                         'Agentes_Requeridos': req_agents,
-                        'Agentes_Programados_Reales': prog,
-                        'Delta_Net_Staffing': round(prog - req_agents, 1),
+                        'Agentes_Programados_Reales': round(prog_efectivo, 1),
+                        'Delta_Net_Staffing': delta_net,
                         'SL_Proyectado': sl
                     })
 
