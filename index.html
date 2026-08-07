@@ -120,18 +120,7 @@
 
                 <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80 focus-within:border-cyan-500/50 transition-colors">
                     <label class="block text-[10px] text-slate-400 font-medium mb-1">Shrinkage Total (%)</label>
-                    <input type="number" id="merma" value="20" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
-                        <label class="block text-[10px] text-slate-400 font-medium mb-1">Hora Apertura</label>
-                        <input type="text" id="hInicio" value="09:00" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
-                    </div>
-                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
-                        <label class="block text-[10px] text-slate-400 font-medium mb-1">Hora Cierre</label>
-                        <input type="text" id="hFin" value="20:00" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
-                    </div>
+                    <input type="number" id="merma" value="30" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
                 </div>
 
                 <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
@@ -324,7 +313,6 @@
             formData.append('dias', document.getElementById('dias').value);
 
             try {
-                // Ruta relativa directa a Render
                 const response = await fetch('/api/process', {
                     method: 'POST',
                     body: formData
