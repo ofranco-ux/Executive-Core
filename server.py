@@ -7,7 +7,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pandas as pd
 
-# Definir la ruta absoluta del directorio base
+# Definir la ruta absoluta del directorio base para evitar errores 404/pantallas en blanco
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
@@ -34,6 +34,9 @@ def clean_num(val, default=0.0):
         return default
 
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
+    """
+    Cálculo iterativo eficiente de Erlang C para optimizar memoria RAM en Render.
+    """
     if N <= A or A <= 0 or N <= 0:
         return 0.0
     try:
@@ -55,6 +58,7 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         return 0.0
 
 def parse_time_str(t_str):
+    """ Convierte formato HH:MM a minutos desde medianoche """
     try:
         parts = str(t_str).strip().split(':')
         return int(parts[0]) * 60 + int(parts[1])
@@ -62,6 +66,10 @@ def parse_time_str(t_str):
         return None
 
 def construir_matriz_plantilla(xls_file):
+    """
+    Parsea la hoja Platilla / Plantilla y construye un mapa de capacidad:
+    (Campaña, Día_Semana, Intervalo) -> Agentes_Presentes
+    """
     try:
         sheet_names = xls_file.sheet_names
         sheet_plantilla = None
@@ -73,7 +81,7 @@ def construir_matriz_plantilla(xls_file):
         if not sheet_plantilla:
             return {}
 
-        df_p = pd.read_excel(xls_file, sheet_name=sheet_plantilla)
+        df_p = pd.read_excel(xls_file, sheet_name=sheet_plantilla, engine='openpyxl')
         dias_cols = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
         
         malla = {}
@@ -119,7 +127,7 @@ def encontrar_columna(df, posibles_nombres):
     return None
 
 def calcular_tendencia_lineal(valores):
-    """ Regresión lineal simple sin depender de librerías externas """
+    """ Regresión lineal simple nativa para proyectar la tendencia diaria """
     n = len(valores)
     if n < 2:
         return 0.0, valores[0] if n == 1 else 0.0
@@ -141,7 +149,7 @@ def calcular_tendencia_lineal(valores):
 @app.route('/api/process/', methods=['POST', 'GET'])
 def process_data():
     if request.method == 'GET':
-        return jsonify({'status': 'API predictiva activa en Render'}), 200
+        return jsonify({'status': 'API operativa con Machine Learning en Render'}), 200
 
     if 'file' not in request.files:
         return jsonify({'error': 'No se recibió ningún archivo.'}), 400
@@ -156,7 +164,7 @@ def process_data():
         merma = clean_num(request.form.get('merma'), 20.0) / 100.0
         dias_futuros = int(clean_num(request.form.get('dias'), 30))
 
-        xls_file = pd.ExcelFile(file)
+        xls_file = pd.ExcelFile(file, engine='openpyxl')
         matriz_roster = construir_matriz_plantilla(xls_file)
 
         sheet_calls = xls_file.sheet_names[0]
@@ -165,7 +173,7 @@ def process_data():
                 sheet_calls = s
                 break
 
-        df = pd.read_excel(xls_file, sheet_name=sheet_calls)
+        df = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
 
         col_calls = encontrar_columna(df, ['Recibidas', 'Llamadas', 'Calls', 'Volumen', 'Ofrecidas'])
         col_aht = encontrar_columna(df, ['AHT', 'TMO', 'Handle_Time'])
@@ -182,7 +190,7 @@ def process_data():
         fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
 
         # -------------------------------------------------------------
-        # MODELO PREDICTIVO SERIE TEMPORAL POR CAMPAÑA
+        # 1. MODELO DE TENDENCIA Y VOLUMEN DIARIO POR CAMPAÑA
         # -------------------------------------------------------------
         df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
         campanas_unicas = df[col_camp].unique()
@@ -206,7 +214,7 @@ def process_data():
             }
 
         # -------------------------------------------------------------
-        # PROFILE CURVE INTRADÍA (FACTOR DÍA_SEMANA E INTERVALO)
+        # 2. PROFILE CURVE INTRADÍA (DISTRIBUCIÓN POR DÍA E INTERVALO)
         # -------------------------------------------------------------
         df['Dia_Semana_Clean'] = df[col_dia].astype(str).str.strip().str.lower() if col_dia else df[col_fecha].dt.day_name().str.lower()
         
@@ -235,7 +243,7 @@ def process_data():
         gc.collect()
 
         # -------------------------------------------------------------
-        # GENERACIÓN DEL FORECAST PROYECTADO A FUTURO
+        # 3. GENERACIÓN DEL FORECAST FUTURO (DÍA POSTERIOR AL HISTÓRICO)
         # -------------------------------------------------------------
         dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
         data_processed = []
