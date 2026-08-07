@@ -3,428 +3,426 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NICE IEX WFM - Executive Core Analytics Engine</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;600&family=Segoe+UI:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <title>Executive Core | AI WFM Intelligence</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            /* Paleta Institucional NICE IEX */
-            --nice-blue: #0052cc;
-            --nice-blue-dark: #003d99;
-            --nice-bg-app: #0f141d;
-            --nice-bg-panel: #18202e;
-            --nice-bg-card: #1f293d;
-            --nice-border: #2a374f;
-            --nice-border-light: #3a4b68;
+            /* Premium Obsidian Theme */
+            --bg-base: #09090b;
+            --bg-surface: #18181b;
+            --bg-elevated: #27272a;
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --border-strong: rgba(255, 255, 255, 0.15);
             
-            --nice-success: #00c853;
-            --nice-danger: #ff3d00;
-            --nice-warning: #ffab00;
-            --nice-info: #00b0ff;
+            --text-primary: #fafafa;
+            --text-secondary: #a1a1aa;
+            --text-muted: #71717a;
             
-            --text-primary: #ffffff;
-            --text-secondary: #a0aec0;
-            --text-muted: #64748b;
-            --font-mono: 'Roboto Mono', monospace;
+            --brand-accent: #ffffff;
+            --status-success: #10b981;
+            --status-danger: #ef4444;
+            --status-warning: #f59e0b;
+            --chart-primary: #3b82f6;
+            
+            --font-sans: 'Inter', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         body {
-            background-color: var(--nice-bg-app);
+            background-color: var(--bg-base);
             color: var(--text-primary);
+            font-family: var(--font-sans);
             display: flex;
-            flex-direction: column;
             height: 100vh;
             overflow: hidden;
         }
 
-        /* 1. Header Principal NICE Systems */
-        .nice-header {
-            background: linear-gradient(90deg, var(--nice-blue-dark), var(--nice-blue));
-            height: 48px;
-            padding: 0 20px;
+        /* ---------------- Sidebar Configuration ---------------- */
+        .sidebar {
+            width: 320px;
+            background-color: var(--bg-surface);
+            border-right: 1px solid var(--border-subtle);
             display: flex;
-            align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.4);
-            z-index: 30;
+            flex-direction: column;
             flex-shrink: 0;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+            z-index: 20;
         }
 
-        .nice-brand {
+        .brand-header {
+            padding: 32px 24px;
             display: flex;
-            align-items: center;
-            gap: 12px;
+            flex-direction: column;
+            gap: 8px;
         }
 
-        .nice-logo {
-            font-weight: 800;
-            font-size: 1.1rem;
-            letter-spacing: 0.05em;
-            color: #fff;
-            background: rgba(255,255,255,0.15);
-            padding: 2px 8px;
-            border-radius: 4px;
-        }
-
-        .nice-title {
-            font-size: 0.9rem;
+        .brand-header h1 {
+            font-size: 1.25rem;
             font-weight: 600;
-            color: #ffffff;
+            letter-spacing: -0.03em;
+            color: var(--brand-accent);
+        }
+
+        .brand-header p {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 400;
             letter-spacing: 0.02em;
         }
 
-        .nice-status {
-            background: rgba(0, 200, 83, 0.2);
-            border: 1px solid var(--nice-success);
-            color: #ffffff;
-            padding: 3px 10px;
-            border-radius: 12px;
-            font-size: 0.72rem;
-            font-weight: 600;
+        .config-form {
+            padding: 0 24px 32px 24px;
             display: flex;
-            align-items: center;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .form-section {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .section-title {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
             gap: 6px;
         }
 
-        .nice-status::before {
-            content: '';
-            width: 6px;
-            height: 6px;
-            background-color: var(--nice-success);
-            border-radius: 50%;
-            box-shadow: 0 0 6px var(--nice-success);
-        }
-
-        /* Layout Principal Body */
-        .app-container {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-        }
-
-        /* 2. Lateral de Control - Parametrización WFM */
-        .sidebar {
-            width: 300px;
-            background-color: var(--nice-bg-panel);
-            border-right: 1px solid var(--nice-border);
-            display: flex;
-            flex-direction: column;
-            flex-shrink: 0;
-        }
-
-        .sidebar-header {
-            padding: 14px 18px;
-            background-color: rgba(0,0,0,0.2);
-            border-bottom: 1px solid var(--nice-border);
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
+        .input-group label {
+            font-size: 0.8rem;
             color: var(--text-secondary);
+            font-weight: 500;
         }
 
-        .sidebar-content {
-            padding: 18px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            overflow-y: auto;
-            flex: 1;
-        }
-
-        .field-label {
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            font-weight: 600;
-            margin-bottom: 4px;
-            display: block;
-        }
-
-        .field-input {
-            width: 100%;
-            background-color: var(--nice-bg-app);
-            border: 1px solid var(--nice-border);
-            color: #fff;
-            padding: 8px 10px;
-            border-radius: 4px;
+        .input-group input {
+            background-color: var(--bg-base);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            padding: 10px 12px;
+            border-radius: 6px;
             font-size: 0.85rem;
             font-family: var(--font-mono);
-            outline: none;
-            transition: border-color 0.15s;
+            transition: all 0.2s ease;
         }
 
-        .field-input:focus {
-            border-color: var(--nice-info);
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--brand-accent);
+            background-color: rgba(255,255,255,0.03);
         }
 
         input[type="file"]::file-selector-button {
-            background-color: var(--nice-card);
-            color: #fff;
-            border: 1px solid var(--nice-border-light);
-            padding: 4px 8px;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 0.72rem;
-            font-weight: 600;
-            margin-right: 8px;
-        }
-
-        .btn-run {
-            background: linear-gradient(180deg, var(--nice-blue), var(--nice-blue-dark));
-            color: #fff;
-            border: 1px solid rgba(255,255,255,0.2);
-            padding: 10px;
+            background-color: var(--bg-elevated);
+            color: var(--text-primary);
+            border: 1px solid var(--border-strong);
+            padding: 6px 12px;
             border-radius: 4px;
-            font-weight: 700;
-            font-size: 0.82rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+            font-size: 0.75rem;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.15s;
-            box-shadow: 0 3px 8px rgba(0,82,204,0.3);
-            margin-top: 6px;
+            transition: background 0.2s;
+            margin-right: 12px;
         }
 
-        .btn-run:hover {
-            filter: brightness(1.15);
+        input[type="file"]::file-selector-button:hover {
+            background-color: #3f3f46;
         }
 
-        .btn-run:disabled {
-            background: #2a374f;
-            color: #64748b;
+        .btn-execute {
+            background-color: var(--brand-accent);
+            color: #000;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 12px;
+        }
+
+        .btn-execute:hover {
+            background-color: #e4e4e7;
+            transform: translateY(-1px);
+        }
+
+        .btn-execute:disabled {
+            background-color: var(--bg-elevated);
+            color: var(--text-muted);
             cursor: not-allowed;
-            box-shadow: none;
+            transform: none;
         }
 
-        /* 3. Panel de Trabajo Workstation */
+        /* ---------------- Workspace Main ---------------- */
         .workspace {
             flex: 1;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            background-color: var(--nice-bg-app);
+            background-color: var(--bg-base);
+            background-image: radial-gradient(circle at top right, rgba(255,255,255,0.02) 0%, transparent 40%);
         }
 
-        /* Query Ribbon Toolbar */
-        .iex-ribbon {
-            background-color: var(--nice-bg-panel);
-            border-bottom: 1px solid var(--nice-border);
-            padding: 10px 24px;
+        /* Top Control Bar */
+        .top-bar {
+            padding: 24px 40px 16px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .view-title {
+            font-size: 1.5rem;
+            font-weight: 500;
+            letter-spacing: -0.04em;
+        }
+
+        .status-indicator {
             display: flex;
             align-items: center;
-            gap: 18px;
-            flex-wrap: wrap;
+            gap: 8px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            background: rgba(255,255,255,0.03);
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--border-subtle);
         }
 
-        .ribbon-tag {
-            font-size: 0.7rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            color: var(--text-muted);
-            letter-spacing: 0.08em;
+        .dot-pulse {
+            width: 8px;
+            height: 8px;
+            background-color: var(--status-success);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--status-success);
         }
 
-        .ribbon-item {
+        /* Filters */
+        .filters {
+            padding: 0 40px 24px 40px;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .filter-group {
             display: flex;
             align-items: center;
             gap: 8px;
         }
 
-        .ribbon-item label {
+        .filter-group label {
             font-size: 0.75rem;
-            color: var(--text-secondary);
-            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
 
-        .ribbon-item select {
-            background-color: var(--nice-bg-app);
-            border: 1px solid var(--nice-border);
-            color: #fff;
-            padding: 4px 8px;
+        .filter-group select {
+            background-color: transparent;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            padding: 6px 12px;
             border-radius: 4px;
-            font-size: 0.8rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+            appearance: none;
+            padding-right: 32px;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            background-size: 14px;
+        }
+        
+        .filter-group select:focus {
+            border-color: var(--text-secondary);
             outline: none;
-            min-width: 150px;
-            cursor: pointer;
         }
 
-        .btn-clear {
-            background: transparent;
-            border: 1px solid var(--nice-border-light);
-            color: var(--text-secondary);
-            padding: 4px 10px;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            cursor: pointer;
-            margin-left: auto;
-        }
-
-        .btn-clear:hover {
-            background-color: var(--nice-bg-card);
-            color: #fff;
-        }
-
-        /* Viewport Scrollable */
-        .viewport-content {
+        /* Dashboard Scroll Area */
+        .dashboard-scroll {
             flex: 1;
-            padding: 20px 24px;
             overflow-y: auto;
+            padding: 32px 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* Executive KPIs */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+
+        .kpi-card {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            padding: 24px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .kpi-title {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .kpi-value {
+            font-size: 2.2rem;
+            font-weight: 400;
+            letter-spacing: -0.05em;
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+        }
+
+        .kpi-subtext {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Charts */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+
+        .chart-panel {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 24px;
+            height: 340px;
             display: flex;
             flex-direction: column;
             gap: 16px;
         }
 
-        /* KPI Scorecard Grid */
-        .kpi-row {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 12px;
+        .chart-header {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-primary);
         }
 
-        .kpi-card {
-            background-color: var(--nice-bg-card);
-            border: 1px solid var(--nice-border);
-            border-radius: 6px;
-            padding: 14px 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            border-top: 3px solid var(--nice-blue);
-        }
-
-        .kpi-card.green { border-top-color: var(--nice-success); }
-        .kpi-card.yellow { border-top-color: var(--nice-warning); }
-        .kpi-card.cyan { border-top-color: var(--nice-info); }
-
-        .kpi-title {
-            font-size: 0.68rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-secondary);
-            font-weight: 700;
-        }
-
-        .kpi-val {
-            font-size: 1.45rem;
-            font-weight: 800;
-            font-family: var(--font-mono);
-            letter-spacing: -0.02em;
-        }
-
-        .kpi-sub {
-            font-size: 0.68rem;
-            color: var(--text-muted);
-            font-weight: 600;
-        }
-
-        /* Visualización Gráfica Analytics */
-        .charts-row {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 12px;
-        }
-
-        .chart-card {
-            background-color: var(--nice-bg-card);
-            border: 1px solid var(--nice-border);
-            border-radius: 6px;
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            height: 270px;
-        }
-
-        .chart-head {
-            font-size: 0.8rem;
-            font-weight: 700;
-            color: #fff;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .chart-box {
+        .chart-container {
             flex: 1;
             position: relative;
             width: 100%;
-            height: 100%;
         }
 
-        /* IEX Staffing Grid Table */
-        .grid-card {
-            background-color: var(--nice-bg-card);
-            border: 1px solid var(--nice-border);
-            border-radius: 6px;
+        /* Data Grid */
+        .data-panel {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
 
-        .grid-scroll {
-            max-height: 340px;
+        .data-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .table-wrapper {
+            max-height: 400px;
             overflow: auto;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.78rem;
+            text-align: right; /* Alineación corporativa para números */
+        }
+
+        th, td:first-child {
             text-align: left;
         }
 
         thead {
             position: sticky;
             top: 0;
-            background-color: #121824;
+            background-color: var(--bg-surface);
             z-index: 10;
         }
 
         th {
-            color: var(--text-secondary);
-            font-weight: 700;
-            font-size: 0.68rem;
+            padding: 12px 24px;
+            font-size: 0.65rem;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
-            padding: 10px 14px;
-            border-bottom: 1px solid var(--nice-border);
-            white-space: nowrap;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border-subtle);
+            font-weight: 600;
         }
 
         td {
-            padding: 8px 14px;
-            border-bottom: 1px solid rgba(42, 55, 79, 0.5);
-            color: #fff;
+            padding: 12px 24px;
+            font-size: 0.8rem;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
             font-family: var(--font-mono);
-            white-space: nowrap;
+            color: var(--text-secondary);
         }
 
-        tbody tr:hover {
-            background-color: rgba(255, 255, 255, 0.03);
+        tbody tr:hover td {
+            background-color: rgba(255,255,255,0.02);
+            color: var(--text-primary);
         }
 
-        /* System Loaders / Placeholders */
-        .nice-loader {
+        .val-good { color: var(--status-success) !important; font-weight: 500; }
+        .val-bad { color: var(--status-danger) !important; font-weight: 500; }
+
+        /* Loaders & Empty States */
+        .state-container {
             display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 60px;
-            gap: 14px;
+            height: 100%;
+            color: var(--text-muted);
+            gap: 16px;
+            text-align: center;
         }
 
-        .spinner {
-            width: 38px;
-            height: 38px;
-            border: 3px solid rgba(255,255,255,0.1);
-            border-top: 3px solid var(--nice-info);
+        .loader-ring {
+            width: 40px;
+            height: 40px;
+            border: 2px solid var(--border-strong);
+            border-top: 2px solid var(--text-primary);
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            animation: spin 1s linear infinite;
         }
 
         @keyframes spin {
@@ -432,382 +430,352 @@
             100% { transform: rotate(360deg); }
         }
 
-        .nice-placeholder {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 80px;
-            color: var(--text-muted);
-            gap: 12px;
-            text-align: center;
-        }
-
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: var(--nice-bg-app); }
-        ::-webkit-scrollbar-thumb { background: var(--nice-border); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--nice-border-light); }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
     </style>
 </head>
 <body>
 
-    <!-- Header Principal NICE Systems -->
-    <header class="nice-header">
-        <div class="nice-brand">
-            <span class="nice-logo">NICE</span>
-            <span class="nice-title">IEX Workforce Management — Predictive AI Engine</span>
+    <aside class="sidebar">
+        <div class="brand-header">
+            <h1>Executive Core</h1>
+            <p>Predictive AI & Capacity Planning</p>
         </div>
-        <div class="nice-status">SIMULATION ACTIVE (Ridge + Holt-Winters)</div>
-    </header>
 
-    <div class="app-container">
-        
-        <!-- Sidebar de Parámetros WFM -->
-        <aside class="sidebar">
-            <div class="sidebar-header">Parámetros de Simulación</div>
-            
-            <div class="sidebar-content">
-                <form id="wfm-form">
-                    <div style="margin-bottom: 12px;">
-                        <label class="field-label" for="file">Archivo Histórico (.xlsx)</label>
-                        <input class="field-input" type="file" id="file" name="file" accept=".xlsx, .xls" required>
-                    </div>
-
-                    <div style="margin-bottom: 12px;">
-                        <label class="field-label" for="dias">Horizonte a Proyectar (Días)</label>
-                        <input class="field-input" type="number" id="dias" name="dias" value="30" min="1" max="90">
-                    </div>
-
-                    <div style="margin-bottom: 12px;">
-                        <label class="field-label" for="target_sl">Objetivo Service Level (%)</label>
-                        <input class="field-input" type="number" id="target_sl" name="target_sl" value="80" step="1">
-                    </div>
-
-                    <div style="margin-bottom: 12px;">
-                        <label class="field-label" for="target_time">Tiempo Objetivo (seg)</label>
-                        <input class="field-input" type="number" id="target_time" name="target_time" value="20" step="1">
-                    </div>
-
-                    <div style="margin-bottom: 18px;">
-                        <label class="field-label" for="merma">Merma / Shrinkage (%)</label>
-                        <input class="field-input" type="number" id="merma" name="merma" value="30" step="1">
-                    </div>
-
-                    <button type="submit" class="btn-run" id="btn-submit">Ejecutar Forecast</button>
-                </form>
-            </div>
-        </aside>
-
-        <!-- Workspace Principal -->
-        <main class="workspace">
-            
-            <!-- IEX Ribbon Filter Toolbar -->
-            <div class="iex-ribbon">
-                <span class="ribbon-tag">IEX Query Ribbon:</span>
-
-                <div class="ribbon-item">
-                    <label for="f-campana">Campaña / Skill:</label>
-                    <select id="f-campana"><option value="ALL">Todas las Campañas</option></select>
+        <form id="wfm-form" class="config-form">
+            <div class="form-section">
+                <span class="section-title">Data Source</span>
+                <div class="input-group">
+                    <label>Upload History (.xlsx)</label>
+                    <input type="file" name="file" accept=".xlsx, .xls" required>
                 </div>
-
-                <div class="ribbon-item">
-                    <label for="f-fecha">Fecha:</label>
-                    <select id="f-fecha"><option value="ALL">Todas las Fechas</option></select>
+                <div class="input-group">
+                    <label>Forecast Horizon (Days)</label>
+                    <input type="number" name="dias" value="30" min="1" max="90">
                 </div>
-
-                <div class="ribbon-item">
-                    <label for="f-intervalo">Intervalo:</label>
-                    <select id="f-intervalo"><option value="ALL">Todos los Intervalos</option></select>
-                </div>
-
-                <button class="btn-clear" id="btn-reset">Restablecer Filtros</button>
             </div>
 
-            <!-- Viewport Analytics -->
-            <div class="viewport-content">
+            <div class="form-section" style="margin-top: 10px;">
+                <span class="section-title">Service Level Parameters</span>
+                <div class="input-group">
+                    <label>Target SLA (%)</label>
+                    <input type="number" name="target_sl" value="80" step="1">
+                </div>
+                <div class="input-group">
+                    <label>Target Time (Seconds)</label>
+                    <input type="number" name="target_time" value="20" step="1">
+                </div>
+                <div class="input-group">
+                    <label>Shrinkage Assumption (%)</label>
+                    <input type="number" name="merma" value="30" step="1">
+                </div>
+            </div>
+
+            <button type="submit" class="btn-execute" id="btn-submit">Run AI Engine</button>
+        </form>
+    </aside>
+
+    <main class="workspace">
+        <div class="top-bar">
+            <h2 class="view-title">Workforce Analytics Overview</h2>
+            <div class="status-indicator">
+                <div class="dot-pulse"></div>
+                ML Model Ready
+            </div>
+        </div>
+
+        <div class="filters">
+            <div class="filter-group">
+                <label>Campaign</label>
+                <select id="f-campana"><option value="ALL">All Campaigns</option></select>
+            </div>
+            <div class="filter-group">
+                <label>Date</label>
+                <select id="f-fecha"><option value="ALL">All Dates</option></select>
+            </div>
+            <div class="filter-group">
+                <label>Interval</label>
+                <select id="f-intervalo"><option value="ALL">All Intervals</option></select>
+            </div>
+        </div>
+
+        <div class="dashboard-scroll">
+            
+            <div id="loading-state" class="state-container">
+                <div class="loader-ring"></div>
+                <div>
+                    <h3 style="color: var(--text-primary); font-size: 1rem; font-weight: 500; margin-bottom: 4px;">Computing Projections</h3>
+                    <p style="font-size: 0.8rem;">Running Holt-Winters & Erlang C mathematical models...</p>
+                </div>
+            </div>
+
+            <div id="empty-state" class="state-container" style="display: flex;">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+                <p style="font-size: 0.85rem;">Upload your historical data file to generate insights.</p>
+            </div>
+
+            <div id="dashboard-content" style="display: none; flex-direction: column; gap: 24px;">
                 
-                <div id="loading" class="nice-loader">
-                    <div class="spinner"></div>
-                    <p style="color: var(--text-secondary); font-size: 0.82rem; font-family: var(--font-mono);">Procesando serie temporal autorregresiva y matriz Erlang C...</p>
+                <!-- KPIs -->
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <span class="kpi-title">Projected Volume</span>
+                        <span class="kpi-value" id="kpi-calls">0</span>
+                        <span class="kpi-subtext">Total inbound interactions</span>
+                    </div>
+                    <div class="kpi-card">
+                        <span class="kpi-title">Average Handle Time</span>
+                        <span class="kpi-value" id="kpi-aht">0s</span>
+                        <span class="kpi-subtext">Weighted mean</span>
+                    </div>
+                    <div class="kpi-card">
+                        <span class="kpi-title">Staffing Balance</span>
+                        <span class="kpi-value" id="kpi-staff">0</span>
+                        <span class="kpi-subtext" id="kpi-staff-sub">Required vs. Scheduled FTEs</span>
+                    </div>
+                    <div class="kpi-card">
+                        <span class="kpi-title">Estimated Service Level</span>
+                        <span class="kpi-value" id="kpi-sl">0%</span>
+                        <span class="kpi-subtext">Erlang C probability</span>
+                    </div>
                 </div>
 
-                <div id="placeholder" class="nice-placeholder">
-                    <svg width="42" height="42" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 13l6-9 4 9 6-9 2 9"/><path d="M12 2v20"/></svg>
-                    <p style="font-size: 0.88rem;">Carga el archivo <strong>historico.xlsx</strong> para activar el panel IEX Forecast Analytics.</p>
+                <!-- Charts -->
+                <div class="chart-grid">
+                    <div class="chart-panel">
+                        <div class="chart-header">Demand vs. Capacity (Intraday)</div>
+                        <div class="chart-container"><canvas id="chart-main"></canvas></div>
+                    </div>
+                    <div class="chart-panel">
+                        <div class="chart-header">Net Staffing Variance</div>
+                        <div class="chart-container"><canvas id="chart-variance"></canvas></div>
+                    </div>
                 </div>
 
-                <div id="dashboard" style="display: none; flex-direction: column; gap: 16px;">
-                    
-                    <!-- KPI Scorecards -->
-                    <div class="kpi-row">
-                        <div class="kpi-card cyan">
-                            <span class="kpi-title">Offered Volume (Llamadas)</span>
-                            <span class="kpi-val" id="kpi-calls" style="color: var(--nice-info);">0</span>
-                            <span class="kpi-sub">Pronosticado por ML Ensemble</span>
-                        </div>
-
-                        <div class="kpi-card">
-                            <span class="kpi-title">Average Handle Time (AHT)</span>
-                            <span class="kpi-val" id="kpi-aht" style="color: #fff;">0s</span>
-                            <span class="kpi-sub">AHT promedio ponderado</span>
-                        </div>
-
-                        <div class="kpi-card yellow">
-                            <span class="kpi-title">FTE Requirement vs Scheduled</span>
-                            <span class="kpi-val" id="kpi-staff" style="color: var(--nice-warning);">0 / 0</span>
-                            <span class="kpi-sub">Balance de dotación de personal</span>
-                        </div>
-
-                        <div class="kpi-card green">
-                            <span class="kpi-title">Projected Service Level</span>
-                            <span class="kpi-val" id="kpi-sl" style="color: var(--nice-success);">0%</span>
-                            <span class="kpi-sub">SLA acumulado Erlang C</span>
-                        </div>
+                <!-- Data Table -->
+                <div class="data-panel">
+                    <div class="data-header">Forecast Breakdown Data</div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Campaign</th>
+                                    <th>Date</th>
+                                    <th>Day</th>
+                                    <th>Time</th>
+                                    <th>Volume</th>
+                                    <th>AHT (s)</th>
+                                    <th>FTE Req</th>
+                                    <th>FTE Prog</th>
+                                    <th>Variance</th>
+                                    <th>SLA %</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body"></tbody>
+                        </table>
                     </div>
-
-                    <!-- Visualización Gráfica Analytics -->
-                    <div class="charts-row">
-                        <div class="chart-card">
-                            <div class="chart-head">
-                                <span>IEX Intraday Profile: Offered Volume vs Staffing Mesh</span>
-                            </div>
-                            <div class="chart-box">
-                                <canvas id="chart-intraday"></canvas>
-                            </div>
-                        </div>
-
-                        <div class="chart-card">
-                            <div class="chart-head">
-                                <span>Net Staffing Heatmap (Delta FTE)</span>
-                            </div>
-                            <div class="chart-box">
-                                <canvas id="chart-staffing"></canvas>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Data Grid Tabular IEX -->
-                    <div class="grid-card">
-                        <div class="grid-scroll">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Campaña</th>
-                                        <th>Fecha</th>
-                                        <th>Día</th>
-                                        <th>Intervalo</th>
-                                        <th>Llamadas (ML)</th>
-                                        <th>AHT (s)</th>
-                                        <th>Agentes Req.</th>
-                                        <th>Agentes Prog.</th>
-                                        <th>Delta Staffing</th>
-                                        <th>SL Proyectado</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="table-body"></tbody>
-                            </table>
-                        </div>
-                    </div>
-
                 </div>
 
             </div>
-
-        </main>
-
-    </div>
+        </div>
+    </main>
 
     <script>
         let fullData = [];
-        let chartIntradayInstance = null;
-        let chartStaffingInstance = null;
+        let chartMain = null;
+        let chartVar = null;
 
         document.getElementById('wfm-form').addEventListener('submit', async function(e) {
             e.preventDefault();
 
             const formData = new FormData(e.target);
-            const loading = document.getElementById('loading');
-            const placeholder = document.getElementById('placeholder');
-            const dashboard = document.getElementById('dashboard');
+            const uiEmpty = document.getElementById('empty-state');
+            const uiLoad = document.getElementById('loading-state');
+            const uiDash = document.getElementById('dashboard-content');
             const btnSubmit = document.getElementById('btn-submit');
+            const statusInd = document.querySelector('.status-indicator');
 
-            loading.style.display = 'flex';
-            placeholder.style.display = 'none';
-            dashboard.style.display = 'none';
+            uiEmpty.style.display = 'none';
+            uiDash.style.display = 'none';
+            uiLoad.style.display = 'flex';
             btnSubmit.disabled = true;
+            statusInd.innerHTML = '<div class="dot-pulse" style="background:var(--status-warning); box-shadow:0 0 10px var(--status-warning);"></div> Processing...';
 
             try {
-                const response = await fetch('/api/process', {
-                    method: 'POST',
-                    body: formData
-                });
-
+                const response = await fetch('/api/process', { method: 'POST', body: formData });
                 if (!response.ok) {
                     const err = await response.json();
-                    throw new Error(err.error || 'Error procesando la solicitud');
+                    throw new Error(err.error || 'Server processing error');
                 }
 
                 fullData = await response.json();
+                populateFilters(fullData);
+                renderDashboard();
 
-                poblarFiltros(fullData);
-                actualizarDashboard();
-
-                loading.style.display = 'none';
-                dashboard.style.display = 'flex';
+                uiLoad.style.display = 'none';
+                uiDash.style.display = 'flex';
+                statusInd.innerHTML = '<div class="dot-pulse"></div> Analysis Complete';
 
             } catch (error) {
-                alert('Error al ejecutar la simulación IEX: ' + error.message);
-                loading.style.display = 'none';
-                placeholder.style.display = 'flex';
+                alert('Execution Error: ' + error.message);
+                uiLoad.style.display = 'none';
+                uiEmpty.style.display = 'flex';
+                statusInd.innerHTML = '<div class="dot-pulse" style="background:var(--status-danger); box-shadow:0 0 10px var(--status-danger);"></div> Failed';
             } finally {
                 btnSubmit.disabled = false;
             }
         });
 
-        function poblarFiltros(data) {
-            const campanas = [...new Set(data.map(i => i.Campaña))].sort();
-            const fechas = [...new Set(data.map(i => i.Fecha))].sort();
-            const intervalos = [...new Set(data.map(i => i.Intervalo))].sort();
+        function populateFilters(data) {
+            const camps = [...new Set(data.map(i => i.Campaña))].sort();
+            const dates = [...new Set(data.map(i => i.Fecha))].sort();
+            const inters = [...new Set(data.map(i => i.Intervalo))].sort();
 
-            const sCamp = document.getElementById('f-campana');
-            const sFecha = document.getElementById('f-fecha');
-            const sInter = document.getElementById('f-intervalo');
+            const elC = document.getElementById('f-campana');
+            const elD = document.getElementById('f-fecha');
+            const elI = document.getElementById('f-intervalo');
 
-            sCamp.innerHTML = '<option value="ALL">Todas las Campañas</option>';
-            sFecha.innerHTML = '<option value="ALL">Todas las Fechas</option>';
-            sInter.innerHTML = '<option value="ALL">Todos los Intervalos</option>';
+            elC.innerHTML = '<option value="ALL">All Campaigns</option>';
+            elD.innerHTML = '<option value="ALL">All Dates</option>';
+            elI.innerHTML = '<option value="ALL">All Intervals</option>';
 
-            campanas.forEach(c => sCamp.innerHTML += `<option value="${c}">${c}</option>`);
-            fechas.forEach(f => sFecha.innerHTML += `<option value="${f}">${f}</option>`);
-            intervalos.forEach(i => sInter.innerHTML += `<option value="${i}">${i}</option>`);
+            camps.forEach(x => elC.innerHTML += `<option value="${x}">${x}</option>`);
+            dates.forEach(x => elD.innerHTML += `<option value="${x}">${x}</option>`);
+            inters.forEach(x => elI.innerHTML += `<option value="${x}">${x}</option>`);
         }
 
-        function actualizarDashboard() {
-            const valCamp = document.getElementById('f-campana').value;
-            const valFecha = document.getElementById('f-fecha').value;
-            const valInter = document.getElementById('f-intervalo').value;
+        function renderDashboard() {
+            const vC = document.getElementById('f-campana').value;
+            const vD = document.getElementById('f-fecha').value;
+            const vI = document.getElementById('f-intervalo').value;
 
-            const filtered = fullData.filter(d => {
-                return (valCamp === 'ALL' || d.Campaña === valCamp) &&
-                       (valFecha === 'ALL' || d.Fecha === valFecha) &&
-                       (valInter === 'ALL' || d.Intervalo === valInter);
-            });
+            const fData = fullData.filter(d => 
+                (vC === 'ALL' || d.Campaña === vC) &&
+                (vD === 'ALL' || d.Fecha === vD) &&
+                (vI === 'ALL' || d.Intervalo === vI)
+            );
 
-            // Recalcular KPIs
-            const totalCalls = filtered.reduce((acc, curr) => acc + curr.Llamadas, 0);
-            const avgAht = filtered.length > 0 ? Math.round(filtered.reduce((acc, curr) => acc + curr.AHT, 0) / filtered.length) : 0;
-            const totalReq = filtered.reduce((acc, curr) => acc + curr.Agentes_Requeridos, 0);
-            const totalProg = filtered.reduce((acc, curr) => acc + curr.Agentes_Programados_Reales, 0);
-            const avgSL = filtered.length > 0 ? (filtered.reduce((acc, curr) => acc + curr.SL_Proyectado, 0) / filtered.length).toFixed(1) : 0;
+            // Calculate KPIs
+            const sumCalls = fData.reduce((a, b) => a + b.Llamadas, 0);
+            const avgAht = fData.length ? Math.round(fData.reduce((a, b) => a + b.AHT, 0) / fData.length) : 0;
+            const sumReq = fData.reduce((a, b) => a + b.Agentes_Requeridos, 0);
+            const sumProg = fData.reduce((a, b) => a + b.Agentes_Programados_Reales, 0);
+            const avgSL = fData.length ? (fData.reduce((a, b) => a + b.SL_Proyectado, 0) / fData.length).toFixed(1) : 0;
 
-            document.getElementById('kpi-calls').innerText = totalCalls.toLocaleString();
+            document.getElementById('kpi-calls').innerText = sumCalls.toLocaleString();
             document.getElementById('kpi-aht').innerText = avgAht + 's';
-            document.getElementById('kpi-staff').innerText = `${totalReq} / ${totalProg}`;
+            document.getElementById('kpi-staff').innerText = `${sumReq} / ${sumProg}`;
             document.getElementById('kpi-sl').innerText = avgSL + '%';
+            
+            const slColor = avgSL >= 80 ? 'var(--status-success)' : 'var(--status-danger)';
+            document.getElementById('kpi-sl').style.color = slColor;
 
-            renderizarGraficos(filtered);
+            // Draw Charts
+            drawCharts(fData);
 
-            // Poblar Data Grid
+            // Render Table (Max 500 rows for DOM perf)
             const tbody = document.getElementById('table-body');
             tbody.innerHTML = '';
-
-            filtered.slice(0, 500).forEach(row => {
+            
+            fData.slice(0, 500).forEach(r => {
                 const tr = document.createElement('tr');
-                const deltaColor = row.Delta_Net_Staffing >= 0 ? 'var(--nice-success)' : 'var(--nice-danger)';
-                const slColor = row.SL_Proyectado >= 80 ? 'var(--nice-success)' : 'var(--nice-danger)';
+                const dClass = r.Delta_Net_Staffing >= 0 ? 'val-good' : 'val-bad';
+                const sClass = r.SL_Proyectado >= 80 ? 'val-good' : 'val-bad';
 
                 tr.innerHTML = `
-                    <td style="font-weight:700; color:#fff;">${row.Campaña}</td>
-                    <td>${row.Fecha}</td>
-                    <td>${row.Día_Semana}</td>
-                    <td>${row.Intervalo}</td>
-                    <td>${row.Llamadas}</td>
-                    <td>${row.AHT}</td>
-                    <td>${row.Agentes_Requeridos}</td>
-                    <td>${row.Agentes_Programados_Reales}</td>
-                    <td style="color: ${deltaColor}; font-weight:700;">${row.Delta_Net_Staffing}</td>
-                    <td style="color: ${slColor}; font-weight:700;">${row.SL_Proyectado}%</td>
+                    <td style="font-family: var(--font-sans); color: var(--text-primary); font-weight: 500;">${r.Campaña}</td>
+                    <td>${r.Fecha}</td>
+                    <td style="font-family: var(--font-sans); text-align: right;">${r.Día_Semana}</td>
+                    <td>${r.Intervalo}</td>
+                    <td style="color: var(--text-primary);">${r.Llamadas}</td>
+                    <td>${r.AHT}</td>
+                    <td>${r.Agentes_Requeridos}</td>
+                    <td>${r.Agentes_Programados_Reales}</td>
+                    <td class="${dClass}">${r.Delta_Net_Staffing > 0 ? '+'+r.Delta_Net_Staffing : r.Delta_Net_Staffing}</td>
+                    <td class="${sClass}">${r.SL_Proyectado}%</td>
                 `;
                 tbody.appendChild(tr);
             });
         }
 
-        function renderizarGraficos(data) {
-            const grouped = {};
+        function drawCharts(data) {
+            const agg = {};
             data.forEach(d => {
-                if (!grouped[d.Intervalo]) {
-                    grouped[d.Intervalo] = { calls: 0, req: 0, delta: 0, count: 0 };
-                }
-                grouped[d.Intervalo].calls += d.Llamadas;
-                grouped[d.Intervalo].req += d.Agentes_Requeridos;
-                grouped[d.Intervalo].delta += d.Delta_Net_Staffing;
-                grouped[d.Intervalo].count += 1;
+                if(!agg[d.Intervalo]) agg[d.Intervalo] = { vol:0, req:0, var:0, n:0 };
+                agg[d.Intervalo].vol += d.Llamadas;
+                agg[d.Intervalo].req += d.Agentes_Requeridos;
+                agg[d.Intervalo].var += d.Delta_Net_Staffing;
+                agg[d.Intervalo].n++;
             });
 
-            const labels = Object.keys(grouped).sort();
-            const callsData = labels.map(l => grouped[l].calls);
-            const reqData = labels.map(l => grouped[l].req);
-            const deltaData = labels.map(l => Math.round(grouped[l].delta / grouped[l].count));
+            const lbls = Object.keys(agg).sort();
+            const dVol = lbls.map(l => agg[l].vol);
+            const dReq = lbls.map(l => agg[l].req);
+            const dVar = lbls.map(l => Math.round(agg[l].var / agg[l].n));
 
-            // Chart 1: Intraday Calls vs Req
-            if (chartIntradayInstance) chartIntradayInstance.destroy();
-            const ctx1 = document.getElementById('chart-intraday').getContext('2d');
-            chartIntradayInstance = new Chart(ctx1, {
+            Chart.defaults.color = '#71717a';
+            Chart.defaults.font.family = "'Inter', sans-serif";
+
+            // Main Line Chart
+            if(chartMain) chartMain.destroy();
+            const ctx1 = document.getElementById('chart-main').getContext('2d');
+            
+            let grad = ctx1.createLinearGradient(0, 0, 0, 400);
+            grad.addColorStop(0, 'rgba(59, 130, 246, 0.2)');
+            grad.addColorStop(1, 'rgba(59, 130, 246, 0)');
+
+            chartMain = new Chart(ctx1, {
                 type: 'line',
                 data: {
-                    labels: labels,
+                    labels: lbls,
                     datasets: [
-                        { label: 'Offered Volume (ML)', data: callsData, borderColor: '#00b0ff', backgroundColor: 'rgba(0,176,255,0.08)', fill: true, tension: 0.3, borderWidth: 2 },
-                        { label: 'FTE Required', data: reqData, borderColor: '#0052cc', backgroundColor: 'transparent', borderDash: [4, 4], tension: 0.3, borderWidth: 2 }
+                        { label: 'Volume (ML)', data: dVol, borderColor: '#3b82f6', backgroundColor: grad, fill: true, tension: 0.4, borderWidth: 2, pointRadius: 0, pointHitRadius: 10 },
+                        { label: 'FTE Required', data: dReq, borderColor: '#a1a1aa', borderDash: [4,4], tension: 0.4, borderWidth: 1.5, pointRadius: 0 }
                     ]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { labels: { color: '#a0aec0', font: { size: 10 } } } },
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 10, usePointStyle: true } } },
                     scales: {
-                        x: { ticks: { color: '#64748b', font: { size: 9, family: 'Roboto Mono' } }, grid: { color: '#2a374f' } },
-                        y: { ticks: { color: '#64748b', font: { size: 9, family: 'Roboto Mono' } }, grid: { color: '#2a374f' } }
+                        x: { grid: { display: false }, ticks: { font: { family: "'JetBrains Mono', monospace", size: 10 } } },
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, border: { display: false } }
                     }
                 }
             });
 
-            // Chart 2: Net Staffing Delta Heatmap
-            if (chartStaffingInstance) chartStaffingInstance.destroy();
-            const ctx2 = document.getElementById('chart-staffing').getContext('2d');
-            chartStaffingInstance = new Chart(ctx2, {
+            // Variance Bar Chart
+            if(chartVar) chartVar.destroy();
+            const ctx2 = document.getElementById('chart-variance').getContext('2d');
+            chartVar = new Chart(ctx2, {
                 type: 'bar',
                 data: {
-                    labels: labels,
+                    labels: lbls,
                     datasets: [{
-                        label: 'Net Staffing Delta',
-                        data: deltaData,
-                        backgroundColor: deltaData.map(v => v >= 0 ? '#00c853' : '#ff3d00'),
+                        label: 'Net Staffing',
+                        data: dVar,
+                        backgroundColor: dVar.map(v => v >= 0 ? '#10b981' : '#ef4444'),
                         borderRadius: 2
                     }]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
+                    responsive: true, maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
-                        x: { ticks: { color: '#64748b', font: { size: 8, family: 'Roboto Mono' } }, grid: { display: false } },
-                        y: { ticks: { color: '#64748b', font: { size: 9, family: 'Roboto Mono' } }, grid: { color: '#2a374f' } }
+                        x: { grid: { display: false }, ticks: { font: { family: "'JetBrains Mono', monospace", size: 10 }, maxTicksLimit: 8 } },
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, border: { display: false } }
                     }
                 }
             });
         }
 
-        document.getElementById('f-campana').addEventListener('change', actualizarDashboard);
-        document.getElementById('f-fecha').addEventListener('change', actualizarDashboard);
-        document.getElementById('f-intervalo').addEventListener('change', actualizarDashboard);
-
-        document.getElementById('btn-reset').addEventListener('click', function() {
-            document.getElementById('f-campana').value = 'ALL';
-            document.getElementById('f-fecha').value = 'ALL';
-            document.getElementById('f-intervalo').value = 'ALL';
-            actualizarDashboard();
+        // Attach filter listeners
+        ['f-campana', 'f-fecha', 'f-intervalo'].forEach(id => {
+            document.getElementById(id).addEventListener('change', renderDashboard);
         });
+
     </script>
 </body>
 </html>
