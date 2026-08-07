@@ -9,11 +9,16 @@ import pandas as pd
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
 
-# --- RUTAS FRONTEND ---
+# --- RUTAS FRONTEND & ARCHIVOS ESTÁTICOS ---
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
     return send_from_directory('.', 'index.html')
+
+@app.route('/favicon.ico')
+def favicon():
+    # Evita el error 404 cuando el navegador solicita el icono de la página
+    return '', 204
 
 def clean_num(val, default=0.0):
     if pd.isna(val) or val is None:
@@ -54,7 +59,7 @@ def encontrar_columna(df, posibles_nombres):
             return columnas_df[pos_clean]
     return None
 
-# --- RUTAS BACKEND API (Registradas para evitar el error 404) ---
+# --- RUTAS BACKEND API ---
 @app.route('/api/process', methods=['POST', 'GET'])
 @app.route('/api/process/', methods=['POST', 'GET'])
 def process_data():
@@ -135,7 +140,6 @@ def process_data():
         gc.collect()
         return jsonify({'error': f"Error al procesar el archivo: {str(e)}"}), 500
 
-# Ruta comodín para evitar errores 404 en sub-rutas
 @app.errorhandler(404)
 def not_found(e):
     return jsonify({'error': 'La ruta solicitada no existe en el servidor Python'}), 404
