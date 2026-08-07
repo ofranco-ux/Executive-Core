@@ -71,7 +71,7 @@
 </head>
 <body class="p-6 md:p-8 min-h-screen">
 
-    <!-- Header Corporativo Premium -->
+    <!-- Header Corporativo -->
     <header class="flex justify-between items-center glass-panel rounded-2xl p-6 mb-8 border-b border-white/10 relative overflow-hidden">
         <div class="absolute -left-10 -top-10 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div class="flex items-center gap-5 z-10">
@@ -298,7 +298,6 @@
         let selectedFechaValue = "TODOS";
         let selectedIntervaloValue = "TODOS";
 
-        // Helper para obtener valores tolerante a nombres de propiedad
         function getProp(row, keys, def = '') {
             for (let k of keys) {
                 if (row[k] !== undefined && row[k] !== null) return row[k];
@@ -318,9 +317,6 @@
             formData.append('target_sl', document.getElementById('targetSl').value);
             formData.append('target_time', document.getElementById('targetTime').value);
             formData.append('merma', document.getElementById('merma').value);
-            formData.append('h_inicio', document.getElementById('hInicio').value);
-            formData.append('h_fin', document.getElementById('hFin').value);
-            formData.append('dias', document.getElementById('dias').value);
 
             try {
                 const response = await fetch('/api/process', {
@@ -328,19 +324,15 @@
                     body: formData
                 });
                 
-                const contentType = response.headers.get("content-type");
-                if (contentType && contentType.includes("application/json")) {
-                    globalData = await response.json();
-                    if (response.ok && Array.isArray(globalData)) {
-                        poblarCampanas();
-                        poblarFechasDropdown();
-                        poblarIntervalosDropdown();
-                        resetTableFilterAndRefresh();
-                    } else {
-                        alert("Error del modelo: " + (globalData.error || "Formato de respuesta inválido"));
-                    }
+                globalData = await response.json();
+                
+                if (response.ok && Array.isArray(globalData)) {
+                    poblarCampanas();
+                    poblarFechasDropdown();
+                    poblarIntervalosDropdown();
+                    resetTableFilterAndRefresh();
                 } else {
-                    alert("Error en la respuesta del servidor. Intenta de nuevo.");
+                    alert("Error procesando los datos: " + (globalData.error || "Formato no válido"));
                 }
             } catch (e) {
                 alert("Error de conexión: " + e.message);
@@ -510,8 +502,8 @@
                 dfKpis = df.filter(item => selectedTableIntervals.has(String(getProp(item, ['Intervalo'], '00:00'))));
             }
 
-            const totCalls = dfKpis.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas'], 0)) || 0), 0);
-            const sumLlamadasAht = dfKpis.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas'], 0)) || 0) * (Number(getProp(row, ['AHT'], 180)) || 180)), 0);
+            const totCalls = dfKpis.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
+            const sumLlamadasAht = dfKpis.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['AHT'], 180)) || 180)), 0);
             const avgAht = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
 
             const totReq = dfKpis.reduce((acc, row) => acc + (Number(getProp(row, ['Agentes_Requeridos'], 0)) || 0), 0);
@@ -523,7 +515,7 @@
             const net = (avgProg - avgReq).toFixed(1);
             const fulfillment = avgReq > 0 ? ((avgProg / avgReq) * 100).toFixed(1) : "100.0";
 
-            const sumLlamadasSl = dfKpis.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
+            const sumLlamadasSl = dfKpis.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
             const avgSl = totCalls > 0 ? (sumLlamadasSl / totCalls).toFixed(1) : "0.0";
 
             document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
@@ -549,7 +541,7 @@
                 }
                 agrupado[inter].req += Number(getProp(row, ['Agentes_Requeridos'], 0)) || 0;
                 agrupado[inter].prog += Number(getProp(row, ['Agentes_Programados_Reales'], 0)) || 0;
-                agrupado[inter].llamadas += Number(getProp(row, ['Llamadas'], 0)) || 0;
+                agrupado[inter].llamadas += Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0;
                 agrupado[inter].ahtSum += Number(getProp(row, ['AHT'], 180)) || 180;
                 agrupado[inter].slSum += Number(getProp(row, ['SL_Proyectado'], 0)) || 0;
                 agrupado[inter].count += 1;
@@ -679,7 +671,7 @@
                     getProp(row, ['Fecha'], ''),
                     getProp(row, ['Día_Semana', 'Dia_Semana'], ''),
                     getProp(row, ['Intervalo'], '00:00'),
-                    getProp(row, ['Llamadas'], 0),
+                    getProp(row, ['Llamadas', 'Recibidas'], 0),
                     getProp(row, ['AHT'], 0),
                     getProp(row, ['Agentes_Requeridos'], 0),
                     getProp(row, ['Agentes_Programados_Reales'], 0),
