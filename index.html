@@ -3,24 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Executive Core - WFM Analytics & AI Forecast</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- Chart.js para Gráficos Interactivos -->
+    <title>Executive Core - Enterprise WFM Intelligence System</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg-base: #090d16;
-            --bg-card: #131b2e;
-            --bg-card-hover: #182238;
-            --border: #232f48;
-            --accent-blue: #3b82f6;
-            --accent-cyan: #06b6d4;
-            --accent-green: #10b981;
-            --accent-red: #ef4444;
-            --accent-warning: #f59e0b;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --text-dark: #64748b;
+            --bg-app: #080b11;
+            --bg-panel: #0f172a;
+            --bg-card: #141e33;
+            --bg-input: #0a0f1d;
+            --border: #1e293b;
+            --border-highlight: #334155;
+            
+            --primary: #2563eb;
+            --primary-cyan: #06b6d4;
+            --success: #10b981;
+            --danger: #f43f5e;
+            --warning: #f59e0b;
+            
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --font-mono: 'JetBrains Mono', monospace;
         }
 
         * {
@@ -31,395 +35,436 @@
         }
 
         body {
-            background-color: var(--bg-base);
-            color: var(--text-main);
+            background-color: var(--bg-app);
+            color: var(--text-primary);
             display: flex;
             height: 100vh;
             overflow: hidden;
         }
 
-        /* Lateral - Parámetros */
+        /* Lateral - Control Panel */
         .sidebar {
-            width: 310px;
-            background-color: var(--bg-card);
+            width: 320px;
+            background-color: var(--bg-panel);
             border-right: 1px solid var(--border);
-            padding: 24px;
             display: flex;
             flex-direction: column;
-            gap: 18px;
             flex-shrink: 0;
-            overflow-y: auto;
+            z-index: 20;
         }
 
-        .brand {
+        .sys-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
             gap: 12px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid var(--border);
+            background: rgba(15, 23, 42, 0.6);
         }
 
-        .brand-icon {
-            width: 40px;
-            height: 40px;
-            background: linear-gradient(135deg, #3b82f6, #06b6d4);
-            border-radius: 10px;
+        .sys-logo {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #2563eb, #06b6d4);
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 800;
-            font-size: 1.2rem;
+            font-size: 0.95rem;
             color: #fff;
-            box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+            letter-spacing: -0.05em;
+            box-shadow: 0 0 15px rgba(37, 99, 235, 0.3);
         }
 
-        .brand-info h2 {
-            font-size: 1.1rem;
+        .sys-title h1 {
+            font-size: 0.95rem;
             font-weight: 800;
-            letter-spacing: -0.02em;
-            background: linear-gradient(to right, #ffffff, #94a3b8);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .brand-info p {
-            font-size: 0.72rem;
-            color: var(--accent-cyan);
-            font-weight: 600;
-        }
-
-        .section-title {
-            font-size: 0.72rem;
+            letter-spacing: 0.02em;
             text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-dark);
-            font-weight: 700;
-            margin-top: 4px;
+            color: #fff;
         }
 
-        .form-group {
+        .sys-title p {
+            font-size: 0.68rem;
+            color: var(--primary-cyan);
+            font-weight: 600;
+            letter-spacing: 0.05em;
+        }
+
+        .sidebar-body {
+            padding: 20px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .param-group-title {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            font-weight: 700;
+            margin-bottom: 2px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .param-group-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background-color: var(--border);
+        }
+
+        .field-group {
             display: flex;
             flex-direction: column;
             gap: 6px;
         }
 
-        .form-group label {
-            font-size: 0.8rem;
-            color: var(--text-muted);
+        .field-group label {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
             font-weight: 600;
         }
 
-        .form-group input {
-            background-color: var(--bg-base);
+        .field-group input {
+            background-color: var(--bg-input);
             border: 1px solid var(--border);
-            color: var(--text-main);
-            padding: 10px 12px;
-            border-radius: 8px;
+            color: var(--text-primary);
+            padding: 9px 12px;
+            border-radius: 6px;
             font-size: 0.85rem;
+            font-family: var(--font-mono);
             outline: none;
-            transition: all 0.2s ease;
+            transition: all 0.15s ease;
         }
 
-        .form-group input:focus {
-            border-color: var(--accent-blue);
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        .field-group input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
         }
 
         input[type="file"]::file-selector-button {
             background-color: #1e293b;
-            color: #ffffff;
-            border: 1px solid var(--border);
-            padding: 6px 12px;
-            border-radius: 6px;
+            color: #fff;
+            border: 1px solid var(--border-highlight);
+            padding: 5px 10px;
+            border-radius: 4px;
             cursor: pointer;
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             font-weight: 600;
-            margin-right: 10px;
-            transition: all 0.2s;
+            margin-right: 8px;
+            transition: all 0.15s;
         }
 
         input[type="file"]::file-selector-button:hover {
             background-color: #334155;
         }
 
-        .btn-submit {
-            background: linear-gradient(135deg, #3b82f6, #06b6d4);
-            color: white;
-            border: none;
+        .btn-process {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.1);
             padding: 12px;
-            border-radius: 8px;
+            border-radius: 6px;
             font-weight: 700;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
             cursor: pointer;
             transition: all 0.2s ease;
-            box-shadow: 0 4px 20px rgba(6, 182, 212, 0.25);
-            margin-top: 10px;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.25);
+            margin-top: 8px;
         }
 
-        .btn-submit:hover {
-            opacity: 0.95;
-            transform: translateY(-1px);
-            box-shadow: 0 6px 24px rgba(6, 182, 212, 0.35);
+        .btn-process:hover {
+            background: linear-gradient(135deg, #1d4ed8, #1e40af);
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
         }
 
-        .btn-submit:disabled {
+        .btn-process:disabled {
             background: #1e293b;
-            color: #64748b;
+            color: #475569;
             cursor: not-allowed;
-            transform: none;
             box-shadow: none;
+            border-color: transparent;
         }
 
-        /* Panel Principal */
-        .main-content {
+        /* Workspace Área */
+        .workspace {
             flex: 1;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            background-color: var(--bg-app);
         }
 
-        /* Top Bar */
-        .top-bar {
-            padding: 16px 28px;
-            background-color: var(--bg-card);
+        /* Header de Estado WFM */
+        .wfm-navbar {
+            padding: 14px 28px;
+            background-color: var(--bg-panel);
             border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
-        .top-bar h1 {
-            font-size: 1.25rem;
-            font-weight: 800;
-            letter-spacing: -0.02em;
+        .nav-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
         }
 
-        .status-badge {
+        .nav-info h2 {
+            font-size: 1.1rem;
+            font-weight: 800;
+            letter-spacing: -0.01em;
+        }
+
+        .nav-badge {
             background: rgba(16, 185, 129, 0.1);
-            color: var(--accent-green);
+            color: var(--success);
             border: 1px solid rgba(16, 185, 129, 0.25);
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-family: var(--font-mono);
+            font-weight: 600;
             display: flex;
             align-items: center;
             gap: 6px;
         }
 
-        .status-badge::before {
+        .nav-badge::before {
             content: '';
             width: 6px;
             height: 6px;
-            background-color: var(--accent-green);
+            background-color: var(--success);
             border-radius: 50%;
-            box-shadow: 0 0 8px var(--accent-green);
+            box-shadow: 0 0 6px var(--success);
         }
 
-        /* Barra de Filtros */
-        .filter-bar {
-            padding: 12px 28px;
-            background-color: #0d1322;
+        /* Global Filters Ribbon */
+        .filter-ribbon {
+            padding: 10px 28px;
+            background-color: #0b1120;
             border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
-            gap: 16px;
-            flex-wrap: wrap;
+            gap: 20px;
         }
 
-        .filter-item {
+        .ribbon-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.08em;
+        }
+
+        .ribbon-select-group {
             display: flex;
             align-items: center;
             gap: 8px;
         }
 
-        .filter-item label {
-            font-size: 0.78rem;
-            color: var(--text-muted);
+        .ribbon-select-group label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
             font-weight: 600;
         }
 
-        .filter-item select {
-            background-color: var(--bg-card);
+        .ribbon-select-group select {
+            background-color: var(--bg-panel);
             border: 1px solid var(--border);
-            color: var(--text-main);
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 0.82rem;
+            color: var(--text-primary);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
             outline: none;
             cursor: pointer;
-            min-width: 150px;
+            min-width: 160px;
         }
 
-        .btn-reset {
+        .btn-reset-filters {
             background: transparent;
             border: 1px solid var(--border);
-            color: var(--text-muted);
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 0.78rem;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin-left: auto;
+            color: var(--text-secondary);
+            padding: 5px 12px;
+            border-radius: 4px;
+            font-size: 0.75rem;
             font-weight: 600;
+            cursor: pointer;
+            margin-left: auto;
+            transition: all 0.15s;
         }
 
-        .btn-reset:hover {
-            background: var(--bg-card);
+        .btn-reset-filters:hover {
+            background-color: var(--bg-panel);
             color: #fff;
+            border-color: var(--border-highlight);
         }
 
-        /* Dashboard Body Scrollable */
-        .dashboard-body {
+        /* Viewport Scannable */
+        .viewport-body {
             flex: 1;
-            padding: 24px 28px;
+            padding: 20px 28px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 16px;
         }
 
-        /* Cards Indicadores KPIs */
-        .kpi-grid {
+        /* Executive KPI Bar */
+        .kpi-row {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
+            gap: 14px;
         }
 
-        .kpi-card {
+        .kpi-box {
             background-color: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 18px 20px;
+            border-radius: 8px;
+            padding: 16px;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 6px;
             position: relative;
-            overflow: hidden;
-            transition: transform 0.2s;
         }
 
-        .kpi-card:hover {
-            transform: translateY(-2px);
-            background-color: var(--bg-card-hover);
-        }
-
-        .kpi-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 4px;
-            height: 100%;
-        }
-
-        .kpi-card.blue::before { background-color: var(--accent-blue); }
-        .kpi-card.cyan::before { background-color: var(--accent-cyan); }
-        .kpi-card.green::before { background-color: var(--accent-green); }
-        .kpi-card.warning::before { background-color: var(--accent-warning); }
-
-        .kpi-title {
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-muted);
-            font-weight: 700;
-        }
-
-        .kpi-value {
-            font-size: 1.6rem;
-            font-weight: 800;
-            letter-spacing: -0.02em;
-        }
-
-        .kpi-sub {
-            font-size: 0.72rem;
-            color: var(--text-dark);
-            font-weight: 600;
-        }
-
-        /* Grid de Gráficos */
-        .charts-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 16px;
-        }
-
-        .chart-card {
-            background-color: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            height: 290px;
-        }
-
-        .chart-header {
-            font-size: 0.9rem;
-            font-weight: 700;
-            color: var(--text-main);
+        .kpi-box-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
-        .chart-container {
+        .kpi-box-title {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            font-weight: 700;
+        }
+
+        .kpi-box-val {
+            font-size: 1.5rem;
+            font-weight: 800;
+            font-family: var(--font-mono);
+            letter-spacing: -0.02em;
+        }
+
+        .kpi-box-sub {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* Gráficos analytics */
+        .analytics-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 14px;
+        }
+
+        .analytics-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            height: 280px;
+        }
+
+        .analytics-card-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chart-box {
             flex: 1;
             position: relative;
             width: 100%;
             height: 100%;
         }
 
-        /* Tabla de Resultados */
-        .table-card {
+        /* Data Grid Table IEX Style */
+        .grid-card {
             background-color: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 12px;
+            border-radius: 8px;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
 
-        .table-responsive {
-            max-height: 320px;
+        .grid-responsive {
+            max-height: 360px;
             overflow: auto;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.83rem;
+            font-size: 0.78rem;
             text-align: left;
         }
 
         thead {
             position: sticky;
             top: 0;
-            background-color: #0b111e;
+            background-color: #0c1322;
             z-index: 10;
         }
 
         th {
             color: var(--text-muted);
             font-weight: 700;
-            padding: 12px 16px;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 10px 14px;
             border-bottom: 1px solid var(--border);
             white-space: nowrap;
         }
 
         td {
-            padding: 10px 16px;
-            border-bottom: 1px solid rgba(35, 47, 72, 0.5);
-            color: var(--text-main);
+            padding: 8px 14px;
+            border-bottom: 1px solid rgba(30, 41, 59, 0.6);
+            color: var(--text-primary);
+            font-family: var(--font-mono);
             white-space: nowrap;
         }
 
         tbody tr:hover {
-            background-color: rgba(255, 255, 255, 0.02);
+            background-color: rgba(255, 255, 255, 0.025);
         }
 
-        /* Spinners y Estados */
-        .loading-overlay {
+        .td-bold {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .badge-delta {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+
+        /* Estados vacíos / loaders */
+        .sys-spinner-box {
             display: none;
             flex-direction: column;
             align-items: center;
@@ -428,11 +473,11 @@
             gap: 16px;
         }
 
-        .spinner {
-            width: 42px;
-            height: 42px;
-            border: 3px solid rgba(255, 255, 255, 0.1);
-            border-top: 3px solid var(--accent-cyan);
+        .sys-spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid rgba(255, 255, 255, 0.08);
+            border-top: 3px solid var(--primary-cyan);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
@@ -442,150 +487,178 @@
             100% { transform: rotate(360deg); }
         }
 
-        .empty-state {
+        .sys-placeholder {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             padding: 80px;
-            color: var(--text-dark);
+            color: var(--text-muted);
             gap: 12px;
+            text-align: center;
         }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-app); }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
     </style>
 </head>
 <body>
 
-    <!-- Panel Lateral de Configuración -->
+    <!-- Sidebar de Control de Parámetros -->
     <div class="sidebar">
-        <div class="brand">
-            <div class="brand-icon">EC</div>
-            <div class="brand-info">
-                <h2>Executive Core</h2>
-                <p>Engine WFM AI v4.2</p>
+        <div class="sys-header">
+            <div class="sys-logo">WFM</div>
+            <div class="sys-title">
+                <h1>Executive Core</h1>
+                <p>Enterprise Forecast v4.2</p>
             </div>
         </div>
 
-        <form id="wfm-form">
-            <div class="section-title">Origen de Datos</div>
-            
-            <div class="form-group">
-                <label for="file">Histórico (.xlsx)</label>
-                <input type="file" id="file" name="file" accept=".xlsx, .xls" required>
-            </div>
+        <div class="sidebar-body">
+            <form id="wfm-form">
+                <div class="param-group-title">Origen de Datos</div>
+                
+                <div class="field-group" style="margin-bottom: 12px;">
+                    <label for="file">Archivo Histórico (.xlsx)</label>
+                    <input type="file" id="file" name="file" accept=".xlsx, .xls" required>
+                </div>
 
-            <div class="form-group">
-                <label for="dias">Días a Proyectar</label>
-                <input type="number" id="dias" name="dias" value="30" min="1" max="90">
-            </div>
+                <div class="field-group" style="margin-bottom: 12px;">
+                    <label for="dias">Horizonte a Proyectar (Días)</label>
+                    <input type="number" id="dias" name="dias" value="30" min="1" max="90">
+                </div>
 
-            <div class="section-title" style="margin-top: 6px;">SLA & Operación</div>
+                <div class="param-group-title" style="margin-top: 8px;">Configuración SLA / Staff</div>
 
-            <div class="form-group">
-                <label for="target_sl">SLA Objetivo (%)</label>
-                <input type="number" id="target_sl" name="target_sl" value="80" step="1">
-            </div>
+                <div class="field-group" style="margin-bottom: 12px;">
+                    <label for="target_sl">Objetivo Service Level (%)</label>
+                    <input type="number" id="target_sl" name="target_sl" value="80" step="1">
+                </div>
 
-            <div class="form-group">
-                <label for="target_time">Tiempo Objetivo (s)</label>
-                <input type="number" id="target_time" name="target_time" value="20" step="1">
-            </div>
+                <div class="field-group" style="margin-bottom: 12px;">
+                    <label for="target_time">Tiempo de Respuesta (s)</label>
+                    <input type="number" id="target_time" name="target_time" value="20" step="1">
+                </div>
 
-            <div class="form-group">
-                <label for="merma">Merma / Shrinkage (%)</label>
-                <input type="number" id="merma" name="merma" value="30" step="1">
-            </div>
+                <div class="field-group" style="margin-bottom: 16px;">
+                    <label for="merma">Merma / Shrinkage (%)</label>
+                    <input type="number" id="merma" name="merma" value="30" step="1">
+                </div>
 
-            <button type="submit" class="btn-submit" id="btn-submit">Procesar Pronóstico</button>
-        </form>
+                <button type="submit" class="btn-process" id="btn-submit">Ejecutar Modelo ML</button>
+            </form>
+        </div>
     </div>
 
-    <!-- Panel Principal -->
-    <div class="main-content">
+    <!-- Workspace Principal -->
+    <div class="workspace">
         
-        <div class="top-bar">
-            <h1>Executive Analytics Dashboard</h1>
-            <div class="status-badge">ML Ridge + Holt-Winters Ensemble</div>
+        <div class="wfm-navbar">
+            <div class="nav-info">
+                <h2>IEX Forecast Analytics</h2>
+            </div>
+            <div class="nav-badge">Ensamble Ridge + Holt-Winters Operativo</div>
         </div>
 
-        <!-- Filtros Interactivos -->
-        <div class="filter-bar">
-            <div class="filter-item">
+        <!-- Global Ribbon Filters -->
+        <div class="filter-ribbon">
+            <span class="ribbon-label">Filtros Globales:</span>
+
+            <div class="ribbon-select-group">
                 <label for="f-campana">Campaña:</label>
-                <select id="f-campana"><option value="ALL">Todas</option></select>
+                <select id="f-campana"><option value="ALL">Todas las Campañas</option></select>
             </div>
-            <div class="filter-item">
+
+            <div class="ribbon-select-group">
                 <label for="f-fecha">Fecha:</label>
-                <select id="f-fecha"><option value="ALL">Todas</option></select>
+                <select id="f-fecha"><option value="ALL">Todas las Fechas</option></select>
             </div>
-            <div class="filter-item">
+
+            <div class="ribbon-select-group">
                 <label for="f-intervalo">Intervalo:</label>
-                <select id="f-intervalo"><option value="ALL">Todos</option></select>
+                <select id="f-intervalo"><option value="ALL">Todos los Intervalos</option></select>
             </div>
-            <button class="btn-reset" id="btn-reset">Restablecer Filtros</button>
+
+            <button class="btn-reset-filters" id="btn-reset">Limpiar Filtros</button>
         </div>
 
-        <div class="dashboard-body">
+        <!-- Viewport -->
+        <div class="viewport-body">
             
-            <!-- Indicador Carga / Placeholder -->
-            <div id="loading" class="loading-overlay">
-                <div class="spinner"></div>
-                <p style="color: var(--text-muted); font-size: 0.9rem;">Ejecutando ensamble de Machine Learning y modelo Erlang C...</p>
+            <div id="loading" class="sys-spinner-box">
+                <div class="sys-spinner"></div>
+                <p style="color: var(--text-secondary); font-size: 0.82rem; font-family: var(--font-mono);">Entrenando modelos Ridge + Holt-Winters y calculando Erlang C...</p>
             </div>
 
-            <div id="placeholder" class="empty-state">
-                <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 1312 9 3 13 12 19 3 21 12"/><path d="M12 2v20"/></svg>
-                <p>Carga tu archivo <strong>historico.xlsx</strong> y haz clic en <strong>Procesar Pronóstico</strong></p>
+            <div id="placeholder" class="sys-placeholder">
+                <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 13l6-9 4 9 6-9 2 9"/><path d="M12 2v20"/></svg>
+                <p style="font-size: 0.88rem;">Carga tu archivo <strong>historico.xlsx</strong> para activar el panel predictivo de WFM.</p>
             </div>
 
-            <div id="dashboard-content" style="display: none; flex-direction: column; gap: 20px;">
+            <div id="dashboard" style="display: none; flex-direction: column; gap: 16px;">
                 
-                <!-- KPI Cards -->
-                <div class="kpi-grid">
-                    <div class="kpi-card blue">
-                        <span class="kpi-title">Volumen Total Llamadas</span>
-                        <span class="kpi-value" id="kpi-calls">0</span>
-                        <span class="kpi-sub">Pronosticado por ML</span>
+                <!-- KPI Executive Grid -->
+                <div class="kpi-row">
+                    <div class="kpi-box">
+                        <div class="kpi-box-header">
+                            <span class="kpi-box-title">Volumen Total (Offered)</span>
+                        </div>
+                        <span class="kpi-box-val" id="kpi-calls" style="color: var(--primary-cyan);">0</span>
+                        <span class="kpi-box-sub">Llamadas estimadas ML</span>
                     </div>
-                    <div class="kpi-card cyan">
-                        <span class="kpi-title">AHT Promedio</span>
-                        <span class="kpi-value" id="kpi-aht">0s</span>
-                        <span class="kpi-sub">Tiempo medio de operación</span>
+
+                    <div class="kpi-box">
+                        <div class="kpi-box-header">
+                            <span class="kpi-box-title">AHT Ponderado</span>
+                        </div>
+                        <span class="kpi-box-val" id="kpi-aht" style="color: #fff;">0s</span>
+                        <span class="kpi-box-sub">Tiempo medio de manejo</span>
                     </div>
-                    <div class="kpi-card warning">
-                        <span class="kpi-title">Cobertura de Personal</span>
-                        <span class="kpi-value" id="kpi-staff">0 / 0</span>
-                        <span class="kpi-sub">Req vs Prog (Agentes)</span>
+
+                    <div class="kpi-box">
+                        <div class="kpi-box-header">
+                            <span class="kpi-box-title">Agentes Req. vs Prog.</span>
+                        </div>
+                        <span class="kpi-box-val" id="kpi-staff" style="color: var(--warning);">0 / 0</span>
+                        <span class="kpi-box-sub">Net Staffing Balance</span>
                     </div>
-                    <div class="kpi-card green">
-                        <span class="kpi-title">SL Proyectado General</span>
-                        <span class="kpi-value" id="kpi-sl">0%</span>
-                        <span class="kpi-sub">SLA estimado con Erlang C</span>
+
+                    <div class="kpi-box">
+                        <div class="kpi-box-header">
+                            <span class="kpi-box-title">Service Level Global</span>
+                        </div>
+                        <span class="kpi-box-val" id="kpi-sl" style="color: var(--success);">0%</span>
+                        <span class="kpi-box-sub">Modelo Erlang C</span>
                     </div>
                 </div>
 
-                <!-- Gráficos -->
-                <div class="charts-grid">
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <span>Perfil Intradía: Llamadas vs Agentes Requeridos</span>
+                <!-- Gráficos de Análisis -->
+                <div class="analytics-row">
+                    <div class="analytics-card">
+                        <div class="analytics-card-title">
+                            <span>Perfil Intradía: Tráfico de Llamadas vs. Malla de Agentes</span>
                         </div>
-                        <div class="chart-container">
+                        <div class="chart-box">
                             <canvas id="chart-intraday"></canvas>
                         </div>
                     </div>
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <span>Balance Net Staffing (Delta)</span>
+
+                    <div class="analytics-card">
+                        <div class="analytics-card-title">
+                            <span>Net Staffing Delta (Faltante / Excedente)</span>
                         </div>
-                        <div class="chart-container">
+                        <div class="chart-box">
                             <canvas id="chart-staffing"></canvas>
                         </div>
                     </div>
                 </div>
 
-                <!-- Tabla de Resultados -->
-                <div class="table-card">
-                    <div class="table-responsive">
+                <!-- Tabla Tabular IEX Style -->
+                <div class="grid-card">
+                    <div class="grid-responsive">
                         <table>
                             <thead>
                                 <tr>
@@ -623,12 +696,12 @@
             const formData = new FormData(e.target);
             const loading = document.getElementById('loading');
             const placeholder = document.getElementById('placeholder');
-            const dashboardContent = document.getElementById('dashboard-content');
+            const dashboard = document.getElementById('dashboard');
             const btnSubmit = document.getElementById('btn-submit');
 
             loading.style.display = 'flex';
             placeholder.style.display = 'none';
-            dashboardContent.style.display = 'none';
+            dashboard.style.display = 'none';
             btnSubmit.disabled = true;
 
             try {
@@ -639,7 +712,7 @@
 
                 if (!response.ok) {
                     const err = await response.json();
-                    throw new Error(err.error || 'Error procesando los datos');
+                    throw new Error(err.error || 'Error procesando la solicitud');
                 }
 
                 fullData = await response.json();
@@ -648,10 +721,10 @@
                 actualizarDashboard();
 
                 loading.style.display = 'none';
-                dashboardContent.style.display = 'flex';
+                dashboard.style.display = 'flex';
 
             } catch (error) {
-                alert('Error al generar el pronóstico: ' + error.message);
+                alert('Error al ejecutar el modelo: ' + error.message);
                 loading.style.display = 'none';
                 placeholder.style.display = 'flex';
             } finally {
@@ -688,7 +761,7 @@
                        (valInter === 'ALL' || d.Intervalo === valInter);
             });
 
-            // 1. Recalcular KPIs
+            // KPIs
             const totalCalls = filtered.reduce((acc, curr) => acc + curr.Llamadas, 0);
             const avgAht = filtered.length > 0 ? Math.round(filtered.reduce((acc, curr) => acc + curr.AHT, 0) / filtered.length) : 0;
             const totalReq = filtered.reduce((acc, curr) => acc + curr.Agentes_Requeridos, 0);
@@ -700,20 +773,19 @@
             document.getElementById('kpi-staff').innerText = `${totalReq} / ${totalProg}`;
             document.getElementById('kpi-sl').innerText = avgSL + '%';
 
-            // 2. Actualizar Gráficos
             renderizarGraficos(filtered);
 
-            // 3. Renderizar Tabla
+            // Data Grid Tabular
             const tbody = document.getElementById('table-body');
             tbody.innerHTML = '';
 
             filtered.slice(0, 500).forEach(row => {
                 const tr = document.createElement('tr');
-                const deltaColor = row.Delta_Net_Staffing >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
-                const slColor = row.SL_Proyectado >= 80 ? 'var(--accent-green)' : 'var(--accent-red)';
+                const deltaColor = row.Delta_Net_Staffing >= 0 ? 'var(--success)' : 'var(--danger)';
+                const slColor = row.SL_Proyectado >= 80 ? 'var(--success)' : 'var(--danger)';
 
                 tr.innerHTML = `
-                    <td><strong>${row.Campaña}</strong></td>
+                    <td class="td-bold">${row.Campaña}</td>
                     <td>${row.Fecha}</td>
                     <td>${row.Día_Semana}</td>
                     <td>${row.Intervalo}</td>
@@ -729,7 +801,6 @@
         }
 
         function renderizarGraficos(data) {
-            // Agrupar por Intervalo para el gráfico
             const grouped = {};
             data.forEach(d => {
                 if (!grouped[d.Intervalo]) {
@@ -746,7 +817,7 @@
             const reqData = labels.map(l => grouped[l].req);
             const deltaData = labels.map(l => Math.round(grouped[l].delta / grouped[l].count));
 
-            // Gráfico 1: Intraday Calls vs Req
+            // Chart 1: Intraday
             if (chartIntradayInstance) chartIntradayInstance.destroy();
             const ctx1 = document.getElementById('chart-intraday').getContext('2d');
             chartIntradayInstance = new Chart(ctx1, {
@@ -754,22 +825,22 @@
                 data: {
                     labels: labels,
                     datasets: [
-                        { label: 'Llamadas', data: callsData, borderColor: '#06b6d4', backgroundColor: 'rgba(6,182,212,0.1)', fill: true, tension: 0.3 },
-                        { label: 'Agentes Req.', data: reqData, borderColor: '#3b82f6', backgroundColor: 'transparent', borderDash: [4, 4], tension: 0.3 }
+                        { label: 'Llamadas ML', data: callsData, borderColor: '#06b6d4', backgroundColor: 'rgba(6,182,212,0.08)', fill: true, tension: 0.3, borderWidth: 2 },
+                        { label: 'Agentes Req.', data: reqData, borderColor: '#2563eb', backgroundColor: 'transparent', borderDash: [4, 4], tension: 0.3, borderWidth: 2 }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
+                    plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10, family: 'Plus Jakarta Sans' } } } },
                     scales: {
-                        x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } },
-                        y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } }
+                        x: { ticks: { color: '#64748b', font: { size: 9, family: 'JetBrains Mono' } }, grid: { color: '#1e293b' } },
+                        y: { ticks: { color: '#64748b', font: { size: 9, family: 'JetBrains Mono' } }, grid: { color: '#1e293b' } }
                     }
                 }
             });
 
-            // Gráfico 2: Net Staffing Delta
+            // Chart 2: Net Staffing Delta
             if (chartStaffingInstance) chartStaffingInstance.destroy();
             const ctx2 = document.getElementById('chart-staffing').getContext('2d');
             chartStaffingInstance = new Chart(ctx2, {
@@ -777,9 +848,10 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Delta Staffing',
+                        label: 'Net Staffing',
                         data: deltaData,
-                        backgroundColor: deltaData.map(v => v >= 0 ? '#10b981' : '#ef4444')
+                        backgroundColor: deltaData.map(v => v >= 0 ? '#10b981' : '#f43f5e'),
+                        borderRadius: 3
                     }]
                 },
                 options: {
@@ -787,8 +859,8 @@
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
-                        x: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { display: false } },
-                        y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } }
+                        x: { ticks: { color: '#64748b', font: { size: 8, family: 'JetBrains Mono' } }, grid: { display: false } },
+                        y: { ticks: { color: '#64748b', font: { size: 9, family: 'JetBrains Mono' } }, grid: { color: '#1e293b' } }
                     }
                 }
             });
