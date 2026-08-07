@@ -9,7 +9,9 @@ import pandas as pd
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
 
+# --- RUTAS FRONTEND ---
 @app.route('/')
+@app.route('/index.html')
 def serve_index():
     return send_from_directory('.', 'index.html')
 
@@ -17,7 +19,6 @@ def clean_num(val, default=0.0):
     if pd.isna(val) or val is None:
         return default
     try:
-        # Convertir a string, quitar espacios y caracteres no numéricos excepto punto y coma
         val_str = str(val).strip().replace(',', '.')
         val_str = re.sub(r'[^0-9.]', '', val_str)
         return float(val_str) if val_str else default
@@ -46,7 +47,6 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         return 0.0
 
 def encontrar_columna(df, posibles_nombres):
-    """ Busca columnas ignorando mayúsculas, minúsculas, espacios y acentos """
     columnas_df = {str(c).strip().lower(): c for c in df.columns}
     for pos in posibles_nombres:
         pos_clean = pos.strip().lower()
@@ -54,9 +54,13 @@ def encontrar_columna(df, posibles_nombres):
             return columnas_df[pos_clean]
     return None
 
-@app.route('/api/process', methods=['POST'])
-@app.route('/api/process/', methods=['POST'])
+# --- RUTAS BACKEND API (Registradas para evitar el error 404) ---
+@app.route('/api/process', methods=['POST', 'GET'])
+@app.route('/api/process/', methods=['POST', 'GET'])
 def process_data():
+    if request.method == 'GET':
+        return jsonify({'status': 'API operativa en Render'}), 200
+
     if 'file' not in request.files:
         return jsonify({'error': 'No se recibió ningún archivo.'}), 400
     
@@ -75,7 +79,6 @@ def process_data():
             file.seek(0)
             df = pd.read_excel(file, engine='openpyxl')
 
-        # Detección inteligente de columnas
         col_calls = encontrar_columna(df, ['Llamadas', 'Calls', 'Volumen', 'Ofrecidas', 'Llamadas_Ofrecidas'])
         col_aht = encontrar_columna(df, ['AHT', 'TMO', 'Handle_Time', 'Tiempo_Manejo', 'AHT_Segs'])
         col_prog = encontrar_columna(df, ['Agentes_Programados', 'Programados', 'Agentes', 'Roster', 'FTEs', 'Agentes_Programados_Reales'])
@@ -84,7 +87,6 @@ def process_data():
         col_inter = encontrar_columna(df, ['Intervalo', 'Hora', 'Interval', 'Half_Hour'])
         col_dia = encontrar_columna(df, ['Día_Semana', 'Dia_Semana', 'Dia', 'Day_Of_Week'])
 
-        # Normalización de fechas
         if col_fecha:
             df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce').dt.strftime('%Y-%m-%d')
 
@@ -132,6 +134,11 @@ def process_data():
     except Exception as e:
         gc.collect()
         return jsonify({'error': f"Error al procesar el archivo: {str(e)}"}), 500
+
+# Ruta comodín para evitar errores 404 en sub-rutas
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({'error': 'La ruta solicitada no existe en el servidor Python'}), 404
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
