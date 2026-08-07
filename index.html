@@ -3,29 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Executive Core | Director's Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+    <title>Executive Core - WFM Intelligence</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            /* Clean Enterprise Theme (Light) */
-            --bg-app: #F4F7FE;
-            --bg-card: #FFFFFF;
-            --text-primary: #2B3674;
-            --text-secondary: #A3AED0;
-            --text-muted: #707EAE;
-            --border-light: #E0E5F2;
+            /* Enterprise BI Palette */
+            --bg-canvas: #0b0f19;
+            --bg-panel: #111827;
+            --bg-element: #1f2937;
+            --border-subtle: #374151;
+            --border-focus: #4b5563;
             
-            --brand-primary: #4318FF;
-            --brand-hover: #3311DB;
-            --success: #05CD99;
-            --danger: #EE5D50;
-            --warning: #FFCE20;
+            --text-main: #f9fafb;
+            --text-secondary: #9ca3af;
             
-            --font-sans: 'DM Sans', sans-serif;
-            --font-mono: 'Roboto Mono', monospace;
+            --brand-blue: #3b82f6;
+            --brand-cyan: #06b6d4;
+            --alert-success: #10b981;
+            --alert-danger: #ef4444;
+            --alert-warning: #f59e0b;
             
-            --shadow-card: 0px 4px 24px rgba(112, 144, 176, 0.12);
+            --font-ui: 'Inter', sans-serif;
+            --font-data: 'JetBrains Mono', monospace;
+            
+            --shadow-panel: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
         }
 
         * {
@@ -36,407 +38,409 @@
         }
 
         body {
-            background-color: var(--bg-app);
-            color: var(--text-primary);
-            font-family: var(--font-sans);
+            background-color: var(--bg-canvas);
+            color: var(--text-main);
+            font-family: var(--font-ui);
             display: flex;
             height: 100vh;
             overflow: hidden;
         }
 
-        /* ---------------- Sidebar Configuration ---------------- */
-        .sidebar {
-            width: 340px;
-            background-color: var(--bg-card);
-            border-right: 1px solid var(--border-light);
+        /* --- Sidebar Configurador --- */
+        .config-sidebar {
+            width: 320px;
+            background-color: var(--bg-panel);
+            border-right: 1px solid var(--border-subtle);
             display: flex;
             flex-direction: column;
-            flex-shrink: 0;
-            z-index: 20;
-            box-shadow: 2px 0 24px rgba(112, 144, 176, 0.08);
+            z-index: 100;
         }
 
-        .brand-header {
-            padding: 32px 28px;
+        .sidebar-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--border-subtle);
             display: flex;
-            flex-direction: column;
-            gap: 4px;
+            align-items: center;
+            gap: 12px;
         }
 
-        .brand-header h1 {
-            font-size: 1.5rem;
+        .logo-box {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--brand-blue), var(--brand-cyan));
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-weight: 700;
+            font-size: 14px;
+            letter-spacing: -1px;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+        }
+
+        .sidebar-header h1 {
+            font-size: 16px;
+            font-weight: 600;
             letter-spacing: -0.02em;
-            color: var(--text-primary);
+        }
+        
+        .sidebar-header p {
+            font-size: 11px;
+            color: var(--brand-cyan);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            margin-top: 2px;
         }
 
-        .brand-header p {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            font-weight: 500;
-        }
-
-        .config-form {
-            padding: 0 28px 32px 28px;
+        .config-body {
+            padding: 24px;
+            flex: 1;
+            overflow-y: auto;
             display: flex;
             flex-direction: column;
             gap: 24px;
-            overflow-y: auto;
         }
 
-        .form-section {
+        .param-group {
             display: flex;
             flex-direction: column;
-            gap: 16px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid var(--border-light);
+            gap: 12px;
         }
 
-        .form-section:last-child { border-bottom: none; }
-
-        .section-title {
-            font-size: 0.75rem;
+        .group-title {
+            font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 0.1em;
-            color: var(--brand-primary);
-            font-weight: 700;
+            color: var(--text-secondary);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-subtle);
+            padding-bottom: 8px;
         }
 
-        .input-group {
+        .input-row {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 6px;
         }
 
-        .input-group label {
-            font-size: 0.85rem;
-            color: var(--text-primary);
-            font-weight: 700;
-        }
-        
-        .input-group .helper-text {
-            font-size: 0.7rem;
-            color: var(--text-secondary);
-            margin-top: -6px;
-        }
-
-        .input-group input {
-            background-color: var(--bg-app);
-            border: 1px solid var(--border-light);
-            color: var(--text-primary);
-            padding: 12px 14px;
-            border-radius: 10px;
-            font-size: 0.9rem;
+        .input-row label {
+            font-size: 12px;
+            color: var(--text-main);
             font-weight: 500;
-            transition: all 0.2s ease;
         }
 
-        .input-group input:focus {
+        .input-row input {
+            background-color: var(--bg-canvas);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-main);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: var(--font-data);
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .input-row input:focus {
             outline: none;
-            border-color: var(--brand-primary);
-            background-color: #fff;
-            box-shadow: 0 0 0 3px rgba(67, 24, 255, 0.1);
+            border-color: var(--brand-blue);
+            box-shadow: 0 0 0 1px var(--brand-blue);
         }
 
         input[type="file"]::file-selector-button {
-            background-color: var(--brand-primary);
-            color: #fff;
-            border: none;
-            padding: 8px 14px;
-            border-radius: 6px;
-            font-size: 0.8rem;
-            font-weight: 700;
+            background-color: var(--bg-element);
+            color: var(--text-main);
+            border: 1px solid var(--border-subtle);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: var(--font-ui);
+            font-size: 11px;
+            font-weight: 600;
             cursor: pointer;
-            transition: background 0.2s;
             margin-right: 12px;
         }
 
-        input[type="file"]::file-selector-button:hover {
-            background-color: var(--brand-hover);
-        }
-
-        .btn-execute {
-            background-color: var(--brand-primary);
-            color: #fff;
+        .btn-run {
+            background-color: var(--brand-blue);
+            color: white;
             border: none;
-            padding: 14px;
-            border-radius: 12px;
-            font-weight: 700;
-            font-size: 0.95rem;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 4px 15px rgba(67, 24, 255, 0.3);
-            margin-top: 10px;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
 
-        .btn-execute:hover {
-            background-color: var(--brand-hover);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(67, 24, 255, 0.4);
+        .btn-run:hover {
+            background-color: #2563eb;
         }
 
-        .btn-execute:disabled {
-            background-color: var(--text-secondary);
+        .btn-run:disabled {
+            background-color: var(--bg-element);
+            color: var(--text-secondary);
             cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
         }
 
-        /* ---------------- Workspace Main ---------------- */
-        .workspace {
+        /* --- Área Analítica Principal --- */
+        .analytics-area {
             flex: 1;
             display: flex;
             flex-direction: column;
             overflow: hidden;
         }
 
-        /* Top Bar */
-        .top-bar {
-            padding: 28px 40px 10px 40px;
+        /* Top Navbar con Filtros Globales */
+        .filter-navbar {
+            background-color: var(--bg-panel);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 16px 32px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
-        }
-
-        .view-title {
-            font-size: 1.8rem;
-            font-weight: 700;
-            letter-spacing: -0.02em;
-        }
-
-        /* Director's Filter Ribbon */
-        .filters {
-            padding: 10px 40px 24px 40px;
-            display: flex;
-            gap: 20px;
-            align-items: center;
+            gap: 24px;
             flex-wrap: wrap;
         }
 
-        .filter-group {
+        .nav-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-right: auto;
+        }
+
+        .filter-control {
             display: flex;
-            flex-direction: column;
-            gap: 4px;
+            align-items: center;
+            gap: 10px;
         }
 
-        .filter-group label {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            font-weight: 700;
+        .filter-control label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
             text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
 
-        .filter-group select {
-            background-color: var(--bg-card);
-            border: 1px solid var(--border-light);
-            color: var(--text-primary);
-            padding: 10px 36px 10px 14px;
-            border-radius: 10px;
-            font-size: 0.9rem;
+        .filter-control select {
+            background-color: var(--bg-canvas);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-main);
+            padding: 6px 32px 6px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            appearance: none;
+            cursor: pointer;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3Cpolyline points='6 9 12 15 18 9'%3e%3C/polyline%3e%3C/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+        }
+
+        .filter-control select:focus {
+            outline: none;
+            border-color: var(--brand-blue);
+        }
+
+        .btn-reset {
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-main);
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
             font-weight: 500;
             cursor: pointer;
-            appearance: none;
-            box-shadow: var(--shadow-card);
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A3AED0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-            background-repeat: no-repeat;
-            background-position: right 12px center;
-            background-size: 16px;
-            outline: none;
         }
         
-        .filter-group select:focus { border-color: var(--brand-primary); }
+        .btn-reset:hover { background: var(--bg-element); }
 
-        .btn-clear-filters {
-            margin-top: 18px;
-            background: transparent;
-            color: var(--text-muted);
-            border: 1px solid var(--border-light);
-            padding: 10px 16px;
-            border-radius: 10px;
-            font-weight: 700;
-            font-size: 0.85rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn-clear-filters:hover {
-            background-color: #fff;
-            color: var(--text-primary);
-            box-shadow: var(--shadow-card);
-        }
-
-        /* Dashboard Scroll Area */
-        .dashboard-scroll {
+        /* Contenido del Dashboard */
+        .dashboard-canvas {
             flex: 1;
             overflow-y: auto;
-            padding: 10px 40px 40px 40px;
+            padding: 32px;
             display: flex;
             flex-direction: column;
             gap: 24px;
         }
 
-        /* Executive KPIs (C-Level Style) */
-        .kpi-grid {
+        /* Indicadores Generales (KPIs Ejecutivos) */
+        .kpi-wrapper {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 24px;
+            gap: 16px;
         }
 
         .kpi-card {
-            background-color: var(--bg-card);
-            padding: 24px;
-            border-radius: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            box-shadow: var(--shadow-card);
-            border: 1px solid transparent;
-            transition: transform 0.2s;
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            padding: 20px;
+            box-shadow: var(--shadow-panel);
+            position: relative;
+            overflow: hidden;
         }
 
-        .kpi-card:hover { transform: translateY(-3px); }
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 3px;
+        }
+        
+        .kpi-card.c-blue::before { background-color: var(--brand-blue); }
+        .kpi-card.c-cyan::before { background-color: var(--brand-cyan); }
+        .kpi-card.c-warn::before { background-color: var(--alert-warning); }
+        .kpi-card.c-succ::before { background-color: var(--alert-success); }
 
-        .kpi-icon-wrapper {
-            width: 44px;
-            height: 44px;
-            background-color: var(--bg-app);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .kpi-header {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 600;
             margin-bottom: 8px;
-            color: var(--brand-primary);
-        }
-
-        .kpi-title {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
 
         .kpi-value {
-            font-size: 2.2rem;
+            font-size: 32px;
             font-weight: 700;
-            letter-spacing: -0.04em;
-            color: var(--text-primary);
+            font-family: var(--font-data);
+            line-height: 1.1;
+            margin-bottom: 4px;
+            color: var(--text-main);
         }
 
-        /* Charts Section */
-        .chart-grid {
+        .kpi-footer {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        /* Gráficos */
+        .charts-wrapper {
             display: grid;
             grid-template-columns: 2fr 1fr;
-            gap: 24px;
+            gap: 16px;
+            min-height: 340px;
         }
 
         .chart-panel {
-            background-color: var(--bg-card);
-            border-radius: 16px;
-            padding: 28px;
-            height: 380px;
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            padding: 20px;
             display: flex;
             flex-direction: column;
-            gap: 20px;
-            box-shadow: var(--shadow-card);
+            box-shadow: var(--shadow-panel);
         }
 
-        .chart-header {
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: var(--text-primary);
+        .panel-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 16px;
         }
 
-        .chart-container {
+        .canvas-container {
             flex: 1;
             position: relative;
             width: 100%;
         }
 
         /* Data Grid */
-        .data-panel {
-            background-color: var(--bg-card);
-            border-radius: 16px;
-            overflow: hidden;
+        .grid-panel {
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
             display: flex;
             flex-direction: column;
-            box-shadow: var(--shadow-card);
+            box-shadow: var(--shadow-panel);
+            overflow: hidden;
         }
 
-        .data-header {
-            padding: 24px 28px;
-            font-size: 1.1rem;
-            font-weight: 700;
-            border-bottom: 1px solid var(--border-light);
+        .grid-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .grid-header h3 {
+            font-size: 14px;
+            font-weight: 600;
         }
 
-        .table-wrapper {
-            max-height: 450px;
-            overflow: auto;
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            text-align: left;
+            text-align: right;
         }
+
+        th, td:first-child { text-align: left; }
+        td:nth-child(2), td:nth-child(3), td:nth-child(4) { text-align: left; }
 
         thead {
             position: sticky;
             top: 0;
-            background-color: #FAFCFE;
+            background-color: var(--bg-element);
             z-index: 10;
         }
 
         th {
-            padding: 16px 24px;
-            font-size: 0.75rem;
+            padding: 12px 16px;
+            font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            color: var(--text-muted);
-            border-bottom: 1px solid var(--border-light);
-            font-weight: 700;
+            color: var(--text-secondary);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-subtle);
         }
 
         td {
-            padding: 14px 24px;
-            font-size: 0.9rem;
-            border-bottom: 1px solid var(--border-light);
-            color: var(--text-primary);
-            font-weight: 500;
+            padding: 10px 16px;
+            font-size: 13px;
+            font-family: var(--font-data);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            color: var(--text-main);
         }
 
-        .font-mono { font-family: var(--font-mono); font-size: 0.85rem;}
+        tbody tr:hover { background-color: rgba(255,255,255,0.02); }
 
-        tbody tr:hover td { background-color: var(--bg-app); }
-
-        .badge {
-            padding: 6px 12px;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            font-weight: 700;
-            display: inline-block;
+        .tag {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
         }
-        
-        .badge-good { background-color: rgba(5, 205, 153, 0.1); color: var(--success); }
-        .badge-bad { background-color: rgba(238, 93, 80, 0.1); color: var(--danger); }
+        .tag.good { background-color: rgba(16, 185, 129, 0.15); color: var(--alert-success); }
+        .tag.bad { background-color: rgba(239, 68, 68, 0.15); color: var(--alert-danger); }
 
-        /* Loaders & States */
-        .state-container {
+        /* Estados de UI */
+        .system-state {
             display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100%;
-            color: var(--text-primary);
-            gap: 20px;
+            gap: 16px;
             text-align: center;
-            padding: 60px;
+            padding: 40px;
         }
 
-        .loader-ring {
-            width: 48px;
-            height: 48px;
-            border: 4px solid var(--border-light);
-            border-top: 4px solid var(--brand-primary);
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border-subtle);
+            border-top: 3px solid var(--brand-blue);
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
@@ -444,155 +448,166 @@
         @keyframes spin { 100% { transform: rotate(360deg); } }
 
         ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--text-secondary); border-radius: 4px; }
+        ::-webkit-scrollbar-track { background: var(--bg-canvas); }
+        ::-webkit-scrollbar-thumb { background: var(--border-focus); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
     </style>
 </head>
 <body>
 
-    <aside class="sidebar">
-        <div class="brand-header">
-            <h1>Executive Core</h1>
-            <p>Director's Analytics Engine</p>
+    <!-- Panel de Configuración -->
+    <aside class="config-sidebar">
+        <div class="sidebar-header">
+            <div class="logo-box">EC</div>
+            <div>
+                <h1>Executive Core</h1>
+                <p>WFM AI Engine v4.0</p>
+            </div>
         </div>
 
-        <form id="wfm-form" class="config-form">
+        <form id="wfm-form" class="config-body">
             
-            <div class="form-section">
-                <span class="section-title">Origen de Datos</span>
-                <div class="input-group">
-                    <label>Archivo de Volumen (.xlsx)</label>
+            <div class="param-group">
+                <span class="group-title">Fuente de Datos</span>
+                <div class="input-row">
+                    <label>Archivo Histórico (.xlsx)</label>
                     <input type="file" name="file" accept=".xlsx, .xls" required>
                 </div>
-                <div class="input-group">
-                    <label>Proyección (Días)</label>
-                    <div class="helper-text">Alcance del modelo predictivo</div>
+                <div class="input-row">
+                    <label>Días a Proyectar</label>
                     <input type="number" name="dias" value="30" min="1" max="90">
                 </div>
             </div>
 
-            <div class="form-section">
-                <span class="section-title">Parámetros de Cobertura</span>
-                <div class="input-group">
-                    <label>Ventana de Servicio SLA (Segundos)</label>
-                    <div class="helper-text">Ej: Responder en X segundos</div>
-                    <input type="number" name="target_time" value="20" step="1">
-                </div>
-                <div class="input-group">
-                    <label>Meta de Cumplimiento SLA (%)</label>
-                    <div class="helper-text">Porcentaje de llamadas atendidas</div>
+            <div class="param-group">
+                <span class="group-title">Parámetros Operativos (SLA)</span>
+                <div class="input-row">
+                    <label>Nivel de Servicio Objetivo (%)</label>
                     <input type="number" name="target_sl" value="80" step="1">
                 </div>
-                <div class="input-group">
-                    <label>Merma Operativa (%)</label>
-                    <div class="helper-text">Ausentismo, breaks, capacitaciones</div>
+                <div class="input-row">
+                    <label>Tiempo de Respuesta (Segundos)</label>
+                    <input type="number" name="target_time" value="20" step="1">
+                </div>
+                <div class="input-row">
+                    <label>Factor de Merma / Shrinkage (%)</label>
                     <input type="number" name="merma" value="30" step="1">
                 </div>
             </div>
 
-            <button type="submit" class="btn-execute" id="btn-submit">Generar Escenario Directorio</button>
+            <button type="submit" class="btn-run" id="btn-submit">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                Generar Pronóstico ML
+            </button>
         </form>
     </aside>
 
-    <main class="workspace">
-        <div class="top-bar">
-            <h2 class="view-title">Forecast & Capacity Overview</h2>
-        </div>
-
-        <div class="filters">
-            <div class="filter-group">
-                <label>Línea de Negocio</label>
-                <select id="f-campana"><option value="ALL">Consolidado Total</option></select>
+    <!-- Área Analítica Principal -->
+    <main class="analytics-area">
+        
+        <!-- Barra Superior: Filtros Interactivos -->
+        <div class="filter-navbar">
+            <h2 class="nav-title">Indicadores Consolidados</h2>
+            
+            <div class="filter-control">
+                <label>Línea / Campaña</label>
+                <select id="f-campana"><option value="ALL">Todas las Campañas</option></select>
             </div>
-            <div class="filter-group">
+            
+            <div class="filter-control">
                 <label>Fecha Proyectada</label>
-                <select id="f-fecha"><option value="ALL">Todo el Mes</option></select>
+                <select id="f-fecha"><option value="ALL">Todo el Periodo</option></select>
             </div>
-            <div class="filter-group">
-                <label>Horario Operativo (Desde/Hasta)</label>
+            
+            <div class="filter-control">
+                <label>Horario</label>
                 <select id="f-intervalo"><option value="ALL">Ventana Completa</option></select>
             </div>
-            <button class="btn-clear-filters" id="btn-reset">Restablecer Vistas</button>
+
+            <button type="button" class="btn-reset" id="btn-reset">Restablecer</button>
         </div>
 
-        <div class="dashboard-scroll">
+        <!-- Canvas del Dashboard -->
+        <div class="dashboard-canvas">
             
-            <div id="loading-state" class="state-container">
-                <div class="loader-ring"></div>
+            <!-- Estado Carga -->
+            <div id="state-loading" class="system-state">
+                <div class="spinner"></div>
                 <div>
-                    <h3 style="font-size: 1.2rem; font-weight: 700;">Simulando Escenarios...</h3>
-                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 8px;">Procesando IA y cuadratura de capacidad (Erlang C)</p>
+                    <h3 style="font-size: 16px; margin-bottom: 4px;">Ejecutando Modelos Matemáticos</h3>
+                    <p style="font-size: 13px; color: var(--text-secondary);">Procesando ML Ridge, Holt-Winters y Erlang C...</p>
                 </div>
             </div>
 
-            <div id="empty-state" class="state-container" style="display: flex;">
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
-                <h3 style="font-size: 1.2rem; font-weight: 700;">Panel Analítico en Espera</h3>
-                <p style="color: var(--text-muted); font-size: 0.9rem; max-width: 300px;">Cargue su fuente de datos histórica para desplegar los indicadores ejecutivos.</p>
+            <!-- Estado Vacío -->
+            <div id="state-empty" class="system-state" style="display: flex;">
+                <svg width="48" height="48" fill="none" stroke="var(--border-focus)" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                <div>
+                    <h3 style="font-size: 16px; margin-bottom: 4px;">Plataforma Analítica en Espera</h3>
+                    <p style="font-size: 13px; color: var(--text-secondary);">Cargue su histórico de datos (Excel) para habilitar el motor de proyecciones WFM.</p>
+                </div>
             </div>
 
-            <div id="dashboard-content" style="display: none; flex-direction: column; gap: 24px;">
+            <!-- Dashboard Activo -->
+            <div id="dashboard-ui" style="display: none; flex-direction: column; gap: 24px;">
                 
-                <!-- KPIs -->
-                <div class="kpi-grid">
-                    <div class="kpi-card">
-                        <div class="kpi-icon-wrapper">
-                            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                        </div>
-                        <span class="kpi-title">Volumen Proyectado</span>
-                        <span class="kpi-value" id="kpi-calls">0</span>
+                <!-- KPIs Generales -->
+                <div class="kpi-wrapper">
+                    <div class="kpi-card c-cyan">
+                        <div class="kpi-header">Demanda Estimada (Llamadas)</div>
+                        <div class="kpi-value" id="val-calls">0</div>
+                        <div class="kpi-footer">Volumen total pronosticado</div>
                     </div>
-                    <div class="kpi-card">
-                        <div class="kpi-icon-wrapper">
-                            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                        </div>
-                        <span class="kpi-title">Tiempo Operativo (AHT)</span>
-                        <span class="kpi-value" id="kpi-aht">0s</span>
+                    
+                    <div class="kpi-card c-blue">
+                        <div class="kpi-header">AHT Ponderado</div>
+                        <div class="kpi-value" id="val-aht">0s</div>
+                        <div class="kpi-footer">Tiempo medio de operación</div>
                     </div>
-                    <div class="kpi-card">
-                        <div class="kpi-icon-wrapper">
-                            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                        </div>
-                        <span class="kpi-title">Headcount (Req / Prog)</span>
-                        <span class="kpi-value" id="kpi-staff">0 / 0</span>
+                    
+                    <div class="kpi-card c-warn">
+                        <div class="kpi-header">Headcount (Requerido vs Programado)</div>
+                        <div class="kpi-value" id="val-staff">0 / 0</div>
+                        <div class="kpi-footer">Agentes FTE</div>
                     </div>
-                    <div class="kpi-card">
-                        <div class="kpi-icon-wrapper">
-                            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                        </div>
-                        <span class="kpi-title">Nivel de Servicio Probable</span>
-                        <span class="kpi-value" id="kpi-sl">0%</span>
+                    
+                    <div class="kpi-card c-succ">
+                        <div class="kpi-header">Service Level Probable (SLA)</div>
+                        <div class="kpi-value" id="val-sl">0.0%</div>
+                        <div class="kpi-footer">Probabilidad Erlang C</div>
                     </div>
                 </div>
 
-                <!-- Charts -->
-                <div class="chart-grid">
+                <!-- Gráficos Interactivos -->
+                <div class="charts-wrapper">
                     <div class="chart-panel">
-                        <div class="chart-header">Curva de Demanda vs. Cobertura de Personal</div>
-                        <div class="chart-container"><canvas id="chart-main"></canvas></div>
+                        <h3 class="panel-title">Distribución Intradía: Volumen Ofertado vs Cobertura Requerida</h3>
+                        <div class="canvas-container"><canvas id="canvas-main"></canvas></div>
                     </div>
                     <div class="chart-panel">
-                        <div class="chart-header">Brecha Operativa (Faltante/Excedente)</div>
-                        <div class="chart-container"><canvas id="chart-variance"></canvas></div>
+                        <h3 class="panel-title">Brecha Operativa (Faltantes / Excedentes)</h3>
+                        <div class="canvas-container"><canvas id="canvas-variance"></canvas></div>
                     </div>
                 </div>
 
-                <!-- Data Table -->
-                <div class="data-panel">
-                    <div class="data-header">Desglose Detallado por Intervalo</div>
-                    <div class="table-wrapper">
+                <!-- Data Grid -->
+                <div class="grid-panel">
+                    <div class="grid-header">
+                        <h3>Desglose Detallado de Forecast y Capacidad</h3>
+                    </div>
+                    <div class="table-container">
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Campaña</th>
-                                    <th>Fecha</th>
+                                    <th>Campaña / Skill</th>
+                                    <th>Fecha Proyectada</th>
                                     <th>Día</th>
-                                    <th>Horario</th>
-                                    <th>Demanda (Llamadas)</th>
-                                    <th>AHT (s)</th>
+                                    <th>Intervalo</th>
+                                    <th>Llamadas (ML)</th>
+                                    <th>AHT Estimado</th>
                                     <th>FTE Requerido</th>
                                     <th>FTE Asignado</th>
-                                    <th>Brecha (Delta)</th>
+                                    <th>Varianza Neta</th>
                                     <th>SLA Estimado</th>
                                 </tr>
                             </thead>
@@ -606,147 +621,161 @@
     </main>
 
     <script>
-        let fullData = [];
-        let chartMain = null;
-        let chartVar = null;
+        let globalData = [];
+        let chartLine = null;
+        let chartBar = null;
 
         document.getElementById('wfm-form').addEventListener('submit', async function(e) {
             e.preventDefault();
 
             const formData = new FormData(e.target);
-            const uiEmpty = document.getElementById('empty-state');
-            const uiLoad = document.getElementById('loading-state');
-            const uiDash = document.getElementById('dashboard-content');
-            const btnSubmit = document.getElementById('btn-submit');
+            const uiEmpty = document.getElementById('state-empty');
+            const uiLoad = document.getElementById('state-loading');
+            const uiDash = document.getElementById('dashboard-ui');
+            const btnRun = document.getElementById('btn-submit');
 
             uiEmpty.style.display = 'none';
             uiDash.style.display = 'none';
             uiLoad.style.display = 'flex';
-            btnSubmit.disabled = true;
+            btnRun.disabled = true;
 
             try {
                 const response = await fetch('/api/process', { method: 'POST', body: formData });
                 if (!response.ok) {
                     const err = await response.json();
-                    throw new Error(err.error || 'Error en procesamiento');
+                    throw new Error(err.error || 'Fallo de procesamiento en el servidor.');
                 }
 
-                fullData = await response.json();
-                populateFilters(fullData);
-                renderDashboard();
+                globalData = await response.json();
+                
+                // Actualizar Filtros
+                llenarFiltros(globalData);
+                // Renderizar Data
+                procesarVistas();
 
                 uiLoad.style.display = 'none';
                 uiDash.style.display = 'flex';
 
             } catch (error) {
-                alert('Error de Ejecución: ' + error.message);
+                alert('Error Crítico: ' + error.message);
                 uiLoad.style.display = 'none';
                 uiEmpty.style.display = 'flex';
             } finally {
-                btnSubmit.disabled = false;
+                btnRun.disabled = false;
             }
         });
 
-        function populateFilters(data) {
-            const camps = [...new Set(data.map(i => i.Campaña))].sort();
-            const dates = [...new Set(data.map(i => i.Fecha))].sort();
-            const inters = [...new Set(data.map(i => i.Intervalo))].sort();
+        function llenarFiltros(data) {
+            // Extraer y limpiar valores únicos
+            const uniqueC = [...new Set(data.map(i => i.Campaña))].filter(Boolean).sort();
+            const uniqueD = [...new Set(data.map(i => i.Fecha))].filter(Boolean).sort();
+            const uniqueI = [...new Set(data.map(i => i.Intervalo))].filter(Boolean).sort();
 
-            const elC = document.getElementById('f-campana');
-            const elD = document.getElementById('f-fecha');
-            const elI = document.getElementById('f-intervalo');
+            const sC = document.getElementById('f-campana');
+            const sD = document.getElementById('f-fecha');
+            const sI = document.getElementById('f-intervalo');
 
-            elC.innerHTML = '<option value="ALL">Consolidado Total</option>';
-            elD.innerHTML = '<option value="ALL">Todo el Horizonte</option>';
-            elI.innerHTML = '<option value="ALL">Ventana Completa</option>';
+            sC.innerHTML = '<option value="ALL">Todas las Campañas</option>';
+            sD.innerHTML = '<option value="ALL">Todo el Periodo</option>';
+            sI.innerHTML = '<option value="ALL">Ventana Completa</option>';
 
-            camps.forEach(x => elC.innerHTML += `<option value="${x}">${x}</option>`);
-            dates.forEach(x => elD.innerHTML += `<option value="${x}">${x}</option>`);
-            inters.forEach(x => elI.innerHTML += `<option value="${x}">${x}</option>`);
+            uniqueC.forEach(x => sC.innerHTML += `<option value="${x}">${x}</option>`);
+            uniqueD.forEach(x => sD.innerHTML += `<option value="${x}">${x}</option>`);
+            uniqueI.forEach(x => sI.innerHTML += `<option value="${x}">${x}</option>`);
         }
 
-        function renderDashboard() {
-            const vC = document.getElementById('f-campana').value;
-            const vD = document.getElementById('f-fecha').value;
-            const vI = document.getElementById('f-intervalo').value;
+        function procesarVistas() {
+            const vCamp = document.getElementById('f-campana').value;
+            const vFech = document.getElementById('f-fecha').value;
+            const vInte = document.getElementById('f-intervalo').value;
 
-            const fData = fullData.filter(d => 
-                (vC === 'ALL' || d.Campaña === vC) &&
-                (vD === 'ALL' || d.Fecha === vD) &&
-                (vI === 'ALL' || d.Intervalo === vI)
+            // Filtrar data
+            const dataFiltrada = globalData.filter(d => 
+                (vCamp === 'ALL' || String(d.Campaña) === vCamp) &&
+                (vFech === 'ALL' || String(d.Fecha) === vFech) &&
+                (vInte === 'ALL' || String(d.Intervalo) === vInte)
             );
 
-            const sumCalls = fData.reduce((a, b) => a + b.Llamadas, 0);
-            const avgAht = fData.length ? Math.round(fData.reduce((a, b) => a + b.AHT, 0) / fData.length) : 0;
-            const sumReq = fData.reduce((a, b) => a + b.Agentes_Requeridos, 0);
-            const sumProg = fData.reduce((a, b) => a + b.Agentes_Programados_Reales, 0);
-            const avgSL = fData.length ? (fData.reduce((a, b) => a + b.SL_Proyectado, 0) / fData.length).toFixed(1) : 0;
+            // 1. Calcular KPIs Generales
+            const sumLlamadas = dataFiltrada.reduce((acc, obj) => acc + (obj.Llamadas || 0), 0);
+            const promAht = dataFiltrada.length ? Math.round(dataFiltrada.reduce((acc, obj) => acc + (obj.AHT || 0), 0) / dataFiltrada.length) : 0;
+            const sumReq = dataFiltrada.reduce((acc, obj) => acc + (obj.Agentes_Requeridos || 0), 0);
+            const sumProg = dataFiltrada.reduce((acc, obj) => acc + (obj.Agentes_Programados_Reales || 0), 0);
+            const promSL = dataFiltrada.length ? (dataFiltrada.reduce((acc, obj) => acc + (obj.SL_Proyectado || 0), 0) / dataFiltrada.length).toFixed(1) : 0;
 
-            document.getElementById('kpi-calls').innerText = sumCalls.toLocaleString();
-            document.getElementById('kpi-aht').innerText = avgAht + 's';
-            document.getElementById('kpi-staff').innerText = `${sumReq} / ${sumProg}`;
-            document.getElementById('kpi-sl').innerText = avgSL + '%';
+            document.getElementById('val-calls').innerText = sumLlamadas.toLocaleString();
+            document.getElementById('val-aht').innerText = promAht + 's';
+            document.getElementById('val-staff').innerText = `${sumReq} / ${sumProg}`;
+            document.getElementById('val-sl').innerText = promSL + '%';
             
-            document.getElementById('kpi-sl').style.color = avgSL >= 80 ? 'var(--success)' : 'var(--danger)';
+            // Color de alerta para SLA
+            document.getElementById('val-sl').style.color = promSL >= 80 ? 'var(--alert-success)' : 'var(--alert-danger)';
 
-            drawCharts(fData);
+            // 2. Gráficos
+            dibujarGraficos(dataFiltrada);
 
+            // 3. Tabla (Grid) - Límite de seguridad 600 filas
             const tbody = document.getElementById('table-body');
             tbody.innerHTML = '';
             
-            fData.slice(0, 500).forEach(r => {
+            dataFiltrada.slice(0, 600).forEach(r => {
                 const tr = document.createElement('tr');
-                const dClass = r.Delta_Net_Staffing >= 0 ? 'badge badge-good' : 'badge badge-bad';
-                const sClass = r.SL_Proyectado >= 80 ? 'badge badge-good' : 'badge badge-bad';
+                const tagDelta = r.Delta_Net_Staffing >= 0 ? 'tag good' : 'tag bad';
+                const tagSLA = r.SL_Proyectado >= 80 ? 'tag good' : 'tag bad';
+                
+                const deltaStr = r.Delta_Net_Staffing > 0 ? '+'+r.Delta_Net_Staffing : r.Delta_Net_Staffing;
 
                 tr.innerHTML = `
-                    <td><strong>${r.Campaña}</strong></td>
-                    <td class="font-mono">${r.Fecha}</td>
-                    <td>${r.Día_Semana}</td>
-                    <td class="font-mono"><strong>${r.Intervalo}</strong></td>
-                    <td class="font-mono">${r.Llamadas}</td>
-                    <td class="font-mono">${r.AHT}</td>
-                    <td class="font-mono">${r.Agentes_Requeridos}</td>
-                    <td class="font-mono">${r.Agentes_Programados_Reales}</td>
-                    <td><span class="${dClass}">${r.Delta_Net_Staffing > 0 ? '+'+r.Delta_Net_Staffing : r.Delta_Net_Staffing}</span></td>
-                    <td><span class="${sClass}">${r.SL_Proyectado}%</span></td>
+                    <td style="font-family: var(--font-ui); font-weight: 500;">${r.Campaña}</td>
+                    <td>${r.Fecha}</td>
+                    <td style="font-family: var(--font-ui); text-transform: capitalize;">${r.Día_Semana}</td>
+                    <td style="color: #fff;">${r.Intervalo}</td>
+                    <td style="color: #fff;">${r.Llamadas}</td>
+                    <td>${r.AHT}</td>
+                    <td>${r.Agentes_Requeridos}</td>
+                    <td>${r.Agentes_Programados_Reales}</td>
+                    <td><span class="${tagDelta}">${deltaStr}</span></td>
+                    <td><span class="${tagSLA}">${r.SL_Proyectado}%</span></td>
                 `;
                 tbody.appendChild(tr);
             });
         }
 
-        function drawCharts(data) {
-            const agg = {};
+        function dibujarGraficos(data) {
+            // Agrupar por intervalo para el gráfico
+            const agrupar = {};
             data.forEach(d => {
-                if(!agg[d.Intervalo]) agg[d.Intervalo] = { vol:0, req:0, var:0, n:0 };
-                agg[d.Intervalo].vol += d.Llamadas;
-                agg[d.Intervalo].req += d.Agentes_Requeridos;
-                agg[d.Intervalo].var += d.Delta_Net_Staffing;
-                agg[d.Intervalo].n++;
+                if(!agrupar[d.Intervalo]) agrupar[d.Intervalo] = { vol:0, req:0, var:0, count:0 };
+                agrupar[d.Intervalo].vol += d.Llamadas;
+                agrupar[d.Intervalo].req += d.Agentes_Requeridos;
+                agrupar[d.Intervalo].var += d.Delta_Net_Staffing;
+                agrupar[d.Intervalo].count++;
             });
 
-            const lbls = Object.keys(agg).sort();
-            const dVol = lbls.map(l => agg[l].vol);
-            const dReq = lbls.map(l => agg[l].req);
-            const dVar = lbls.map(l => Math.round(agg[l].var / agg[l].n));
+            const etiquetas = Object.keys(agrupar).sort();
+            const dataVol = etiquetas.map(l => agrupar[l].vol);
+            const dataReq = etiquetas.map(l => agrupar[l].req);
+            // Promedio de varianza por intervalo
+            const dataVar = etiquetas.map(l => Math.round(agrupar[l].var / agrupar[l].count));
 
-            Chart.defaults.color = '#A3AED0';
-            Chart.defaults.font.family = "'DM Sans', sans-serif";
+            Chart.defaults.color = '#9ca3af';
+            Chart.defaults.font.family = "'Inter', sans-serif";
 
-            if(chartMain) chartMain.destroy();
-            const ctx1 = document.getElementById('chart-main').getContext('2d');
+            // Gráfico Principal (Líneas)
+            if(chartLine) chartLine.destroy();
+            const ctx1 = document.getElementById('canvas-main').getContext('2d');
             
             let grad = ctx1.createLinearGradient(0, 0, 0, 300);
-            grad.addColorStop(0, 'rgba(67, 24, 255, 0.2)');
-            grad.addColorStop(1, 'rgba(67, 24, 255, 0)');
+            grad.addColorStop(0, 'rgba(6, 182, 212, 0.2)');
+            grad.addColorStop(1, 'rgba(6, 182, 212, 0)');
 
-            chartMain = new Chart(ctx1, {
+            chartLine = new Chart(ctx1, {
                 type: 'line',
                 data: {
-                    labels: lbls,
+                    labels: etiquetas,
                     datasets: [
-                        { label: 'Volumen Ofertado', data: dVol, borderColor: '#4318FF', backgroundColor: grad, fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHitRadius: 10 },
-                        { label: 'Headcount Requerido', data: dReq, borderColor: '#A3AED0', borderDash: [5,5], tension: 0.4, borderWidth: 2, pointRadius: 0 }
+                        { label: 'Volumen Pronosticado', data: dataVol, borderColor: '#06b6d4', backgroundColor: grad, fill: true, tension: 0.3, borderWidth: 2, pointRadius: 0, pointHitRadius: 10 },
+                        { label: 'FTE Requerido', data: dataReq, borderColor: '#3b82f6', borderDash: [5,5], tension: 0.3, borderWidth: 2, pointRadius: 0 }
                     ]
                 },
                 options: {
@@ -754,45 +783,48 @@
                     interaction: { mode: 'index', intersect: false },
                     plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 12, usePointStyle: true } } },
                     scales: {
-                        x: { grid: { display: false }, ticks: { font: { family: "'Roboto Mono', monospace", size: 11 } } },
-                        y: { border: { display: false }, grid: { color: '#E0E5F2' } }
+                        x: { grid: { display: false }, ticks: { font: { family: "'JetBrains Mono', monospace", size: 10 } } },
+                        y: { border: { display: false }, grid: { color: '#374151' } }
                     }
                 }
             });
 
-            if(chartVar) chartVar.destroy();
-            const ctx2 = document.getElementById('chart-variance').getContext('2d');
-            chartVar = new Chart(ctx2, {
+            // Gráfico Varianza (Barras)
+            if(chartBar) chartBar.destroy();
+            const ctx2 = document.getElementById('canvas-variance').getContext('2d');
+            chartBar = new Chart(ctx2, {
                 type: 'bar',
                 data: {
-                    labels: lbls,
+                    labels: etiquetas,
                     datasets: [{
-                        label: 'Brecha de Staffing',
-                        data: dVar,
-                        backgroundColor: dVar.map(v => v >= 0 ? '#05CD99' : '#EE5D50'),
-                        borderRadius: 4
+                        label: 'Varianza (Agentes)',
+                        data: dataVar,
+                        backgroundColor: dataVar.map(v => v >= 0 ? '#10b981' : '#ef4444'),
+                        borderRadius: 3
                     }]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
-                        x: { grid: { display: false }, ticks: { font: { family: "'Roboto Mono', monospace", size: 10 }, maxTicksLimit: 8 } },
-                        y: { border: { display: false }, grid: { color: '#E0E5F2' } }
+                        x: { grid: { display: false }, ticks: { font: { family: "'JetBrains Mono', monospace", size: 9 }, maxTicksLimit: 10 } },
+                        y: { border: { display: false }, grid: { color: '#374151' } }
                     }
                 }
             });
         }
 
+        // Listeners de los filtros
         ['f-campana', 'f-fecha', 'f-intervalo'].forEach(id => {
-            document.getElementById(id).addEventListener('change', renderDashboard);
+            document.getElementById(id).addEventListener('change', procesarVistas);
         });
         
+        // Reset
         document.getElementById('btn-reset').addEventListener('click', function() {
             document.getElementById('f-campana').value = 'ALL';
             document.getElementById('f-fecha').value = 'ALL';
             document.getElementById('f-intervalo').value = 'ALL';
-            renderDashboard();
+            procesarVistas();
         });
 
     </script>
