@@ -121,7 +121,7 @@ def encontrar_columna(df, posibles_nombres):
     return None
 
 # ---------------------------------------------------------------------
-# MOTOR ML 1: REGRESIÓN RIDGE AUTORREGRESIVA L2 (NATIVO)
+# MOTOR ML 1: REGRESIÓN RIDGE AUTORREGRESIVA L2
 # ---------------------------------------------------------------------
 def entrenar_ridge_ml(X, y, l2_reg=10.0):
     X_b = np.c_[np.ones((X.shape[0], 1)), X]
@@ -193,8 +193,8 @@ def grid_search_auto_hw(series, n_preds=30):
     if len(series) < 21:
         return holt_winters_fit_predict(series, n_preds=n_preds)
     
-    train = series[:-14]
-    val_true = series[-14:]
+    train = np.array(series[:-14])
+    val_true = np.array(series[-14:])
     
     best_wmape = float('inf')
     best_params = (0.2, 0.05, 0.2)
@@ -208,7 +208,7 @@ def grid_search_auto_hw(series, n_preds=30):
     for a in alphas:
         for b in betas:
             for g in gammas:
-                p_val = holt_winters_fit_predict(train, season_len=7, alpha=a, beta=b, gamma=g, n_preds=14)
+                p_val = np.array(holt_winters_fit_predict(train, season_len=7, alpha=a, beta=b, gamma=g, n_preds=14))
                 wmape = (np.sum(np.abs(val_true - p_val)) / sum_true) * 100
                 if wmape < best_wmape:
                     best_wmape = wmape
@@ -218,7 +218,7 @@ def grid_search_auto_hw(series, n_preds=30):
     return holt_winters_fit_predict(series, season_len=7, alpha=a_opt, beta=b_opt, gamma=g_opt, n_preds=n_preds)
 
 def limpiar_outliers_iqr(series_list):
-    """ Limpia valores atípicos mediante el rango intercuartílico (IQR) por día de la semana """
+    """ Limpia valores atípicos mediante el rango intercuartílico (IQR) """
     if len(series_list) < 14:
         return list(series_list)
     arr = np.array(series_list)
@@ -265,7 +265,6 @@ def process_data():
         col_dia = encontrar_columna(df, ['Día', 'Dia', 'Día_Semana', 'Dia_Semana'])
         col_fecha = encontrar_columna(df, ['Fecha', 'Date'])
 
-        # Normalizar fechas
         df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce')
         df = df.dropna(subset=[col_fecha])
 
@@ -289,11 +288,9 @@ def process_data():
             fechas_list = sub[col_fecha].tolist()
             raw_volumenes = sub[col_calls].tolist()
             
-            # Limpieza de atípicos para no ensuciar el entrenamiento ML
             volumenes_list = limpiar_outliers_iqr(raw_volumenes)
             historial_volumenes[camp] = list(volumenes_list)
 
-            # Auto-Tuning Holt-Winters con Grid Search
             hw_forecasts[camp] = grid_search_auto_hw(volumenes_list, n_preds=dias_futuros)
 
             X_data, y_data = [], []
@@ -317,14 +314,13 @@ def process_data():
                 modelos_ml[camp] = None
 
         # -------------------------------------------------------------
-        # 2. PROFILE CURVE INTRADÍA (RECENT-WEIGHTED EWMA)
+        # 2. PROFILE CURVE INTRADÍA
         # -------------------------------------------------------------
         df['Dia_Semana_Clean'] = df[col_dia].astype(str).str.strip().str.lower() if col_dia else df[col_fecha].dt.day_name().str.lower()
         
         df['Inter_Clean'] = df[col_inter].astype(str).str.strip()
         df['Inter_Clean'] = df['Inter_Clean'].apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
 
-        # Filtro de los últimos 60 días para dar mayor peso al comportamiento reciente
         max_date_hist = df[col_fecha].max()
         df_reciente = df[df[col_fecha] >= (max_date_hist - timedelta(days=60))]
 
@@ -376,12 +372,10 @@ def process_data():
 
                 vol_hw = hw_forecasts[camp][d] if d < len(hw_forecasts[camp]) else vol_ridge
 
-                # Ensamble Dinámico Ponderado
                 volumen_predicho_diario = (0.65 * vol_hw) + (0.35 * vol_ridge)
 
                 historial_volumenes[camp].append(volumen_predicho_diario)
 
-                # Distribución intradía e Erlang C
                 for inter in intervalos_unicos:
                     key_p = (camp, nombre_dia, inter)
                     info_p = mapa_perfil.get(key_p, {'weight': 1.0 / max(len(intervalos_unicos), 1), 'aht': 0})
