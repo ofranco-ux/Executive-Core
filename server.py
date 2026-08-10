@@ -14,6 +14,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
 CORS(app)
 
+# MEMORIA CACHÉ GLOBAL EN SERVIDOR (ÚLTIMO FORECAST PROCESADO)
+ULTIMO_FORECAST = []
+
 # MAPEO DE VENTANAS DE SERVICIO POR CAMPAÑA (HH:MM)
 VENTANAS_SERVICIO = {
     'experiencias liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},  # 09:00 a 21:00
@@ -93,7 +96,7 @@ def esta_en_ventana_servicio(campana, intervalo_str):
         
     ventana = VENTANAS_SERVICIO.get(camp_key)
     if not ventana:
-        return True  # Si no está definida la campaña, se incluye por defecto
+        return True
         
     return ventana['inicio'] <= minutos_inter < ventana['fin']
 
@@ -256,9 +259,20 @@ def limpiar_outliers_iqr(series_list):
     return np.clip(arr, lower, upper).tolist()
 
 # --- API ENDPOINTS ---
+
+# Endpoint para obtener el último pronóstico procesado (para vista de operaciones)
+@app.route('/api/latest', methods=['GET'])
+def get_latest_forecast():
+    global ULTIMO_FORECAST
+    if not ULTIMO_FORECAST:
+        return jsonify({'error': 'No hay ningún pronóstico procesado aún. Solicite al administrador de WFM procesar el archivo maestro.'}), 404
+    return jsonify(ULTIMO_FORECAST), 200
+
 @app.route('/api/process', methods=['POST', 'GET'])
 @app.route('/api/process/', methods=['POST', 'GET'])
 def process_data():
+    global ULTIMO_FORECAST
+
     if request.method == 'GET':
         return jsonify({'status': 'API predictiva avanzada activa en Render'}), 200
 
@@ -349,7 +363,6 @@ def process_data():
         df['Inter_Clean'] = df[col_inter].astype(str).str.strip()
         df['Inter_Clean'] = df['Inter_Clean'].apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
 
-        # Filtrar registros históricos que estén estrictamente dentro de la ventana de servicio
         df['En_Ventana'] = df.apply(lambda r: esta_en_ventana_servicio(r[col_camp], r['Inter_Clean']), axis=1)
         df_filtrado = df[df['En_Ventana']].copy()
 
@@ -372,7 +385,6 @@ def process_data():
             key = (r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean'])
             mapa_perfil[key] = {'weight': r['weight'], 'aht': r['avg_aht']}
 
-        # Obtener intervalos únicos dentro de las ventanas operativas
         intervalos_operativos_por_camp = {}
         for camp in campanas_unicas:
             inters_camp = df_filtrado[df_filtrado[col_camp] == camp]['Inter_Clean'].unique().tolist()
@@ -425,20 +437,15 @@ def process_data():
 
                     a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
                     
-                    # 1. REQUERIDO PURO (Erlang C directo para agentes en mesa)
                     req_agents = math.ceil(a_erlang) if calls > 0 else 0
 
-                    # 2. PROGRAMADO NOMINAL (Malla / Roster)
                     key_roster = (str(camp).lower(), nombre_dia.lower(), inter)
                     prog_nominal = matriz_roster.get(key_roster, req_agents)
 
-                    # 3. PROGRAMADO EFECTIVO (Aplica Shrinkage a la plantilla disponible)
                     prog_efectivo = prog_nominal * (1.0 - merma) if calls > 0 else 0.0
 
-                    # 4. SL CALCULADO CON LA PLANTILLA EFECTIVA EN MESA
                     sl = erlang_c_sl_optimizado(a_erlang, prog_efectivo, aht, target_time) if calls > 0 else 100.0
 
-                    # 5. DELTA (Net Staffing = Programado Efectivo vs Requerido en mesa)
                     delta_net = round(prog_efectivo - req_agents, 1) if calls > 0 else 0.0
 
                     data_processed.append({
@@ -454,6 +461,9 @@ def process_data():
                         'Delta_Net_Staffing': delta_net,
                         'SL_Proyectado': sl
                     })
+
+        # PERSISTIR EL RESULTADO EN MEMORIA GLOBAL
+        ULTIMO_FORECAST = data_processed
 
         gc.collect()
         return jsonify(data_processed)
