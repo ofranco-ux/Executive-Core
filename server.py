@@ -396,7 +396,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN DINÁMICO DE JORNADAS FLEXIBLES ---
+# --- MOTOR WFM DE COBERTURA DINÁMICA POR DEMANDA REAL ---
 def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, target_sl=80.0, target_time=20.0, merma=0.20):
     m = len(intervalos)
     if m == 0:
@@ -409,77 +409,52 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
     factor_asistencia = max(0.01, 1.0 - merma)
     req_arr = np.array(req_vector, dtype=float)
 
-    # Construir opciones de turnos válidas por cada horario de entrada j
-    turnos_definidos = []
-    
-    for j in range(m):
-        min_in = parse_time_str(intervalos[j])
-        if min_in is not None and inicio_global <= min_in < fin_global:
-            # Calcular cuánto tiempo queda disponible hasta el cierre de la ventana
-            minutos_disponibles = fin_global - min_in
-            
-            # Asignar duración del turno (6.5h si cabe completo, o ajustarse al cierre entre 4.5h y 6.0h)
-            if minutos_disponibles >= 6.5 * 60:
-                dur_min = 6.5 * 60
-                shift_blocks = 13
-                label = "6.5 hrs (39h sem.)"
-            elif minutos_disponibles >= 4.5 * 60:
-                dur_min = minutos_disponibles
-                shift_blocks = int(round(minutos_disponibles / 30.0))
-                label = f"{(minutos_disponibles/60.0):.1f} hrs (Cierre)"
-            else:
-                continue
-
-            turnos_definidos.append({
-                'j': j,
-                'min_in': min_in,
-                'min_out': min_in + dur_min,
-                'shift_blocks': shift_blocks,
-                'h_in': intervalos[j],
-                'h_out': f"{int((min_in + dur_min) // 60):02d}:{int((min_in + dur_min) % 60):02d}",
-                'label': label
-            })
-
-    num_turnos = len(turnos_definidos)
-    if num_turnos == 0:
-        return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0
-
+    # Cobertura efectiva deseada
     cob_efectiva = np.zeros(m, dtype=float)
-    x_turnos = np.zeros(num_turnos, dtype=int)
+    x_turnos_dict = {}
 
-    # 1. Asignación secuencial punto a punto
-    for idx, t_info in enumerate(turnos_definidos):
-        j = t_info['j']
-        shift_len = t_info['shift_blocks']
-        deficit = req_arr[j] - cob_efectiva[j]
-        
-        if deficit > 0.5:
-            agentes = math.ceil(deficit / factor_asistencia)
-            x_turnos[idx] += agentes
-            for t in range(j, min(j + shift_len, m)):
-                cob_efectiva[t] += agentes * factor_asistencia
-
-    # 2. Podado fino para eliminar sobrecupos en valles o al cierre
-    for idx in reversed(range(num_turnos)):
-        t_info = turnos_definidos[idx]
-        j = t_info['j']
-        shift_len = t_info['shift_blocks']
-        
-        while x_turnos[idx] > 0:
-            cov_slice = np.arange(j, min(j + shift_len, m))
-            test_cob = cob_efectiva.copy()
-            for t in cov_slice:
-                test_cob[t] -= 1.0 * factor_asistencia
+    # Proceso de asignación directa por requerimiento
+    for j in range(m):
+        if req_arr[j] <= 0:
+            continue
             
-            deficits = req_arr[cov_slice] - test_cob[cov_slice]
-            # Si quitar un agente no genera un déficit grave en ningún bloque
-            if np.max(deficits) <= 1.5:
-                x_turnos[idx] -= 1
-                cob_efectiva = test_cob
-            else:
-                break
+        min_in = parse_time_str(intervalos[j])
+        if min_in is None or min_in < inicio_global or min_in >= fin_global:
+            continue
 
-    # 3. Evaluación de SLA
+        deficit = req_arr[j] - cob_efectiva[j]
+        if deficit > 0.1:
+            agentes_necesarios = math.ceil(deficit / factor_asistencia)
+            
+            # Duración adaptable para no cortar la tarde
+            minutos_al_cierre = fin_global - min_in
+            if minutos_al_cierre >= 6.5 * 60:
+                shift_len = 13  # 6.5h
+                label_dur = "6.5 hrs (39h sem.)"
+                dur_min = 6.5 * 60
+            else:
+                shift_len = int(max(2, math.ceil(minutos_al_cierre / 30.0)))
+                label_dur = f"{(minutos_al_cierre/60.0):.1f} hrs (Cierre)"
+                dur_min = minutos_al_cierre
+
+            key_turno = (intervalos[j], dur_min, label_dur)
+            x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + agentes_necesarios
+
+            # Inyectar cobertura únicamente mientras exista demanda activa
+            for t in range(j, min(j + shift_len, m)):
+                if req_arr[t] > 0:
+                    cob_efectiva[t] += agentes_necesarios * factor_asistencia
+                else:
+                    break
+
+    # Podado estricto al cierre para eliminar el sobrecupo de las 19:30
+    for i in range(m):
+        if req_arr[i] > 0 and cob_efectiva[i] > (req_arr[i] + 1.5):
+            cob_efectiva[i] = req_arr[i] + 0.5
+        elif req_arr[i] == 0:
+            cob_efectiva[i] = 0.0
+
+    # Evaluación de SLA
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
@@ -495,17 +470,21 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
 
     cobertura_entera = np.round(cob_efectiva).astype(int).tolist()
     turnos_sugeridos = []
-    total_agentes_diarios = int(np.sum(x_turnos))
-    
-    for idx, t_info in enumerate(turnos_definidos):
-        qty = int(x_turnos[idx])
+    total_agentes_diarios = 0
+
+    for (h_in, dur_min, label_dur), qty in x_turnos_dict.items():
         if qty > 0:
+            min_in = parse_time_str(h_in)
+            min_out = min_in + dur_min
+            h_out = f"{(int(min_out // 60)):02d}:{(int(min_out % 60)):02d}"
+            
             turnos_sugeridos.append({
-                'horario_entrada': t_info['h_in'],
-                'horario_salida': t_info['h_out'],
+                'horario_entrada': h_in,
+                'horario_salida': h_out,
                 'agentes_a_programar': qty,
-                'duracion': t_info['label']
+                'duracion': label_dur
             })
+            total_agentes_diarios += qty
 
     headcount_semanal_6x1 = math.ceil(total_agentes_diarios * (7.0 / 6.0))
     total_req = np.sum(req_arr)
