@@ -227,7 +227,6 @@ def limpiar_outliers_iqr(series_list):
     return np.clip(arr, lower, upper).tolist()
 
 def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=30):
-    """ Función central que ejecuta el modelo sobre un archivo físico o un stream """
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     matriz_roster = construir_matriz_plantilla(xls_file)
 
@@ -341,14 +340,22 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 aht = info_p['aht'] if (info_p['aht'] > 0 and not pd.isna(info_p['aht'])) else aht_global_campana.get(camp, 180.0)
 
                 a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
+                
+                # 1. REQUERIDO EN ENTERO
                 req_agents = math.ceil(a_erlang) if calls > 0 else 0
 
                 key_roster = (str(camp).lower(), nombre_dia.lower(), inter)
                 prog_nominal = matriz_roster.get(key_roster, req_agents)
-                prog_efectivo = prog_nominal * (1.0 - merma) if calls > 0 else 0.0
+                
+                # 2. PROGRAMADO EFECTIVO EN ENTERO
+                prog_efectivo_raw = prog_nominal * (1.0 - merma) if calls > 0 else 0.0
+                prog_efectivo_int = int(round(prog_efectivo_raw))
 
-                sl = erlang_c_sl_optimizado(a_erlang, prog_efectivo, aht, target_time) if calls > 0 else 100.0
-                delta_net = round(prog_efectivo - req_agents, 1) if calls > 0 else 0.0
+                # SL calculado con disponibilidad real
+                sl = erlang_c_sl_optimizado(a_erlang, prog_efectivo_raw, aht, target_time) if calls > 0 else 100.0
+                
+                # 3. DELTA EN ENTERO
+                delta_net = int(prog_efectivo_int - req_agents) if calls > 0 else 0
 
                 data_processed.append({
                     'Campaña': str(camp),
@@ -359,7 +366,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'AHT': format_aht_str(aht),
                     'AHT_Segundos': int(round(aht)),
                     'Agentes_Requeridos': req_agents,
-                    'Agentes_Programados_Reales': round(prog_efectivo, 1),
+                    'Agentes_Programados_Reales': prog_efectivo_int,
                     'Delta_Net_Staffing': delta_net,
                     'SL_Proyectado': sl
                 })
@@ -376,7 +383,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
 @app.route('/api/latest', methods=['GET'])
 def get_latest_forecast():
-    # 1. Si existe cache guardada en disco, servirla
     if os.path.exists(CACHE_FILE):
         try:
             with open(CACHE_FILE, 'r', encoding='utf-8') as f:
@@ -386,7 +392,6 @@ def get_latest_forecast():
         except Exception:
             pass
 
-    # 2. Si no hay cache pero existe historico.xlsx en GitHub, procesarlo automáticamente
     if os.path.exists(EXCEL_DEFAULT):
         try:
             data = procesar_archivo_excel(EXCEL_DEFAULT)
@@ -426,7 +431,6 @@ def process_data():
 def not_found(e):
     return jsonify({'error': 'La ruta solicitada no existe'}), 404
 
-# Procesamiento inicial automático al arrancar el servidor si existe el Excel
 if os.path.exists(EXCEL_DEFAULT) and not os.path.exists(CACHE_FILE):
     try:
         print("Procesando historico.xlsx inicial de GitHub...")
