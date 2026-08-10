@@ -100,15 +100,12 @@ def esta_en_ventana_servicio(campana, intervalo_str):
     return ventana['inicio'] <= minutos_inter < ventana['fin']
 
 def obtener_ventana_global(campanas_lista):
-    """ Determina el horario de inicio y fin permitido para una lista de campañas """
     inicios, fines = [], []
     for c in campanas_lista:
         c_key = str(c).strip().lower()
         if c_key in VENTANAS_SERVICIO:
             inicios.append(VENTANAS_SERVICIO[c_key]['inicio'])
             fines.append(VENTANAS_SERVICIO[c_key]['fin'])
-    
-    # Si no coincide o no hay filtro, por defecto 09:00 a 21:00
     inicio_global = min(inicios) if inicios else 9 * 60
     fin_global = max(fines) if fines else 21 * 60
     return inicio_global, fin_global
@@ -401,26 +398,23 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     return data_processed
 
 # --- MOTOR DE OPTIMIZACIÓN DE HORARIOS RESTRINGIDO POR VENTANA DE SERVICIO ---
-def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, merma=0.20):
+def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, target_time=20.0, merma=0.20):
     m = len(intervalos)
     if m == 0:
-        return [], [], 0, 0, 100.0
+        return [], [], 0, 0, 100.0, [], 100.0, 100.0
 
     inicio_global, fin_global = obtener_ventana_global(campanas_activas)
-    SHIFT_LEN = 11  # 5.5 horas = 11 bloques de 30 min (330 minutos)
+    SHIFT_LEN = 11  # 5.5 horas = 11 bloques de 30 min
     DURACION_MIN = 5 * 60 + 30
 
-    # 1. Identificar cuáles intervalos son turnos de entrada válidos
     turnos_validos_mask = np.zeros(m, dtype=bool)
     for j in range(m):
         min_in = parse_time_str(intervalos[j])
         if min_in is not None:
             min_out = min_in + DURACION_MIN
-            # El turno es válido SI empieza dentro de la ventana y termina antes o en el fin operativo
             if inicio_global <= min_in and min_out <= fin_global:
                 turnos_validos_mask[j] = True
 
-    # 2. Construir Matriz de Cobertura A_mat (m x m) solo con columnas válidas
     A_mat = np.zeros((m, m))
     for j in range(m):
         if turnos_validos_mask[j]:
@@ -431,18 +425,15 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, merma
     factor_asistencia = max(0.01, 1.0 - merma)
     req_nominal = req_arr / factor_asistencia
 
-    # Heurística de ajuste no negativo
     try:
         x_ls, _, _, _ = np.linalg.lstsq(A_mat, req_nominal, rcond=None)
         x_ls = np.maximum(0, x_ls)
     except Exception:
         x_ls = np.zeros(m)
 
-    # Forzar 0 en horarios que no sean válidos
     x_ls[~turnos_validos_mask] = 0
     x_int = np.floor(x_ls).astype(int)
     
-    # Ajuste codicioso por déficit en turnos permitidos
     for _ in range(60):
         current_cov = A_mat @ x_int
         deficit = req_nominal - current_cov
@@ -488,7 +479,29 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, merma
     total_prog_efec = np.sum(cobertura_efectiva)
     eficiencia = round(min(100.0, (total_req / total_prog_efec * 100.0)), 1) if total_prog_efec > 0 else 100.0
 
-    return turnos_sugeridos, cobertura_entera, total_agentes_diarios, headcount_semanal_6x1, eficiencia
+    # CÁLCULO DE SL Y STAFFING LEVEL PROYECTADO DE LA MALLA OPTIMIZADA
+    sl_optimo_vector = []
+    llamadas_arr = np.array(llamadas_vec) if llamadas_vec is not None else np.zeros(m)
+    aht_arr = np.array(aht_vec) if aht_vec is not None else np.full(m, 180.0)
+
+    for i in range(m):
+        c = llamadas_arr[i]
+        aht_s = aht_arr[i]
+        n_opt = cobertura_efectiva[i]
+        a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
+        
+        sl_val = erlang_c_sl_optimizado(a_erl, n_opt, aht_s, target_time) if c > 0 else 100.0
+        sl_optimo_vector.append(sl_val)
+
+    tot_llamadas = np.sum(llamadas_arr)
+    if tot_llamadas > 0:
+        sl_optimo_global = round(float(np.sum(llamadas_arr * np.array(sl_optimo_vector)) / tot_llamadas), 1)
+    else:
+        sl_optimo_global = round(float(np.mean(sl_optimo_vector)), 1) if sl_optimo_vector else 100.0
+
+    staffing_level_optimo = round(float((total_prog_efec / total_req * 100.0)), 1) if total_req > 0 else 100.0
+
+    return turnos_sugeridos, cobertura_entera, total_agentes_diarios, headcount_semanal_6x1, eficiencia, sl_optimo_vector, sl_optimo_global, staffing_level_optimo
 
 # --- ENDPOINTS ---
 
@@ -499,13 +512,16 @@ def api_optimize_schedules():
         intervalos = body.get('intervalos', [])
         requeridos = body.get('requeridos', [])
         campanas = body.get('campanas', [])
+        llamadas = body.get('llamadas', [])
+        ahts = body.get('ahts', [])
+        target_time = float(body.get('target_time', 20.0))
         merma = float(body.get('merma', 30.0)) / 100.0
 
         if not intervalos or not requeridos or len(intervalos) != len(requeridos):
             return jsonify({'error': 'Datos de intervalos o requerimientos incompletos'}), 400
 
-        turnos, cob_optima, total_diario, total_hc_6x1, eficiencia = resolver_turnos_optimos_5_5h(
-            intervalos, requeridos, campanas, merma=merma
+        turnos, cob_optima, total_diario, total_hc_6x1, eficiencia, sl_vec, sl_global, staff_level = resolver_turnos_optimos_5_5h(
+            intervalos, requeridos, campanas, llamadas_vec=llamadas, aht_vec=ahts, target_time=target_time, merma=merma
         )
 
         return jsonify({
@@ -513,7 +529,10 @@ def api_optimize_schedules():
             'cobertura_optima': cob_optima,
             'total_agentes_diarios': total_diario,
             'headcount_semanal_6x1': total_hc_6x1,
-            'eficiencia_cobertura': eficiencia
+            'eficiencia_cobertura': eficiencia,
+            'sl_optimo_vector': sl_vec,
+            'sl_optimo_global': sl_global,
+            'staffing_level_optimo': staff_level
         }), 200
 
     except Exception as e:
