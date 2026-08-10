@@ -82,7 +82,7 @@
                     <h1 class="text-2xl font-black text-white tracking-tight">Executive Core</h1>
                     <span id="tagModoOps" class="hidden text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider">Vista Operaciones</span>
                 </div>
-                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer (Jornadas 5.5h — Ventanas de Servicio Operativas)</p>
+                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer (Jornadas 5.5h — Comparativo de Impacto)</p>
             </div>
         </div>
     </header>
@@ -233,37 +233,53 @@
                 </div>
             </div>
 
-            <!-- MÓDULO: RECOMENDACIÓN DE HORARIOS ÓPTIMOS -->
+            <!-- MÓDULO: RECOMENDACIÓN DE HORARIOS ÓPTIMOS & COMPARATIVA -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-amber-500 relative overflow-hidden">
                 <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
                     <div>
                         <div class="flex items-center gap-2">
                             <span class="text-amber-400 text-base">🧠</span>
-                            <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">Recomendación de Horarios Óptimos (Jornada 5.5 hrs)</h3>
+                            <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">Optimización de Horarios & Comparativa de Impacto (5.5h)</h3>
                         </div>
-                        <p class="text-xs text-slate-400 font-medium mt-0.5">Optimización matemática para turnos continuos de 5.5h (Lunes a Domingo — 6x1 descanso, restringido por ventana de servicio)</p>
+                        <p class="text-xs text-slate-400 font-medium mt-0.5">Impacto proyectado en SL y Cobertura si se implementa la malla de turnos sugerida (6x1)</p>
                     </div>
                     <button onclick="exportarTurnosCSV()" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold py-2 px-4 rounded-xl transition duration-200 flex items-center gap-2 font-mono">
                         <span>📥</span> Exportar Malla Óptima
                     </button>
                 </div>
 
-                <!-- KPIs de Optimización de Turnos -->
-                <div class="grid grid-cols-3 gap-4 mb-6">
-                    <div class="bg-brand-surface/60 p-4 rounded-xl border border-slate-800">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Agentes en Turno / Día</p>
+                <!-- TABLA COMPARATIVA EJECUTIVA (ACTUAL VS PROPUESTA) -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800">
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">SL Proyectado</p>
+                        <div class="flex items-baseline gap-2 mt-1">
+                            <span id="compSlActual" class="text-base font-bold text-rose-400 line-through">--%</span>
+                            <span class="text-slate-500 text-xs">➔</span>
+                            <span id="compSlOptimo" class="text-2xl font-black font-mono-num text-emerald-400">--%</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Actual vs. Turnos 5.5h</p>
+                    </div>
+
+                    <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800">
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Staffing Level</p>
+                        <div class="flex items-baseline gap-2 mt-1">
+                            <span id="compStaffActual" class="text-base font-bold text-slate-400 line-through">--%</span>
+                            <span class="text-slate-500 text-xs">➔</span>
+                            <span id="compStaffOptimo" class="text-2xl font-black font-mono-num text-cyan-400">--%</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Cobertura de Demanda</p>
+                    </div>
+
+                    <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800">
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Plantilla Día (Activa)</p>
                         <p id="optDailyStaff" class="text-2xl font-black font-mono-num text-amber-400 mt-1">--</p>
-                        <p class="text-[10px] text-slate-500 mt-0.5">Plantilla activa simultánea por día</p>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Agentes en mesa por día</p>
                     </div>
-                    <div class="bg-brand-surface/60 p-4 rounded-xl border border-slate-800">
+
+                    <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800">
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Headcount Total (6x1)</p>
-                        <p id="optHeadcount" class="text-2xl font-black font-mono-num text-cyan-400 mt-1">--</p>
-                        <p class="text-[10px] text-slate-500 mt-0.5">Incluye factor de descanso rotativo (+16.7%)</p>
-                    </div>
-                    <div class="bg-brand-surface/60 p-4 rounded-xl border border-slate-800">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Eficiencia Cobertura</p>
-                        <p id="optEfficiency" class="text-2xl font-black font-mono-num text-emerald-400 mt-1">--</p>
-                        <p class="text-[10px] text-slate-500 mt-0.5">Ajuste de curva vs. overstaffing</p>
+                        <p id="optHeadcount" class="text-2xl font-black font-mono-num text-violet-400 mt-1">--</p>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Incluye día de descanso</p>
                     </div>
                 </div>
 
@@ -293,18 +309,18 @@
                 </div>
             </div>
 
-            <!-- Gráfica 2 -->
+            <!-- Gráfica 2: SL Auditoría con Curva de Turnos Óptimos -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t border-violet-500/20">
                 <div class="mb-4">
                     <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📈 Auditoría de Service Level (% SL) por Intervalo</h3>
-                    <p class="text-xs text-slate-400 font-medium mt-0.5">Evolución del Nivel de Servicio proyectado vs. Línea de Meta Target</p>
+                    <p class="text-xs text-slate-400 font-medium mt-0.5">Comparativa del SL Proyectado Real vs. SL con Turnos Óptimos (5.5h) y Meta Target</p>
                 </div>
-                <div class="h-52">
+                <div class="h-56">
                     <canvas id="slChart"></canvas>
                 </div>
             </div>
 
-            <!-- Tabla de Auditoría -->
+            <!-- Tabla de Auditoría Intradía -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-cyan-500">
                 <div class="flex justify-between items-center mb-4">
                     <div>
@@ -565,6 +581,7 @@
 
         async function actualizarGrafica() {
             const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
+            const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
 
             const dfFiltered = globalData.filter(item => {
@@ -613,6 +630,10 @@
             document.getElementById('kpiSl').innerText = avgSl + '%';
             document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
             document.getElementById('kpiNet').innerText = (net >= 0 ? '+' : '') + net;
+
+            // Población de comparativa ejecutiva actual
+            document.getElementById('compSlActual').innerText = avgSl + '%';
+            document.getElementById('compStaffActual').innerText = fulfillment + '%';
 
             const badgeSl = document.getElementById('badgeSl');
             if (parseFloat(avgSl) >= targetSlObj) {
@@ -714,54 +735,11 @@
                 }
             });
 
-            if (slChartInstance) slChartInstance.destroy();
-
-            const targetArray = intervalos.map(() => targetSlObj);
-            const ctx2 = document.getElementById('slChart').getContext('2d');
-            
-            slChartInstance = new Chart(ctx2, {
-                type: 'line',
-                data: {
-                    labels: intervalos,
-                    datasets: [
-                        { 
-                            label: 'SL Proyectado (%)', 
-                            data: slArr, 
-                            borderColor: '#8B5CF6', 
-                            backgroundColor: 'rgba(139, 92, 246, 0.12)', 
-                            fill: true, 
-                            tension: 0.3, 
-                            borderWidth: 2.5,
-                            pointRadius: 3,
-                            pointHoverRadius: 8,
-                            pointBackgroundColor: slArr.map(s => parseFloat(s) >= targetSlObj ? '#10B981' : '#F43F5E')
-                        },
-                        { 
-                            label: `Meta Target (${targetSlObj}%)`, 
-                            data: targetArray, 
-                            borderColor: '#F59E0B', 
-                            borderDash: [3, 3], 
-                            borderWidth: 1.5,
-                            pointRadius: 0
-                        }
-                    ]
-                },
-                options: { 
-                    responsive: true, 
-                    maintainAspectRatio: false, 
-                    plugins: { legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11 } } } }, 
-                    scales: { 
-                        x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
-                        y: { min: 0, max: 100, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
-                    } 
-                }
-            });
-
-            // EJECUTAR OPTIMIZADOR DE HORARIOS (5.5 HORAS RESTRINGIDO POR VENTANA DE SERVICIO)
-            ejecutarOptimizadorHorarios(intervalos, req, mermaVal);
+            // LLAMADO A OPTIMIZADOR & RENDER DE CURVA COMPARATIVA
+            ejecutarOptimizadorHorarios(intervalos, req, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slArr);
         }
 
-        async function ejecutarOptimizadorHorarios(intervalos, reqArray, mermaVal) {
+        async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slActualArray) {
             if (!intervalos || intervalos.length === 0) return;
 
             try {
@@ -772,6 +750,9 @@
                         intervalos: intervalos,
                         requeridos: reqArray,
                         campanas: Array.from(selectedCampanas),
+                        llamadas: llamadasArr,
+                        ahts: ahtSegsArr,
+                        target_time: targetTimeObj,
                         merma: mermaVal
                     })
                 });
@@ -780,10 +761,15 @@
                     const optData = await res.json();
                     globalTurnosOptimos = optData.turnos || [];
 
+                    // Actualizar KPIs del Módulo de Turnos
                     document.getElementById('optDailyStaff').innerText = (optData.total_agentes_diarios || 0).toLocaleString();
                     document.getElementById('optHeadcount').innerText = (optData.headcount_semanal_6x1 || 0).toLocaleString();
-                    document.getElementById('optEfficiency').innerText = (optData.eficiencia_cobertura || 100.0) + '%';
+                    
+                    // Actualizar KPIs de la Comparativa Ejecutiva
+                    document.getElementById('compSlOptimo').innerText = (optData.sl_optimo_global || 100.0) + '%';
+                    document.getElementById('compStaffOptimo').innerText = (optData.staffing_level_optimo || 100.0) + '%';
 
+                    // Render tabla de turnos sugeridos
                     const optTbody = document.getElementById('optShiftsTableBody');
                     optTbody.innerHTML = '';
 
@@ -809,6 +795,7 @@
                         });
                     }
 
+                    // Gráfica de Capacidad vs Malla Óptima
                     if (optChartInstance) optChartInstance.destroy();
                     const ctxOpt = document.getElementById('optChart').getContext('2d');
                     optChartInstance = new Chart(ctxOpt, {
@@ -827,6 +814,58 @@
                             scales: { 
                                 x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
                                 y: { ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
+                            } 
+                        }
+                    });
+
+                    // Gráfica de SL: Actual vs. Horarios Óptimos
+                    if (slChartInstance) slChartInstance.destroy();
+                    const targetArray = intervalos.map(() => targetSlObj);
+                    const ctx2 = document.getElementById('slChart').getContext('2d');
+                    
+                    slChartInstance = new Chart(ctx2, {
+                        type: 'line',
+                        data: {
+                            labels: intervalos,
+                            datasets: [
+                                { 
+                                    label: 'SL Proyectado (Actual)', 
+                                    data: slActualArray, 
+                                    borderColor: '#8B5CF6', 
+                                    backgroundColor: 'rgba(139, 92, 246, 0.08)', 
+                                    fill: true, 
+                                    tension: 0.3, 
+                                    borderWidth: 2.5,
+                                    pointRadius: 3
+                                },
+                                { 
+                                    label: 'SL Proyectado (Con Turnos 5.5h)', 
+                                    data: optData.sl_optimo_vector, 
+                                    borderColor: '#10B981', 
+                                    backgroundColor: 'rgba(16, 185, 129, 0.1)', 
+                                    fill: false, 
+                                    tension: 0.3, 
+                                    borderWidth: 2.5,
+                                    borderDash: [3, 3],
+                                    pointRadius: 3
+                                },
+                                { 
+                                    label: `Meta Target (${targetSlObj}%)`, 
+                                    data: targetArray, 
+                                    borderColor: '#F59E0B', 
+                                    borderDash: [2, 2], 
+                                    borderWidth: 1.5,
+                                    pointRadius: 0
+                                }
+                            ]
+                        },
+                        options: { 
+                            responsive: true, 
+                            maintainAspectRatio: false, 
+                            plugins: { legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11 } } } }, 
+                            scales: { 
+                                x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
+                                y: { min: 0, max: 100, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
                             } 
                         }
                     });
