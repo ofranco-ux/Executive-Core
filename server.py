@@ -11,6 +11,7 @@ import numpy as np
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_FILE = os.path.join(BASE_DIR, 'forecast_cache.json')
+EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
 CORS(app)
@@ -225,11 +226,157 @@ def limpiar_outliers_iqr(series_list):
     lower, upper = q25 - 1.5 * iqr, q75 + 1.5 * iqr
     return np.clip(arr, lower, upper).tolist()
 
-# --- ENDPOINTS PERSISTENTES ---
+def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=30):
+    """ Función central que ejecuta el modelo sobre un archivo físico o un stream """
+    xls_file = pd.ExcelFile(file_source, engine='openpyxl')
+    matriz_roster = construir_matriz_plantilla(xls_file)
+
+    sheet_calls = xls_file.sheet_names[0]
+    for s in xls_file.sheet_names:
+        if 'llam' in s.lower() or 'hist' in s.lower():
+            sheet_calls = s
+            break
+
+    df = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
+
+    col_calls = encontrar_columna(df, ['Recibidas', 'Llamadas', 'Calls', 'Volumen', 'Ofrecidas'])
+    col_aht = encontrar_columna(df, ['AHT', 'TMO', 'Handle_Time'])
+    col_camp = encontrar_columna(df, ['Campaña', 'Campana', 'Ring Group', 'Skill'])
+    col_inter = encontrar_columna(df, ['Intervalo', 'Hora'])
+    col_dia = encontrar_columna(df, ['Día', 'Dia', 'Día_Semana', 'Dia_Semana'])
+    col_fecha = encontrar_columna(df, ['Fecha', 'Date'])
+
+    df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce')
+    df = df.dropna(subset=[col_fecha])
+
+    fecha_maxima = df[col_fecha].max()
+    fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
+    aht_global_campana = df.groupby(col_camp)[col_aht].apply(lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 180.0).to_dict()
+
+    df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
+    campanas_unicas = df[col_camp].unique()
+
+    modelos_ml, historial_volumenes, hw_forecasts = {}, {}, {}
+
+    for camp in campanas_unicas:
+        sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
+        fechas_list = sub[col_fecha].tolist()
+        volumenes_list = limpiar_outliers_iqr(sub[col_calls].tolist())
+        historial_volumenes[camp] = list(volumenes_list)
+        hw_forecasts[camp] = grid_search_auto_hw(volumenes_list, n_preds=dias_futuros)
+
+        X_data, y_data = [], []
+        for i in range(14, len(sub)):
+            f = fechas_list[i]
+            feat = extraer_features_fecha(f, volumenes_list[:i], trend_idx=i)
+            X_data.append(feat)
+            y_data.append(volumenes_list[i])
+
+        if len(X_data) > 10:
+            X_arr, y_arr = np.array(X_data), np.array(y_data)
+            weights, mean, std = entrenar_ridge_ml(X_arr, y_arr, l2_reg=10.0)
+            modelos_ml[camp] = {'weights': weights, 'mean': mean, 'std': std, 'promedio_base': np.mean(y_arr)}
+        else:
+            modelos_ml[camp] = None
+
+    df['Dia_Semana_Clean'] = df[col_dia].astype(str).str.strip().str.lower() if col_dia else df[col_fecha].dt.day_name().str.lower()
+    df['Inter_Clean'] = df[col_inter].astype(str).str.strip().apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
+
+    df['En_Ventana'] = df.apply(lambda r: esta_en_ventana_servicio(r[col_camp], r['Inter_Clean']), axis=1)
+    df_filtrado = df[df['En_Ventana']].copy()
+
+    max_date_hist = df_filtrado[col_fecha].max()
+    df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_date_hist - timedelta(days=60))]
+
+    perfil_intradia = df_reciente.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
+        avg_calls=(col_calls, 'mean'),
+        avg_aht=(col_aht, lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 0)
+    ).reset_index()
+
+    totales_dia = perfil_intradia.groupby([col_camp, 'Dia_Semana_Clean'])['avg_calls'].transform('sum')
+    perfil_intradia['weight'] = [(c / t) if t > 0 else 0 for c, t in zip(perfil_intradia['avg_calls'], totales_dia)]
+
+    mapa_perfil = {}
+    for _, r in perfil_intradia.iterrows():
+        key = (r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean'])
+        mapa_perfil[key] = {'weight': r['weight'], 'aht': r['avg_aht']}
+
+    intervalos_operativos_por_camp = {}
+    for camp in campanas_unicas:
+        inters_camp = df_filtrado[df_filtrado[col_camp] == camp]['Inter_Clean'].unique().tolist()
+        intervalos_operativos_por_camp[camp] = sorted([i for i in inters_camp if esta_en_ventana_servicio(camp, i)])
+
+    del df, df_diario, df_filtrado, df_reciente
+    gc.collect()
+
+    dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
+    data_processed = []
+
+    for d in range(dias_futuros):
+        fecha_actual = fecha_inicio_forecast + timedelta(days=d)
+        str_fecha = fecha_actual.strftime('%Y-%m-%d')
+        nombre_dia = dias_espanol[fecha_actual.weekday()]
+
+        for camp in campanas_unicas:
+            hist_vol = historial_volumenes[camp]
+            feat_futuras = np.array([extraer_features_fecha(fecha_actual, hist_vol, len(hist_vol))])
+
+            model_info = modelos_ml.get(camp)
+            if model_info:
+                vol_ridge = predecir_ridge_ml(model_info['weights'], model_info['mean'], model_info['std'], feat_futuras)
+                vol_ridge = max(vol_ridge, model_info['promedio_base'] * 0.15)
+            else:
+                vol_ridge = np.mean(hist_vol[-7:]) if hist_vol else 100.0
+
+            vol_hw = hw_forecasts[camp][d] if d < len(hw_forecasts[camp]) else vol_ridge
+            volumen_predicho_diario = (0.65 * vol_hw) + (0.35 * vol_ridge)
+            historial_volumenes[camp].append(volumen_predicho_diario)
+
+            intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
+
+            for inter in intervalos_validos:
+                key_p = (camp, nombre_dia, inter)
+                info_p = mapa_perfil.get(key_p, {'weight': 0.0, 'aht': 0.0})
+                calls = volumen_predicho_diario * info_p['weight']
+                aht = info_p['aht'] if (info_p['aht'] > 0 and not pd.isna(info_p['aht'])) else aht_global_campana.get(camp, 180.0)
+
+                a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
+                req_agents = math.ceil(a_erlang) if calls > 0 else 0
+
+                key_roster = (str(camp).lower(), nombre_dia.lower(), inter)
+                prog_nominal = matriz_roster.get(key_roster, req_agents)
+                prog_efectivo = prog_nominal * (1.0 - merma) if calls > 0 else 0.0
+
+                sl = erlang_c_sl_optimizado(a_erlang, prog_efectivo, aht, target_time) if calls > 0 else 100.0
+                delta_net = round(prog_efectivo - req_agents, 1) if calls > 0 else 0.0
+
+                data_processed.append({
+                    'Campaña': str(camp),
+                    'Fecha': str_fecha,
+                    'Día_Semana': nombre_dia.capitalize(),
+                    'Intervalo': inter,
+                    'Llamadas': int(round(calls)),
+                    'AHT': format_aht_str(aht),
+                    'AHT_Segundos': int(round(aht)),
+                    'Agentes_Requeridos': req_agents,
+                    'Agentes_Programados_Reales': round(prog_efectivo, 1),
+                    'Delta_Net_Staffing': delta_net,
+                    'SL_Proyectado': sl
+                })
+
+    try:
+        with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data_processed, f)
+    except Exception as err:
+        print("Error guardando cache:", err)
+
+    return data_processed
+
+# --- ENDPOINTS ---
 
 @app.route('/api/latest', methods=['GET'])
 def get_latest_forecast():
-    # Leer desde el archivo persistente en disco
+    # 1. Si existe cache guardada en disco, servirla
     if os.path.exists(CACHE_FILE):
         try:
             with open(CACHE_FILE, 'r', encoding='utf-8') as f:
@@ -238,7 +385,16 @@ def get_latest_forecast():
                 return jsonify(data), 200
         except Exception:
             pass
-    return jsonify({'error': 'No hay ningún pronóstico procesado aún. Solicite al administrador de WFM procesar el archivo maestro.'}), 404
+
+    # 2. Si no hay cache pero existe historico.xlsx en GitHub, procesarlo automáticamente
+    if os.path.exists(EXCEL_DEFAULT):
+        try:
+            data = procesar_archivo_excel(EXCEL_DEFAULT)
+            return jsonify(data), 200
+        except Exception as e:
+            return jsonify({'error': f'Error procesando historico.xlsx automático: {str(e)}'}), 500
+
+    return jsonify({'error': 'No se encontró historico.xlsx en GitHub ni pronósticos previos.'}), 404
 
 @app.route('/api/process', methods=['POST', 'GET'])
 @app.route('/api/process/', methods=['POST', 'GET'])
@@ -246,165 +402,22 @@ def process_data():
     if request.method == 'GET':
         return jsonify({'status': 'API predictiva activa'}), 200
 
-    if 'file' not in request.files:
-        return jsonify({'error': 'No se recibió ningún archivo.'}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'Nombre de archivo vacío.'}), 400
+    target_sl = clean_num(request.form.get('target_sl'), 80.0)
+    target_time = clean_num(request.form.get('target_time'), 20.0)
+    merma = clean_num(request.form.get('merma'), 20.0) / 100.0
+    dias_futuros = int(clean_num(request.form.get('dias'), 30))
+
+    if 'file' in request.files and request.files['file'].filename != '':
+        file_source = request.files['file']
+    elif os.path.exists(EXCEL_DEFAULT):
+        file_source = EXCEL_DEFAULT
+    else:
+        return jsonify({'error': 'No se recibió ningún archivo y no existe historico.xlsx en el servidor.'}), 400
 
     try:
-        target_sl = clean_num(request.form.get('target_sl'), 80.0)
-        target_time = clean_num(request.form.get('target_time'), 20.0)
-        merma = clean_num(request.form.get('merma'), 20.0) / 100.0
-        dias_futuros = int(clean_num(request.form.get('dias'), 30))
-
-        xls_file = pd.ExcelFile(file, engine='openpyxl')
-        matriz_roster = construir_matriz_plantilla(xls_file)
-
-        sheet_calls = xls_file.sheet_names[0]
-        for s in xls_file.sheet_names:
-            if 'llam' in s.lower() or 'hist' in s.lower():
-                sheet_calls = s
-                break
-
-        df = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
-
-        col_calls = encontrar_columna(df, ['Recibidas', 'Llamadas', 'Calls', 'Volumen', 'Ofrecidas'])
-        col_aht = encontrar_columna(df, ['AHT', 'TMO', 'Handle_Time'])
-        col_camp = encontrar_columna(df, ['Campaña', 'Campana', 'Ring Group', 'Skill'])
-        col_inter = encontrar_columna(df, ['Intervalo', 'Hora'])
-        col_dia = encontrar_columna(df, ['Día', 'Dia', 'Día_Semana', 'Dia_Semana'])
-        col_fecha = encontrar_columna(df, ['Fecha', 'Date'])
-
-        df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce')
-        df = df.dropna(subset=[col_fecha])
-
-        fecha_maxima = df[col_fecha].max()
-        fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
-        aht_global_campana = df.groupby(col_camp)[col_aht].apply(lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 180.0).to_dict()
-
-        df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
-        campanas_unicas = df[col_camp].unique()
-
-        modelos_ml, historial_volumenes, hw_forecasts = {}, {}, {}
-
-        for camp in campanas_unicas:
-            sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
-            fechas_list = sub[col_fecha].tolist()
-            volumenes_list = limpiar_outliers_iqr(sub[col_calls].tolist())
-            historial_volumenes[camp] = list(volumenes_list)
-            hw_forecasts[camp] = grid_search_auto_hw(volumenes_list, n_preds=dias_futuros)
-
-            X_data, y_data = [], []
-            for i in range(14, len(sub)):
-                f = fechas_list[i]
-                feat = extraer_features_fecha(f, volumenes_list[:i], trend_idx=i)
-                X_data.append(feat)
-                y_data.append(volumenes_list[i])
-
-            if len(X_data) > 10:
-                X_arr, y_arr = np.array(X_data), np.array(y_data)
-                weights, mean, std = entrenar_ridge_ml(X_arr, y_arr, l2_reg=10.0)
-                modelos_ml[camp] = {'weights': weights, 'mean': mean, 'std': std, 'promedio_base': np.mean(y_arr)}
-            else:
-                modelos_ml[camp] = None
-
-        df['Dia_Semana_Clean'] = df[col_dia].astype(str).str.strip().str.lower() if col_dia else df[col_fecha].dt.day_name().str.lower()
-        df['Inter_Clean'] = df[col_inter].astype(str).str.strip().apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
-
-        df['En_Ventana'] = df.apply(lambda r: esta_en_ventana_servicio(r[col_camp], r['Inter_Clean']), axis=1)
-        df_filtrado = df[df['En_Ventana']].copy()
-
-        max_date_hist = df_filtrado[col_fecha].max()
-        df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_date_hist - timedelta(days=60))]
-
-        perfil_intradia = df_reciente.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
-            avg_calls=(col_calls, 'mean'),
-            avg_aht=(col_aht, lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 0)
-        ).reset_index()
-
-        totales_dia = perfil_intradia.groupby([col_camp, 'Dia_Semana_Clean'])['avg_calls'].transform('sum')
-        perfil_intradia['weight'] = [(c / t) if t > 0 else 0 for c, t in zip(perfil_intradia['avg_calls'], totales_dia)]
-
-        mapa_perfil = {}
-        for _, r in perfil_intradia.iterrows():
-            key = (r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean'])
-            mapa_perfil[key] = {'weight': r['weight'], 'aht': r['avg_aht']}
-
-        intervalos_operativos_por_camp = {}
-        for camp in campanas_unicas:
-            inters_camp = df_filtrado[df_filtrado[col_camp] == camp]['Inter_Clean'].unique().tolist()
-            intervalos_operativos_por_camp[camp] = sorted([i for i in inters_camp if esta_en_ventana_servicio(camp, i)])
-
-        del df, df_diario, df_filtrado, df_reciente
-        gc.collect()
-
-        dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
-        data_processed = []
-
-        for d in range(dias_futuros):
-            fecha_actual = fecha_inicio_forecast + timedelta(days=d)
-            str_fecha = fecha_actual.strftime('%Y-%m-%d')
-            nombre_dia = dias_espanol[fecha_actual.weekday()]
-
-            for camp in campanas_unicas:
-                hist_vol = historial_volumenes[camp]
-                feat_futuras = np.array([extraer_features_fecha(fecha_actual, hist_vol, len(hist_vol))])
-
-                model_info = modelos_ml.get(camp)
-                if model_info:
-                    vol_ridge = predecir_ridge_ml(model_info['weights'], model_info['mean'], model_info['std'], feat_futuras)
-                    vol_ridge = max(vol_ridge, model_info['promedio_base'] * 0.15)
-                else:
-                    vol_ridge = np.mean(hist_vol[-7:]) if hist_vol else 100.0
-
-                vol_hw = hw_forecasts[camp][d] if d < len(hw_forecasts[camp]) else vol_ridge
-                volumen_predicho_diario = (0.65 * vol_hw) + (0.35 * vol_ridge)
-                historial_volumenes[camp].append(volumen_predicho_diario)
-
-                intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
-
-                for inter in intervalos_validos:
-                    key_p = (camp, nombre_dia, inter)
-                    info_p = mapa_perfil.get(key_p, {'weight': 0.0, 'aht': 0.0})
-                    calls = volumen_predicho_diario * info_p['weight']
-                    aht = info_p['aht'] if (info_p['aht'] > 0 and not pd.isna(info_p['aht'])) else aht_global_campana.get(camp, 180.0)
-
-                    a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
-                    req_agents = math.ceil(a_erlang) if calls > 0 else 0
-
-                    key_roster = (str(camp).lower(), nombre_dia.lower(), inter)
-                    prog_nominal = matriz_roster.get(key_roster, req_agents)
-                    prog_efectivo = prog_nominal * (1.0 - merma) if calls > 0 else 0.0
-
-                    sl = erlang_c_sl_optimizado(a_erlang, prog_efectivo, aht, target_time) if calls > 0 else 100.0
-                    delta_net = round(prog_efectivo - req_agents, 1) if calls > 0 else 0.0
-
-                    data_processed.append({
-                        'Campaña': str(camp),
-                        'Fecha': str_fecha,
-                        'Día_Semana': nombre_dia.capitalize(),
-                        'Intervalo': inter,
-                        'Llamadas': int(round(calls)),
-                        'AHT': format_aht_str(aht),
-                        'AHT_Segundos': int(round(aht)),
-                        'Agentes_Requeridos': req_agents,
-                        'Agentes_Programados_Reales': round(prog_efectivo, 1),
-                        'Delta_Net_Staffing': delta_net,
-                        'SL_Proyectado': sl
-                    })
-
-        # GUARDAR DE FORMA PERMANENTE EN DISCO
-        try:
-            with open(CACHE_FILE, 'w', encoding='utf-8') as f:
-                json.dump(data_processed, f)
-        except Exception as err:
-            print("Error guardando cache en disco:", err)
-
+        data_processed = procesar_archivo_excel(file_source, target_sl, target_time, merma, dias_futuros)
         gc.collect()
         return jsonify(data_processed)
-
     except Exception as e:
         gc.collect()
         return jsonify({'error': f"Error al procesar el archivo: {str(e)}"}), 500
@@ -412,6 +425,14 @@ def process_data():
 @app.errorhandler(404)
 def not_found(e):
     return jsonify({'error': 'La ruta solicitada no existe'}), 404
+
+# Procesamiento inicial automático al arrancar el servidor si existe el Excel
+if os.path.exists(EXCEL_DEFAULT) and not os.path.exists(CACHE_FILE):
+    try:
+        print("Procesando historico.xlsx inicial de GitHub...")
+        procesar_archivo_excel(EXCEL_DEFAULT)
+    except Exception as e:
+        print("Error en procesamiento inicial:", e)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
