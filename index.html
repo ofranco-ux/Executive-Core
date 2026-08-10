@@ -82,7 +82,7 @@
                     <h1 class="text-2xl font-black text-white tracking-tight">Executive Core</h1>
                     <span id="tagModoOps" class="hidden text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider">Vista Operaciones</span>
                 </div>
-                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer (Jornadas 5.5h — 6x1)</p>
+                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer (Jornadas 5.5h — Ventanas de Servicio Operativas)</p>
             </div>
         </div>
     </header>
@@ -233,7 +233,7 @@
                 </div>
             </div>
 
-            <!-- NUEVO MÓDULO: RECOMENDACIÓN DE HORARIOS ÓPTIMOS -->
+            <!-- MÓDULO: RECOMENDACIÓN DE HORARIOS ÓPTIMOS -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-amber-500 relative overflow-hidden">
                 <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
                     <div>
@@ -241,7 +241,7 @@
                             <span class="text-amber-400 text-base">🧠</span>
                             <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">Recomendación de Horarios Óptimos (Jornada 5.5 hrs)</h3>
                         </div>
-                        <p class="text-xs text-slate-400 font-medium mt-0.5">Optimización matemática para turnos continuos de 5.5h (Lunes a Domingo — 6x1 descanso)</p>
+                        <p class="text-xs text-slate-400 font-medium mt-0.5">Optimización matemática para turnos continuos de 5.5h (Lunes a Domingo — 6x1 descanso, restringido por ventana de servicio)</p>
                     </div>
                     <button onclick="exportarTurnosCSV()" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold py-2 px-4 rounded-xl transition duration-200 flex items-center gap-2 font-mono">
                         <span>📥</span> Exportar Malla Óptima
@@ -757,7 +757,7 @@
                 }
             });
 
-            // EJECUTAR OPTIMIZADOR DE HORARIOS (5.5 HORAS)
+            // EJECUTAR OPTIMIZADOR DE HORARIOS (5.5 HORAS RESTRINGIDO POR VENTANA DE SERVICIO)
             ejecutarOptimizadorHorarios(intervalos, req, mermaVal);
         }
 
@@ -771,6 +771,7 @@
                     body: JSON.stringify({
                         intervalos: intervalos,
                         requeridos: reqArray,
+                        campanas: Array.from(selectedCampanas),
                         merma: mermaVal
                     })
                 });
@@ -783,14 +784,13 @@
                     document.getElementById('optHeadcount').innerText = (optData.headcount_semanal_6x1 || 0).toLocaleString();
                     document.getElementById('optEfficiency').innerText = (optData.eficiencia_cobertura || 100.0) + '%';
 
-                    // Render tabla de turnos sugeridos
                     const optTbody = document.getElementById('optShiftsTableBody');
                     optTbody.innerHTML = '';
 
                     const totalStaff = optData.total_agentes_diarios || 1;
 
                     if (globalTurnosOptimos.length === 0) {
-                        optTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-500">No se requieren agentes en estos intervalos.</td></tr>';
+                        optTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-500">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
                     } else {
                         globalTurnosOptimos.forEach(t => {
                             const pct = ((t.agentes_a_programar / totalStaff) * 100).toFixed(1);
@@ -809,7 +809,6 @@
                         });
                     }
 
-                    // Gráfica de comparación de turnos óptimos
                     if (optChartInstance) optChartInstance.destroy();
                     const ctxOpt = document.getElementById('optChart').getContext('2d');
                     optChartInstance = new Chart(ctxOpt, {
