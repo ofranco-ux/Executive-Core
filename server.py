@@ -397,7 +397,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN DE HORARIOS GUIADO POR TARGET SLA GENERAL & INTRADÍA ---
+# --- MOTOR DE OPTIMIZACIÓN DE HORARIOS (GARANTIZANDO COTA INFERIOR DE SLA POR INTERVALO) ---
 def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, target_sl=80.0, target_time=20.0, merma=0.20):
     m = len(intervalos)
     if m == 0:
@@ -426,10 +426,10 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
     tot_llamadas = np.sum(llamadas_arr)
     factor_asistencia = max(0.01, 1.0 - merma)
 
-    # 1. Asignación inicial base por mínimos cuadrados
     req_arr = np.array(req_vector, dtype=float)
     req_nominal = req_arr / factor_asistencia
     
+    # 1. Asignación inicial por Mínimos Cuadrados
     try:
         x_ls, _, _, _ = np.linalg.lstsq(A_mat, req_nominal, rcond=None)
         x_ls = np.maximum(0, x_ls)
@@ -437,7 +437,7 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
         x_ls = np.zeros(m)
 
     x_ls[~turnos_validos_mask] = 0
-    x_int = np.floor(x_ls).astype(int)
+    x_int = np.ceil(x_ls).astype(int)
 
     def evaluar_sl_global_y_vector(x_vec):
         cob_efec = (A_mat @ x_vec) * factor_asistencia
@@ -457,51 +457,56 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
             sl_g = float(np.mean(sl_arr)) if len(sl_arr) > 0 else 100.0
         return sl_g, sl_vec
 
-    # 2. Ajuste Fino Guiado por SLA (Incrementar donde el SL sea menor al Target SL)
-    for _ in range(80):
-        sl_g_curr, sl_v_curr = evaluar_sl_global_y_vector(x_int)
+    # 2. COTA INFERIOR DE SLA POR INTERVALO (Elimina cualquier valle por debajo del Target SLA)
+    for _ in range(120):
+        _, sl_v_curr = evaluar_sl_global_y_vector(x_int)
         
-        # Si ya alcanzamos el Target SLA Global con margen razonable (+1.5%), detener
-        if sl_g_curr >= (target_sl + 1.5):
-            break
+        # Buscar el intervalo i que tenga el SLA más bajo y esté por debajo del Target SL
+        under_target_indices = [idx for idx in range(m) if llamadas_arr[idx] > 0 and sl_v_curr[idx] < target_sl]
+        
+        if not under_target_indices:
+            break  # Todos los intervalos cumplen o superan el Target SLA
             
-        # Buscar el turno j que cubre el intervalo con mayor déficit de SL
+        worst_i = min(under_target_indices, key=lambda idx: sl_v_curr[idx])
+
+        # Buscar el turno j que cubre el intervalo worst_i y maximiza el aporte al resto de valles
         best_j = -1
-        worst_sl_gap = -1.0
+        best_gain = -1.0
 
         for j in range(m):
-            if turnos_validos_mask[j]:
-                # Evaluar brecha de SL en los intervalos que cubre el turno j
-                covered_indices = np.where(A_mat[:, j] == 1.0)[0]
-                gaps = [max(0.0, target_sl - sl_v_curr[idx]) for idx in covered_indices if llamadas_arr[idx] > 0]
-                score = sum(gaps)
-                if score > worst_sl_gap:
-                    worst_sl_gap = score
+            if turnos_validos_mask[j] and A_mat[worst_i, j] == 1.0:
+                # Probar agregar 1 agente en el turno j
+                x_test = x_int.copy()
+                x_test[j] += 1
+                _, sl_v_test = evaluar_sl_global_y_vector(x_test)
+                
+                # Medir la mejora de SLA en los intervalos en déficit
+                gain = sum(max(0.0, sl_v_test[k] - sl_v_curr[k]) for k in under_target_indices)
+                if gain > best_gain:
+                    best_gain = gain
                     best_j = j
 
-        if best_j != -1 and worst_sl_gap > 0.1:
+        if best_j != -1 and best_gain > 0.01:
             x_int[best_j] += 1
         else:
             break
 
-    # 3. Podado Inteligente (Eliminar exceso de sobrecupo / overstaffing)
-    for _ in range(40):
-        sl_g_curr, _ = evaluar_sl_global_y_vector(x_int)
-        if sl_g_curr <= target_sl:
-            break
-        
-        # Probar quitar 1 agente de cada turno y verificar si el SLA se mantiene >= target_sl
+    # 3. PODADO CONSERVADOR (Quitar agentes únicamente si NINGÚN intervalo cae por debajo de Target SLA)
+    for _ in range(50):
+        _, sl_v_curr = evaluar_sl_global_y_vector(x_int)
         best_j_to_remove = -1
-        best_sl_after_remove = 0.0
 
         for j in range(m):
             if x_int[j] > 0:
                 x_test = x_int.copy()
                 x_test[j] -= 1
-                sl_g_test, _ = evaluar_sl_global_y_vector(x_test)
-                if sl_g_test >= target_sl and sl_g_test > best_sl_after_remove:
-                    best_sl_after_remove = sl_g_test
+                _, sl_v_test = evaluar_sl_global_y_vector(x_test)
+                
+                # Condición estricta: Se puede podar si TODOS los intervalos mantienen SL >= Target SL
+                min_sl_test = min(sl_v_test[k] for k in range(m) if llamadas_arr[k] > 0)
+                if min_sl_test >= target_sl:
                     best_j_to_remove = j
+                    break
 
         if best_j_to_remove != -1:
             x_int[best_j_to_remove] -= 1
