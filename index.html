@@ -752,6 +752,7 @@
                         campanas: Array.from(selectedCampanas),
                         llamadas: llamadasArr,
                         ahts: ahtSegsArr,
+                        target_sl: targetSlObj,
                         target_time: targetTimeObj,
                         merma: mermaVal
                     })
@@ -766,7 +767,7 @@
                     document.getElementById('optHeadcount').innerText = (optData.headcount_semanal_6x1 || 0).toLocaleString();
                     
                     // Actualizar KPIs de la Comparativa Ejecutiva
-                    document.getElementById('compSlOptimo').innerText = (optData.sl_optimo_global || 100.0) + '%';
+                    document.getElementById('compSlOptimo').innerText = (optData.sl_optimo_global || 80.0) + '%';
                     document.getElementById('compStaffOptimo').innerText = (optData.staffing_level_optimo || 100.0) + '%';
 
                     // Render tabla de turnos sugeridos
