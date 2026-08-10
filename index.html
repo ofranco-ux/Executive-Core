@@ -239,7 +239,7 @@
                     <div>
                         <div class="flex items-center gap-2">
                             <span class="text-amber-400 text-base">🧠</span>
-                            <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">Optimización de Horarios & Comparativa de Impacto (5.5h)</h3>
+                            <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">Optimización de Horarios & Comparativa de Impacto (5.5H)</h3>
                         </div>
                         <p class="text-xs text-slate-400 font-medium mt-0.5">Impacto proyectado en SL y Cobertura si se implementa la malla de turnos sugerida (6x1)</p>
                     </div>
@@ -513,7 +513,6 @@
 
         function selectAllFilter(type, selectAll) {
             let setRef = type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos);
-            
             let allOptions = [];
             if (type === 'Campana') {
                 allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean);
@@ -611,14 +610,12 @@
             }, 0);
 
             const avgAhtSegs = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
-
             const totReq = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Agentes_Requeridos'], 0)) || 0), 0);
             const totProg = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Agentes_Programados_Reales'], 0)) || 0), 0);
             const countRows = dfFiltered.length || 1;
 
             const avgReq = totReq / countRows;
             const avgProg = totProg / countRows;
-            
             const net = Math.round(avgProg - avgReq);
             const fulfillment = avgReq > 0 ? ((avgProg / avgReq) * 100).toFixed(1) : "100.0";
 
@@ -631,7 +628,6 @@
             document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
             document.getElementById('kpiNet').innerText = (net >= 0 ? '+' : '') + net;
 
-            // Población de comparativa ejecutiva actual
             document.getElementById('compSlActual').innerText = avgSl + '%';
             document.getElementById('compStaffActual').innerText = fulfillment + '%';
 
@@ -647,7 +643,6 @@
             const agrupado = {};
             dfFiltered.forEach(row => {
                 const inter = String(getProp(row, ['Intervalo'], '00:00'));
-                
                 let ahtSegs = Number(getProp(row, ['AHT_Segundos'], 0));
                 if (!ahtSegs) {
                     const valAht = getProp(row, ['AHT'], 180);
@@ -671,7 +666,6 @@
             });
 
             const intervalos = Object.keys(agrupado).sort();
-            
             const req = intervalos.map(i => Math.round(agrupado[i].req / agrupado[i].count));
             const prog = intervalos.map(i => Math.round(agrupado[i].prog / agrupado[i].count));
             const llamadasArr = intervalos.map(i => Math.round(agrupado[i].llamadas / agrupado[i].count));
@@ -735,7 +729,6 @@
                 }
             });
 
-            // LLAMADO A OPTIMIZADOR & RENDER DE CURVA COMPARATIVA
             ejecutarOptimizadorHorarios(intervalos, req, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slArr);
         }
 
@@ -762,15 +755,12 @@
                     const optData = await res.json();
                     globalTurnosOptimos = optData.turnos || [];
 
-                    // Actualizar KPIs del Módulo de Turnos
                     document.getElementById('optDailyStaff').innerText = (optData.total_agentes_diarios || 0).toLocaleString();
                     document.getElementById('optHeadcount').innerText = (optData.headcount_semanal_6x1 || 0).toLocaleString();
                     
-                    // Actualizar KPIs de la Comparativa Ejecutiva
                     document.getElementById('compSlOptimo').innerText = (optData.sl_optimo_global || 80.0) + '%';
                     document.getElementById('compStaffOptimo').innerText = (optData.staffing_level_optimo || 100.0) + '%';
 
-                    // Render tabla de turnos sugeridos
                     const optTbody = document.getElementById('optShiftsTableBody');
                     optTbody.innerHTML = '';
 
@@ -796,7 +786,6 @@
                         });
                     }
 
-                    // Gráfica de Capacidad vs Malla Óptima
                     if (optChartInstance) optChartInstance.destroy();
                     const ctxOpt = document.getElementById('optChart').getContext('2d');
                     optChartInstance = new Chart(ctxOpt, {
@@ -819,7 +808,6 @@
                         }
                     });
 
-                    // Gráfica de SL: Actual vs. Horarios Óptimos
                     if (slChartInstance) slChartInstance.destroy();
                     const targetArray = intervalos.map(() => targetSlObj);
                     const ctx2 = document.getElementById('slChart').getContext('2d');
