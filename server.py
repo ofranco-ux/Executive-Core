@@ -396,7 +396,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN GARANTIZADO INTRADÍA (JORNADAS 5.5H A 6.5H) ---
+# --- MOTOR DE OPTIMIZACIÓN DE HORARIOS DÍA A DÍA (REGLA 5.5H MÍNIMO) ---
 def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, target_sl=80.0, target_time=20.0, merma=0.20):
     m = len(intervalos)
     if m == 0:
@@ -409,15 +409,13 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
     factor_asistencia = max(0.01, 1.0 - merma)
     req_arr = np.array(req_vector, dtype=float)
 
-    # Cobertura objetivo exactamente acoplada a la demanda Erlang C
     cob_efectiva = np.zeros(m, dtype=float)
     x_turnos_dict = {}
 
-    SHIFT_BLOCKS = 11  # 5.5h como duración base
+    SHIFT_BLOCKS = 11  # 5.5h (11 bloques)
     DURACION_MIN = 5.5 * 60
 
     for j in range(m):
-        # Solamente procesar intervalos que tengan demanda activa
         if req_arr[j] <= 0:
             continue
             
@@ -425,31 +423,27 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
         if min_in is None or min_in < inicio_global:
             continue
 
-        # Si hay brecha entre lo que pide Erlang C y lo que tenemos cubierto
         deficit = req_arr[j] - cob_efectiva[j]
         if deficit > 0.1:
             agentes_necesarios = math.ceil(deficit / factor_asistencia)
-            
-            # Asignación de turno de 5.5h
             min_out = min_in + DURACION_MIN
             h_out = f"{(int(min_out // 60)):02d}:{(int(min_out % 60)):02d}"
             
             key_turno = (intervalos[j], h_out, "5.5 hrs (33h sem.)")
             x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + agentes_necesarios
 
-            # Proyectar cobertura en los siguientes 11 intervalos donde haya servicio
             for t in range(j, min(j + SHIFT_BLOCKS, m)):
-                if req_arr[t] > 0 or t < (j + 4): # Mantener cobertura activa mientras dure la demanda
+                if req_arr[t] > 0 or t < (j + 4):
                     cob_efectiva[t] += agentes_necesarios * factor_asistencia
+                else:
+                    break
 
-    # Ajuste de bordes: acotar la cobertura al requerimiento exacto para evitar picos
     for i in range(m):
         if req_arr[i] > 0:
             cob_efectiva[i] = max(req_arr[i], cob_efectiva[i])
         else:
             cob_efectiva[i] = 0.0
 
-    # Evaluación de SLA punto a punto
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
@@ -520,6 +514,54 @@ def api_optimize_schedules():
 
     except Exception as e:
         return jsonify({'error': f'Error optimizando turnos: {str(e)}'}), 500
+
+@app.route('/api/optimize-schedules-weekly', methods=['POST'])
+def api_optimize_schedules_weekly():
+    try:
+        body = request.get_json(force=True)
+        semana_data = body.get('semana_data', [])
+        campanas = body.get('campanas', [])
+        target_sl = float(body.get('target_sl', 80.0))
+        target_time = float(body.get('target_time', 20.0))
+        merma = float(body.get('merma', 30.0)) / 100.0
+
+        malla_semanal = {}
+        headcount_max_dia = 0
+
+        for dia_info in semana_data:
+            nombre_dia = dia_info.get('dia_semana')
+            intervalos = dia_info.get('intervalos', [])
+            requeridos = dia_info.get('requeridos', [])
+            llamadas = dia_info.get('llamadas', [])
+            ahts = dia_info.get('ahts', [])
+
+            turnos, cob_opt, total_d, hc_6x1, efic, sl_vec, sl_g, staff_lvl = resolver_turnos_optimos_5_5h(
+                intervalos, requeridos, campanas, llamadas_vec=llamadas, aht_vec=ahts,
+                target_sl=target_sl, target_time=target_time, merma=merma
+            )
+
+            malla_semanal[nombre_dia] = {
+                'turnos': turnos,
+                'cobertura': cob_opt,
+                'agentes_dia': total_d,
+                'sl_global_dia': sl_g,
+                'staffing_level_dia': staff_lvl,
+                'intervalos': intervalos,
+                'requeridos': requeridos,
+                'sl_vector': sl_vec
+            }
+            headcount_max_dia = max(headcount_max_dia, total_d)
+
+        hc_semanal_total = math.ceil(headcount_max_dia * (7.0 / 6.0))
+
+        return jsonify({
+            'malla_semanal': malla_semanal,
+            'headcount_semanal_requerido': hc_semanal_total,
+            'agentes_promedio_dia': math.ceil(sum(m['agentes_dia'] for m in malla_semanal.values()) / len(semana_data)) if semana_data else 0
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': f'Error en proyección semanal: {str(e)}'}), 500
 
 @app.route('/api/latest', methods=['GET'])
 def get_latest_forecast():
