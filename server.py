@@ -397,33 +397,26 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE ASIGNACIÓN EXACTA DE HORARIOS (ELIMINA SOBRECUPOS Y JOROBAS) ---
+# --- MOTOR DE ASIGNACIÓN SECUENCIAL EXACTA DE TURNOS 5.5H ---
 def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, target_sl=80.0, target_time=20.0, merma=0.20):
     m = len(intervalos)
     if m == 0:
         return [], [], 0, 0, 100.0, [], 100.0, 100.0
 
     inicio_global, fin_global = obtener_ventana_global(campanas_activas)
-    SHIFT_LEN = 11  # 5.5 horas continuas (11 bloques de 30 mins)
+    SHIFT_LEN = 11  # 5.5 horas continuas (11 bloques de 30 min)
     DURACION_MIN = 5 * 60 + 30
 
+    # Todos los intervalos dentro de la ventana de servicio que pueden recibir inicio de turno
     turnos_validos_mask = np.zeros(m, dtype=bool)
     for j in range(m):
         min_in = parse_time_str(intervalos[j])
-        if min_in is not None:
-            min_out = min_in + DURACION_MIN
-            if inicio_global <= min_in and min_out <= fin_global:
-                turnos_validos_mask[j] = True
+        if min_in is not None and inicio_global <= min_in < fin_global:
+            turnos_validos_mask[j] = True
 
     valid_indices = np.where(turnos_validos_mask)[0]
     if len(valid_indices) == 0:
         return [], [0] * m, 0, 0, 100.0, [100.0] * m, 100.0, 100.0
-
-    k = len(valid_indices)
-    A_sub = np.zeros((m, k))
-    for col_idx, j in enumerate(valid_indices):
-        for i in range(j, min(j + SHIFT_LEN, m)):
-            A_sub[i, col_idx] = 1.0
 
     llamadas_arr = np.array(llamadas_vec, dtype=float) if llamadas_vec is not None else np.zeros(m)
     aht_arr = np.array(aht_vec, dtype=float) if aht_vec is not None else np.full(m, 180.0)
@@ -431,118 +424,64 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
     factor_asistencia = max(0.01, 1.0 - merma)
 
     req_arr = np.array(req_vector, dtype=float)
-    req_nominal = req_arr / factor_asistencia
 
-    # 1. Ajuste Directo de Descomposición Proporcional
-    # Resolvemos el sistema restringido para que la suma efectiva siga estrictamente la curva requerida
-    A_eff = A_sub * factor_asistencia
-    
-    # Restricción cuadrática con regularización de uniformidad
-    # Minimiza || A_eff * x - req_arr ||^2 + alpha * || x ||^2
-    alpha = 1.2
-    Gram = A_eff.T @ A_eff + alpha * np.eye(k)
-    rhs = A_eff.T @ req_arr
-    
-    try:
-        x_cont = np.linalg.solve(Gram, rhs)
-        x_cont = np.maximum(0.0, x_cont)
-    except Exception:
-        x_cont = np.zeros(k)
-
-    # 2. Redondeo Estocástico Controlado / Entero Acotado
-    x_sub = np.round(x_cont).astype(int)
-
-    def evaluar_curva(x_vec):
-        cob_efec = (A_sub @ x_vec) * factor_asistencia
-        sl_vec = []
-        for i in range(m):
-            c = llamadas_arr[i]
-            aht_s = aht_arr[i]
-            n_opt = cob_efec[i]
-            a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-            sl_val = erlang_c_sl_optimizado(a_erl, n_opt, aht_s, target_time) if c > 0 else 100.0
-            sl_vec.append(sl_val)
-        
-        sl_arr = np.array(sl_vec)
-        if tot_llamadas > 0:
-            sl_g = float(np.sum(llamadas_arr * sl_arr) / tot_llamadas)
-        else:
-            sl_g = float(np.mean(sl_arr)) if len(sl_arr) > 0 else 100.0
-        return cob_efec, sl_g, sl_vec
-
-    # 3. Control de Techo (Eliminar picos de sobrecupo mayores a Req + 2 agentes)
-    for _ in range(60):
-        cob_efec, sl_g, sl_vec = evaluar_curva(x_sub)
-        
-        # Buscar intervalos con sobrecupo excesivo
-        diff = cob_efec - req_arr
-        max_over = np.max(diff)
-        if max_over <= 2.0:
-            break
-            
-        worst_i = np.argmax(diff)
-        
-        # Reducir 1 agente en el turno que más contribuye a ese intervalo excedido
-        best_col_reduce = -1
-        best_sl_residual = -1.0
-        
-        for col_idx in range(k):
-            if x_sub[col_idx] > 0 and A_sub[worst_i, col_idx] == 1.0:
-                x_test = x_sub.copy()
-                x_test[col_idx] -= 1
-                _, sl_g_test, _ = evaluar_curva(x_test)
-                if sl_g_test > best_sl_residual:
-                    best_sl_residual = sl_g_test
-                    best_col_reduce = col_idx
-
-        if best_col_reduce != -1:
-            x_sub[best_col_reduce] -= 1
-        else:
-            break
-
-    # 4. Compensación Selectiva en Valles (Garantizar SL global ~ Target SL sin generar picos)
-    for _ in range(30):
-        cob_efec, sl_g, sl_vec = evaluar_curva(x_sub)
-        if sl_g >= target_sl:
-            break
-            
-        # Buscar el intervalo en déficit que tenga margen para subir sin exceder el techo
-        candidate_cols = []
-        for col_idx in range(k):
-            covered = np.where(A_sub[:, col_idx] == 1.0)[0]
-            # Verificar si al añadir 1 agente en este turno ningún intervalo excede Req + 2
-            test_cob = cob_efec + (A_sub[:, col_idx] * factor_asistencia)
-            if np.all((test_cob - req_arr) <= 3.0):
-                # Medir aporte de SL
-                candidate_cols.append(col_idx)
-
-        if not candidate_cols:
-            break
-
-        # Elegir el turno con mayor déficit cubierto
-        best_col_add = -1
-        best_sl_gain = -1.0
-        for col_idx in candidate_cols:
-            x_test = x_sub.copy()
-            x_test[col_idx] += 1
-            _, sl_g_test, _ = evaluar_curva(x_test)
-            gain = sl_g_test - sl_g
-            if gain > best_sl_gain:
-                best_sl_gain = gain
-                best_col_add = col_idx
-
-        if best_col_add != -1 and best_sl_gain > 0.05:
-            x_sub[best_col_add] += 1
-        else:
-            break
-
-    # Reconstrucción del vector completo
+    # Cobertura efectiva acumulada intervalo a intervalo
+    cob_efectiva = np.zeros(m, dtype=float)
     x_full = np.zeros(m, dtype=int)
-    for col_idx, j in enumerate(valid_indices):
-        x_full[j] = x_sub[col_idx]
 
-    cobertura_efectiva, sl_optimo_global, sl_optimo_vector = evaluar_curva(x_sub)
-    cobertura_entera = np.round(cobertura_efectiva).astype(int).tolist()
+    # 1. RASTREO DIRECTO (Forward Tracking): Asigna personas justo cuando el requerimiento sube
+    for j in valid_indices:
+        # Déficit actual en el intervalo j
+        deficit = req_arr[j] - cob_efectiva[j]
+        if deficit > 0.5:
+            # Calcular cuántos agentes nominales programar
+            agentes_nominales = math.ceil(deficit / factor_asistencia)
+            x_full[j] += agentes_nominales
+            
+            # Sumar cobertura en los siguientes 11 intervalos
+            for t in range(j, min(j + SHIFT_LEN, m)):
+                cob_efectiva[t] += agentes_nominales * factor_asistencia
+
+    # 2. PODADO SUAVE DE PICOS EXCESIVOS
+    for j in reversed(valid_indices):
+        if x_full[j] > 0:
+            for _ in range(x_full[j]):
+                # Probar si quitar 1 agente no deja ningún intervalo crítico con déficit > 3 agentes
+                test_cob = cob_efectiva.copy()
+                for t in range(j, min(j + SHIFT_LEN, m)):
+                    test_cob[t] -= 1.0 * factor_asistencia
+                
+                # Evaluar si la reducción es segura
+                es_seguro = True
+                for t in range(j, min(j + SHIFT_LEN, m)):
+                    if req_arr[t] > 0 and test_cob[t] < (req_arr[t] - 2.5):
+                        es_seguro = False
+                        break
+                
+                if es_seguro:
+                    x_full[j] -= 1
+                    cob_efectiva = test_cob
+                else:
+                    break
+
+    # 3. EVALUAR NIVEL DE SERVICIO POR INTERVALO
+    sl_optimo_vector = []
+    for i in range(m):
+        c = llamadas_arr[i]
+        aht_s = aht_arr[i]
+        n_opt = cob_efectiva[i]
+        a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
+        sl_val = erlang_c_sl_optimizado(a_erl, n_opt, aht_s, target_time) if c > 0 else 100.0
+        sl_optimo_vector.append(sl_val)
+
+    sl_arr = np.array(sl_optimo_vector)
+    if tot_llamadas > 0:
+        sl_optimo_global = float(np.sum(llamadas_arr * sl_arr) / tot_llamadas)
+    else:
+        sl_optimo_global = float(np.mean(sl_arr)) if len(sl_arr) > 0 else 100.0
+    sl_optimo_global = round(sl_optimo_global, 1)
+
+    cobertura_entera = np.round(cob_efectiva).astype(int).tolist()
 
     turnos_sugeridos = []
     total_agentes_diarios = int(np.sum(x_full))
@@ -563,10 +502,8 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
             })
 
     headcount_semanal_6x1 = math.ceil(total_agentes_diarios * (7.0 / 6.0))
-    sl_optimo_global = round(sl_optimo_global, 1)
-
     total_req = np.sum(req_arr)
-    total_prog_efec = np.sum(cobertura_efectiva)
+    total_prog_efec = np.sum(cob_efectiva)
     staffing_level_optimo = round(float((total_prog_efec / total_req * 100.0)), 1) if total_req > 0 else 100.0
     eficiencia = round(min(100.0, (total_req / total_prog_efec * 100.0)), 1) if total_prog_efec > 0 else 100.0
 
