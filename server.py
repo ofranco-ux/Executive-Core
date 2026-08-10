@@ -396,26 +396,48 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN RESTRINGIDO POR SALIDA MÁXIMA A LA VENTANA DE SERVICIO ---
+# --- MOTOR DE OPTIMIZACIÓN MULTI-VENTANA CON DURACIÓN ADAPTATIVA ---
 def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, target_sl=80.0, target_time=20.0, merma=0.20):
     m = len(intervalos)
     if m == 0:
         return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0
 
     inicio_global, fin_global = obtener_ventana_global(campanas_activas)
-    SHIFT_LEN = 13  # 6.5 horas = 13 bloques de 30 mins
-    DURACION_MIN = 6 * 60 + 30
+    
+    # Calcular amplitud de la ventana en horas
+    amplitud_horas = (fin_global - inicio_global) / 60.0
 
-    # RESTRICCIÓN CLAVE: La hora de salida (min_in + DURACION_MIN) NO puede superar fin_global
+    # Selección Adaptativa de Duración de Jornada
+    # Si la ventana es amplia (12h - Experiencias Liverpool/Suburbia), usar 6.5h
+    # Si la ventana es acotada (11h o menos - Retenciones), usar 5.5h para permitir entradas vespertinas
+    if amplitud_horas >= 12.0:
+        duracion_min = 6 * 60 + 30
+        shift_len = 13  # 13 bloques de 30 min
+        duracion_label = "6.5 hrs (39h sem.)"
+    else:
+        duracion_min = 5 * 60 + 30
+        shift_len = 11  # 11 bloques de 30 min
+        duracion_label = "5.5 hrs (33h sem.)"
+
+    # Máscara de entradas cuya SALIDA no sobrepasa el fin operativo de la campaña
     turnos_validos_mask = np.zeros(m, dtype=bool)
     for j in range(m):
         min_in = parse_time_str(intervalos[j])
         if min_in is not None:
-            min_out = min_in + DURACION_MIN
+            min_out = min_in + duracion_min
             if inicio_global <= min_in and min_out <= fin_global:
                 turnos_validos_mask[j] = True
 
     valid_indices = np.where(turnos_validos_mask)[0]
+    
+    # Resguardo si ninguna entrada completa cabe: habilitar entradas donde min_in < fin_global
+    if len(valid_indices) == 0:
+        for j in range(m):
+            min_in = parse_time_str(intervalos[j])
+            if min_in is not None and inicio_global <= min_in < fin_global:
+                turnos_validos_mask[j] = True
+        valid_indices = np.where(turnos_validos_mask)[0]
+
     if len(valid_indices) == 0:
         return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0
 
@@ -428,19 +450,19 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
     cob_efectiva = np.zeros(m, dtype=float)
     x_full = np.zeros(m, dtype=int)
 
-    # 1. Asignación directa en franjas permitidas
+    # 1. Asignación directa secuencial
     for j in valid_indices:
         deficit = req_arr[j] - cob_efectiva[j]
         if deficit > 0.5:
             agentes_nominales = math.ceil(deficit / factor_asistencia)
             x_full[j] += agentes_nominales
-            for t in range(j, min(j + SHIFT_LEN, m)):
+            for t in range(j, min(j + shift_len, m)):
                 cob_efectiva[t] += agentes_nominales * factor_asistencia
 
-    # 2. Podado de sobrecupos excedentes
+    # 2. Podado suave de excesos
     for j in reversed(valid_indices):
         while x_full[j] > 0:
-            cov_slice = np.arange(j, min(j + SHIFT_LEN, m))
+            cov_slice = np.arange(j, min(j + shift_len, m))
             test_cob = cob_efectiva.copy()
             for t in cov_slice:
                 test_cob[t] -= 1.0 * factor_asistencia
@@ -475,14 +497,14 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
         if qty > 0:
             h_in = intervalos[j]
             min_in = parse_time_str(h_in)
-            min_out = min_in + DURACION_MIN
+            min_out = min_in + duracion_min
             h_out = f"{(min_out // 60):02d}:{(min_out % 60):02d}"
                 
             turnos_sugeridos.append({
                 'horario_entrada': h_in,
                 'horario_salida': h_out,
                 'agentes_a_programar': qty,
-                'duracion': '6.5 hrs (39h sem.)'
+                'duracion': duracion_label
             })
 
     headcount_semanal_6x1 = math.ceil(total_agentes_diarios * (7.0 / 6.0))
