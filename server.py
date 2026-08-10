@@ -397,14 +397,14 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN DE HORARIOS (GARANTIZANDO COTA INFERIOR DE SLA POR INTERVALO) ---
+# --- MOTOR DE OPTIMIZACIÓN DE HORARIOS CUADRÁTICO CON PENALIZACIÓN DE PICOS ---
 def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, target_sl=80.0, target_time=20.0, merma=0.20):
     m = len(intervalos)
     if m == 0:
         return [], [], 0, 0, 100.0, [], 100.0, 100.0
 
     inicio_global, fin_global = obtener_ventana_global(campanas_activas)
-    SHIFT_LEN = 11  # 5.5 horas
+    SHIFT_LEN = 11  # 5.5 horas = 11 bloques de 30 mins
     DURACION_MIN = 5 * 60 + 30
 
     turnos_validos_mask = np.zeros(m, dtype=bool)
@@ -415,32 +415,42 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
             if inicio_global <= min_in and min_out <= fin_global:
                 turnos_validos_mask[j] = True
 
-    A_mat = np.zeros((m, m))
-    for j in range(m):
-        if turnos_validos_mask[j]:
-            for i in range(j, min(j + SHIFT_LEN, m)):
-                A_mat[i, j] = 1.0
+    valid_indices = np.where(turnos_validos_mask)[0]
+    if len(valid_indices) == 0:
+        return [], [0] * m, 0, 0, 100.0, [100.0] * m, 100.0, 100.0
 
-    llamadas_arr = np.array(llamadas_vec) if llamadas_vec is not None else np.zeros(m)
-    aht_arr = np.array(aht_vec) if aht_vec is not None else np.full(m, 180.0)
+    # Construcción de la matriz A (m x k) solo para turnos válidos
+    k = len(valid_indices)
+    A_sub = np.zeros((m, k))
+    for col_idx, j in enumerate(valid_indices):
+        for i in range(j, min(j + SHIFT_LEN, m)):
+            A_sub[i, col_idx] = 1.0
+
+    llamadas_arr = np.array(llamadas_vec, dtype=float) if llamadas_vec is not None else np.zeros(m)
+    aht_arr = np.array(aht_vec, dtype=float) if aht_vec is not None else np.full(m, 180.0)
     tot_llamadas = np.sum(llamadas_arr)
     factor_asistencia = max(0.01, 1.0 - merma)
 
     req_arr = np.array(req_vector, dtype=float)
     req_nominal = req_arr / factor_asistencia
-    
-    # 1. Asignación inicial por Mínimos Cuadrados
+
+    # 1. Ajuste NNLS Regularizado (Mínimos cuadrados no negativos)
+    # Minimiza || A_sub * x - req_nominal ||^2
     try:
-        x_ls, _, _, _ = np.linalg.lstsq(A_mat, req_nominal, rcond=None)
+        # Regularización Ridge para suavizar la curva de entradas y evitar picos acumulados
+        l2_reg = 0.5
+        A_reg = np.vstack([A_sub, np.sqrt(l2_reg) * np.eye(k)])
+        b_reg = np.concatenate([req_nominal, np.zeros(k)])
+        x_ls, _, _, _ = np.linalg.lstsq(A_reg, b_reg, rcond=None)
         x_ls = np.maximum(0, x_ls)
     except Exception:
-        x_ls = np.zeros(m)
+        x_ls = np.zeros(k)
 
-    x_ls[~turnos_validos_mask] = 0
-    x_int = np.ceil(x_ls).astype(int)
+    # Convertir a enteros balanceados
+    x_sub = np.round(x_ls).astype(int)
 
-    def evaluar_sl_global_y_vector(x_vec):
-        cob_efec = (A_mat @ x_vec) * factor_asistencia
+    def evaluar_estado(x_vec_sub):
+        cob_efec = (A_sub @ x_vec_sub) * factor_asistencia
         sl_vec = []
         for i in range(m):
             c = llamadas_arr[i]
@@ -455,74 +465,68 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
             sl_g = float(np.sum(llamadas_arr * sl_arr) / tot_llamadas)
         else:
             sl_g = float(np.mean(sl_arr)) if len(sl_arr) > 0 else 100.0
-        return sl_g, sl_vec
+        return cob_efec, sl_g, sl_vec
 
-    # 2. COTA INFERIOR DE SLA POR INTERVALO (Elimina cualquier valle por debajo del Target SLA)
-    for _ in range(120):
-        _, sl_v_curr = evaluar_sl_global_y_vector(x_int)
-        
-        # Buscar el intervalo i que tenga el SLA más bajo y esté por debajo del Target SL
-        under_target_indices = [idx for idx in range(m) if llamadas_arr[idx] > 0 and sl_v_curr[idx] < target_sl]
-        
-        if not under_target_indices:
-            break  # Todos los intervalos cumplen o superan el Target SLA
-            
-        worst_i = min(under_target_indices, key=lambda idx: sl_v_curr[idx])
+    # 2. Ajuste Fino con Función de Costo Penalizada:
+    # Costo = Sum( Déficit de SL * 2.0 ) + Sum( Overstaffing de agentes * 1.5 )
+    def calcular_costo_total(x_vec_sub):
+        cob_efec, sl_g, sl_vec = evaluar_estado(x_vec_sub)
+        costo = 0.0
+        for i in range(m):
+            if llamadas_arr[i] > 0:
+                # Penalización por estar debajo de la meta de SLA
+                if sl_vec[i] < target_sl:
+                    costo += (target_sl - sl_vec[i]) ** 2 * 3.0
+                # Penalización por exceso de agentes (aplana el pico)
+                if cob_efec[i] > req_arr[i]:
+                    exceso = cob_efec[i] - req_arr[i]
+                    costo += (exceso ** 2) * 1.8
+        return costo
 
-        # Buscar el turno j que cubre el intervalo worst_i y maximiza el aporte al resto de valles
-        best_j = -1
-        best_gain = -1.0
+    # Optimización local por descenso de gradiente discreto
+    mejor_costo = calcular_costo_total(x_sub)
+    
+    for _ in range(80):
+        mejor_cambio = None
+        # Probar sumar o restar 1 agente en cada turno válido
+        for col_idx in range(k):
+            # Probar sumar
+            x_test = x_sub.copy()
+            x_test[col_idx] += 1
+            costo_sumar = calcular_costo_total(x_test)
+            if costo_sumar < mejor_costo:
+                mejor_costo = costo_sumar
+                mejor_cambio = (col_idx, +1)
 
-        for j in range(m):
-            if turnos_validos_mask[j] and A_mat[worst_i, j] == 1.0:
-                # Probar agregar 1 agente en el turno j
-                x_test = x_int.copy()
-                x_test[j] += 1
-                _, sl_v_test = evaluar_sl_global_y_vector(x_test)
-                
-                # Medir la mejora de SLA en los intervalos en déficit
-                gain = sum(max(0.0, sl_v_test[k] - sl_v_curr[k]) for k in under_target_indices)
-                if gain > best_gain:
-                    best_gain = gain
-                    best_j = j
+            # Probar restar
+            if x_sub[col_idx] > 0:
+                x_test = x_sub.copy()
+                x_test[col_idx] -= 1
+                costo_restar = calcular_costo_total(x_test)
+                if costo_restar < mejor_costo:
+                    mejor_costo = costo_restar
+                    mejor_cambio = (col_idx, -1)
 
-        if best_j != -1 and best_gain > 0.01:
-            x_int[best_j] += 1
+        if mejor_cambio:
+            col_idx, delta = mejor_cambio
+            x_sub[col_idx] += delta
         else:
             break
 
-    # 3. PODADO CONSERVADOR (Quitar agentes únicamente si NINGÚN intervalo cae por debajo de Target SLA)
-    for _ in range(50):
-        _, sl_v_curr = evaluar_sl_global_y_vector(x_int)
-        best_j_to_remove = -1
+    # Reconstruir vector completo de tamaño m
+    x_full = np.zeros(m, dtype=int)
+    for col_idx, j in enumerate(valid_indices):
+        x_full[j] = x_sub[col_idx]
 
-        for j in range(m):
-            if x_int[j] > 0:
-                x_test = x_int.copy()
-                x_test[j] -= 1
-                _, sl_v_test = evaluar_sl_global_y_vector(x_test)
-                
-                # Condición estricta: Se puede podar si TODOS los intervalos mantienen SL >= Target SL
-                min_sl_test = min(sl_v_test[k] for k in range(m) if llamadas_arr[k] > 0)
-                if min_sl_test >= target_sl:
-                    best_j_to_remove = j
-                    break
-
-        if best_j_to_remove != -1:
-            x_int[best_j_to_remove] -= 1
-        else:
-            break
-
-    # Resultados Finales
-    cobertura_efectiva = (A_mat @ x_int) * factor_asistencia
+    cobertura_efectiva, sl_optimo_global, sl_optimo_vector = evaluar_estado(x_sub)
     cobertura_entera = np.round(cobertura_efectiva).astype(int).tolist()
 
     turnos_sugeridos = []
-    total_agentes_diarios = int(np.sum(x_int))
+    total_agentes_diarios = int(np.sum(x_full))
     
     for j in range(m):
-        qty = int(x_int[j])
-        if qty > 0 and turnos_validos_mask[j]:
+        qty = int(x_full[j])
+        if qty > 0:
             h_in = intervalos[j]
             min_in = parse_time_str(h_in)
             min_out = min_in + DURACION_MIN
@@ -536,7 +540,6 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
             })
 
     headcount_semanal_6x1 = math.ceil(total_agentes_diarios * (7.0 / 6.0))
-    sl_optimo_global, sl_optimo_vector = evaluar_sl_global_y_vector(x_int)
     sl_optimo_global = round(sl_optimo_global, 1)
 
     total_req = np.sum(req_arr)
