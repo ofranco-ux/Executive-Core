@@ -51,7 +51,6 @@ def format_aht_str(seconds):
     return f"{hrs:02d}:{mins:02d}"
 
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
-    """ Cálculo iterativo eficiente de Erlang C """
     if N <= A or A <= 0 or N <= 0:
         return 0.0
     try:
@@ -73,13 +72,9 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         return 0.0
 
 def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
-    """ Encuentra el número mínimo de agentes N para alcanzar el SLA meta """
     if A <= 0 or aht <= 0:
         return 0
-    
-    # N debe ser estrictamente mayor que el tráfico A
     n = max(1, int(math.floor(A)) + 1)
-    
     while n < 1000:
         sl = erlang_c_sl_optimizado(A, n, aht, target_time)
         if sl >= target_sl:
@@ -173,7 +168,7 @@ def entrenar_ridge_ml(X, y, l2_reg=10.0):
     return weights, mean, std
 
 def predecir_ridge_ml(weights, mean, std, X_new):
-    X_b = np.c_[np.ones((X_new.shape[0], 1)), X_new]
+    X_b = np.c_[np.ones((X_new.shape0 if hasattr(X_new, 'shape') else 1, 1)), X_new]
     X_norm = X_b.copy()
     X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
     pred = X_norm @ weights
@@ -357,20 +352,15 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
                 a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
                 
-                # 1. REQUERIDO BASADO EN TARGET SLA (Erlang C inverso)
                 req_agents = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
 
                 key_roster = (str(camp).lower(), nombre_dia.lower(), inter)
                 prog_nominal = matriz_roster.get(key_roster, req_agents)
                 
-                # 2. PROGRAMADO EFECTIVO
                 prog_efectivo_raw = prog_nominal * (1.0 - merma) if calls > 0 else 0.0
                 prog_efectivo_int = int(round(prog_efectivo_raw))
 
-                # 3. SERVICE LEVEL EVALUADO CON DISPONIBILIDAD REAL
                 sl = erlang_c_sl_optimizado(a_erlang, prog_efectivo_raw, aht, target_time) if calls > 0 else 100.0
-                
-                # 4. DELTA (Net Staffing)
                 delta_net = int(prog_efectivo_int - req_agents) if calls > 0 else 0
 
                 data_processed.append({
@@ -395,7 +385,130 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
+# --- MOTOR DE OPTIMIZACIÓN DE HORARIOS (JORNADAS 5.5 HORAS) ---
+def resolver_turnos_optimos_5_5h(intervalos, req_vector, merma=0.20):
+    """
+    Optimiza turnos de 5.5 horas (11 intervalos consecutivos de 30 mins).
+    Aplica una heurística de mínimos cuadrados y cobertura con programación entera.
+    """
+    m = len(intervalos)
+    if m == 0:
+        return [], [], 0, 0, 100.0
+
+    # 1. Matriz de cobertura A (m x m) donde cada turno dura 11 intervalos (5.5 hrs)
+    SHIFT_LEN = 11  # 5.5 horas = 11 bloques de 30 min
+    A_mat = np.zeros((m, m))
+    
+    for j in range(m):
+        for i in range(j, min(j + SHIFT_LEN, m)):
+            A_mat[i, j] = 1.0
+
+    req_arr = np.array(req_vector, dtype=float)
+    
+    # Considerar la merma para obtener la plantilla nominal que se debe programar
+    factor_asistencia = max(0.01, 1.0 - merma)
+    req_nominal = req_arr / factor_asistencia
+
+    # Heurística de Programación Lineal Entera / Proyección
+    # Intentamos resolver A * x ~= req_nominal con x >= 0
+    try:
+        x_ls, _, _, _ = np.linalg.lstsq(A_mat, req_nominal, rcond=None)
+        x_ls = np.maximum(0, x_ls)
+    except Exception:
+        x_ls = np.zeros(m)
+
+    # Redondeo iterativo codicioso (Greedy Integer Adjustment)
+    x_int = np.floor(x_ls).astype(int)
+    
+    # Mejorar intervalos donde todavía falte cobertura
+    for _ in range(50):
+        current_cov = A_mat @ x_int
+        deficit = req_nominal - current_cov
+        if np.max(deficit) <= 0.5:
+            break
+        # Buscar el turno j que cubre el mayor déficit pendiente
+        best_j = -1
+        best_score = -1
+        for j in range(m):
+            # Puntaje de cobertura del turno j
+            cov_slice = A_mat[:, j] * np.maximum(0, deficit)
+            score = np.sum(cov_slice)
+            if score > best_score:
+                best_score = score
+                best_j = j
+        if best_j != -1 and best_score > 0:
+            x_int[best_j] += 1
+        else:
+            break
+
+    # Cobertura efectiva generada (con merma descontada)
+    cobertura_efectiva = (A_mat @ x_int) * factor_asistencia
+    cobertura_entera = np.round(cobertura_efectiva).astype(int).tolist()
+
+    # Formatear lista de turnos recomendados
+    turnos_sugeridos = []
+    total_agentes_diarios = int(np.sum(x_int))
+    
+    for j in range(m):
+        qty = int(x_int[j])
+        if qty > 0:
+            h_in = intervalos[j]
+            # Calcular hora de salida (hora entrada + 5h 30m)
+            min_in = parse_time_str(h_in)
+            if min_in is not None:
+                min_out = min_in + (5 * 60 + 30)
+                h_out = f"{(min_out // 60):02d}:{(min_out % 60):02d}"
+            else:
+                h_out = "Fin"
+                
+            turnos_sugeridos.append({
+                'horario_entrada': h_in,
+                'horario_salida': h_out,
+                'agentes_a_programar': qty,
+                'duracion': '5.5 hrs'
+            })
+
+    # Headcount Total requerido para esquema 6x1 (Lunes a Domingo con 1 día de descanso)
+    # HC = Agentes Diarios * (7 días / 6 días trabajados)
+    headcount_semanal_6x1 = math.ceil(total_agentes_diarios * (7.0 / 6.0))
+
+    # Eficiencia de Cobertura (%)
+    total_req = np.sum(req_arr)
+    total_prog_efec = np.sum(cobertura_efectiva)
+    eficiencia = round(min(100.0, (total_req / total_prog_efec * 100.0)), 1) if total_prog_efec > 0 else 100.0
+
+    return turnos_sugeridos, cobertura_entera, total_agentes_diarios, headcount_semanal_6x1, eficiencia
+
 # --- ENDPOINTS ---
+
+@app.route('/api/optimize-schedules', methods=['POST'])
+def api_optimize_schedules():
+    """
+    Recibe la demanda filtrada y calcula los turnos óptimos de 5.5 hrs.
+    """
+    try:
+        body = request.get_json(force=True)
+        intervalos = body.get('intervalos', [])
+        requeridos = body.get('requeridos', [])
+        merma = float(body.get('merma', 30.0)) / 100.0
+
+        if not intervalos or not requeridos or len(intervalos) != len(requeridos):
+            return jsonify({'error': 'Datos de intervalos o requerimientos incompletos'}), 400
+
+        turnos, cob_optima, total_diario, total_hc_6x1, eficiencia = resolver_turnos_optimos_5_5h(
+            intervalos, requeridos, merma=merma
+        )
+
+        return jsonify({
+            'turnos': turnos,
+            'cobertura_optima': cob_optima,
+            'total_agentes_diarios': total_diario,
+            'headcount_semanal_6x1': total_hc_6x1,
+            'eficiencia_cobertura': eficiencia
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': f'Error optimizando turnos: {str(e)}'}), 500
 
 @app.route('/api/latest', methods=['GET'])
 def get_latest_forecast():
