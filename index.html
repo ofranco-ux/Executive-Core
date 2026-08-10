@@ -291,7 +291,7 @@
         let selectedIntervalos = new Set();
 
         // DETECCION DE MODO OPERACIONES VÍA URL (?mode=operaciones)
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const mode = urlParams.get('mode') || urlParams.get('role');
 
@@ -306,6 +306,23 @@
                 if (main) {
                     main.classList.remove('lg:col-span-9');
                     main.classList.add('lg:col-span-12');
+                }
+
+                // Cargar automáticamente el último forecast procesado
+                try {
+                    const response = await fetch('/api/latest');
+                    if (response.ok) {
+                        globalData = await response.json();
+                        if (Array.isArray(globalData) && globalData.length > 0) {
+                            inicializarFiltrosMultiples();
+                            actualizarGrafica();
+                        }
+                    } else {
+                        const err = await response.json();
+                        document.getElementById('tableSelectionLabel').innerText = err.error || "Sin pronóstico disponible.";
+                    }
+                } catch (e) {
+                    console.log("No se pudo cargar el forecast previo automáticamente.");
                 }
             }
         });
@@ -524,7 +541,6 @@
             const avgProg = (totProg / countRows).toFixed(1);
             const net = (avgProg - avgReq).toFixed(1);
             
-            // Staffing Level: Staff Programado / Staff Requerido
             const fulfillment = avgReq > 0 ? ((avgProg / avgReq) * 100).toFixed(1) : "100.0";
 
             const sumLlamadasSl = dfFiltered.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
