@@ -51,6 +51,7 @@ def format_aht_str(seconds):
     return f"{hrs:02d}:{mins:02d}"
 
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
+    """ Cálculo iterativo eficiente de Erlang C """
     if N <= A or A <= 0 or N <= 0:
         return 0.0
     try:
@@ -70,6 +71,21 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         return round(max(0.0, min(100.0, sl * 100.0)), 1)
     except (OverflowError, ZeroDivisionError):
         return 0.0
+
+def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
+    """ Encuentra el número mínimo de agentes N para alcanzar el SLA meta """
+    if A <= 0 or aht <= 0:
+        return 0
+    
+    # N debe ser estrictamente mayor que el tráfico A
+    n = max(1, int(math.floor(A)) + 1)
+    
+    while n < 1000:
+        sl = erlang_c_sl_optimizado(A, n, aht, target_time)
+        if sl >= target_sl:
+            return n
+        n += 1
+    return n
 
 def parse_time_str(t_str):
     try:
@@ -341,20 +357,20 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
                 a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
                 
-                # 1. REQUERIDO EN ENTERO
-                req_agents = math.ceil(a_erlang) if calls > 0 else 0
+                # 1. REQUERIDO BASADO EN TARGET SLA (Erlang C inverso)
+                req_agents = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
 
                 key_roster = (str(camp).lower(), nombre_dia.lower(), inter)
                 prog_nominal = matriz_roster.get(key_roster, req_agents)
                 
-                # 2. PROGRAMADO EFECTIVO EN ENTERO
+                # 2. PROGRAMADO EFECTIVO
                 prog_efectivo_raw = prog_nominal * (1.0 - merma) if calls > 0 else 0.0
                 prog_efectivo_int = int(round(prog_efectivo_raw))
 
-                # SL calculado con disponibilidad real
+                # 3. SERVICE LEVEL EVALUADO CON DISPONIBILIDAD REAL
                 sl = erlang_c_sl_optimizado(a_erlang, prog_efectivo_raw, aht, target_time) if calls > 0 else 100.0
                 
-                # 3. DELTA EN ENTERO
+                # 4. DELTA (Net Staffing)
                 delta_net = int(prog_efectivo_int - req_agents) if calls > 0 else 0
 
                 data_processed.append({
