@@ -396,23 +396,24 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN EXACTO (JORNADAS FIX 6.5 HORAS / 39H SEMANALES - ESQUEMA 6x1) ---
+# --- MOTOR DE OPTIMIZACIÓN RESTRINGIDO POR SALIDA MÁXIMA A LA VENTANA DE SERVICIO ---
 def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, target_sl=80.0, target_time=20.0, merma=0.20):
     m = len(intervalos)
     if m == 0:
         return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0
 
     inicio_global, fin_global = obtener_ventana_global(campanas_activas)
-    
-    # Jornada fija de 6.5 horas continuas (13 bloques de 30 min) = 39 hrs/semana en esquema 6x1
-    SHIFT_LEN = 13  
+    SHIFT_LEN = 13  # 6.5 horas = 13 bloques de 30 mins
     DURACION_MIN = 6 * 60 + 30
 
+    # RESTRICCIÓN CLAVE: La hora de salida (min_in + DURACION_MIN) NO puede superar fin_global
     turnos_validos_mask = np.zeros(m, dtype=bool)
     for j in range(m):
         min_in = parse_time_str(intervalos[j])
-        if min_in is not None and inicio_global <= min_in < fin_global:
-            turnos_validos_mask[j] = True
+        if min_in is not None:
+            min_out = min_in + DURACION_MIN
+            if inicio_global <= min_in and min_out <= fin_global:
+                turnos_validos_mask[j] = True
 
     valid_indices = np.where(turnos_validos_mask)[0]
     if len(valid_indices) == 0:
@@ -424,10 +425,10 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
     factor_asistencia = max(0.01, 1.0 - merma)
     req_arr = np.array(req_vector, dtype=float)
 
-    # Cobertura secuencial
     cob_efectiva = np.zeros(m, dtype=float)
     x_full = np.zeros(m, dtype=int)
 
+    # 1. Asignación directa en franjas permitidas
     for j in valid_indices:
         deficit = req_arr[j] - cob_efectiva[j]
         if deficit > 0.5:
@@ -436,7 +437,7 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
             for t in range(j, min(j + SHIFT_LEN, m)):
                 cob_efectiva[t] += agentes_nominales * factor_asistencia
 
-    # Podado fino de sobrecupos
+    # 2. Podado de sobrecupos excedentes
     for j in reversed(valid_indices):
         while x_full[j] > 0:
             cov_slice = np.arange(j, min(j + SHIFT_LEN, m))
@@ -451,7 +452,7 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
             else:
                 break
 
-    # Evaluación de SL
+    # 3. Evaluación de SLA
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
@@ -484,7 +485,6 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
                 'duracion': '6.5 hrs (39h sem.)'
             })
 
-    # Headcount semanal 6x1 (7/6)
     headcount_semanal_6x1 = math.ceil(total_agentes_diarios * (7.0 / 6.0))
     total_req = np.sum(req_arr)
     total_prog_efec = np.sum(cob_efectiva)
