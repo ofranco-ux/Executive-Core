@@ -82,8 +82,18 @@
                     <h1 class="text-2xl font-black text-white tracking-tight">Executive Core</h1>
                     <span id="tagModoOps" class="hidden text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider">Vista Operaciones</span>
                 </div>
-                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer (Jornadas 5.5h — Comparativo de Impacto)</p>
+                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer (Vista Diaria / Proyección Semanal)</p>
             </div>
+        </div>
+
+        <!-- CONMUTADOR VISTA DIARIA / SEMANALE -->
+        <div class="flex items-center gap-2 bg-slate-900/90 p-1.5 rounded-xl border border-slate-800 z-10">
+            <button id="btnVistaDiaria" onclick="cambiarModoVista('diario')" class="px-3.5 py-2 text-xs font-bold rounded-lg bg-cyan-500 text-white transition-all shadow-md">
+                📅 Vista Diaria
+            </button>
+            <button id="btnVistaSemanal" onclick="cambiarModoVista('semanal')" class="px-3.5 py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all">
+                📊 Proyección Semanal
+            </button>
         </div>
     </header>
 
@@ -165,8 +175,8 @@
                         </div>
                     </div>
 
-                    <!-- MULTI-FECHA -->
-                    <div class="flex flex-col relative">
+                    <!-- CONTAINER VISTA DIARIA (FECHAS) -->
+                    <div id="containerFiltroFecha" class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Fecha(s)</label>
                         <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-brand-surface border border-cyan-500/30 text-xs rounded-xl px-3 py-2 text-cyan-300 font-mono-num font-bold focus:outline-none border-cyan-500 transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
                             <span id="fechaSelectedText">📅 SELECC. (0)</span>
@@ -174,6 +184,13 @@
                         </button>
                         <div id="dropdownFechaMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#0D1322] border border-cyan-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200">
                         </div>
+                    </div>
+
+                    <!-- CONTAINER VISTA SEMANAL (SELECTOR DE SEMANAS) -->
+                    <div id="containerFiltroSemana" class="hidden flex flex-col relative">
+                        <label class="text-[9px] text-amber-400 font-bold uppercase mb-1">Semana Proyectada</label>
+                        <select id="selectSemana" onchange="actualizarGraficaSemanal()" class="bg-brand-surface border border-amber-500/40 text-xs rounded-xl px-3 py-2 text-amber-300 font-mono-num font-bold focus:outline-none min-w-[200px] h-[36px]">
+                        </select>
                     </div>
 
                     <!-- MULTI-INTERVALO -->
@@ -224,8 +241,8 @@
             <div class="glass-panel p-6 rounded-2xl shadow-2xl">
                 <div class="flex justify-between items-center mb-6">
                     <div>
-                        <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">Balance Intradía: Capacidad vs. Roster Real</h3>
-                        <p class="text-xs text-slate-400 font-medium mt-0.5">Evolución por intervalo de 30 minutos entre requerimiento Erlang C y plantilla programada</p>
+                        <h3 id="wfmChartTitle" class="text-xs font-black text-slate-200 uppercase tracking-widest">Balance Intradía: Capacidad vs. Roster Real</h3>
+                        <p class="text-xs text-slate-400 font-medium mt-0.5">Evolución por intervalo entre requerimiento Erlang C y plantilla programada</p>
                     </div>
                 </div>
                 <div class="h-60">
@@ -239,7 +256,7 @@
                     <div>
                         <div class="flex items-center gap-2">
                             <span class="text-amber-400 text-base">🧠</span>
-                            <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">Optimización de Horarios & Comparativa de Impacto (5.5H)</h3>
+                            <h3 id="optModuleTitle" class="text-xs font-black text-slate-200 uppercase tracking-widest">Optimización de Horarios & Comparativa de Impacto</h3>
                         </div>
                         <p class="text-xs text-slate-400 font-medium mt-0.5">Impacto proyectado en SL y Cobertura si se implementa la malla de turnos sugerida (6x1)</p>
                     </div>
@@ -257,7 +274,7 @@
                             <span class="text-slate-500 text-xs">➔</span>
                             <span id="compSlOptimo" class="text-2xl font-black font-mono-num text-emerald-400">--%</span>
                         </div>
-                        <p class="text-[10px] text-slate-400 mt-0.5">Actual vs. Turnos 5.5h</p>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Actual vs. Malla Sugerida</p>
                     </div>
 
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800">
@@ -279,7 +296,7 @@
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800">
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Headcount Total (6x1)</p>
                         <p id="optHeadcount" class="text-2xl font-black font-mono-num text-violet-400 mt-1">--</p>
-                        <p class="text-[10px] text-slate-400 mt-0.5">Incluye día de descanso</p>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Incluye día de descanso rotativo</p>
                     </div>
                 </div>
 
@@ -293,6 +310,7 @@
                     <table class="w-full text-left text-xs text-slate-300">
                         <thead class="bg-brand-surface text-slate-400 font-bold uppercase tracking-wider text-[9px] sticky top-0 border-b border-slate-800">
                             <tr>
+                                <th id="thColDia" class="py-3 px-4 hidden">Día de la Semana</th>
                                 <th class="py-3 px-4">Horario de Entrada</th>
                                 <th class="py-3 px-4">Horario de Salida</th>
                                 <th class="py-3 px-4">Duración</th>
@@ -302,7 +320,7 @@
                         </thead>
                         <tbody id="optShiftsTableBody" class="divide-y divide-slate-800/50 font-mono-num text-[11px]">
                             <tr>
-                                <td colspan="5" class="text-center py-6 text-slate-500 font-sans">Selecciona filtros para generar la recomendación de turnos...</td>
+                                <td colspan="6" class="text-center py-6 text-slate-500 font-sans">Selecciona filtros para generar la recomendación de turnos...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -312,8 +330,8 @@
             <!-- Gráfica 2: SL Auditoría con Curva de Turnos Óptimos -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t border-violet-500/20">
                 <div class="mb-4">
-                    <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📈 Auditoría de Service Level (% SL) por Intervalo</h3>
-                    <p class="text-xs text-slate-400 font-medium mt-0.5">Comparativa del SL Proyectado Real vs. SL con Turnos Óptimos (5.5h) y Meta Target</p>
+                    <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📈 Auditoría de Service Level (% SL)</h3>
+                    <p class="text-xs text-slate-400 font-medium mt-0.5">Comparativa del SL Proyectado Real vs. SL con Turnos Óptimos y Meta Target</p>
                 </div>
                 <div class="h-56">
                     <canvas id="slChart"></canvas>
@@ -336,7 +354,7 @@
                     <table class="w-full text-left text-xs text-slate-300 cursor-pointer">
                         <thead class="bg-brand-surface text-slate-400 font-bold uppercase tracking-wider text-[9px] sticky top-0 border-b border-slate-800">
                             <tr>
-                                <th class="py-3 px-4">Intervalo</th>
+                                <th class="py-3 px-4">Intervalo / Día</th>
                                 <th class="py-3 px-4">Llamadas</th>
                                 <th class="py-3 px-4">AHT (HH:MM)</th>
                                 <th class="py-3 px-4">Agentes Req.</th>
@@ -347,7 +365,7 @@
                         </thead>
                         <tbody id="intervalTableBody" class="divide-y divide-slate-800/50 font-mono-num text-[11px]">
                             <tr>
-                                <td colspan="7" class="text-center py-6 text-slate-500 font-sans">Cargue datos para poblar la matriz intradía...</td>
+                                <td colspan="7" class="text-center py-6 text-slate-500 font-sans">Cargue datos para poblar la matriz...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -365,9 +383,11 @@
         let optChartInstance = null;
         let globalTurnosOptimos = [];
         
+        let modoVista = 'diario'; // 'diario' o 'semanal'
         let selectedCampanas = new Set();
         let selectedFechas = new Set();
         let selectedIntervalos = new Set();
+        let mapaSemanas = {};
 
         window.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
@@ -419,6 +439,31 @@
             return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
         }
 
+        function cambiarModoVista(nuevoModo) {
+            modoVista = nuevoModo;
+            const btnD = document.getElementById('btnVistaDiaria');
+            const btnS = document.getElementById('btnVistaSemanal');
+            const fFecha = document.getElementById('containerFiltroFecha');
+            const fSemana = document.getElementById('containerFiltroSemana');
+            const thDia = document.getElementById('thColDia');
+
+            if (modoVista === 'semanal') {
+                btnS.className = 'px-3.5 py-2 text-xs font-bold rounded-lg bg-cyan-500 text-white transition-all shadow-md';
+                btnD.className = 'px-3.5 py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all';
+                fFecha.classList.add('hidden');
+                fSemana.classList.remove('hidden');
+                thDia.classList.remove('hidden');
+                actualizarGraficaSemanal();
+            } else {
+                btnD.className = 'px-3.5 py-2 text-xs font-bold rounded-lg bg-cyan-500 text-white transition-all shadow-md';
+                btnS.className = 'px-3.5 py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all';
+                fSemana.classList.add('hidden');
+                fFecha.classList.remove('hidden');
+                thDia.classList.add('hidden');
+                actualizarGrafica();
+            }
+        }
+
         async function procesarWFM() {
             const file = document.getElementById('fileInput').files[0];
             if (!file) {
@@ -447,7 +492,8 @@
                 
                 if (response.ok && Array.isArray(globalData)) {
                     inicializarFiltrosMultiples();
-                    actualizarGrafica();
+                    if (modoVista === 'semanal') actualizarGraficaSemanal();
+                    else actualizarGrafica();
                 } else {
                     alert("Error procesando los datos: " + (globalData.error || "Formato no válido"));
                 }
@@ -471,6 +517,27 @@
             const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
             selectedIntervalos = new Set(intervalos);
             renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
+
+            // Construir agrupador de semanas
+            mapaSemanas = {};
+            fechas.forEach(fStr => {
+                const dateObj = new Date(fStr + 'T00:00:00');
+                const firstDayOfYear = new Date(dateObj.getFullYear(), 0, 1);
+                const pastDaysOfYear = (dateObj - firstDayOfYear) / 86400000;
+                const weekNum = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+                const semKey = `Semana ${weekNum} (${dateObj.getFullYear()})`;
+                if (!mapaSemanas[semKey]) mapaSemanas[semKey] = [];
+                mapaSemanas[semKey].push(fStr);
+            });
+
+            const selSemana = document.getElementById('selectSemana');
+            selSemana.innerHTML = '';
+            Object.keys(mapaSemanas).forEach(sKey => {
+                const opt = document.createElement('option');
+                opt.value = sKey;
+                opt.innerText = sKey;
+                selSemana.appendChild(opt);
+            });
 
             actualizarTextosBotones();
         }
@@ -502,13 +569,12 @@
 
         function onCheckboxChange(type, value, checked) {
             let setRef = type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos);
-            if (checked) {
-                setRef.add(value);
-            } else {
-                setRef.delete(value);
-            }
+            if (checked) setRef.add(value);
+            else setRef.delete(value);
+            
             actualizarTextosBotones();
-            actualizarGrafica();
+            if (modoVista === 'semanal') actualizarGraficaSemanal();
+            else actualizarGrafica();
         }
 
         function selectAllFilter(type, selectAll) {
@@ -522,15 +588,13 @@
                 allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean);
             }
 
-            if (selectAll) {
-                allOptions.forEach(o => setRef.add(o));
-            } else {
-                setRef.clear();
-            }
+            if (selectAll) allOptions.forEach(o => setRef.add(o));
+            else setRef.clear();
 
             renderMenuOptions(type, allOptions.sort(), setRef);
             actualizarTextosBotones();
-            actualizarGrafica();
+            if (modoVista === 'semanal') actualizarGraficaSemanal();
+            else actualizarGrafica();
         }
 
         function toggleDropdown(type) {
@@ -562,20 +626,19 @@
 
         function resetAllFilters() {
             inicializarFiltrosMultiples();
-            actualizarGrafica();
+            if (modoVista === 'semanal') actualizarGraficaSemanal();
+            else actualizarGrafica();
         }
 
         function toggleTableInterval(inter) {
-            if (selectedIntervalos.has(inter)) {
-                selectedIntervalos.delete(inter);
-            } else {
-                selectedIntervalos.add(inter);
-            }
+            if (selectedIntervalos.has(inter)) selectedIntervalos.delete(inter);
+            else selectedIntervalos.add(inter);
             
             const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
             renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
             actualizarTextosBotones();
-            actualizarGrafica();
+            if (modoVista === 'semanal') actualizarGraficaSemanal();
+            else actualizarGrafica();
         }
 
         async function actualizarGrafica() {
@@ -587,7 +650,6 @@
                 const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
                 const f = String(getProp(item, ['Fecha'], '')).split(' ')[0];
                 const i = String(getProp(item, ['Intervalo'], '00:00'));
-                
                 return selectedCampanas.has(c) && selectedFechas.has(f) && selectedIntervalos.has(i);
             });
 
@@ -596,7 +658,6 @@
             const sumLlamadasAht = dfFiltered.reduce((acc, row) => {
                 const calls = Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0;
                 let ahtSegs = Number(getProp(row, ['AHT_Segundos'], 0));
-                
                 if (!ahtSegs) {
                     const valAht = getProp(row, ['AHT'], 180);
                     if (typeof valAht === 'string' && valAht.includes(':')) {
@@ -732,6 +793,99 @@
             ejecutarOptimizadorHorarios(intervalos, req, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slArr);
         }
 
+        async function actualizarGraficaSemanal() {
+            const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
+            const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
+            const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
+
+            const semKey = document.getElementById('selectSemana').value;
+            const fechasSemana = mapaSemanas[semKey] || [];
+
+            // Filtrar datos para la semana seleccionada
+            const dfFiltered = globalData.filter(item => {
+                const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
+                const f = String(getProp(item, ['Fecha'], '')).split(' ')[0];
+                return selectedCampanas.has(c) && fechasSemana.includes(f);
+            });
+
+            // Organizar por día de la semana
+            const diasOrden = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+            const semanaDataArray = [];
+
+            diasOrden.forEach(dNombre => {
+                const subDia = dfFiltered.filter(r => String(getProp(r, ['Día_Semana', 'Dia_Semana'], '')).toLowerCase() === dNombre.toLowerCase());
+                if (subDia.length > 0) {
+                    const inters = [...new Set(subDia.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].sort();
+                    const reqs = inters.map(i => {
+                        const rows = subDia.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === i);
+                        return Math.round(rows.reduce((a, b) => a + Number(getProp(b, ['Agentes_Requeridos'], 0)), 0) / (rows.length || 1));
+                    });
+                    const llams = inters.map(i => {
+                        const rows = subDia.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === i);
+                        return Math.round(rows.reduce((a, b) => a + Number(getProp(b, ['Llamadas', 'Recibidas'], 0)), 0) / (rows.length || 1));
+                    });
+                    const ahts = inters.map(i => {
+                        const rows = subDia.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === i);
+                        return Math.round(rows.reduce((a, b) => a + Number(getProp(b, ['AHT_Segundos'], 180)), 0) / (rows.length || 1));
+                    });
+
+                    semanaDataArray.push({
+                        dia_semana: dNombre,
+                        intervalos: inters,
+                        requeridos: reqs,
+                        llamadas: llams,
+                        ahts: ahts
+                    });
+                }
+            });
+
+            try {
+                const res = await fetch('/api/optimize-schedules-weekly', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        semana_data: semanaDataArray,
+                        campanas: Array.from(selectedCampanas),
+                        target_sl: targetSlObj,
+                        target_time: targetTimeObj,
+                        merma: mermaVal
+                    })
+                });
+
+                if (res.ok) {
+                    const resSem = await res.json();
+                    const mallaSem = resSem.malla_semanal || {};
+
+                    // KPIs Semanales
+                    document.getElementById('optDailyStaff').innerText = (resSem.agentes_promedio_dia || 0).toLocaleString();
+                    document.getElementById('optHeadcount').innerText = (resSem.headcount_semanal_requerido || 0).toLocaleString();
+                    
+                    const optTbody = document.getElementById('optShiftsTableBody');
+                    optTbody.innerHTML = '';
+
+                    // Render Malla Semanal
+                    Object.keys(mallaSem).forEach(dNom => {
+                        const dInfo = mallaSem[dNom];
+                        (dInfo.turnos || []).forEach(t => {
+                            const tr = document.createElement('tr');
+                            tr.className = 'hover:bg-slate-800/40 transition-colors';
+                            tr.innerHTML = `
+                                <td class="py-2.5 px-4 font-bold text-amber-300">${dNom}</td>
+                                <td class="py-2.5 px-4 font-bold text-cyan-400">🕒 ${t.horario_entrada}</td>
+                                <td class="py-2.5 px-4 text-slate-300 font-bold">${t.horario_salida}</td>
+                                <td class="py-2.5 px-4 text-slate-400">${t.duracion}</td>
+                                <td class="py-2.5 px-4 text-amber-300 font-black text-sm">${t.agentes_a_programar}</td>
+                                <td class="py-2.5 px-4 text-emerald-400 font-bold">100%</td>
+                            `;
+                            optTbody.appendChild(tr);
+                        });
+                    });
+                }
+            } catch (e) {
+                console.log("Error en proyección semanal:", e);
+            }
+        }
+
         async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slActualArray) {
             if (!intervalos || intervalos.length === 0) return;
 
@@ -767,13 +921,14 @@
                     const totalStaff = optData.total_agentes_diarios || 1;
 
                     if (globalTurnosOptimos.length === 0) {
-                        optTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-500">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
+                        optTbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-slate-500">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
                     } else {
                         globalTurnosOptimos.forEach(t => {
                             const pct = ((t.agentes_a_programar / totalStaff) * 100).toFixed(1);
                             const tr = document.createElement('tr');
                             tr.className = 'hover:bg-slate-800/40 transition-colors';
                             tr.innerHTML = `
+                                <td class="py-2.5 px-4 font-bold text-slate-500 hidden">-</td>
                                 <td class="py-2.5 px-4 font-bold text-amber-400 flex items-center gap-2">
                                     <span>🕒</span> ${t.horario_entrada}
                                 </td>
@@ -828,7 +983,7 @@
                                     pointRadius: 3
                                 },
                                 { 
-                                    label: 'SL Proyectado (Con Turnos 5.5h)', 
+                                    label: 'SL Proyectado (Con Turnos Óptimos)', 
                                     data: optData.sl_optimo_vector, 
                                     borderColor: '#10B981', 
                                     backgroundColor: 'rgba(16, 185, 129, 0.1)', 
