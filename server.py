@@ -363,7 +363,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 aht = info_p['aht'] if (info_p['aht'] > 0 and not pd.isna(info_p['aht'])) else aht_global_campana.get(camp, 180.0)
 
                 a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
-                
                 req_agents = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
 
                 key_roster = (str(camp).lower(), nombre_dia.lower(), inter)
@@ -397,15 +396,17 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN DE HORARIOS CON RECORTE EXACTO DE COLA VESPERTINA ---
+# --- MOTOR DE OPTIMIZACIÓN EXACTO (JORNADAS FIX 6.5 HORAS / 39H SEMANALES - ESQUEMA 6x1) ---
 def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, target_sl=80.0, target_time=20.0, merma=0.20):
     m = len(intervalos)
     if m == 0:
         return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0
 
     inicio_global, fin_global = obtener_ventana_global(campanas_activas)
-    SHIFT_LEN = 11  # 5.5 horas continuas (11 bloques de 30 min)
-    DURACION_MIN = 5 * 60 + 30
+    
+    # Jornada fija de 6.5 horas continuas (13 bloques de 30 min) = 39 hrs/semana en esquema 6x1
+    SHIFT_LEN = 13  
+    DURACION_MIN = 6 * 60 + 30
 
     turnos_validos_mask = np.zeros(m, dtype=bool)
     for j in range(m):
@@ -423,33 +424,19 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
     factor_asistencia = max(0.01, 1.0 - merma)
     req_arr = np.array(req_vector, dtype=float)
 
-    # 1. Asignación inicial acotada
+    # Cobertura secuencial
     cob_efectiva = np.zeros(m, dtype=float)
     x_full = np.zeros(m, dtype=int)
 
     for j in valid_indices:
         deficit = req_arr[j] - cob_efectiva[j]
         if deficit > 0.5:
-            # Evaluar si meter este turno no genera un overstaffing mayor a 3 agentes en la cola vespertina
-            cov_slice = np.arange(j, min(j + SHIFT_LEN, m))
-            future_reqs = req_arr[cov_slice]
-            future_cobs = cob_efectiva[cov_slice]
-            
-            # Si en la segunda mitad del turno la demanda decae abruptamente, limitar la inyección
             agentes_nominales = math.ceil(deficit / factor_asistencia)
-            
-            # Verificación de sobrecupo en el tramo final
-            test_cob = future_cobs + (agentes_nominales * factor_asistencia)
-            excesos = test_cob - future_reqs
-            if np.any(excesos > 4.0):
-                # Reducir moderadamente para no inflar el cierre
-                agentes_nominales = max(1, agentes_nominales - 1)
-
             x_full[j] += agentes_nominales
-            for t in cov_slice:
+            for t in range(j, min(j + SHIFT_LEN, m)):
                 cob_efectiva[t] += agentes_nominales * factor_asistencia
 
-    # 2. PODADO DE SOBRECUPOS VESPERTINOS (Elimina el pico de 17:30 a 19:30)
+    # Podado fino de sobrecupos
     for j in reversed(valid_indices):
         while x_full[j] > 0:
             cov_slice = np.arange(j, min(j + SHIFT_LEN, m))
@@ -457,7 +444,6 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
             for t in cov_slice:
                 test_cob[t] -= 1.0 * factor_asistencia
             
-            # El podado es válido si el déficit resultante en los intervalos cubiertos no supera 1.5 agentes
             deficits = req_arr[cov_slice] - test_cob[cov_slice]
             if np.max(deficits) <= 1.5:
                 x_full[j] -= 1
@@ -465,7 +451,7 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
             else:
                 break
 
-    # 3. EVALUAR NIVEL DE SERVICIO AJUSTADO
+    # Evaluación de SL
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
@@ -480,7 +466,6 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
     sl_optimo_global = round(sl_optimo_global, 1)
 
     cobertura_entera = np.round(cob_efectiva).astype(int).tolist()
-
     turnos_sugeridos = []
     total_agentes_diarios = int(np.sum(x_full))
     
@@ -496,9 +481,10 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
                 'horario_entrada': h_in,
                 'horario_salida': h_out,
                 'agentes_a_programar': qty,
-                'duracion': '5.5 hrs'
+                'duracion': '6.5 hrs (39h sem.)'
             })
 
+    # Headcount semanal 6x1 (7/6)
     headcount_semanal_6x1 = math.ceil(total_agentes_diarios * (7.0 / 6.0))
     total_req = np.sum(req_arr)
     total_prog_efec = np.sum(cob_efectiva)
