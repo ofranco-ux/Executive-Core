@@ -290,7 +290,6 @@
         let selectedFechas = new Set();
         let selectedIntervalos = new Set();
 
-        // DETECCION DE MODO OPERACIONES VÍA URL (?mode=operaciones)
         window.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const mode = urlParams.get('mode') || urlParams.get('role');
@@ -308,7 +307,6 @@
                     main.classList.add('lg:col-span-12');
                 }
 
-                // Cargar automáticamente el último forecast procesado
                 try {
                     const response = await fetch('/api/latest');
                     if (response.ok) {
@@ -322,7 +320,7 @@
                         document.getElementById('tableSelectionLabel').innerText = err.error || "Sin pronóstico disponible.";
                     }
                 } catch (e) {
-                    console.log("No se pudo cargar el forecast previo automáticamente.");
+                    console.log("Error cargando pronóstico automático.");
                 }
             }
         });
@@ -537,9 +535,11 @@
             const totProg = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Agentes_Programados_Reales'], 0)) || 0), 0);
             const countRows = dfFiltered.length || 1;
 
-            const avgReq = (totReq / countRows).toFixed(1);
-            const avgProg = (totProg / countRows).toFixed(1);
-            const net = (avgProg - avgReq).toFixed(1);
+            const avgReq = totReq / countRows;
+            const avgProg = totProg / countRows;
+            
+            // NET STAFFING EN ENTERO
+            const net = Math.round(avgProg - avgReq);
             
             const fulfillment = avgReq > 0 ? ((avgProg / avgReq) * 100).toFixed(1) : "100.0";
 
@@ -588,12 +588,14 @@
             });
 
             const intervalos = Object.keys(agrupado).sort();
-            const req = intervalos.map(i => (agrupado[i].req / agrupado[i].count).toFixed(1));
-            const prog = intervalos.map(i => (agrupado[i].prog / agrupado[i].count).toFixed(1));
+            
+            // AGENTES EN ENTEROS
+            const req = intervalos.map(i => Math.round(agrupado[i].req / agrupado[i].count));
+            const prog = intervalos.map(i => Math.round(agrupado[i].prog / agrupado[i].count));
             const llamadasArr = intervalos.map(i => Math.round(agrupado[i].llamadas / agrupado[i].count));
             const ahtSegsArr = intervalos.map(i => Math.round(agrupado[i].ahtSum / agrupado[i].count));
             const slArr = intervalos.map(i => (agrupado[i].slSum / agrupado[i].count).toFixed(1));
-            const deltas = intervalos.map(i => (agrupado[i].prog / agrupado[i].count - agrupado[i].req / agrupado[i].count).toFixed(1));
+            const deltas = intervalos.map(i => Math.round(agrupado[i].prog / agrupado[i].count) - Math.round(agrupado[i].req / agrupado[i].count));
 
             const tbody = document.getElementById('intervalTableBody');
             tbody.innerHTML = '';
@@ -646,7 +648,7 @@
                     plugins: { legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } } }, 
                     scales: { 
                         x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
-                        y: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
+                        y: { ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
                     } 
                 }
             });
