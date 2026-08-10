@@ -397,17 +397,16 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE ASIGNACIÓN SECUENCIAL EXACTA DE TURNOS 5.5H ---
-def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, target_sl=80.0, target_time=20.0, merma=0.20):
+# --- MOTOR DE REUBICACIÓN DE PLANTILLA ACTUAL + RECOMENDACIÓN DE FALTANTES ---
+def resolver_turnos_optimos_5_5h(intervalos, req_vector, prog_vector, campanas_activas, llamadas_vec=None, aht_vec=None, target_sl=80.0, target_time=20.0, merma=0.20):
     m = len(intervalos)
     if m == 0:
-        return [], [], 0, 0, 100.0, [], 100.0, 100.0
+        return [], [], [], 0, 0, 0, 100.0, [], [], 100.0, 100.0, 100.0
 
     inicio_global, fin_global = obtener_ventana_global(campanas_activas)
-    SHIFT_LEN = 11  # 5.5 horas continuas (11 bloques de 30 min)
+    SHIFT_LEN = 11  # 5.5 horas continuas (11 bloques de 30 mins)
     DURACION_MIN = 5 * 60 + 30
 
-    # Todos los intervalos dentro de la ventana de servicio que pueden recibir inicio de turno
     turnos_validos_mask = np.zeros(m, dtype=bool)
     for j in range(m):
         min_in = parse_time_str(intervalos[j])
@@ -416,98 +415,116 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
 
     valid_indices = np.where(turnos_validos_mask)[0]
     if len(valid_indices) == 0:
-        return [], [0] * m, 0, 0, 100.0, [100.0] * m, 100.0, 100.0
+        return [], [], [0]*m, [0]*m, 0, 0, 0, 100.0, [100.0]*m, [100.0]*m, 100.0, 100.0, 100.0
 
     llamadas_arr = np.array(llamadas_vec, dtype=float) if llamadas_vec is not None else np.zeros(m)
     aht_arr = np.array(aht_vec, dtype=float) if aht_vec is not None else np.full(m, 180.0)
     tot_llamadas = np.sum(llamadas_arr)
     factor_asistencia = max(0.01, 1.0 - merma)
-
     req_arr = np.array(req_vector, dtype=float)
 
-    # Cobertura efectiva acumulada intervalo a intervalo
-    cob_efectiva = np.zeros(m, dtype=float)
-    x_full = np.zeros(m, dtype=int)
+    # 1. Determinar cuántos agentes ACTIVOS reales hay en la plantilla actual (Headcount Diario)
+    prog_arr = np.array(prog_vector, dtype=float)
+    # Número de agentes por día = Horas trabajadas / 5.5h = sum(prog_arr * 0.5h) / 5.5h = sum(prog_arr)/11
+    plantilla_actual_agentes = max(0, int(round(np.sum(prog_arr / factor_asistencia) / 11.0)))
 
-    # 1. RASTREO DIRECTO (Forward Tracking): Asigna personas justo cuando el requerimiento sube
+    # FASE 1: REUBICAR EXACTAMENTE LA PLANTILLA ACTUAL
+    x_reubicados = np.zeros(m, dtype=int)
+    cob_reubicada = np.zeros(m, dtype=float)
+
+    for _ in range(plantilla_actual_agentes):
+        best_j = -1
+        max_deficit = -9999.0
+        for j in valid_indices:
+            # Calcular cuánta brecha de requerimiento reduce agregar 1 agente en el turno j
+            cov_indices = list(range(j, min(j + SHIFT_LEN, m)))
+            deficit_score = sum(max(0.0, req_arr[t] - cob_reubicada[t]) for t in cov_indices)
+            if deficit_score > max_deficit:
+                max_deficit = deficit_score
+                best_j = j
+        
+        if best_j != -1:
+            x_reubicados[best_j] += 1
+            for t in range(best_j, min(best_j + SHIFT_LEN, m)):
+                cob_reubicada[t] += 1.0 * factor_asistencia
+
+    # FASE 2: IDENTIFICAR HUECOS RESTANTES Y CALCULAR AGENTES FALTANTES REQUERIDOS
+    x_faltantes = np.zeros(m, dtype=int)
+    cob_total = cob_reubicada.copy()
+
     for j in valid_indices:
-        # Déficit actual en el intervalo j
-        deficit = req_arr[j] - cob_efectiva[j]
+        deficit = req_arr[j] - cob_total[j]
         if deficit > 0.5:
-            # Calcular cuántos agentes nominales programar
-            agentes_nominales = math.ceil(deficit / factor_asistencia)
-            x_full[j] += agentes_nominales
-            
-            # Sumar cobertura en los siguientes 11 intervalos
+            agentes_extra = math.ceil(deficit / factor_asistencia)
+            x_faltantes[j] += agentes_extra
             for t in range(j, min(j + SHIFT_LEN, m)):
-                cob_efectiva[t] += agentes_nominales * factor_asistencia
+                cob_total[t] += agentes_extra * factor_asistencia
 
-    # 2. PODADO SUAVE DE PICOS EXCESIVOS
-    for j in reversed(valid_indices):
-        if x_full[j] > 0:
-            for _ in range(x_full[j]):
-                # Probar si quitar 1 agente no deja ningún intervalo crítico con déficit > 3 agentes
-                test_cob = cob_efectiva.copy()
-                for t in range(j, min(j + SHIFT_LEN, m)):
-                    test_cob[t] -= 1.0 * factor_asistencia
-                
-                # Evaluar si la reducción es segura
-                es_seguro = True
-                for t in range(j, min(j + SHIFT_LEN, m)):
-                    if req_arr[t] > 0 and test_cob[t] < (req_arr[t] - 2.5):
-                        es_seguro = False
-                        break
-                
-                if es_seguro:
-                    x_full[j] -= 1
-                    cob_efectiva = test_cob
-                else:
-                    break
+    # Evaluación de SLA para ambas curvas
+    def evaluar_sl(cob_vec):
+        sl_vec = []
+        for i in range(m):
+            c = llamadas_arr[i]
+            aht_s = aht_arr[i]
+            n_opt = cob_vec[i]
+            a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
+            sl_val = erlang_c_sl_optimizado(a_erl, n_opt, aht_s, target_time) if c > 0 else 100.0
+            sl_vec.append(sl_val)
+        sl_arr = np.array(sl_vec)
+        sl_g = float(np.sum(llamadas_arr * sl_arr) / tot_llamadas) if tot_llamadas > 0 else 100.0
+        return round(sl_g, 1), sl_vec
 
-    # 3. EVALUAR NIVEL DE SERVICIO POR INTERVALO
-    sl_optimo_vector = []
-    for i in range(m):
-        c = llamadas_arr[i]
-        aht_s = aht_arr[i]
-        n_opt = cob_efectiva[i]
-        a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-        sl_val = erlang_c_sl_optimizado(a_erl, n_opt, aht_s, target_time) if c > 0 else 100.0
-        sl_optimo_vector.append(sl_val)
+    sl_reubicado_global, sl_reubicado_vector = evaluar_sl(cob_reubicada)
+    sl_total_global, sl_total_vector = evaluar_sl(cob_total)
 
-    sl_arr = np.array(sl_optimo_vector)
-    if tot_llamadas > 0:
-        sl_optimo_global = float(np.sum(llamadas_arr * sl_arr) / tot_llamadas)
-    else:
-        sl_optimo_global = float(np.mean(sl_arr)) if len(sl_arr) > 0 else 100.0
-    sl_optimo_global = round(sl_optimo_global, 1)
+    # Armar tablas de salida
+    turnos_reubicados = []
+    turnos_faltantes = []
 
-    cobertura_entera = np.round(cob_efectiva).astype(int).tolist()
+    for j in valid_indices:
+        h_in = intervalos[j]
+        min_in = parse_time_str(h_in)
+        min_out = min_in + DURACION_MIN
+        h_out = f"{(min_out // 60):02d}:{(min_out % 60):02d}"
 
-    turnos_sugeridos = []
-    total_agentes_diarios = int(np.sum(x_full))
-    
-    for j in range(m):
-        qty = int(x_full[j])
-        if qty > 0:
-            h_in = intervalos[j]
-            min_in = parse_time_str(h_in)
-            min_out = min_in + DURACION_MIN
-            h_out = f"{(min_out // 60):02d}:{(min_out % 60):02d}"
-                
-            turnos_sugeridos.append({
+        if x_reubicados[j] > 0:
+            turnos_reubicados.append({
                 'horario_entrada': h_in,
                 'horario_salida': h_out,
-                'agentes_a_programar': qty,
+                'agentes': int(x_reubicados[j]),
+                'duracion': '5.5 hrs'
+            })
+        if x_faltantes[j] > 0:
+            turnos_faltantes.append({
+                'horario_entrada': h_in,
+                'horario_salida': h_out,
+                'agentes_faltantes': int(x_faltantes[j]),
                 'duracion': '5.5 hrs'
             })
 
-    headcount_semanal_6x1 = math.ceil(total_agentes_diarios * (7.0 / 6.0))
-    total_req = np.sum(req_arr)
-    total_prog_efec = np.sum(cob_efectiva)
-    staffing_level_optimo = round(float((total_prog_efec / total_req * 100.0)), 1) if total_req > 0 else 100.0
-    eficiencia = round(min(100.0, (total_req / total_prog_efec * 100.0)), 1) if total_prog_efec > 0 else 100.0
+    total_faltantes_diarios = int(np.sum(x_faltantes))
+    total_optimo_diario = plantilla_actual_agentes + total_faltantes_diarios
+    headcount_semanal_6x1 = math.ceil(total_optimo_diario * (7.0 / 6.0))
 
-    return turnos_sugeridos, cobertura_entera, total_agentes_diarios, headcount_semanal_6x1, eficiencia, sl_optimo_vector, sl_optimo_global, staffing_level_optimo
+    total_req = np.sum(req_arr)
+    staffing_reubicado = round(float((np.sum(cob_reubicada) / total_req * 100.0)), 1) if total_req > 0 else 100.0
+    staffing_total = round(float((np.sum(cob_total) / total_req * 100.0)), 1) if total_req > 0 else 100.0
+
+    return (
+        turnos_reubicados, 
+        turnos_faltantes, 
+        np.round(cob_reubicada).astype(int).tolist(),
+        np.round(cob_total).astype(int).tolist(),
+        plantilla_actual_agentes,
+        total_faltantes_diarios,
+        headcount_semanal_6x1,
+        sl_reubicado_global,
+        sl_total_global,
+        staffing_reubicado,
+        staffing_total,
+        sl_reubicado_vector,
+        sl_total_vector
+    )
 
 # --- ENDPOINTS ---
 
@@ -517,6 +534,7 @@ def api_optimize_schedules():
         body = request.get_json(force=True)
         intervalos = body.get('intervalos', [])
         requeridos = body.get('requeridos', [])
+        programados = body.get('programados', [])
         campanas = body.get('campanas', [])
         llamadas = body.get('llamadas', [])
         ahts = body.get('ahts', [])
@@ -525,21 +543,32 @@ def api_optimize_schedules():
         merma = float(body.get('merma', 30.0)) / 100.0
 
         if not intervalos or not requeridos or len(intervalos) != len(requeridos):
-            return jsonify({'error': 'Datos de intervalos o requerimientos incompletos'}), 400
+            return jsonify({'error': 'Datos incompletos'}), 400
 
-        turnos, cob_optima, total_diario, total_hc_6x1, eficiencia, sl_vec, sl_global, staff_level = resolver_turnos_optimos_5_5h(
-            intervalos, requeridos, campanas, llamadas_vec=llamadas, aht_vec=ahts, target_sl=target_sl, target_time=target_time, merma=merma
+        (
+            t_reub, t_falt, cob_reub, cob_tot,
+            n_actual, n_falt, hc_6x1,
+            sl_reub, sl_tot, staff_reub, staff_tot,
+            sl_reub_vec, sl_tot_vec
+        ) = resolver_turnos_optimos_5_5h(
+            intervalos, requeridos, programados, campanas,
+            llamadas_vec=llamadas, aht_vec=ahts, target_sl=target_sl, target_time=target_time, merma=merma
         )
 
         return jsonify({
-            'turnos': turnos,
-            'cobertura_optima': cob_optima,
-            'total_agentes_diarios': total_diario,
-            'headcount_semanal_6x1': total_hc_6x1,
-            'eficiencia_cobertura': eficiencia,
-            'sl_optimo_vector': sl_vec,
-            'sl_optimo_global': sl_global,
-            'staffing_level_optimo': staff_level
+            'turnos_reubicados': t_reub,
+            'turnos_faltantes': t_falt,
+            'cobertura_reubicada': cob_reub,
+            'cobertura_total': cob_tot,
+            'plantilla_actual_agentes': n_actual,
+            'total_faltantes_diarios': n_falt,
+            'headcount_semanal_6x1': hc_6x1,
+            'sl_reubicado_global': sl_reub,
+            'sl_total_global': sl_tot,
+            'staffing_reubicado': staff_reub,
+            'staffing_total': staff_tot,
+            'sl_reubicado_vector': sl_reub_vec,
+            'sl_total_vector': sl_tot_vec
         }), 200
 
     except Exception as e:
@@ -561,9 +590,9 @@ def get_latest_forecast():
             data = procesar_archivo_excel(EXCEL_DEFAULT)
             return jsonify(data), 200
         except Exception as e:
-            return jsonify({'error': f'Error procesando historico.xlsx automático: {str(e)}'}), 500
+            return jsonify({'error': f'Error procesando historico.xlsx: {str(e)}'}), 500
 
-    return jsonify({'error': 'No se encontró historico.xlsx en GitHub ni pronósticos previos.'}), 404
+    return jsonify({'error': 'No se encontró historico.xlsx en GitHub.'}), 404
 
 @app.route('/api/process', methods=['POST', 'GET'])
 @app.route('/api/process/', methods=['POST', 'GET'])
@@ -581,7 +610,7 @@ def process_data():
     elif os.path.exists(EXCEL_DEFAULT):
         file_source = EXCEL_DEFAULT
     else:
-        return jsonify({'error': 'No se recibió ningún archivo y no existe historico.xlsx en el servidor.'}), 400
+        return jsonify({'error': 'No se recibió archivo ni existe historico.xlsx.'}), 400
 
     try:
         data_processed = procesar_archivo_excel(file_source, target_sl, target_time, merma, dias_futuros)
@@ -589,7 +618,7 @@ def process_data():
         return jsonify(data_processed)
     except Exception as e:
         gc.collect()
-        return jsonify({'error': f"Error al procesar el archivo: {str(e)}"}), 500
+        return jsonify({'error': f"Error: {str(e)}"}), 500
 
 @app.errorhandler(404)
 def not_found(e):
@@ -597,10 +626,10 @@ def not_found(e):
 
 if os.path.exists(EXCEL_DEFAULT) and not os.path.exists(CACHE_FILE):
     try:
-        print("Procesando historico.xlsx inicial de GitHub...")
+        print("Procesando historico.xlsx inicial...")
         procesar_archivo_excel(EXCEL_DEFAULT)
     except Exception as e:
-        print("Error en procesamiento inicial:", e)
+        print("Error inicial:", e)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
