@@ -2,30 +2,26 @@ import os
 import math
 import gc
 import re
+import json
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pandas as pd
 import numpy as np
 
-# Ruta absoluta del directorio base
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CACHE_FILE = os.path.join(BASE_DIR, 'forecast_cache.json')
 
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
 CORS(app)
 
-# MEMORIA CACHÉ GLOBAL EN SERVIDOR (ÚLTIMO FORECAST PROCESADO)
-ULTIMO_FORECAST = []
-
-# MAPEO DE VENTANAS DE SERVICIO POR CAMPAÑA (HH:MM)
 VENTANAS_SERVICIO = {
-    'experiencias liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},  # 09:00 a 21:00
-    'experiencias suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60},  # 09:00 a 21:00
-    'retenciones liverpool':   {'inicio': 9 * 60, 'fin': 20 * 60},  # 09:00 a 20:00
-    'retenciones suburbia':    {'inicio': 9 * 60, 'fin': 20 * 60}   # 09:00 a 20:00
+    'experiencias liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
+    'experiencias suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60},
+    'retenciones liverpool':   {'inicio': 9 * 60, 'fin': 20 * 60},
+    'retenciones suburbia':    {'inicio': 9 * 60, 'fin': 20 * 60}
 }
 
-# --- RUTAS FRONTEND & ARCHIVOS ESTÁTICOS ---
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
@@ -46,19 +42,14 @@ def clean_num(val, default=0.0):
         return default
 
 def format_aht_str(seconds):
-    """ Convierte segundos a formato HH:MM:SS o MM:SS """
     if pd.isna(seconds) or seconds is None or seconds <= 0:
         return "00:00"
     secs = int(round(seconds))
     hrs = secs // 3600
     mins = (secs % 3600) // 60
-    s = secs % 60
-    if hrs > 0:
-        return f"{hrs:02d}:{mins:02d}:{s:02d}"
-    return f"{mins:02d}:{s:02d}"
+    return f"{hrs:02d}:{mins:02d}"
 
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
-    """ Cálculo iterativo eficiente de Erlang C """
     if N <= A or A <= 0 or N <= 0:
         return 0.0
     try:
@@ -87,17 +78,13 @@ def parse_time_str(t_str):
         return None
 
 def esta_en_ventana_servicio(campana, intervalo_str):
-    """ Verifica si un intervalo HH:MM está dentro de la ventana de servicio de la campaña """
     camp_key = str(campana).strip().lower()
     minutos_inter = parse_time_str(intervalo_str)
-    
     if minutos_inter is None:
         return True
-        
     ventana = VENTANAS_SERVICIO.get(camp_key)
     if not ventana:
         return True
-        
     return ventana['inicio'] <= minutos_inter < ventana['fin']
 
 def construir_matriz_plantilla(xls_file):
@@ -114,7 +101,6 @@ def construir_matriz_plantilla(xls_file):
 
         df_p = pd.read_excel(xls_file, sheet_name=sheet_plantilla, engine='openpyxl')
         dias_cols = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
-        
         malla = {}
 
         for _, row in df_p.iterrows():
@@ -137,13 +123,11 @@ def construir_matriz_plantilla(xls_file):
                             hh = cur // 60
                             mm = cur % 60
                             inter_str = f"{hh:02d}:{mm:02d}"
-                            
                             key = (camp.lower(), dia.lower(), inter_str)
                             malla[key] = malla.get(key, 0) + 1
                             cur += 30
                 except Exception:
                     continue
-
         return malla
     except Exception as e:
         print("Error procesando hoja plantilla:", e)
@@ -157,23 +141,18 @@ def encontrar_columna(df, posibles_nombres):
             return columnas_df[pos_clean]
     return None
 
-# --- MOTOR ML 1: REGRESIÓN RIDGE ---
 def entrenar_ridge_ml(X, y, l2_reg=10.0):
     X_b = np.c_[np.ones((X.shape[0], 1)), X]
     mean = np.mean(X_b[:, 1:], axis=0)
     std = np.std(X_b[:, 1:], axis=0) + 1e-8
-    
     X_norm = X_b.copy()
     X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
-    
     I = np.eye(X_norm.shape[1])
     I[0, 0] = 0.0
-    
     try:
         weights = np.linalg.inv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
     except np.linalg.LinAlgError:
         weights = np.linalg.pinv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
-        
     return weights, mean, std
 
 def predecir_ridge_ml(weights, mean, std, X_new):
@@ -188,20 +167,16 @@ def extraer_features_fecha(fecha, volumenes_hist, trend_idx):
     day_of_month = fecha.day
     is_weekend = 1.0 if day_of_week >= 5 else 0.0
     is_quincena = 1.0 if day_of_month in [1, 15, 16, 30, 31] else 0.0
-    
     lag_1 = volumenes_hist[-1] if len(volumenes_hist) >= 1 else 100.0
     lag_7 = volumenes_hist[-7] if len(volumenes_hist) >= 7 else lag_1
     lag_14 = volumenes_hist[-14] if len(volumenes_hist) >= 14 else lag_7
-
     dow_encoded = [1.0 if day_of_week == i else 0.0 for i in range(7)]
     return [lag_1, lag_7, lag_14, float(day_of_month), is_weekend, is_quincena, float(trend_idx)] + dow_encoded
 
-# --- MOTOR ML 2: HOLT-WINTERS ---
 def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=30):
     n = len(series)
     if n < season_len * 2:
         return [np.mean(series) if len(series) > 0 else 100.0] * n_preds
-    
     level = np.mean(series[:season_len])
     trend = (np.mean(series[season_len:2*season_len]) - np.mean(series[:season_len])) / season_len
     seasonals = [series[i] - level for i in range(season_len)]
@@ -210,7 +185,6 @@ def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.
         val = series[i]
         last_level, last_trend = level, trend
         st_prev = seasonals[i % season_len]
-        
         level = alpha * (val - st_prev) + (1 - alpha) * (last_level + last_trend)
         trend = beta * (level - last_level) + (1 - beta) * last_trend
         seasonals[i % season_len] = gamma * (val - level) + (1 - gamma) * st_prev
@@ -224,22 +198,15 @@ def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.
 def grid_search_auto_hw(series, n_preds=30):
     if len(series) < 21:
         return holt_winters_fit_predict(series, n_preds=n_preds)
-    
     train = np.array(series[:-14])
     val_true = np.array(series[-14:])
-    
     best_wmape = float('inf')
     best_params = (0.2, 0.05, 0.2)
-    
-    alphas = [0.1, 0.2, 0.3]
-    betas = [0.01, 0.05, 0.1]
-    gammas = [0.1, 0.2, 0.3, 0.5]
-    
     sum_true = np.sum(val_true) if np.sum(val_true) > 0 else 1.0
 
-    for a in alphas:
-        for b in betas:
-            for g in gammas:
+    for a in [0.1, 0.2, 0.3]:
+        for b in [0.01, 0.05, 0.1]:
+            for g in [0.1, 0.2, 0.3, 0.5]:
                 p_val = np.array(holt_winters_fit_predict(train, season_len=7, alpha=a, beta=b, gamma=g, n_preds=14))
                 wmape = (np.sum(np.abs(val_true - p_val)) / sum_true) * 100
                 if wmape < best_wmape:
@@ -258,23 +225,26 @@ def limpiar_outliers_iqr(series_list):
     lower, upper = q25 - 1.5 * iqr, q75 + 1.5 * iqr
     return np.clip(arr, lower, upper).tolist()
 
-# --- API ENDPOINTS ---
+# --- ENDPOINTS PERSISTENTES ---
 
-# Endpoint para obtener el último pronóstico procesado (para vista de operaciones)
 @app.route('/api/latest', methods=['GET'])
 def get_latest_forecast():
-    global ULTIMO_FORECAST
-    if not ULTIMO_FORECAST:
-        return jsonify({'error': 'No hay ningún pronóstico procesado aún. Solicite al administrador de WFM procesar el archivo maestro.'}), 404
-    return jsonify(ULTIMO_FORECAST), 200
+    # Leer desde el archivo persistente en disco
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if data and len(data) > 0:
+                return jsonify(data), 200
+        except Exception:
+            pass
+    return jsonify({'error': 'No hay ningún pronóstico procesado aún. Solicite al administrador de WFM procesar el archivo maestro.'}), 404
 
 @app.route('/api/process', methods=['POST', 'GET'])
 @app.route('/api/process/', methods=['POST', 'GET'])
 def process_data():
-    global ULTIMO_FORECAST
-
     if request.method == 'GET':
-        return jsonify({'status': 'API predictiva avanzada activa en Render'}), 200
+        return jsonify({'status': 'API predictiva activa'}), 200
 
     if 'file' not in request.files:
         return jsonify({'error': 'No se recibió ningún archivo.'}), 400
@@ -312,56 +282,36 @@ def process_data():
 
         fecha_maxima = df[col_fecha].max()
         fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
-
         aht_global_campana = df.groupby(col_camp)[col_aht].apply(lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 180.0).to_dict()
 
-        # -------------------------------------------------------------
-        # 1. ENTRENAMIENTO ENSAMBLE OPTIMIZADO ML POR CAMPAÑA
-        # -------------------------------------------------------------
         df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
         campanas_unicas = df[col_camp].unique()
 
-        modelos_ml = {}
-        historial_volumenes = {}
-        hw_forecasts = {}
+        modelos_ml, historial_volumenes, hw_forecasts = {}, {}, {}
 
         for camp in campanas_unicas:
             sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
             fechas_list = sub[col_fecha].tolist()
-            raw_volumenes = sub[col_calls].tolist()
-            
-            volumenes_list = limpiar_outliers_iqr(raw_volumenes)
+            volumenes_list = limpiar_outliers_iqr(sub[col_calls].tolist())
             historial_volumenes[camp] = list(volumenes_list)
-
             hw_forecasts[camp] = grid_search_auto_hw(volumenes_list, n_preds=dias_futuros)
 
             X_data, y_data = [], []
             for i in range(14, len(sub)):
                 f = fechas_list[i]
-                v_hist = volumenes_list[:i]
-                feat = extraer_features_fecha(f, v_hist, trend_idx=i)
+                feat = extraer_features_fecha(f, volumenes_list[:i], trend_idx=i)
                 X_data.append(feat)
                 y_data.append(volumenes_list[i])
 
             if len(X_data) > 10:
                 X_arr, y_arr = np.array(X_data), np.array(y_data)
                 weights, mean, std = entrenar_ridge_ml(X_arr, y_arr, l2_reg=10.0)
-                modelos_ml[camp] = {
-                    'weights': weights,
-                    'mean': mean,
-                    'std': std,
-                    'promedio_base': np.mean(y_arr)
-                }
+                modelos_ml[camp] = {'weights': weights, 'mean': mean, 'std': std, 'promedio_base': np.mean(y_arr)}
             else:
                 modelos_ml[camp] = None
 
-        # -------------------------------------------------------------
-        # 2. PROFILE CURVE INTRADÍA FILTRADO POR VENTANA DE SERVICIO
-        # -------------------------------------------------------------
         df['Dia_Semana_Clean'] = df[col_dia].astype(str).str.strip().str.lower() if col_dia else df[col_fecha].dt.day_name().str.lower()
-        
-        df['Inter_Clean'] = df[col_inter].astype(str).str.strip()
-        df['Inter_Clean'] = df['Inter_Clean'].apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
+        df['Inter_Clean'] = df[col_inter].astype(str).str.strip().apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
 
         df['En_Ventana'] = df.apply(lambda r: esta_en_ventana_servicio(r[col_camp], r['Inter_Clean']), axis=1)
         df_filtrado = df[df['En_Ventana']].copy()
@@ -375,10 +325,7 @@ def process_data():
         ).reset_index()
 
         totales_dia = perfil_intradia.groupby([col_camp, 'Dia_Semana_Clean'])['avg_calls'].transform('sum')
-        perfil_intradia['weight'] = [
-            (c / t) if t > 0 else 0 
-            for c, t in zip(perfil_intradia['avg_calls'], totales_dia)
-        ]
+        perfil_intradia['weight'] = [(c / t) if t > 0 else 0 for c, t in zip(perfil_intradia['avg_calls'], totales_dia)]
 
         mapa_perfil = {}
         for _, r in perfil_intradia.iterrows():
@@ -393,9 +340,6 @@ def process_data():
         del df, df_diario, df_filtrado, df_reciente
         gc.collect()
 
-        # -------------------------------------------------------------
-        # 3. PREDICCIÓN Y CÁLCULO DE ERLANG C (SHRINKAGE EN PROGRAMADO)
-        # -------------------------------------------------------------
         dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
         data_processed = []
 
@@ -406,20 +350,16 @@ def process_data():
 
             for camp in campanas_unicas:
                 hist_vol = historial_volumenes[camp]
-                trend_idx = len(hist_vol)
-                feat_futuras = np.array([extraer_features_fecha(fecha_actual, hist_vol, trend_idx)])
+                feat_futuras = np.array([extraer_features_fecha(fecha_actual, hist_vol, len(hist_vol))])
 
                 model_info = modelos_ml.get(camp)
                 if model_info:
-                    vol_ridge = predecir_ridge_ml(
-                        model_info['weights'], model_info['mean'], model_info['std'], feat_futuras
-                    )
+                    vol_ridge = predecir_ridge_ml(model_info['weights'], model_info['mean'], model_info['std'], feat_futuras)
                     vol_ridge = max(vol_ridge, model_info['promedio_base'] * 0.15)
                 else:
                     vol_ridge = np.mean(hist_vol[-7:]) if hist_vol else 100.0
 
                 vol_hw = hw_forecasts[camp][d] if d < len(hw_forecasts[camp]) else vol_ridge
-
                 volumen_predicho_diario = (0.65 * vol_hw) + (0.35 * vol_ridge)
                 historial_volumenes[camp].append(volumen_predicho_diario)
 
@@ -428,24 +368,17 @@ def process_data():
                 for inter in intervalos_validos:
                     key_p = (camp, nombre_dia, inter)
                     info_p = mapa_perfil.get(key_p, {'weight': 0.0, 'aht': 0.0})
-
                     calls = volumen_predicho_diario * info_p['weight']
-                    
-                    aht = info_p['aht']
-                    if aht <= 0 or pd.isna(aht):
-                        aht = aht_global_campana.get(camp, 180.0)
+                    aht = info_p['aht'] if (info_p['aht'] > 0 and not pd.isna(info_p['aht'])) else aht_global_campana.get(camp, 180.0)
 
                     a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
-                    
                     req_agents = math.ceil(a_erlang) if calls > 0 else 0
 
                     key_roster = (str(camp).lower(), nombre_dia.lower(), inter)
                     prog_nominal = matriz_roster.get(key_roster, req_agents)
-
                     prog_efectivo = prog_nominal * (1.0 - merma) if calls > 0 else 0.0
 
                     sl = erlang_c_sl_optimizado(a_erlang, prog_efectivo, aht, target_time) if calls > 0 else 100.0
-
                     delta_net = round(prog_efectivo - req_agents, 1) if calls > 0 else 0.0
 
                     data_processed.append({
@@ -462,8 +395,12 @@ def process_data():
                         'SL_Proyectado': sl
                     })
 
-        # PERSISTIR EL RESULTADO EN MEMORIA GLOBAL
-        ULTIMO_FORECAST = data_processed
+        # GUARDAR DE FORMA PERMANENTE EN DISCO
+        try:
+            with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+                json.dump(data_processed, f)
+        except Exception as err:
+            print("Error guardando cache en disco:", err)
 
         gc.collect()
         return jsonify(data_processed)
@@ -474,7 +411,7 @@ def process_data():
 
 @app.errorhandler(404)
 def not_found(e):
-    return jsonify({'error': 'La ruta solicitada no existe en el servidor Python'}), 404
+    return jsonify({'error': 'La ruta solicitada no existe'}), 404
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
