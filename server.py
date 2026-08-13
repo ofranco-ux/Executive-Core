@@ -397,7 +397,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN DE HORARIOS (SOPORTE JORNADA STANDARD Y TURNO NOCTURNO 22:00-07:00 CON 5x2) ---
+# --- MOTOR DE OPTIMIZACIÓN DE HORARIOS (SOPORTE JORNADA STANDARD Y TURNO NOCTURNO FIJO 22:00-07:00 CON 5x2) ---
 def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, 
                             target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, 
                             es_nocturno=False):
@@ -405,7 +405,6 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
     if m == 0:
         return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0
 
-    inicio_global, fin_global = obtener_ventana_global(campanas_activas)
     llamadas_arr = np.array(llamadas_vec, dtype=float) if llamadas_vec is not None else np.zeros(m)
     aht_arr = np.array(aht_vec, dtype=float) if aht_vec is not None else np.full(m, 180.0)
     tot_llamadas = np.sum(llamadas_arr)
@@ -415,46 +414,63 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
     cob_efectiva = np.zeros(m, dtype=float)
     x_turnos_dict = {}
 
-    # Configuración según si es Turno Nocturno (22:00 - 07:00 / 5x2) o Jornada Estándar
+    # --- LÓGICA DE TURNO NOCTURNO FIJO (22:00 A 07:00 / 5x2) ---
     if es_nocturno:
-        duracion_minutos = 9 * 60     # 9 horas (22:00 a 07:00)
-        SHIFT_BLOCKS = 18             # 18 bloques de 30 minutos
         label_jornada = "9.0 hrs (Nocturno 5x2)"
-        factor_headcount = 7.0 / 5.0  # Esquema 5x2 (5 laborables, 2 descansos = factor 1.4)
+        factor_headcount = 7.0 / 5.0  # Esquema 5x2 (factor 1.4)
+
+        reqs_nocturnos = []
+        indices_nocturnos = []
+
+        for j in range(m):
+            min_in = parse_time_str(intervalos[j])
+            if min_in is not None:
+                # 22:00 = 1320 mins, 07:00 = 420 mins
+                if min_in >= (22 * 60) or min_in < (7 * 60):
+                    reqs_nocturnos.append(req_arr[j])
+                    indices_nocturnos.append(j)
+
+        pico_nocturno = max(reqs_nocturnos) if reqs_nocturnos else (max(req_arr) if len(req_arr) > 0 else 0)
+        agentes_necesarios = math.ceil(pico_nocturno / factor_asistencia) if pico_nocturno > 0 else 0
+
+        if agentes_necesarios > 0:
+            key_turno = ("22:00", "07:00", label_jornada)
+            x_turnos_dict[key_turno] = agentes_necesarios
+
+            for idx in indices_nocturnos:
+                cob_efectiva[idx] = agentes_necesarios * factor_asistencia
+
+    # --- LÓGICA JORNADA ESTÁNDAR / DIURNA ---
     else:
+        inicio_global, fin_global = obtener_ventana_global(campanas_activas)
         duracion_jornada = float(duracion_jornada)
         SHIFT_BLOCKS = int(round(duracion_jornada * 2))
         duracion_minutos = int(round(duracion_jornada * 60))
         label_jornada = f"{duracion_jornada:.1f} hrs".replace('.0', '')
-        factor_headcount = 7.0 / 6.0  # Esquema estándar 6x1 (factor 1.167)
+        factor_headcount = 7.0 / 6.0  # Esquema 6x1 (factor 1.167)
 
-    for j in range(m):
-        if req_arr[j] <= 0:
-            continue
-            
-        min_in = parse_time_str(intervalos[j])
-        if min_in is None:
-            continue
+        for j in range(m):
+            if req_arr[j] <= 0:
+                continue
+                
+            min_in = parse_time_str(intervalos[j])
+            if min_in is None or min_in < inicio_global:
+                continue
 
-        if not es_nocturno and min_in < inicio_global:
-            continue
+            deficit = req_arr[j] - cob_efectiva[j]
+            if deficit > 0.1:
+                agentes_necesarios = math.ceil(deficit / factor_asistencia)
+                min_out = (min_in + duracion_minutos) % (24 * 60)
+                h_out = f"{(int(min_out // 60)):02d}:{(int(min_out % 60)):02d}"
+                
+                key_turno = (intervalos[j], h_out, label_jornada)
+                x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + agentes_necesarios
 
-        deficit = req_arr[j] - cob_efectiva[j]
-        if deficit > 0.1:
-            agentes_necesarios = math.ceil(deficit / factor_asistencia)
-            
-            # Cálculo del horario de salida soportando medianoche
-            min_out = (min_in + duracion_minutos) % (24 * 60)
-            h_out = f"{(int(min_out // 60)):02d}:{(int(min_out % 60)):02d}"
-            
-            key_turno = (intervalos[j], h_out, label_jornada)
-            x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + agentes_necesarios
-
-            for t in range(j, min(j + SHIFT_BLOCKS, m)):
-                if req_arr[t] > 0 or t < (j + math.ceil(SHIFT_BLOCKS / 2)):
-                    cob_efectiva[t] += agentes_necesarios * factor_asistencia
-                else:
-                    break
+                for t in range(j, min(j + SHIFT_BLOCKS, m)):
+                    if req_arr[t] > 0 or t < (j + math.ceil(SHIFT_BLOCKS / 2)):
+                        cob_efectiva[t] += agentes_necesarios * factor_asistencia
+                    else:
+                        break
 
     for i in range(m):
         if req_arr[i] > 0:
