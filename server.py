@@ -397,7 +397,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN DE HORARIOS (SOPORTE JORNADA STANDARD Y TURNO NOCTURNO FIJO 22:00-07:00 CON 5x2) ---
+# --- MOTOR DE OPTIMIZACIÓN DE HORARIOS (CUBRE TURNO NOCTURNO 22:00-07:00 Y TURNOS DIURNOS DE MANERA CONJUNTA) ---
 def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, 
                             target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, 
                             es_nocturno=False):
@@ -414,64 +414,61 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
     cob_efectiva = np.zeros(m, dtype=float)
     x_turnos_dict = {}
 
-    # --- LÓGICA DE TURNO NOCTURNO FIJO (22:00 A 07:00 / 5x2) ---
+    # --- PASO 1: PROGRAMAR TURNO NOCTURNO FIJO (SI ESTÁ HABILITADO) ---
     if es_nocturno:
-        label_jornada = "9.0 hrs (Nocturno 5x2)"
-        factor_headcount = 7.0 / 5.0  # Esquema 5x2 (factor 1.4)
-
+        label_jornada_noc = "9.0 hrs (Nocturno 5x2)"
         reqs_nocturnos = []
         indices_nocturnos = []
 
         for j in range(m):
             min_in = parse_time_str(intervalos[j])
             if min_in is not None:
-                # 22:00 = 1320 mins, 07:00 = 420 mins
+                # Tramo nocturno: 22:00 (1320 min) a 07:00 (420 min)
                 if min_in >= (22 * 60) or min_in < (7 * 60):
                     reqs_nocturnos.append(req_arr[j])
                     indices_nocturnos.append(j)
 
-        pico_nocturno = max(reqs_nocturnos) if reqs_nocturnos else (max(req_arr) if len(req_arr) > 0 else 0)
-        agentes_necesarios = math.ceil(pico_nocturno / factor_asistencia) if pico_nocturno > 0 else 0
+        pico_nocturno = max(reqs_nocturnos) if reqs_nocturnos else 0
+        if pico_nocturno > 0:
+            agentes_nocturnos = math.ceil(pico_nocturno / factor_asistencia)
+            key_turno_noc = ("22:00", "07:00", label_jornada_noc)
+            x_turnos_dict[key_turno_noc] = agentes_nocturnos
 
-        if agentes_necesarios > 0:
-            key_turno = ("22:00", "07:00", label_jornada)
-            x_turnos_dict[key_turno] = agentes_necesarios
-
+            # Aplicar la cobertura en el tramo nocturno
             for idx in indices_nocturnos:
-                cob_efectiva[idx] = agentes_necesarios * factor_asistencia
+                cob_efectiva[idx] += agentes_nocturnos * factor_asistencia
 
-    # --- LÓGICA JORNADA ESTÁNDAR / DIURNA ---
-    else:
-        inicio_global, fin_global = obtener_ventana_global(campanas_activas)
-        duracion_jornada = float(duracion_jornada)
-        SHIFT_BLOCKS = int(round(duracion_jornada * 2))
-        duracion_minutos = int(round(duracion_jornada * 60))
-        label_jornada = f"{duracion_jornada:.1f} hrs".replace('.0', '')
-        factor_headcount = 7.0 / 6.0  # Esquema 6x1 (factor 1.167)
+    # --- PASO 2: PROGRAMAR TURNOS DIURNOS/ESTÁNDAR PARA EL RESTO DEL DÍA ---
+    inicio_global, fin_global = obtener_ventana_global(campanas_activas)
+    duracion_jornada = float(duracion_jornada)
+    SHIFT_BLOCKS = int(round(duracion_jornada * 2))
+    duracion_minutos = int(round(duracion_jornada * 60))
+    label_jornada_diurna = f"{duracion_jornada:.1f} hrs".replace('.0', '')
 
-        for j in range(m):
-            if req_arr[j] <= 0:
-                continue
-                
-            min_in = parse_time_str(intervalos[j])
-            if min_in is None or min_in < inicio_global:
-                continue
+    for j in range(m):
+        min_in = parse_time_str(intervalos[j])
+        if min_in is None:
+            continue
 
+        # Si el intervalo pertenece al horario diurno/operativo y aún hay déficit no cubierto
+        if min_in >= inicio_global and min_in < fin_global:
             deficit = req_arr[j] - cob_efectiva[j]
             if deficit > 0.1:
                 agentes_necesarios = math.ceil(deficit / factor_asistencia)
                 min_out = (min_in + duracion_minutos) % (24 * 60)
                 h_out = f"{(int(min_out // 60)):02d}:{(int(min_out % 60)):02d}"
                 
-                key_turno = (intervalos[j], h_out, label_jornada)
+                key_turno = (intervalos[j], h_out, label_jornada_diurna)
                 x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + agentes_necesarios
 
+                # Distribuir la cobertura de este nuevo turno
                 for t in range(j, min(j + SHIFT_BLOCKS, m)):
                     if req_arr[t] > 0 or t < (j + math.ceil(SHIFT_BLOCKS / 2)):
                         cob_efectiva[t] += agentes_necesarios * factor_asistencia
                     else:
                         break
 
+    # Consolidar niveles finales
     for i in range(m):
         if req_arr[i] > 0:
             cob_efectiva[i] = max(req_arr[i], cob_efectiva[i])
@@ -495,6 +492,9 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
     turnos_sugeridos = []
     total_agentes_diarios = 0
 
+    agentes_diurnos_totales = 0
+    agentes_nocturnos_totales = 0
+
     for (h_in, h_out, label_dur), qty in x_turnos_dict.items():
         if qty > 0:
             turnos_sugeridos.append({
@@ -504,8 +504,18 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
                 'duracion': label_dur
             })
             total_agentes_diarios += qty
+            if "Nocturno" in label_dur:
+                agentes_nocturnos_totales += qty
+            else:
+                agentes_diurnos_totales += qty
 
-    headcount_semanal_requerido = math.ceil(total_agentes_diarios * factor_headcount)
+    # Cálculo diferenciado del Headcount Semanal Requerido:
+    # - Turno Nocturno: Factor 7/5 (2 días de descanso = 5x2)
+    # - Turnos Diurnos: Factor 7/6 (1 día de descanso = 6x1)
+    hc_nocturno = math.ceil(agentes_nocturnos_totales * (7.0 / 5.0))
+    hc_diurno = math.ceil(agentes_diurnos_totales * (7.0 / 6.0))
+    headcount_semanal_requerido = hc_nocturno + hc_diurno
+
     total_req = np.sum(req_arr)
     total_prog_efec = np.sum(cob_efectiva)
     staffing_level_optimo = round(float((total_prog_efec / total_req * 100.0)), 1) if total_req > 0 else 100.0
