@@ -86,7 +86,7 @@
             </div>
         </div>
 
-        <!-- CONMUTADOR VISTA DIARIA / SEMANALE -->
+        <!-- CONMUTADOR VISTA DIARIA / SEMANAL -->
         <div class="flex items-center gap-2 bg-slate-900/90 p-1.5 rounded-xl border border-slate-800 z-10">
             <button id="btnVistaDiaria" onclick="cambiarModoVista('diario')" class="px-3.5 py-2 text-xs font-bold rounded-lg bg-cyan-500 text-white transition-all shadow-md">
                 📅 Vista Diaria
@@ -130,9 +130,16 @@
                     </div>
                 </div>
 
-                <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80 focus-within:border-cyan-500/50 transition-colors">
-                    <label class="block text-[10px] text-slate-400 font-medium mb-1">Shrinkage Total (%)</label>
-                    <input type="number" id="merma" value="30" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80 focus-within:border-cyan-500/50 transition-colors">
+                        <label class="block text-[10px] text-slate-400 font-medium mb-1">Shrinkage Total (%)</label>
+                        <input type="number" id="merma" value="30" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
+                    </div>
+                    <!-- CAMPO AÑADIDO: Duración de Jornada en Horas -->
+                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-amber-500/40 focus-within:border-amber-400 transition-colors">
+                        <label class="block text-[10px] text-amber-400 font-bold mb-1">Jornada (Hrs)</label>
+                        <input type="number" id="duracionJornada" value="8" step="0.5" min="1" max="12" class="w-full bg-transparent text-sm text-amber-300 font-mono-num font-bold focus:outline-none"/>
+                    </div>
                 </div>
 
                 <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
@@ -167,7 +174,7 @@
                     <!-- MULTI-CAMPAÑA -->
                     <div class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Campaña(s)</label>
-                        <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-brand-surface border border-violet-500/30 text-xs rounded-xl px-3 py-2 text-violet-300 font-mono-num font-bold focus:outline-none border-violet-500 transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
+                        <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-brand-surface border border-violet-500/30 text-xs rounded-xl px-3 py-2 text-violet-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
                             <span id="campanaSelectedText">🎧 SELECC. (0)</span>
                             <span class="text-[10px] text-violet-400">▼</span>
                         </button>
@@ -178,7 +185,7 @@
                     <!-- CONTAINER VISTA DIARIA (FECHAS) -->
                     <div id="containerFiltroFecha" class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Fecha(s)</label>
-                        <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-brand-surface border border-cyan-500/30 text-xs rounded-xl px-3 py-2 text-cyan-300 font-mono-num font-bold focus:outline-none border-cyan-500 transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
+                        <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-brand-surface border border-cyan-500/30 text-xs rounded-xl px-3 py-2 text-cyan-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
                             <span id="fechaSelectedText">📅 SELECC. (0)</span>
                             <span class="text-[10px] text-cyan-400">▼</span>
                         </button>
@@ -196,7 +203,7 @@
                     <!-- MULTI-INTERVALO -->
                     <div class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Intervalo(s)</label>
-                        <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-brand-surface border border-emerald-500/30 text-xs rounded-xl px-3 py-2 text-emerald-300 font-mono-num font-bold focus:outline-none border-emerald-500 transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
+                        <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-brand-surface border border-emerald-500/30 text-xs rounded-xl px-3 py-2 text-emerald-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
                             <span id="intervaloSelectedText">⏰ SELECC. (0)</span>
                             <span class="text-[10px] text-emerald-400">▼</span>
                         </button>
@@ -231,7 +238,7 @@
                     <p id="kpiFulfillment" class="text-2xl font-black font-mono-num mt-2 text-white">--</p>
                 </div>
 
-                <div class="glass-card glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
+                <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Net Staffing</p>
                     <p id="kpiNet" class="text-2xl font-black font-mono-num mt-2 text-white">--</p>
                 </div>
@@ -797,18 +804,17 @@
             const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
             const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
+            const duracionJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
 
             const semKey = document.getElementById('selectSemana').value;
             const fechasSemana = mapaSemanas[semKey] || [];
 
-            // Filtrar datos para la semana seleccionada
             const dfFiltered = globalData.filter(item => {
                 const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
                 const f = String(getProp(item, ['Fecha'], '')).split(' ')[0];
                 return selectedCampanas.has(c) && fechasSemana.includes(f);
             });
 
-            // Organizar por día de la semana
             const diasOrden = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
             const semanaDataArray = [];
 
@@ -848,7 +854,8 @@
                         campanas: Array.from(selectedCampanas),
                         target_sl: targetSlObj,
                         target_time: targetTimeObj,
-                        merma: mermaVal
+                        merma: mermaVal,
+                        duracion_jornada: duracionJornada
                     })
                 });
 
@@ -856,14 +863,12 @@
                     const resSem = await res.json();
                     const mallaSem = resSem.malla_semanal || {};
 
-                    // KPIs Semanales
                     document.getElementById('optDailyStaff').innerText = (resSem.agentes_promedio_dia || 0).toLocaleString();
                     document.getElementById('optHeadcount').innerText = (resSem.headcount_semanal_requerido || 0).toLocaleString();
                     
                     const optTbody = document.getElementById('optShiftsTableBody');
                     optTbody.innerHTML = '';
 
-                    // Render Malla Semanal
                     Object.keys(mallaSem).forEach(dNom => {
                         const dInfo = mallaSem[dNom];
                         (dInfo.turnos || []).forEach(t => {
@@ -889,6 +894,8 @@
         async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slActualArray) {
             if (!intervalos || intervalos.length === 0) return;
 
+            const duracionJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
+
             try {
                 const res = await fetch('/api/optimize-schedules', {
                     method: 'POST',
@@ -901,7 +908,8 @@
                         ahts: ahtSegsArr,
                         target_sl: targetSlObj,
                         target_time: targetTimeObj,
-                        merma: mermaVal
+                        merma: mermaVal,
+                        duracion_jornada: duracionJornada
                     })
                 });
 
@@ -949,7 +957,7 @@
                             labels: intervalos,
                             datasets: [
                                 { label: 'Demanda Erlang C (Req)', data: reqArray, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.05)', fill: true, tension: 0.35, borderWidth: 2.5 },
-                                { label: 'Cobertura con Horarios Óptimos (5.5h)', data: optData.cobertura_optima, borderColor: '#F59E0B', backgroundColor: 'rgba(245, 158, 11, 0.1)', fill: true, tension: 0.35, borderWidth: 2.5, borderDash: [2, 2] }
+                                { label: `Cobertura con Horarios Óptimos (${duracionJornada}h)`, data: optData.cobertura_optima, borderColor: '#F59E0B', backgroundColor: 'rgba(245, 158, 11, 0.1)', fill: true, tension: 0.35, borderWidth: 2.5, borderDash: [2, 2] }
                             ]
                         },
                         options: { 
@@ -1036,7 +1044,7 @@
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.setAttribute('href', url);
-            a.setAttribute('download', `Malla_Turnos_Optimos_5.5h_${new Date().toISOString().slice(0,10)}.csv`);
+            a.setAttribute('download', `Malla_Turnos_Optimos_${new Date().toISOString().slice(0,10)}.csv`);
             a.click();
         }
 
