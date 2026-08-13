@@ -397,8 +397,10 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN DE HORARIOS AJUSTABLE A LA JORNADA ---
-def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0):
+# --- MOTOR DE OPTIMIZACIÓN DE HORARIOS (SOPORTE JORNADA STANDARD Y TURNO NOCTURNO 22:00-07:00 CON 5x2) ---
+def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, 
+                            target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, 
+                            es_nocturno=False):
     m = len(intervalos)
     if m == 0:
         return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0
@@ -413,27 +415,39 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
     cob_efectiva = np.zeros(m, dtype=float)
     x_turnos_dict = {}
 
-    # Cálculos dinámicos con base en la jornada en horas solicitada
-    duracion_jornada = float(duracion_jornada)
-    SHIFT_BLOCKS = int(round(duracion_jornada * 2))  # Cada hora = 2 bloques de 30 min
-    duracion_minutos = int(round(duracion_jornada * 60))
-    label_jornada = f"{duracion_jornada:.1f} hrs".replace('.0', '')
+    # Configuración según si es Turno Nocturno (22:00 - 07:00 / 5x2) o Jornada Estándar
+    if es_nocturno:
+        duracion_minutos = 9 * 60     # 9 horas (22:00 a 07:00)
+        SHIFT_BLOCKS = 18             # 18 bloques de 30 minutos
+        label_jornada = "9.0 hrs (Nocturno 5x2)"
+        factor_headcount = 7.0 / 5.0  # Esquema 5x2 (5 laborables, 2 descansos = factor 1.4)
+    else:
+        duracion_jornada = float(duracion_jornada)
+        SHIFT_BLOCKS = int(round(duracion_jornada * 2))
+        duracion_minutos = int(round(duracion_jornada * 60))
+        label_jornada = f"{duracion_jornada:.1f} hrs".replace('.0', '')
+        factor_headcount = 7.0 / 6.0  # Esquema estándar 6x1 (factor 1.167)
 
     for j in range(m):
         if req_arr[j] <= 0:
             continue
             
         min_in = parse_time_str(intervalos[j])
-        if min_in is None or min_in < inicio_global:
+        if min_in is None:
+            continue
+
+        if not es_nocturno and min_in < inicio_global:
             continue
 
         deficit = req_arr[j] - cob_efectiva[j]
         if deficit > 0.1:
             agentes_necesarios = math.ceil(deficit / factor_asistencia)
-            min_out = min_in + duracion_minutos
+            
+            # Cálculo del horario de salida soportando medianoche
+            min_out = (min_in + duracion_minutos) % (24 * 60)
             h_out = f"{(int(min_out // 60)):02d}:{(int(min_out % 60)):02d}"
             
-            key_turno = (intervalos[j], h_out, f"{label_jornada} jornada")
+            key_turno = (intervalos[j], h_out, label_jornada)
             x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + agentes_necesarios
 
             for t in range(j, min(j + SHIFT_BLOCKS, m)):
@@ -475,13 +489,13 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
             })
             total_agentes_diarios += qty
 
-    headcount_semanal_6x1 = math.ceil(total_agentes_diarios * (7.0 / 6.0))
+    headcount_semanal_requerido = math.ceil(total_agentes_diarios * factor_headcount)
     total_req = np.sum(req_arr)
     total_prog_efec = np.sum(cob_efectiva)
     staffing_level_optimo = round(float((total_prog_efec / total_req * 100.0)), 1) if total_req > 0 else 100.0
     eficiencia = round(min(100.0, (total_req / total_prog_efec * 100.0)), 1) if total_prog_efec > 0 else 100.0
 
-    return turnos_sugeridos, cobertura_entera, total_agentes_diarios, headcount_semanal_6x1, eficiencia, sl_optimo_vector, sl_optimo_global, staffing_level_optimo
+    return turnos_sugeridos, cobertura_entera, total_agentes_diarios, headcount_semanal_requerido, eficiencia, sl_optimo_vector, sl_optimo_global, staffing_level_optimo
 
 # --- ENDPOINTS ---
 
@@ -497,21 +511,23 @@ def api_optimize_schedules():
         target_sl = float(body.get('target_sl', 80.0))
         target_time = float(body.get('target_time', 20.0))
         merma = float(body.get('merma', 30.0)) / 100.0
-        duracion_jornada = float(body.get('duracion_jornada', 8.0))  # Por defecto 8 horas
+        duracion_jornada = float(body.get('duracion_jornada', 8.0))
+        es_nocturno = bool(body.get('es_nocturno', False))
 
         if not intervalos or not requeridos or len(intervalos) != len(requeridos):
             return jsonify({'error': 'Datos incompletos'}), 400
 
-        turnos, cob_optima, total_diario, total_hc_6x1, eficiencia, sl_vec, sl_global, staff_level = resolver_turnos_optimos(
+        turnos, cob_optima, total_diario, total_hc, eficiencia, sl_vec, sl_global, staff_level = resolver_turnos_optimos(
             intervalos, requeridos, campanas, llamadas_vec=llamadas, aht_vec=ahts, 
-            target_sl=target_sl, target_time=target_time, merma=merma, duracion_jornada=duracion_jornada
+            target_sl=target_sl, target_time=target_time, merma=merma, 
+            duracion_jornada=duracion_jornada, es_nocturno=es_nocturno
         )
 
         return jsonify({
             'turnos': turnos,
             'cobertura_optima': cob_optima,
             'total_agentes_diarios': total_diario,
-            'headcount_semanal_6x1': total_hc_6x1,
+            'headcount_semanal_6x1': total_hc,
             'eficiencia_cobertura': eficiencia,
             'sl_optimo_vector': sl_vec,
             'sl_optimo_global': sl_global,
@@ -530,7 +546,8 @@ def api_optimize_schedules_weekly():
         target_sl = float(body.get('target_sl', 80.0))
         target_time = float(body.get('target_time', 20.0))
         merma = float(body.get('merma', 30.0)) / 100.0
-        duracion_jornada = float(body.get('duracion_jornada', 8.0))  # Por defecto 8 horas
+        duracion_jornada = float(body.get('duracion_jornada', 8.0))
+        es_nocturno = bool(body.get('es_nocturno', False))
 
         malla_semanal = {}
         headcount_max_dia = 0
@@ -542,9 +559,10 @@ def api_optimize_schedules_weekly():
             llamadas = dia_info.get('llamadas', [])
             ahts = dia_info.get('ahts', [])
 
-            turnos, cob_opt, total_d, hc_6x1, efic, sl_vec, sl_g, staff_lvl = resolver_turnos_optimos(
+            turnos, cob_opt, total_d, hc_req, efic, sl_vec, sl_g, staff_lvl = resolver_turnos_optimos(
                 intervalos, requeridos, campanas, llamadas_vec=llamadas, aht_vec=ahts,
-                target_sl=target_sl, target_time=target_time, merma=merma, duracion_jornada=duracion_jornada
+                target_sl=target_sl, target_time=target_time, merma=merma, 
+                duracion_jornada=duracion_jornada, es_nocturno=es_nocturno
             )
 
             malla_semanal[nombre_dia] = {
@@ -559,7 +577,8 @@ def api_optimize_schedules_weekly():
             }
             headcount_max_dia = max(headcount_max_dia, total_d)
 
-        hc_semanal_total = math.ceil(headcount_max_dia * (7.0 / 6.0))
+        factor_hc = (7.0 / 5.0) if es_nocturno else (7.0 / 6.0)
+        hc_semanal_total = math.ceil(headcount_max_dia * factor_hc)
 
         return jsonify({
             'malla_semanal': malla_semanal,
