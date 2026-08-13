@@ -21,7 +21,7 @@ VENTANAS_SERVICIO = {
     'experiencias suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60},
     'retenciones liverpool':   {'inicio': 9 * 60, 'fin': 20 * 60},
     'retenciones suburbia':    {'inicio': 9 * 60, 'fin': 20 * 60},
-    'Coppel Servicios':    {'inicio': 0 * 60, 'fin': 24 * 60}
+    'Coppel Servicios':        {'inicio': 0 * 60, 'fin': 24 * 60}
 }
 
 @app.route('/')
@@ -397,8 +397,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN DE HORARIOS DÍA A DÍA (REGLA 5.5H MÍNIMO) ---
-def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, target_sl=80.0, target_time=20.0, merma=0.20):
+# --- MOTOR DE OPTIMIZACIÓN DE HORARIOS AJUSTABLE A LA JORNADA ---
+def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0):
     m = len(intervalos)
     if m == 0:
         return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0
@@ -413,8 +413,11 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
     cob_efectiva = np.zeros(m, dtype=float)
     x_turnos_dict = {}
 
-    SHIFT_BLOCKS = 11  # 5.5h (11 bloques)
-    DURACION_MIN = 6.0 * 60
+    # Cálculos dinámicos con base en la jornada en horas solicitada
+    duracion_jornada = float(duracion_jornada)
+    SHIFT_BLOCKS = int(round(duracion_jornada * 2))  # Cada hora = 2 bloques de 30 min
+    duracion_minutos = int(round(duracion_jornada * 60))
+    label_jornada = f"{duracion_jornada:.1f} hrs".replace('.0', '')
 
     for j in range(m):
         if req_arr[j] <= 0:
@@ -427,14 +430,14 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
         deficit = req_arr[j] - cob_efectiva[j]
         if deficit > 0.1:
             agentes_necesarios = math.ceil(deficit / factor_asistencia)
-            min_out = min_in + DURACION_MIN
+            min_out = min_in + duracion_minutos
             h_out = f"{(int(min_out // 60)):02d}:{(int(min_out % 60)):02d}"
             
-            key_turno = (intervalos[j], h_out, "5.5 hrs (33h sem.)")
+            key_turno = (intervalos[j], h_out, f"{label_jornada} jornada")
             x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + agentes_necesarios
 
             for t in range(j, min(j + SHIFT_BLOCKS, m)):
-                if req_arr[t] > 0 or t < (j + 4):
+                if req_arr[t] > 0 or t < (j + math.ceil(SHIFT_BLOCKS / 2)):
                     cob_efectiva[t] += agentes_necesarios * factor_asistencia
                 else:
                     break
@@ -494,12 +497,14 @@ def api_optimize_schedules():
         target_sl = float(body.get('target_sl', 80.0))
         target_time = float(body.get('target_time', 20.0))
         merma = float(body.get('merma', 30.0)) / 100.0
+        duracion_jornada = float(body.get('duracion_jornada', 8.0))  # Por defecto 8 horas
 
         if not intervalos or not requeridos or len(intervalos) != len(requeridos):
             return jsonify({'error': 'Datos incompletos'}), 400
 
-        turnos, cob_optima, total_diario, total_hc_6x1, eficiencia, sl_vec, sl_global, staff_level = resolver_turnos_optimos_5_5h(
-            intervalos, requeridos, campanas, llamadas_vec=llamadas, aht_vec=ahts, target_sl=target_sl, target_time=target_time, merma=merma
+        turnos, cob_optima, total_diario, total_hc_6x1, eficiencia, sl_vec, sl_global, staff_level = resolver_turnos_optimos(
+            intervalos, requeridos, campanas, llamadas_vec=llamadas, aht_vec=ahts, 
+            target_sl=target_sl, target_time=target_time, merma=merma, duracion_jornada=duracion_jornada
         )
 
         return jsonify({
@@ -525,6 +530,7 @@ def api_optimize_schedules_weekly():
         target_sl = float(body.get('target_sl', 80.0))
         target_time = float(body.get('target_time', 20.0))
         merma = float(body.get('merma', 30.0)) / 100.0
+        duracion_jornada = float(body.get('duracion_jornada', 8.0))  # Por defecto 8 horas
 
         malla_semanal = {}
         headcount_max_dia = 0
@@ -536,9 +542,9 @@ def api_optimize_schedules_weekly():
             llamadas = dia_info.get('llamadas', [])
             ahts = dia_info.get('ahts', [])
 
-            turnos, cob_opt, total_d, hc_6x1, efic, sl_vec, sl_g, staff_lvl = resolver_turnos_optimos_5_5h(
+            turnos, cob_opt, total_d, hc_6x1, efic, sl_vec, sl_g, staff_lvl = resolver_turnos_optimos(
                 intervalos, requeridos, campanas, llamadas_vec=llamadas, aht_vec=ahts,
-                target_sl=target_sl, target_time=target_time, merma=merma
+                target_sl=target_sl, target_time=target_time, merma=merma, duracion_jornada=duracion_jornada
             )
 
             malla_semanal[nombre_dia] = {
