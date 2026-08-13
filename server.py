@@ -20,7 +20,8 @@ VENTANAS_SERVICIO = {
     'experiencias liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
     'experiencias suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60},
     'retenciones liverpool':   {'inicio': 9 * 60, 'fin': 20 * 60},
-    'retenciones suburbia':    {'inicio': 9 * 60, 'fin': 20 * 60}
+    'retenciones suburbia':    {'inicio': 9 * 60, 'fin': 20 * 60},
+    'Coppel Servicios':    {'inicio': 0 * 60, 'fin': 24 * 60}
 }
 
 @app.route('/')
@@ -413,7 +414,7 @@ def resolver_turnos_optimos_5_5h(intervalos, req_vector, campanas_activas, llama
     x_turnos_dict = {}
 
     SHIFT_BLOCKS = 11  # 5.5h (11 bloques)
-    DURACION_MIN = 5.5 * 60
+    DURACION_MIN = 6.0 * 60
 
     for j in range(m):
         if req_arr[j] <= 0:
