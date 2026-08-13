@@ -221,8 +221,8 @@
                 </div>
             </div>
 
-            <!-- Cards Métricas -->
-            <div class="grid grid-cols-5 gap-4">
+            <!-- Cards Métricas (GRID DE 4 COLUMNAS) -->
+            <div class="grid grid-cols-4 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Volumen Tráfico</p>
                     <p id="kpiCalls" class="text-2xl font-black font-mono-num mt-2 text-white">--</p>
@@ -244,11 +244,6 @@
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Staffing Level</p>
                     <p id="kpiFulfillment" class="text-2xl font-black font-mono-num mt-2 text-white">--</p>
-                </div>
-
-                <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
-                    <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Net Staffing</p>
-                    <p id="kpiNet" class="text-2xl font-black font-mono-num mt-2 text-white">--</p>
                 </div>
             </div>
 
@@ -461,9 +456,9 @@
             const subt = document.getElementById('subtHeadcountMod');
 
             if (esNocturno) {
-                lblType.innerText = 'Headcount Total (5x2)';
-                lblSub.innerText = 'Incluye 2 días de descanso rotativos';
-                subt.innerText = 'Impacto proyectado en SL con Malla Nocturna (22:00 a 07:00 / 5x2)';
+                lblType.innerText = 'Headcount Total (Malla Mixta)';
+                lblSub.innerText = 'Pondera 5x2 (Noche) y 6x1 (Día)';
+                subt.innerText = 'Impacto proyectado en SL combinando Turno Nocturno (22:00-07:00 / 5x2) y Turnos Diurnos';
             } else {
                 lblType.innerText = 'Headcount Total (6x1)';
                 lblSub.innerText = 'Incluye 1 día de descanso rotativo';
@@ -711,7 +706,6 @@
 
             const avgReq = totReq / countRows;
             const avgProg = totProg / countRows;
-            const net = Math.round(avgProg - avgReq);
             const fulfillment = avgReq > 0 ? ((avgProg / avgReq) * 100).toFixed(1) : "100.0";
 
             const sumLlamadasSl = dfFiltered.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
@@ -721,7 +715,6 @@
             document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
             document.getElementById('kpiSl').innerText = avgSl + '%';
             document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
-            document.getElementById('kpiNet').innerText = (net >= 0 ? '+' : '') + net;
 
             document.getElementById('compSlActual').innerText = avgSl + '%';
             document.getElementById('compStaffActual').innerText = fulfillment + '%';
@@ -983,7 +976,7 @@
                     if (optChartInstance) optChartInstance.destroy();
                     const ctxOpt = document.getElementById('optChart').getContext('2d');
                     
-                    const labelCurvaCob = esNocturno ? "Cobertura Nocturna (22:00 a 07:00 / 5x2)" : `Cobertura Horarios Óptimos (${duracionJornada}h)`;
+                    const labelCurvaCob = esNocturno ? "Cobertura Mixta (Nocturna + Diurna)" : `Cobertura Horarios Óptimos (${duracionJornada}h)`;
 
                     optChartInstance = new Chart(ctxOpt, {
                         type: 'line',
