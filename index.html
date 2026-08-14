@@ -287,8 +287,8 @@
                     </button>
                 </div>
 
-                <!-- NUEVA TABLA COMPARATIVA EJECUTIVA (3 COLUMNAS) -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <!-- NUEVA TABLA COMPARATIVA EJECUTIVA (4 COLUMNAS) -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <div class="bg-brand-surface/80 p-5 rounded-xl border border-slate-800">
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">SL Proyectado</p>
                         <div class="flex items-baseline gap-2 mt-2">
@@ -309,11 +309,19 @@
                         <p class="text-[10px] text-slate-400 mt-1">Cobertura de Demanda</p>
                     </div>
 
+                    <!-- NUEVA TARJETA: HC ACTUAL ROSTER -->
+                    <div class="bg-brand-surface/80 p-5 rounded-xl border border-emerald-500/20">
+                        <p class="text-[10px] uppercase tracking-widest text-emerald-400 font-bold">Plantilla Actual (Roster)</p>
+                        <p id="optCurrentRoster" class="text-3xl font-black font-mono-num text-white mt-2">--</p>
+                        <p class="text-[10px] text-emerald-400/60 mt-1">Nómina física activa en filtro</p>
+                    </div>
+
+                    <!-- TARJETA: HC REQUERIDO ÓPTIMO -->
                     <div class="bg-brand-surface/80 p-5 rounded-xl border border-violet-500/30 shadow-[0_0_15px_rgba(139,92,246,0.1)] relative overflow-hidden">
                         <div class="absolute -right-4 -top-4 w-16 h-16 bg-violet-500/20 rounded-full blur-xl pointer-events-none"></div>
-                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold">Headcount Total Requerido</p>
-                        <p id="optHeadcount" class="text-4xl font-black font-mono-num text-white mt-2">--</p>
-                        <p id="lblHeadcountSub" class="text-[10px] text-violet-300/70 mt-1">Nómina total a contratar (Incluye descansos 6x1)</p>
+                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold">Nómina Requerida (Sugerida)</p>
+                        <p id="optHeadcount" class="text-3xl font-black font-mono-num text-white mt-2">--</p>
+                        <p id="lblHeadcountSub" class="text-[10px] text-violet-300/70 mt-1">A contratar (Incluye descansos)</p>
                     </div>
                 </div>
 
@@ -445,11 +453,11 @@
             const lblType = document.getElementById('lblHeadcountType');
             const lblSub = document.getElementById('lblHeadcountSub');
             if (esNocturno) {
-                lblType.innerText = 'Headcount Total Requerido (Mixto)';
+                lblType.innerText = 'Nómina Requerida (Mixta)';
                 lblSub.innerText = 'Nómina total: Pondera 5x2 (Noche) y 6x1 (Día)';
             } else {
-                lblType.innerText = 'Headcount Total Requerido';
-                lblSub.innerText = 'Nómina total a contratar (Incluye descansos 6x1)';
+                lblType.innerText = 'Nómina Requerida (Óptima)';
+                lblSub.innerText = 'A contratar (Incluye descansos)';
             }
             actualizarGrafica();
         }
@@ -641,7 +649,6 @@
                 });
             });
 
-            // 1. EXTRACCIÓN DIRECTA DEL VALOR ROSTER (Evitando duplicación 116 HC)
             let totalHcProgramadoRoster = 0;
             const plantillasPorFecha = [];
 
@@ -683,7 +690,6 @@
                 totalHcProgramadoRoster = Math.max(...progMaxVector, 0);
             }
 
-            // 2. HC REQUERIDO PICO ESTRICTO
             const maxReqPico = Math.max(...reqMaxVector, 1);
 
             document.getElementById('kpiHcRequerido').innerText = maxReqPico + ' HC';
@@ -798,10 +804,10 @@
                 }
             });
 
-            ejecutarOptimizadorHorarios(todosIntervalos, reqMaxVector, llamadasMaxVector, ahtMaxVector, targetTimeObj, targetSlObj, mermaVal, slArr);
+            ejecutarOptimizadorHorarios(todosIntervalos, reqMaxVector, llamadasMaxVector, ahtMaxVector, targetTimeObj, targetSlObj, mermaVal, slArr, totalHcProgramadoRoster);
         }
 
-        async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slActualArray) {
+        async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slActualArray, hcActualRoster) {
             if (!intervalos || intervalos.length === 0) return;
 
             const duracionJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
@@ -831,7 +837,7 @@
 
                     const totalDiarioMalla = optData.total_agentes_diarios || 0;
 
-                    // SOLO ACTUALIZAMOS LOS COMPONENTES DE LA SECCIÓN INFERIOR
+                    document.getElementById('optCurrentRoster').innerText = hcActualRoster.toLocaleString();
                     document.getElementById('optHeadcount').innerText = (optData.headcount_semanal_6x1 || 0).toLocaleString();
                     
                     document.getElementById('compSlOptimo').innerText = (optData.sl_optimo_global || 80.0) + '%';
