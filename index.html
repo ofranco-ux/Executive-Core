@@ -523,7 +523,7 @@
             selectedCampanas = new Set(campanas);
             renderMenuOptions('Campana', campanas, selectedCampanas);
 
-            const fechas = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0]))].filter(Boolean).sort();
+            const fechas = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
             selectedFechas = new Set(fechas);
             renderMenuOptions('Fecha', fechas, selectedFechas);
 
@@ -574,7 +574,7 @@
             if (type === 'Campana') {
                 allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean);
             } else if (type === 'Fecha') {
-                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0]))].filter(Boolean);
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
             } else {
                 allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean);
             }
@@ -606,7 +606,7 @@
 
         function actualizarTextosBotones() {
             const totC = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).length;
-            const totF = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0]))].filter(Boolean).length;
+            const totF = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).length;
             const totI = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).length;
 
             document.getElementById('campanaSelectedText').innerText = `🎧 SELECC. (${selectedCampanas.size}/${totC})`;
@@ -635,9 +635,10 @@
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
             const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
 
+            // 1. FILTRADO CON LIMPIEZA DE FECHA (Sin la hora)
             const dfFiltered = globalData.filter(item => {
                 const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
-                const f = String(getProp(item, ['Fecha'], '')).split(' ')[0];
+                const f = String(getProp(item, ['Fecha'], '')).split(' ')[0].split('T')[0];
                 const i = String(getProp(item, ['Intervalo'], '00:00'));
                 return selectedCampanas.has(c) && selectedFechas.has(f) && selectedIntervalos.has(i);
             });
@@ -672,7 +673,7 @@
 
             const avgAhtSegs = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
 
-            const fechasFiltradas = [...new Set(dfFiltered.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0]))].filter(Boolean);
+            const fechasFiltradas = [...new Set(dfFiltered.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
             const todosIntervalos = [...new Set(dfFiltered.map(r => String(getProp(r, ['Intervalo'], '00:00'))))].sort();
 
             const reqMaxVector = todosIntervalos.map(() => 0);
@@ -682,7 +683,7 @@
 
             todosIntervalos.forEach((inter, idx) => {
                 fechasFiltradas.forEach(fStr => {
-                    const subRows = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0] === fStr && String(getProp(r, ['Intervalo'], '00:00')) === inter);
+                    const subRows = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fStr && String(getProp(r, ['Intervalo'], '00:00')) === inter);
                     if (subRows.length > 0) {
                         const sumReq = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0), 0);
                         const sumProg = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Programados_Reales'], 0)) || 0), 0);
@@ -697,54 +698,54 @@
                 });
             });
 
-            // --- CÁLCULO DIRECTO DEL HC PROGRAMADO POR FECHA FILTRADA ---
+            // 2. CÁLCULO ESTRICTO DEL HC PROGRAMADO USANDO MATEMÁTICAS DE INTERVALOS
             let totalHcProgramadoRoster = 0;
-            const fechasEnFiltro = [...selectedFechas];
+            const fechasEnFiltro = [...fechasFiltradas];
 
             if (fechasEnFiltro.length === 1) {
                 const fTarget = fechasEnFiltro[0];
-                const subRowsFecha = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0] === fTarget);
-                const plantillaRealBack = subRowsFecha.length > 0 ? Number(getProp(subRowsFecha[0], ['Plantilla_Dia_Real'], 0)) : 0;
-                
-                if (plantillaRealBack > 0) {
-                    totalHcProgramadoRoster = plantillaRealBack;
-                } else {
-                    const sumaHorasProg = subRowsFecha.reduce((acc, r) => acc + (Number(getProp(r, ['Agentes_Programados_Reales'], 0)) || 0), 0);
-                    totalHcProgramadoRoster = Math.round(sumaHorasProg / (durJornada * 2));
-                }
+                const subRowsFecha = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fTarget);
+                const sumaHorasProg = subRowsFecha.reduce((acc, r) => acc + (Number(getProp(r, ['Agentes_Programados_Reales'], 0)) || 0), 0);
+                totalHcProgramadoRoster = Math.round(sumaHorasProg / (durJornada * 2));
             } else {
                 let sumaTotPlantillas = 0;
-                let contFechas = 0;
-
                 fechasEnFiltro.forEach(fStr => {
-                    const sub = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0] === fStr);
-                    if (sub.length > 0) {
-                        const pBack = Number(getProp(sub[0], ['Plantilla_Dia_Real'], 0));
-                        if (pBack > 0) {
-                            sumaTotPlantillas += pBack;
-                        } else {
-                            const sProg = sub.reduce((acc, r) => acc + (Number(getProp(r, ['Agentes_Programados_Reales'], 0)) || 0), 0);
-                            sumaTotPlantillas += Math.round(sProg / (durJornada * 2));
-                        }
-                        contFechas++;
-                    }
+                    const sub = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fStr);
+                    const sProg = sub.reduce((acc, r) => acc + (Number(getProp(r, ['Agentes_Programados_Reales'], 0)) || 0), 0);
+                    sumaTotPlantillas += Math.round(sProg / (durJornada * 2));
                 });
-
-                totalHcProgramadoRoster = contFechas > 0 ? Math.round(sumaTotPlantillas / contFechas) : 0;
+                totalHcProgramadoRoster = fechasEnFiltro.length > 0 ? Math.round(sumaTotPlantillas / fechasEnFiltro.length) : 0;
             }
 
-            const agrupadoPromedios = {};
-            dfFiltered.forEach(row => {
-                const inter = String(getProp(row, ['Intervalo'], '00:00'));
-                if (!agrupadoPromedios[inter]) agrupadoPromedios[inter] = { slSum: 0, count: 0 };
-                agrupadoPromedios[inter].slSum += Number(getProp(row, ['SL_Proyectado'], 0)) || 0;
-                agrupadoPromedios[inter].count += 1;
-            });
+            if (totalHcProgramadoRoster === 0) {
+                totalHcProgramadoRoster = Math.max(...progMaxVector, 0);
+            }
 
-            const slArr = todosIntervalos.map(i => (agrupadoPromedios[i].slSum / agrupadoPromedios[i].count).toFixed(1));
-            const deltas = todosIntervalos.map((_, idx) => progMaxVector[idx] - reqMaxVector[idx]);
+            // 3. HC REQUERIDO Y DELTA
+            const maxReqPico = Math.max(...reqMaxVector, 1);
 
-            const fulfillment = totalHcProgramadoRoster > 0 ? ((totalHcProgramadoRoster / (Math.max(...reqMaxVector, 1))) * 100).toFixed(1) : "100.0";
+            document.getElementById('kpiHcRequerido').innerText = maxReqPico + ' HC';
+            document.getElementById('kpiHcProgramado').innerText = totalHcProgramadoRoster + ' HC';
+
+            const deltaNet = totalHcProgramadoRoster - maxReqPico;
+            const elDeltaHc = document.getElementById('kpiHcDelta');
+            const badgeDelta = document.getElementById('badgeDeltaHc');
+
+            if (deltaNet >= 0) {
+                elDeltaHc.innerText = `+${deltaNet} HC`;
+                elDeltaHc.className = 'text-2xl font-black font-mono-num mt-2 text-cyan-400';
+                badgeDelta.innerText = 'SUPERÁVIT';
+                badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30';
+            } else {
+                elDeltaHc.innerText = `${deltaNet} HC`;
+                elDeltaHc.className = 'text-2xl font-black font-mono-num mt-2 text-rose-400';
+                badgeDelta.innerText = 'DÉFICIT';
+                badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
+            }
+
+            // 4. CORRECCIÓN MATEMÁTICA DEL STAFFING LEVEL REAL
+            const fulfillment = totalHcProgramadoRoster > 0 ? ((totalHcProgramadoRoster / maxReqPico) * 100).toFixed(1) : "0.0";
+            document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
 
             const sumLlamadasSl = dfFiltered.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
             const avgSl = totCalls > 0 ? (sumLlamadasSl / totCalls).toFixed(1) : "0.0";
@@ -752,7 +753,6 @@
             document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
             document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
             document.getElementById('kpiSl').innerText = avgSl + '%';
-            document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
 
             document.getElementById('compSlActual').innerText = avgSl + '%';
             document.getElementById('compStaffActual').innerText = fulfillment + '%';
@@ -768,6 +768,17 @@
 
             const tbody = document.getElementById('intervalTableBody');
             tbody.innerHTML = '';
+
+            const agrupadoPromedios = {};
+            dfFiltered.forEach(row => {
+                const inter = String(getProp(row, ['Intervalo'], '00:00'));
+                if (!agrupadoPromedios[inter]) agrupadoPromedios[inter] = { slSum: 0, count: 0 };
+                agrupadoPromedios[inter].slSum += Number(getProp(row, ['SL_Proyectado'], 0)) || 0;
+                agrupadoPromedios[inter].count += 1;
+            });
+
+            const slArr = todosIntervalos.map(i => (agrupadoPromedios[i].slSum / agrupadoPromedios[i].count).toFixed(1));
+            const deltas = todosIntervalos.map((_, idx) => progMaxVector[idx] - reqMaxVector[idx]);
 
             todosIntervalos.forEach((inter, idx) => {
                 const rowLlamadas = llamadasMaxVector[idx];
@@ -817,13 +828,6 @@
                     plugins: { 
                         legend: { 
                             labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } 
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return `${context.dataset.label}: ${context.raw} HC`;
-                                }
-                            }
                         }
                     }, 
                     scales: { 
@@ -866,25 +870,7 @@
 
                     const totalDiarioMalla = optData.total_agentes_diarios || 0;
 
-                    document.getElementById('kpiHcRequerido').innerText = totalDiarioMalla.toLocaleString() + ' HC';
-                    document.getElementById('kpiHcProgramado').innerText = totalHcProgramadoRoster.toLocaleString() + ' HC';
-
-                    const deltaDiario = totalHcProgramadoRoster - totalDiarioMalla;
-                    const elDeltaHc = document.getElementById('kpiHcDelta');
-                    const badgeDelta = document.getElementById('badgeDeltaHc');
-
-                    if (deltaDiario >= 0) {
-                        elDeltaHc.innerText = `+${deltaDiario} HC`;
-                        elDeltaHc.className = 'text-2xl font-black font-mono-num mt-2 text-cyan-400';
-                        badgeDelta.innerText = 'SUPERÁVIT';
-                        badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30';
-                    } else {
-                        elDeltaHc.innerText = `${deltaDiario} HC`;
-                        elDeltaHc.className = 'text-2xl font-black font-mono-num mt-2 text-rose-400';
-                        badgeDelta.innerText = 'DÉFICIT';
-                        badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
-                    }
-
+                    // SOLO SE ACTUALIZAN LOS KPIs INFERIORES DEL OPTIMIZADOR
                     document.getElementById('optDailyStaff').innerText = totalDiarioMalla.toLocaleString();
                     document.getElementById('optHeadcount').innerText = (optData.headcount_semanal_6x1 || 0).toLocaleString();
                     
@@ -936,13 +922,6 @@
                             plugins: { 
                                 legend: { 
                                     labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } 
-                                },
-                                tooltip: {
-                                    callbacks: {
-                                        label: function(context) {
-                                            return `${context.dataset.label}: ${context.raw} HC`;
-                                        }
-                                    }
                                 }
                             }, 
                             scales: { 
