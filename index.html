@@ -247,15 +247,15 @@
                 </div>
             </div>
 
-            <!-- TARJETAS EXCLUSIVAS DE PERSONAS TOTALES POR DÍA -->
+            <!-- TARJETAS EXCLUSIVAS DE PERSONAS TOTALES POR DÍA (DÍA PICO) -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-violet-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC Requerido por Día (Malla)</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC Requerido Día Pico (Malla)</p>
                         <span class="text-xs text-violet-400">📊</span>
                     </div>
                     <p id="kpiHcRequerido" class="text-2xl font-black font-mono-num mt-2 text-violet-300">--</p>
-                    <p class="text-[10px] text-slate-500 mt-1">Personas necesarias por día (Target SL)</p>
+                    <p class="text-[10px] text-slate-500 mt-1">Garantiza cobertura en el día de mayor demanda</p>
                 </div>
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-emerald-500 relative overflow-hidden">
@@ -269,11 +269,11 @@
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-cyan-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Delta Net Staffing por Día (HC)</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Delta Net Staffing Día Pico (HC)</p>
                         <span id="badgeDeltaHc" class="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold">--</span>
                     </div>
                     <p id="kpiHcDelta" class="text-2xl font-black font-mono-num mt-2 text-cyan-300">--</p>
-                    <p class="text-[10px] text-slate-500 mt-1">Diferencia diaria de plantilla</p>
+                    <p class="text-[10px] text-slate-500 mt-1">Diferencia de plantilla sobre el pico diario</p>
                 </div>
             </div>
 
@@ -704,7 +704,6 @@
             const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
             const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
-            const esNocturno = document.getElementById('chkNocturno').checked;
 
             const dfFiltered = globalData.filter(item => {
                 const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
@@ -732,6 +731,7 @@
 
             const avgAhtSegs = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
             
+            // --- NUEVA LÓGICA: REQUERIMIENTO BASADO EN EL PICO MÁXIMO (NO PROMEDIO) ---
             const agrupado = {};
             dfFiltered.forEach(row => {
                 const inter = String(getProp(row, ['Intervalo'], '00:00'));
@@ -747,10 +747,16 @@
                 }
 
                 if (!agrupado[inter]) {
-                    agrupado[inter] = { req: 0, prog: 0, llamadas: 0, ahtSum: 0, slSum: 0, count: 0 };
+                    agrupado[inter] = { reqMax: 0, progMax: 0, llamadas: 0, ahtSum: 0, slSum: 0, count: 0 };
                 }
-                agrupado[inter].req += Number(getProp(row, ['Agentes_Requeridos'], 0)) || 0;
-                agrupado[inter].prog += Number(getProp(row, ['Agentes_Programados_Reales'], 0)) || 0;
+                
+                // MÁXIMO REAL DEL INTERVALO PARA NO PROMEDIAR NI SUAVIZAR PICOS
+                const curReq = Number(getProp(row, ['Agentes_Requeridos'], 0)) || 0;
+                const curProg = Number(getProp(row, ['Agentes_Programados_Reales'], 0)) || 0;
+
+                if (curReq > agrupado[inter].reqMax) agrupado[inter].reqMax = curReq;
+                if (curProg > agrupado[inter].progMax) agrupado[inter].progMax = curProg;
+
                 agrupado[inter].llamadas += Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0;
                 agrupado[inter].ahtSum += ahtSegs;
                 agrupado[inter].slSum += Number(getProp(row, ['SL_Proyectado'], 0)) || 0;
@@ -758,14 +764,14 @@
             });
 
             const intervalos = Object.keys(agrupado).sort();
-            const req = intervalos.map(i => Math.round(agrupado[i].req / agrupado[i].count));
-            const prog = intervalos.map(i => Math.round(agrupado[i].prog / agrupado[i].count));
+            const req = intervalos.map(i => agrupado[i].reqMax);
+            const prog = intervalos.map(i => agrupado[i].progMax);
             const llamadasArr = intervalos.map(i => Math.round(agrupado[i].llamadas / agrupado[i].count));
             const ahtSegsArr = intervalos.map(i => Math.round(agrupado[i].ahtSum / agrupado[i].count));
             const slArr = intervalos.map(i => (agrupado[i].slSum / agrupado[i].count).toFixed(1));
-            const deltas = intervalos.map(i => Math.round(agrupado[i].prog / agrupado[i].count) - Math.round(agrupado[i].req / agrupado[i].count));
+            const deltas = intervalos.map(i => agrupado[i].progMax - agrupado[i].reqMax);
 
-            // CÁLCULO DE PERSONAS ACTIVAS TOTALES POR DÍA
+            // PERSONAS ACTIVAS TOTALES EN EL DÍA PICO
             const totalHcProgramadoDia = Math.max(...prog, 0);
 
             const fulfillment = totalHcProgramadoDia > 0 ? ((totalHcProgramadoDia / (Math.max(...req, 1))) * 100).toFixed(1) : "100.0";
@@ -885,7 +891,7 @@
                     const inters = [...new Set(subDia.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].sort();
                     const reqs = inters.map(i => {
                         const rows = subDia.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === i);
-                        return Math.round(rows.reduce((a, b) => a + Number(getProp(b, ['Agentes_Requeridos'], 0)), 0) / (rows.length || 1));
+                        return Math.max(...rows.map(b => Number(getProp(b, ['Agentes_Requeridos'], 0))), 0);
                     });
                     const llams = inters.map(i => {
                         const rows = subDia.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === i);
@@ -983,7 +989,7 @@
 
                     const totalDiarioMalla = optData.total_agentes_diarios || 0;
 
-                    // UNIFICACIÓN RIGUROSA DE CARDS SUPERIORES CON AGENTES POR DÍA
+                    // UNIFICACIÓN RIGUROSA DE CARDS SUPERIORES CON AGENTES EN DÍA PICO
                     document.getElementById('kpiHcRequerido').innerText = totalDiarioMalla.toLocaleString() + ' HC';
                     document.getElementById('kpiHcProgramado').innerText = totalHcProgramadoDia.toLocaleString() + ' HC';
 
