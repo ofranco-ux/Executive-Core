@@ -247,33 +247,33 @@
                 </div>
             </div>
 
-            <!-- NUEVO BLOQUE: TARJETAS EXCLUSIVAS DE HEADCOUNT (HC REQUERIDO, PROGRAMADO Y DELTA) -->
+            <!-- TARJETAS EXCLUSIVAS DE HEADCOUNT CONTRACTUAL TOTAL -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-violet-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC Requerido (Prom/Intervalo)</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC Requerido Total (Plantilla)</p>
                         <span class="text-xs text-violet-400">📊</span>
                     </div>
                     <p id="kpiHcRequerido" class="text-2xl font-black font-mono-num mt-2 text-violet-300">--</p>
-                    <p class="text-[10px] text-slate-500 mt-1">Suma total / Intervalos filtrados</p>
+                    <p class="text-[10px] text-slate-500 mt-1">Pico máximo + Merma + Descansos</p>
                 </div>
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-emerald-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC Programado (Prom/Intervalo)</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC Programado Total (Roster)</p>
                         <span class="text-xs text-emerald-400">👥</span>
                     </div>
                     <p id="kpiHcProgramado" class="text-2xl font-black font-mono-num mt-2 text-emerald-300">--</p>
-                    <p class="text-[10px] text-slate-500 mt-1">Plantilla activa en Roster</p>
+                    <p class="text-[10px] text-slate-500 mt-1">Plantilla contratada activa</p>
                 </div>
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-cyan-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Delta Net Staffing (HC)</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Delta Net Staffing Total (HC)</p>
                         <span id="badgeDeltaHc" class="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold">--</span>
                     </div>
                     <p id="kpiHcDelta" class="text-2xl font-black font-mono-num mt-2 text-cyan-300">--</p>
-                    <p class="text-[10px] text-slate-500 mt-1">Diferencia: Programado vs. Requerido</p>
+                    <p class="text-[10px] text-slate-500 mt-1">Diferencia total de contrataciones</p>
                 </div>
             </div>
 
@@ -704,6 +704,7 @@
             const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
             const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
+            const esNocturno = document.getElementById('chkNocturno').checked;
 
             const dfFiltered = globalData.filter(item => {
                 const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
@@ -730,54 +731,7 @@
             }, 0);
 
             const avgAhtSegs = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
-            const totReq = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Agentes_Requeridos'], 0)) || 0), 0);
-            const totProg = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Agentes_Programados_Reales'], 0)) || 0), 0);
-            const countRows = dfFiltered.length || 1;
-
-            const avgReq = Math.round(totReq / countRows);
-            const avgProg = Math.round(totProg / countRows);
-            const deltaHcVal = avgProg - avgReq;
-            const fulfillment = avgReq > 0 ? ((avgProg / avgReq) * 100).toFixed(1) : "100.0";
-
-            const sumLlamadasSl = dfFiltered.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
-            const avgSl = totCalls > 0 ? (sumLlamadasSl / totCalls).toFixed(1) : "0.0";
-
-            // ACTUALIZACIÓN DE TARJETAS DE MÉTRICAS INCLUYENDO LAS NUEVAS DE HC
-            document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
-            document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
-            document.getElementById('kpiSl').innerText = avgSl + '%';
-            document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
-
-            document.getElementById('kpiHcRequerido').innerText = avgReq.toLocaleString() + ' HC';
-            document.getElementById('kpiHcProgramado').innerText = avgProg.toLocaleString() + ' HC';
             
-            const elDeltaHc = document.getElementById('kpiHcDelta');
-            const badgeDelta = document.getElementById('badgeDeltaHc');
-            
-            if (deltaHcVal >= 0) {
-                elDeltaHc.innerText = `+${deltaHcVal} HC`;
-                elDeltaHc.className = 'text-2xl font-black font-mono-num mt-2 text-cyan-400';
-                badgeDelta.innerText = 'SUPERÁVIT';
-                badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30';
-            } else {
-                elDeltaHc.innerText = `${deltaHcVal} HC`;
-                elDeltaHc.className = 'text-2xl font-black font-mono-num mt-2 text-rose-400';
-                badgeDelta.innerText = 'DÉFICIT';
-                badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
-            }
-
-            document.getElementById('compSlActual').innerText = avgSl + '%';
-            document.getElementById('compStaffActual').innerText = fulfillment + '%';
-
-            const badgeSl = document.getElementById('badgeSl');
-            if (parseFloat(avgSl) >= targetSlObj) {
-                badgeSl.innerText = 'TARGET OK';
-                badgeSl.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
-            } else {
-                badgeSl.innerText = 'BAJO TARGET';
-                badgeSl.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
-            }
-
             const agrupado = {};
             dfFiltered.forEach(row => {
                 const inter = String(getProp(row, ['Intervalo'], '00:00'));
@@ -810,6 +764,56 @@
             const ahtSegsArr = intervalos.map(i => Math.round(agrupado[i].ahtSum / agrupado[i].count));
             const slArr = intervalos.map(i => (agrupado[i].slSum / agrupado[i].count).toFixed(1));
             const deltas = intervalos.map(i => Math.round(agrupado[i].prog / agrupado[i].count) - Math.round(agrupado[i].req / agrupado[i].count));
+
+            // HEADCOUNT TOTAL CONTRACTUAL (PICO MÁXIMO * FACTOR DESCANSO)
+            const maxReqIntervalo = Math.max(...req, 0);
+            const maxProgIntervalo = Math.max(...prog, 0);
+
+            const factorDescanso = esNocturno ? (7.0 / 5.0) : (7.0 / 6.0);
+
+            const totalHcRequerido = Math.ceil(maxReqIntervalo * factorDescanso);
+            const totalHcProgramado = Math.ceil(maxProgIntervalo * factorDescanso);
+            const deltaHcVal = totalHcProgramado - totalHcRequerido;
+
+            const fulfillment = totalHcRequerido > 0 ? ((totalHcProgramado / totalHcRequerido) * 100).toFixed(1) : "100.0";
+
+            const sumLlamadasSl = dfFiltered.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
+            const avgSl = totCalls > 0 ? (sumLlamadasSl / totCalls).toFixed(1) : "0.0";
+
+            document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
+            document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
+            document.getElementById('kpiSl').innerText = avgSl + '%';
+            document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
+
+            document.getElementById('kpiHcRequerido').innerText = totalHcRequerido.toLocaleString() + ' HC';
+            document.getElementById('kpiHcProgramado').innerText = totalHcProgramado.toLocaleString() + ' HC';
+            
+            const elDeltaHc = document.getElementById('kpiHcDelta');
+            const badgeDelta = document.getElementById('badgeDeltaHc');
+            
+            if (deltaHcVal >= 0) {
+                elDeltaHc.innerText = `+${deltaHcVal} HC`;
+                elDeltaHc.className = 'text-2xl font-black font-mono-num mt-2 text-cyan-400';
+                badgeDelta.innerText = 'SUPERÁVIT';
+                badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30';
+            } else {
+                elDeltaHc.innerText = `${deltaHcVal} HC`;
+                elDeltaHc.className = 'text-2xl font-black font-mono-num mt-2 text-rose-400';
+                badgeDelta.innerText = 'DÉFICIT';
+                badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
+            }
+
+            document.getElementById('compSlActual').innerText = avgSl + '%';
+            document.getElementById('compStaffActual').innerText = fulfillment + '%';
+
+            const badgeSl = document.getElementById('badgeSl');
+            if (parseFloat(avgSl) >= targetSlObj) {
+                badgeSl.innerText = 'TARGET OK';
+                badgeSl.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
+            } else {
+                badgeSl.innerText = 'BAJO TARGET';
+                badgeSl.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
+            }
 
             const tbody = document.getElementById('intervalTableBody');
             tbody.innerHTML = '';
