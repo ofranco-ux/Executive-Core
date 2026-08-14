@@ -400,7 +400,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN CORREGIDO (MALLA RESTATIVA PRECISA) ---
+# --- MOTOR DE OPTIMIZACIÓN EXACTO (APEGO RIGUROSO AL TARGET SL) ---
 def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, 
                             target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, 
                             es_nocturno=False):
@@ -458,7 +458,7 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
             for idx in indices_nocturnos:
                 cob_hc[idx] = agentes_noc_hc
 
-    # --- PASO 2: TURNOS DIURNOS (PROGRAMACIÓN RESTATIVA PUNTO A PUNTO) ---
+    # --- PASO 2: TURNOS DIURNOS CON APEGO ESTRICTO AL TARGET SL ---
     duracion_jornada = float(duracion_jornada)
     SHIFT_BLOCKS = int(round(duracion_jornada * 2))
     duracion_minutos = int(round(duracion_jornada * 60))
@@ -473,47 +473,48 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
         if min_in is None:
             continue
 
-        # Evaluar únicamente si la hora está en la ventana diurna
         if min_in >= min_diurno_inicio and min_in < min_diurno_limite:
             c = llamadas_arr[j]
             aht_s = aht_arr[j]
             a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
             
-            # Requerimiento exacto en HC para este punto específico
-            req_ftes_j = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico) if c > 0 else 0
-            req_hc_j = math.ceil(req_ftes_j / factor_asistencia) if req_ftes_j > 0 else 0
+            cob_efectiva_ftes = cob_hc[j] * factor_asistencia
+            sl_actual = erlang_c_sl_optimizado(a_erl, cob_efectiva_ftes, aht_s, target_time) if c > 0 else 100.0
 
-            # Evaluar cuál es el déficit real considerando la cobertura previa que YA llegó a este punto
-            deficit_real = req_hc_j - cob_hc[j]
+            # Solo agregar si el SL actual está por debajo de la meta exacta ingresada
+            if sl_actual < target_sl_dinamico and c > 0:
+                req_ftes_j = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico)
+                req_hc_j = math.ceil(req_ftes_j / factor_asistencia)
+                
+                deficit_hc = req_hc_j - cob_hc[j]
 
-            if deficit_real > 0:
-                agentes_hc_a_programar = math.ceil(deficit_real)
+                if deficit_hc > 0:
+                    agentes_hc_a_programar = math.ceil(deficit_hc)
 
-                min_entrada_efectiva = min_in
-                if min_entrada_efectiva > min_entrada_maxima:
-                    min_entrada_efectiva = max(min_diurno_inicio, min_entrada_maxima)
+                    min_entrada_efectiva = min_in
+                    if min_entrada_efectiva > min_entrada_maxima:
+                        min_entrada_efectiva = max(min_diurno_inicio, min_entrada_maxima)
 
-                min_out = min_entrada_efectiva + duracion_minutos
-                h_in_str = f"{(int(min_entrada_efectiva // 60)):02d}:{(int(min_entrada_efectiva % 60)):02d}"
-                h_out_str = f"{(int(min_out // 60)):02d}:{(int(min_out % 60)):02d}"
+                    min_out = min_entrada_efectiva + duracion_minutos
+                    h_in_str = f"{(int(min_entrada_efectiva // 60)):02d}:{(int(min_entrada_efectiva % 60)):02d}"
+                    h_out_str = f"{(int(min_out // 60)):02d}:{(int(min_out % 60)):02d}"
 
-                key_turno = (h_in_str, h_out_str, label_jornada_diurna)
-                x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + agentes_hc_a_programar
+                    key_turno = (h_in_str, h_out_str, label_jornada_diurna)
+                    x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + agentes_hc_a_programar
 
-                idx_inicio_real = j
-                for search_idx in range(m):
-                    if parse_time_str(intervalos[search_idx]) == min_entrada_efectiva:
-                        idx_inicio_real = search_idx
-                        break
+                    idx_inicio_real = j
+                    for search_idx in range(m):
+                        if parse_time_str(intervalos[search_idx]) == min_entrada_efectiva:
+                            idx_inicio_real = search_idx
+                            break
 
-                # Aplicar cobertura exacta a los bloques futuros del turno
-                for t in range(idx_inicio_real, min(idx_inicio_real + SHIFT_BLOCKS, m)):
-                    min_t = parse_time_str(intervalos[t])
-                    if min_t is not None and min_t >= min_diurno_limite:
-                        break
-                    cob_hc[t] += agentes_hc_a_programar
+                    for t in range(idx_inicio_real, min(idx_inicio_real + SHIFT_BLOCKS, m)):
+                        min_t = parse_time_str(intervalos[t])
+                        if min_t is not None and min_t >= min_diurno_limite:
+                            break
+                        cob_hc[t] += agentes_hc_a_programar
 
-    # --- PASO 3: METRICAS Y PROYECCIÓN FINAL DE SL EXACTA ---
+    # --- PASO 3: METRICAS Y PROYECCIÓN FINAL ---
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
