@@ -101,9 +101,6 @@ def esta_en_ventana_servicio(campana, intervalo_str):
     return ventana['inicio'] <= minutos_inter < ventana['fin']
 
 def construir_matriz_plantilla(xls_file):
-    """
-    Construye la matriz por intervalo Y calcula el conteo real de cabezas/agentes por día.
-    """
     try:
         sheet_names = xls_file.sheet_names
         sheet_plantilla = None
@@ -129,7 +126,6 @@ def construir_matriz_plantilla(xls_file):
                 if not horario or 'descanso' in horario.lower() or '-' not in horario:
                     continue
                 
-                # Se cuenta como agente activo real para este día
                 key_dia = (camp, dia.lower())
                 agentes_por_dia[key_dia] = agentes_por_dia.get(key_dia, 0) + 1
 
@@ -355,7 +351,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
 
-            # Conteo real de plantilla única activa para esta campaña y este día
             plantilla_dia_real = agentes_por_dia.get((str(camp).lower(), nombre_dia.lower()), 0)
 
             for inter in intervalos_validos:
@@ -401,7 +396,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN BASADO EN LA JORNADA CONFIGURADA Y EL TARGET SL DINÁMICO ---
 def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, 
                             target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, 
                             es_nocturno=False):
@@ -423,7 +417,6 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
 
     target_sl_dinamico = float(target_sl)
 
-    # --- PASO 1: TURNO NOCTURNO FIJO (22:00 A 07:00 / 5x2) ---
     if es_nocturno:
         label_jornada_noc = "9.0 hrs (Nocturno 5x2)"
         indices_nocturnos = []
@@ -459,7 +452,6 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
             for idx in indices_nocturnos:
                 cob_hc[idx] = agentes_noc_hc
 
-    # --- PASO 2: TURNOS DIURNOS SEGÚN LA JORNADA SELECCIONADA EN EL CUADRO DE CONTROL ---
     duracion_jornada = float(duracion_jornada)
     SHIFT_BLOCKS = int(round(duracion_jornada * 2))
     duracion_minutos = int(round(duracion_jornada * 60))
@@ -514,7 +506,6 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
                             break
                         cob_hc[t] += agentes_hc_a_programar
 
-    # --- PASO 3: METRICAS Y PROYECCIÓN FINAL DE SL ---
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
@@ -555,8 +546,6 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
 
     return turnos_sugeridos, cobertura_hc_entera, total_agentes_diarios_hc, headcount_semanal_requerido, eficiencia, sl_optimo_vector, sl_optimo_global, staffing_level_optimo
 
-# --- ENDPOINTS ---
-
 @app.route('/api/optimize-schedules', methods=['POST'])
 def api_optimize_schedules():
     try:
@@ -594,58 +583,6 @@ def api_optimize_schedules():
 
     except Exception as e:
         return jsonify({'error': f'Error optimizando turnos: {str(e)}'}), 500
-
-@app.route('/api/optimize-schedules-weekly', methods=['POST'])
-def api_optimize_schedules_weekly():
-    try:
-        body = request.get_json(force=True)
-        semana_data = body.get('semana_data', [])
-        campanas = body.get('campanas', [])
-        target_sl = float(body.get('target_sl', 80.0))
-        target_time = float(body.get('target_time', 20.0))
-        merma = float(body.get('merma', 30.0)) / 100.0
-        duracion_jornada = float(body.get('duracion_jornada', 8.0))
-        es_nocturno = bool(body.get('es_nocturno', False))
-
-        malla_semanal = {}
-        headcount_max_dia = 0
-
-        for dia_info in semana_data:
-            nombre_dia = dia_info.get('dia_semana')
-            intervalos = dia_info.get('intervalos', [])
-            requeridos = dia_info.get('requeridos', [])
-            llamadas = dia_info.get('llamadas', [])
-            ahts = dia_info.get('ahts', [])
-
-            turnos, cob_opt, total_d, hc_req, efic, sl_vec, sl_g, staff_lvl = resolver_turnos_optimos(
-                intervalos, requeridos, campanas, llamadas_vec=llamadas, aht_vec=ahts,
-                target_sl=target_sl, target_time=target_time, merma=merma, 
-                duracion_jornada=duracion_jornada, es_nocturno=es_nocturno
-            )
-
-            malla_semanal[nombre_dia] = {
-                'turnos': turnos,
-                'cobertura': cob_opt,
-                'agentes_dia': total_d,
-                'sl_global_dia': sl_g,
-                'staffing_level_dia': staff_lvl,
-                'intervalos': intervalos,
-                'requeridos': requeridos,
-                'sl_vector': sl_vec
-            }
-            headcount_max_dia = max(headcount_max_dia, total_d)
-
-        factor_hc = (7.0 / 5.0) if es_nocturno else (7.0 / 6.0)
-        hc_semanal_total = math.ceil(headcount_max_dia * factor_hc)
-
-        return jsonify({
-            'malla_semanal': malla_semanal,
-            'headcount_semanal_requerido': hc_semanal_total,
-            'agentes_promedio_dia': math.ceil(sum(m['agentes_dia'] for m in malla_semanal.values()) / len(semana_data)) if semana_data else 0
-        }), 200
-
-    except Exception as e:
-        return jsonify({'error': f'Error en proyección semanal: {str(e)}'}), 500
 
 @app.route('/api/latest', methods=['GET'])
 def get_latest_forecast():
