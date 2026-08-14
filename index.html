@@ -234,11 +234,11 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-violet-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC REQUERIDO TOTAL (FTEs DIARIOS)</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC REQUERIDO DÍA PICO (MALLA)</p>
                         <span class="text-xs text-violet-400">📊</span>
                     </div>
                     <p id="kpiHcRequerido" class="text-2xl font-black font-mono-num mt-2 text-violet-300">0 HC</p>
-                    <p class="text-[10px] text-slate-500 mt-1">Estimación de personas totales requeridas al día</p>
+                    <p class="text-[10px] text-slate-500 mt-1">Garantiza cobertura en el día de mayor demanda</p>
                 </div>
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-emerald-500 relative overflow-hidden">
@@ -252,11 +252,11 @@
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-cyan-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Delta Net Staffing (Total HC)</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Delta Net Staffing Día Pico (HC)</p>
                         <span id="badgeDeltaHc" class="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold">--</span>
                     </div>
                     <p id="kpiHcDelta" class="text-2xl font-black font-mono-num mt-2 text-cyan-300">0 HC</p>
-                    <p class="text-[10px] text-slate-500 mt-1">Diferencia total de la plantilla en el día</p>
+                    <p class="text-[10px] text-slate-500 mt-1">Diferencia de plantilla sobre el pico diario</p>
                 </div>
             </div>
 
@@ -650,20 +650,44 @@
                 });
             });
 
-            // 1. MATEMÁTICA ESTRICTA DE FTEs DIARIOS TOTALES (Personas completas)
-            const bloquesJornada = durJornada * 2;
-            const numFechas = Math.max(fechasFiltradas.length, 1);
+            // --- EXTRACCIÓN EXACTA DE PERSONAS AGENDADAS TOTALES POR DÍA ---
+            let totalHcProgramadoRoster = 0;
+            const plantillasPorFecha = [];
 
-            const sumReqBloques = dfFiltered.reduce((acc, r) => acc + (Number(getProp(r, ['Agentes_Requeridos'], 0)) || 0), 0);
-            const totalHcRequerido = Math.max(Math.ceil(sumReqBloques / (numFechas * bloquesJornada)), 1);
+            fechasFiltradas.forEach(fStr => {
+                const subRowsFecha = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fStr);
+                if (subRowsFecha.length > 0) {
+                    const uniqueCamps = [...new Set(subRowsFecha.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
+                    let sumPlantillaDia = 0;
+                    
+                    uniqueCamps.forEach(camp => {
+                        const row = subRowsFecha.find(r => getProp(r, ['Campaña', 'Campana'], 'General') === camp);
+                        sumPlantillaDia += Number(getProp(row, ['Plantilla_Dia_Real'], 0));
+                    });
 
-            const sumProgBloques = dfFiltered.reduce((acc, r) => acc + (Number(getProp(r, ['Agentes_Programados_Reales'], 0)) || 0), 0);
-            const totalHcProgramado = Math.max(Math.round(sumProgBloques / (numFechas * bloquesJornada)), 0);
+                    if (sumPlantillaDia > 0) {
+                        plantillasPorFecha.push(sumPlantillaDia);
+                    } else {
+                        const progs = subRowsFecha.map(r => Number(getProp(r, ['Agentes_Programados_Reales'], 0)) || 0);
+                        plantillasPorFecha.push(Math.max(...progs));
+                    }
+                }
+            });
 
-            document.getElementById('kpiHcRequerido').innerText = totalHcRequerido + ' HC';
-            document.getElementById('kpiHcProgramado').innerText = totalHcProgramado + ' HC';
+            if (plantillasPorFecha.length > 0) {
+                const sumP = plantillasPorFecha.reduce((a, b) => a + b, 0);
+                totalHcProgramadoRoster = Math.round(sumP / plantillasPorFecha.length);
+            } else {
+                totalHcProgramadoRoster = Math.max(...progMaxVector, 0);
+            }
 
-            const deltaNet = totalHcProgramado - totalHcRequerido;
+            // --- HC REQUERIDO PICO ESTRICTO ---
+            const maxReqPico = Math.max(...reqMaxVector, 1);
+
+            document.getElementById('kpiHcRequerido').innerText = maxReqPico + ' HC';
+            document.getElementById('kpiHcProgramado').innerText = totalHcProgramadoRoster + ' HC';
+
+            const deltaNet = totalHcProgramadoRoster - maxReqPico;
             const elDeltaHc = document.getElementById('kpiHcDelta');
             const badgeDelta = document.getElementById('badgeDeltaHc');
 
@@ -679,7 +703,7 @@
                 badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
             }
 
-            const fulfillment = totalHcRequerido > 0 ? ((totalHcProgramado / totalHcRequerido) * 100).toFixed(1) : "0.0";
+            const fulfillment = totalHcProgramadoRoster > 0 ? ((totalHcProgramadoRoster / maxReqPico) * 100).toFixed(1) : "0.0";
             document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
 
             const sumLlamadasSl = dfFiltered.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
@@ -753,8 +777,8 @@
                 data: {
                     labels: todosIntervalos,
                     datasets: [
-                        { label: 'Demanda Erlang C (Pico Intervalo)', data: reqMaxVector, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.08)', fill: true, tension: 0.35, borderWidth: 3 },
-                        { label: 'Plantilla Programada (Pico Intervalo)', data: progMaxVector, borderColor: '#10B981', borderDash: [4, 4], tension: 0.35, borderWidth: 2.5 }
+                        { label: 'Demanda Erlang C Día Pico (HC)', data: reqMaxVector, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.08)', fill: true, tension: 0.35, borderWidth: 3 },
+                        { label: 'Plantilla Programada Día Pico (HC)', data: progMaxVector, borderColor: '#10B981', borderDash: [4, 4], tension: 0.35, borderWidth: 2.5 }
                     ]
                 },
                 options: { 
@@ -805,7 +829,6 @@
 
                     const totalDiarioMalla = optData.total_agentes_diarios || 0;
 
-                    // SOLO SE ACTUALIZAN LAS TARJETAS DEL MÓDULO DE ABAJO
                     document.getElementById('optDailyStaff').innerText = totalDiarioMalla.toLocaleString();
                     document.getElementById('optHeadcount').innerText = (optData.headcount_semanal_6x1 || 0).toLocaleString();
                     
