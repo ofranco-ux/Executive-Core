@@ -72,7 +72,6 @@
 </head>
 <body class="p-6 md:p-8 min-h-screen">
 
-    <!-- Header Corporativo -->
     <header class="flex justify-between items-center glass-panel rounded-2xl p-6 mb-8 border-b border-white/10 relative overflow-hidden">
         <div class="absolute -left-10 -top-10 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div class="flex items-center gap-5 z-10">
@@ -87,10 +86,8 @@
         </div>
     </header>
 
-    <!-- Layout Principal -->
     <div class="grid grid-cols-12 gap-8">
 
-        <!-- Panel de Control Izquierdo -->
         <aside id="panelControl" class="col-span-12 lg:col-span-3 glass-panel p-6 rounded-2xl space-y-6 h-fit relative">
             <div class="flex items-center justify-between pb-4 border-b border-slate-800/80">
                 <h2 class="text-xs font-black text-slate-200 uppercase tracking-widest flex items-center gap-2">
@@ -131,7 +128,6 @@
                     </div>
                 </div>
 
-                <!-- TURNO NOCTURNO 22:00 A 07:00 CON 2 DÍAS DE DESCANSO -->
                 <div class="bg-brand-surface/60 p-3 rounded-xl border border-violet-500/40 flex items-center justify-between">
                     <div>
                         <label for="chkNocturno" class="text-[11px] text-violet-300 font-bold block">🌙 Turno Nocturno (5x2)</label>
@@ -151,10 +147,8 @@
             </button>
         </aside>
 
-        <!-- Dashboard C-Level -->
         <main id="dashboardMain" class="col-span-12 lg:col-span-9 space-y-6">
 
-            <!-- BARRA DE FILTROS MULTI-SELECCIÓN -->
             <div class="glass-panel p-4 rounded-2xl flex justify-between items-center border border-slate-800/80 flex-wrap gap-4 relative z-50 overflow-visible">
                 <div class="flex items-center gap-3">
                     <div class="p-2.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-xl text-sm">🎯</div>
@@ -169,7 +163,6 @@
                         🔄 Resetear Filtros
                     </button>
 
-                    <!-- MULTI-CAMPAÑA -->
                     <div class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Campaña(s)</label>
                         <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-brand-surface border border-violet-500/30 text-xs rounded-xl px-3 py-2 text-violet-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
@@ -180,7 +173,6 @@
                         </div>
                     </div>
 
-                    <!-- CONTAINER VISTA DIARIA (FECHAS) -->
                     <div id="containerFiltroFecha" class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Fecha(s)</label>
                         <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-brand-surface border border-cyan-500/30 text-xs rounded-xl px-3 py-2 text-cyan-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
@@ -191,7 +183,6 @@
                         </div>
                     </div>
 
-                    <!-- MULTI-INTERVALO -->
                     <div class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Intervalo(s)</label>
                         <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-brand-surface border border-emerald-500/30 text-xs rounded-xl px-3 py-2 text-emerald-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
@@ -204,7 +195,6 @@
                 </div>
             </div>
 
-            <!-- Cards Métricas Principales (GRID DE 4 COLUMNAS) -->
             <div class="grid grid-cols-4 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Volumen Tráfico</p>
@@ -230,7 +220,6 @@
                 </div>
             </div>
 
-            <!-- TARJETAS EXCLUSIVAS DE PERSONAS TOTALES POR DÍA (DÍA PICO) -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-violet-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
@@ -260,7 +249,6 @@
                 </div>
             </div>
 
-            <!-- Gráfica 1 -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl">
                 <div class="flex justify-between items-center mb-6">
                     <div>
@@ -273,7 +261,6 @@
                 </div>
             </div>
 
-            <!-- MÓDULO: RECOMENDACIÓN DE HORARIOS ÓPTIMOS & COMPARATIVA -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-amber-500 relative overflow-hidden">
                 <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
                     <div>
@@ -288,7 +275,6 @@
                     </button>
                 </div>
 
-                <!-- TABLA COMPARATIVA EJECUTIVA -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800">
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">SL Proyectado</p>
@@ -323,7 +309,6 @@
                     </div>
                 </div>
 
-                <!-- Gráfica de Cobertura -->
                 <div class="h-56 mb-6">
                     <canvas id="optChart"></canvas>
                 </div>
@@ -348,7 +333,6 @@
                 </div>
             </div>
 
-            <!-- Gráfica 2: SL Auditoría -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t border-violet-500/20">
                 <div class="mb-4">
                     <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📈 Auditoría de Service Level (% SL)</h3>
@@ -650,26 +634,17 @@
                 });
             });
 
-            // --- EXTRACCIÓN EXACTA DE PERSONAS AGENDADAS TOTALES POR DÍA ---
+            // 1. EXTRACCIÓN SIMPLE DIRECTA DEL VALOR ROSTER
             let totalHcProgramadoRoster = 0;
             const plantillasPorFecha = [];
 
             fechasFiltradas.forEach(fStr => {
                 const subRowsFecha = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fStr);
                 if (subRowsFecha.length > 0) {
-                    const uniqueCamps = [...new Set(subRowsFecha.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
-                    let sumPlantillaDia = 0;
-                    
-                    uniqueCamps.forEach(camp => {
-                        const row = subRowsFecha.find(r => getProp(r, ['Campaña', 'Campana'], 'General') === camp);
-                        sumPlantillaDia += Number(getProp(row, ['Plantilla_Dia_Real'], 0));
-                    });
-
-                    if (sumPlantillaDia > 0) {
-                        plantillasPorFecha.push(sumPlantillaDia);
-                    } else {
-                        const progs = subRowsFecha.map(r => Number(getProp(r, ['Agentes_Programados_Reales'], 0)) || 0);
-                        plantillasPorFecha.push(Math.max(...progs));
+                    // Tomar la Plantilla Directa sin sumar duplicados
+                    const maxPlantilla = Math.max(...subRowsFecha.map(r => Number(getProp(r, ['Plantilla_Dia_Real'], 0))));
+                    if (maxPlantilla > 0) {
+                        plantillasPorFecha.push(maxPlantilla);
                     }
                 }
             });
@@ -681,7 +656,7 @@
                 totalHcProgramadoRoster = Math.max(...progMaxVector, 0);
             }
 
-            // --- HC REQUERIDO PICO ESTRICTO ---
+            // 2. HC REQUERIDO PICO ESTRICTO
             const maxReqPico = Math.max(...reqMaxVector, 1);
 
             document.getElementById('kpiHcRequerido').innerText = maxReqPico + ' HC';
