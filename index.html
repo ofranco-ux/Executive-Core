@@ -208,12 +208,12 @@
             <div class="grid grid-cols-4 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Volumen Tráfico</p>
-                    <p id="kpiCalls" class="text-2xl font-black font-mono-num mt-2 text-white">--</p>
+                    <p id="kpiCalls" class="text-2xl font-black font-mono-num mt-2 text-white">0</p>
                 </div>
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">AHT Promedio</p>
-                    <p id="kpiAht" class="text-2xl font-black font-mono-num mt-2 text-white">--</p>
+                    <p id="kpiAht" class="text-2xl font-black font-mono-num mt-2 text-white">00:00</p>
                 </div>
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden border-t-2 border-t-cyan-400">
@@ -221,12 +221,12 @@
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">SL Proyectado</p>
                         <span id="badgeSl" class="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold">--</span>
                     </div>
-                    <p id="kpiSl" class="text-2xl font-black font-mono-num mt-2 text-white">--</p>
+                    <p id="kpiSl" class="text-2xl font-black font-mono-num mt-2 text-white">0.0%</p>
                 </div>
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
-                    <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Staffing Level</p>
-                    <p id="kpiFulfillment" class="text-2xl font-black font-mono-num mt-2 text-white">--</p>
+                    <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Staffing Level Real</p>
+                    <p id="kpiFulfillment" class="text-2xl font-black font-mono-num mt-2 text-white">0.0%</p>
                 </div>
             </div>
 
@@ -234,29 +234,29 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-violet-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC Requerido Día Pico (Malla)</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC REQUERIDO TOTAL (FTEs DIARIOS)</p>
                         <span class="text-xs text-violet-400">📊</span>
                     </div>
-                    <p id="kpiHcRequerido" class="text-2xl font-black font-mono-num mt-2 text-violet-300">--</p>
-                    <p class="text-[10px] text-slate-500 mt-1">Garantiza cobertura en el día de mayor demanda</p>
+                    <p id="kpiHcRequerido" class="text-2xl font-black font-mono-num mt-2 text-violet-300">0 HC</p>
+                    <p class="text-[10px] text-slate-500 mt-1">Estimación de personas totales requeridas al día</p>
                 </div>
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-emerald-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC Programado por Día (Roster)</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC PROGRAMADO TOTAL (ROSTER)</p>
                         <span class="text-xs text-emerald-400">👥</span>
                     </div>
-                    <p id="kpiHcProgramado" class="text-2xl font-black font-mono-num mt-2 text-emerald-300">--</p>
-                    <p class="text-[10px] text-slate-500 mt-1">Plantilla activa contratada estimada en Roster</p>
+                    <p id="kpiHcProgramado" class="text-2xl font-black font-mono-num mt-2 text-emerald-300">0 HC</p>
+                    <p class="text-[10px] text-slate-500 mt-1">Personas activas programadas en el día</p>
                 </div>
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-cyan-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Delta Net Staffing Día Pico (HC)</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Delta Net Staffing (Total HC)</p>
                         <span id="badgeDeltaHc" class="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold">--</span>
                     </div>
-                    <p id="kpiHcDelta" class="text-2xl font-black font-mono-num mt-2 text-cyan-300">--</p>
-                    <p class="text-[10px] text-slate-500 mt-1">Diferencia de plantilla sobre el pico diario</p>
+                    <p id="kpiHcDelta" class="text-2xl font-black font-mono-num mt-2 text-cyan-300">0 HC</p>
+                    <p class="text-[10px] text-slate-500 mt-1">Diferencia total de la plantilla en el día</p>
                 </div>
             </div>
 
@@ -265,7 +265,7 @@
                 <div class="flex justify-between items-center mb-6">
                     <div>
                         <h3 id="wfmChartTitle" class="text-xs font-black text-slate-200 uppercase tracking-widest">Balance Intradía: Capacidad vs. Roster Real</h3>
-                        <p class="text-xs text-slate-400 font-medium mt-0.5">Evolución por intervalo entre requerimiento Headcount (HC) y plantilla programada</p>
+                        <p class="text-xs text-slate-400 font-medium mt-0.5">Evolución por intervalo de la curva de demanda (Pico) vs plantilla activa</p>
                     </div>
                 </div>
                 <div class="h-60">
@@ -279,16 +279,16 @@
                     <div>
                         <div class="flex items-center gap-2">
                             <span class="text-amber-400 text-base">🧠</span>
-                            <h3 id="optModuleTitle" class="text-xs font-black text-slate-200 uppercase tracking-widest">Optimización de Horarios & Comparativa de Impacto</h3>
+                            <h3 id="optModuleTitle" class="text-xs font-black text-slate-200 uppercase tracking-widest">Optimización de Horarios (Sugerencia)</h3>
                         </div>
                         <p id="subtHeadcountMod" class="text-xs text-slate-400 font-medium mt-0.5">Impacto proyectado en SL y Cobertura si se implementa la malla de turnos sugerida (6x1)</p>
                     </div>
                     <button onclick="exportarTurnosCSV()" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold py-2 px-4 rounded-xl transition duration-200 flex items-center gap-2 font-mono">
-                        <span>📥</span> Exportar Malla Óptima
+                        <span>📥</span> Exportar Malla Sugerida
                     </button>
                 </div>
 
-                <!-- TABLA COMPARATIVA EJECUTIVA (ACTUAL VS PROPUESTA) -->
+                <!-- TABLA COMPARATIVA EJECUTIVA -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800">
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">SL Proyectado</p>
@@ -311,9 +311,9 @@
                     </div>
 
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Plantilla Día (Activa)</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Plantilla Día (Sugerida)</p>
                         <p id="optDailyStaff" class="text-2xl font-black font-mono-num text-amber-400 mt-1">--</p>
-                        <p class="text-[10px] text-slate-400 mt-0.5">Agentes HC por día</p>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Agentes HC al día</p>
                     </div>
 
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800">
@@ -323,12 +323,11 @@
                     </div>
                 </div>
 
-                <!-- Gráfica de Cobertura de Turnos Óptimos -->
+                <!-- Gráfica de Cobertura -->
                 <div class="h-56 mb-6">
                     <canvas id="optChart"></canvas>
                 </div>
 
-                <!-- Tabla de Distribución de Turnos -->
                 <div class="overflow-x-auto border border-slate-800/80 rounded-xl">
                     <table class="w-full text-left text-xs text-slate-300">
                         <thead class="bg-brand-surface text-slate-400 font-bold uppercase tracking-wider text-[9px] sticky top-0 border-b border-slate-800">
@@ -342,43 +341,39 @@
                         </thead>
                         <tbody id="optShiftsTableBody" class="divide-y divide-slate-800/50 font-mono-num text-[11px]">
                             <tr>
-                                <td colspan="5" class="text-center py-6 text-slate-500 font-sans">Selecciona filtros para generar la recomendación de turnos...</td>
+                                <td colspan="5" class="text-center py-6 text-slate-500 font-sans">Selecciona filtros...</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- Gráfica 2: SL Auditoría con Curva de Turnos Óptimos -->
+            <!-- Gráfica 2: SL Auditoría -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t border-violet-500/20">
                 <div class="mb-4">
                     <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📈 Auditoría de Service Level (% SL)</h3>
-                    <p class="text-xs text-slate-400 font-medium mt-0.5">Comparativa del SL Proyectado Real vs. SL con Turnos Óptimos y Meta Target</p>
                 </div>
                 <div class="h-56">
                     <canvas id="slChart"></canvas>
                 </div>
             </div>
 
-            <!-- Tabla de Auditoría Intradía -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-cyan-500">
                 <div class="flex justify-between items-center mb-4">
                     <div>
                         <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📊 Matriz de Auditoría Intradía</h3>
-                        <p class="text-xs text-slate-400 font-medium mt-0.5">💡 Presiona sobre cualquier fila para conmutar la selección del intervalo</p>
                     </div>
-                    <button onclick="exportarCSV()" class="bg-brand-surface hover:bg-slate-800 text-cyan-400 border border-cyan-500/30 text-xs font-bold py-2 px-4 rounded-xl transition duration-200 flex items-center gap-2 font-mono">
+                    <button onclick="exportarCSV()" class="bg-brand-surface hover:bg-slate-800 text-cyan-400 border border-cyan-500/30 text-xs font-bold py-2 px-4 rounded-xl transition duration-200 font-mono">
                         <span>📥</span> Exportar CSV
                     </button>
                 </div>
-
                 <div class="overflow-x-auto max-h-80 border border-slate-800/80 rounded-xl">
                     <table class="w-full text-left text-xs text-slate-300 cursor-pointer">
                         <thead class="bg-brand-surface text-slate-400 font-bold uppercase tracking-wider text-[9px] sticky top-0 border-b border-slate-800">
                             <tr>
                                 <th class="py-3 px-4">Intervalo</th>
                                 <th class="py-3 px-4">Llamadas</th>
-                                <th class="py-3 px-4">AHT (HH:MM)</th>
+                                <th class="py-3 px-4">AHT (MM:SS)</th>
                                 <th class="py-3 px-4">Agentes Req. (HC)</th>
                                 <th class="py-3 px-4">Agentes Prog. (HC)</th>
                                 <th class="py-3 px-4">Net Staffing (HC)</th>
@@ -386,9 +381,7 @@
                             </tr>
                         </thead>
                         <tbody id="intervalTableBody" class="divide-y divide-slate-800/50 font-mono-num text-[11px]">
-                            <tr>
-                                <td colspan="7" class="text-center py-6 text-slate-500 font-sans">Cargue datos para poblar la matriz...</td>
-                            </tr>
+                            <tr><td colspan="7" class="text-center py-6 text-slate-500">Cargue datos...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -397,14 +390,12 @@
         </main>
     </div>
 
-    <!-- Script Cliente -->
     <script>
         let globalData = [];
         let chartInstance = null;
         let slChartInstance = null;
         let optChartInstance = null;
         let globalTurnosOptimos = [];
-        
         let selectedCampanas = new Set();
         let selectedFechas = new Set();
         let selectedIntervalos = new Set();
@@ -412,20 +403,16 @@
         window.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const mode = urlParams.get('mode') || urlParams.get('role');
-
             if (mode === 'operaciones' || mode === 'ops') {
                 const aside = document.getElementById('panelControl');
                 const main = document.getElementById('dashboardMain');
                 const tag = document.getElementById('tagModoOps');
-
                 if (aside) aside.style.display = 'none';
                 if (tag) tag.classList.remove('hidden');
-                
                 if (main) {
                     main.classList.remove('lg:col-span-9');
                     main.classList.add('lg:col-span-12');
                 }
-
                 try {
                     const response = await fetch('/api/latest');
                     if (response.ok) {
@@ -464,46 +451,33 @@
             const lblType = document.getElementById('lblHeadcountType');
             const lblSub = document.getElementById('lblHeadcountSub');
             const subt = document.getElementById('subtHeadcountMod');
-
             if (esNocturno) {
                 lblType.innerText = 'Headcount Total (Malla Mixta)';
                 lblSub.innerText = 'Pondera 5x2 (Noche) y 6x1 (Día)';
-                subt.innerText = 'Impacto proyectado en SL combinando Turno Nocturno (22:00-07:00 / 5x2) y Turnos Diurnos';
+                subt.innerText = 'Impacto proyectado combinando Turno Nocturno y Diurnos';
             } else {
                 lblType.innerText = 'Headcount Total (6x1)';
                 lblSub.innerText = 'Incluye 1 día de descanso rotativo';
-                subt.innerText = 'Impacto proyectado en SL y Cobertura si se implementa la malla de turnos sugerida (6x1)';
+                subt.innerText = 'Impacto proyectado si se implementa la malla sugerida (6x1)';
             }
-
             actualizarGrafica();
         }
 
         async function procesarWFM() {
             const file = document.getElementById('fileInput').files[0];
-            if (!file) {
-                alert("Por favor selecciona tu archivo historico.xlsx");
-                return;
-            }
-
+            if (!file) { alert("Por favor selecciona tu archivo historico.xlsx"); return; }
             const btn = document.getElementById('btnProcesar');
             btn.disabled = true;
-            btn.innerText = "⏳ PROCESANDO MODELO ML...";
-
+            btn.innerText = "⏳ PROCESANDO...";
             const formData = new FormData();
             formData.append('file', file);
             formData.append('target_sl', document.getElementById('targetSl').value);
             formData.append('target_time', document.getElementById('targetTime').value);
             formData.append('merma', document.getElementById('merma').value);
             formData.append('dias', document.getElementById('dias').value);
-
             try {
-                const response = await fetch('/api/process', {
-                    method: 'POST',
-                    body: formData
-                });
-                
+                const response = await fetch('/api/process', { method: 'POST', body: formData });
                 globalData = await response.json();
-                
                 if (response.ok && Array.isArray(globalData)) {
                     inicializarFiltrosMultiples();
                     actualizarGrafica();
@@ -511,7 +485,7 @@
                     alert("Error procesando los datos: " + (globalData.error || "Formato no válido"));
                 }
             } catch (e) {
-                alert("Error de conexión con el servidor Python: " + e.message);
+                alert("Error de conexión: " + e.message);
             } finally {
                 btn.disabled = false;
                 btn.innerText = "🚀 PROCESAR MODELO EXECUTIVE";
@@ -530,14 +504,12 @@
             const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
             selectedIntervalos = new Set(intervalos);
             renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
-
             actualizarTextosBotones();
         }
 
         function renderMenuOptions(type, allOptions, setRef) {
             const menu = document.getElementById(`dropdown${type}Menu`);
             menu.innerHTML = '';
-
             const headerDiv = document.createElement('div');
             headerDiv.className = 'flex items-center justify-between p-2 pb-2 mb-1 border-b border-slate-800 text-[11px] font-bold';
             headerDiv.innerHTML = `
@@ -545,11 +517,9 @@
                 <button type="button" onclick="selectAllFilter('${type}', false)" class="text-rose-400 hover:underline">Ninguno</button>
             `;
             menu.appendChild(headerDiv);
-
             allOptions.forEach(opt => {
                 const label = document.createElement('label');
                 label.className = 'flex items-center gap-2 p-1.5 hover:bg-slate-800/60 rounded cursor-pointer transition-colors';
-                
                 const isChecked = setRef.has(opt);
                 label.innerHTML = `
                     <input type="checkbox" value="${opt}" ${isChecked ? 'checked' : ''} onchange="onCheckboxChange('${type}', '${opt}', this.checked)" class="rounded bg-slate-900 border-slate-700 text-cyan-500 focus:ring-0">
@@ -561,9 +531,7 @@
 
         function onCheckboxChange(type, value, checked) {
             let setRef = type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos);
-            if (checked) setRef.add(value);
-            else setRef.delete(value);
-            
+            if (checked) setRef.add(value); else setRef.delete(value);
             actualizarTextosBotones();
             actualizarGrafica();
         }
@@ -578,10 +546,7 @@
             } else {
                 allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean);
             }
-
-            if (selectAll) allOptions.forEach(o => setRef.add(o));
-            else setRef.clear();
-
+            if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
             renderMenuOptions(type, allOptions.sort(), setRef);
             actualizarTextosBotones();
             actualizarGrafica();
@@ -608,7 +573,6 @@
             const totC = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).length;
             const totF = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).length;
             const totI = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).length;
-
             document.getElementById('campanaSelectedText').innerText = `🎧 SELECC. (${selectedCampanas.size}/${totC})`;
             document.getElementById('fechaSelectedText').innerText = `📅 SELECC. (${selectedFechas.size}/${totF})`;
             document.getElementById('intervaloSelectedText').innerText = `⏰ SELECC. (${selectedIntervalos.size}/${totI})`;
@@ -620,9 +584,7 @@
         }
 
         function toggleTableInterval(inter) {
-            if (selectedIntervalos.has(inter)) selectedIntervalos.delete(inter);
-            else selectedIntervalos.add(inter);
-            
+            if (selectedIntervalos.has(inter)) selectedIntervalos.delete(inter); else selectedIntervalos.add(inter);
             const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
             renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
             actualizarTextosBotones();
@@ -657,7 +619,7 @@
             
             const sumLlamadasAht = dfFiltered.reduce((acc, row) => {
                 const calls = Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0;
-                let ahtSegs = Number(getProp(row, ['AHT_Segundos'], 0)) || 180;
+                let ahtSegs = Number(getProp(row, ['AHT_Segundos'], 180));
                 return acc + (calls * ahtSegs);
             }, 0);
 
@@ -688,45 +650,20 @@
                 });
             });
 
-            // --- EXTRACCIÓN REAL DE LA PLANTILLA SUMANDO CAMPAÑAS ÚNICAS ---
-            let totalHcProgramadoRoster = 0;
-            const plantillasPorFecha = [];
+            // 1. MATEMÁTICA ESTRICTA DE FTEs DIARIOS TOTALES (Personas completas)
+            const bloquesJornada = durJornada * 2;
+            const numFechas = Math.max(fechasFiltradas.length, 1);
 
-            fechasFiltradas.forEach(fStr => {
-                const subRowsFecha = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fStr);
-                if (subRowsFecha.length > 0) {
-                    const uniqueCamps = [...new Set(subRowsFecha.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
-                    let sumPlantillaDia = 0;
-                    
-                    uniqueCamps.forEach(camp => {
-                        const row = subRowsFecha.find(r => getProp(r, ['Campaña', 'Campana'], 'General') === camp);
-                        sumPlantillaDia += Number(getProp(row, ['Plantilla_Dia_Real'], 0));
-                    });
+            const sumReqBloques = dfFiltered.reduce((acc, r) => acc + (Number(getProp(r, ['Agentes_Requeridos'], 0)) || 0), 0);
+            const totalHcRequerido = Math.max(Math.ceil(sumReqBloques / (numFechas * bloquesJornada)), 1);
 
-                    if (sumPlantillaDia > 0) {
-                        plantillasPorFecha.push(sumPlantillaDia);
-                    } else {
-                        const sumaProg = subRowsFecha.reduce((acc, r) => acc + (Number(getProp(r, ['Agentes_Programados_Reales'], 0)) || 0), 0);
-                        plantillasPorFecha.push(Math.round(sumaProg / (durJornada * 2)));
-                    }
-                }
-            });
+            const sumProgBloques = dfFiltered.reduce((acc, r) => acc + (Number(getProp(r, ['Agentes_Programados_Reales'], 0)) || 0), 0);
+            const totalHcProgramado = Math.max(Math.round(sumProgBloques / (numFechas * bloquesJornada)), 0);
 
-            if (plantillasPorFecha.length > 0) {
-                // Saca el promedio de la plantilla de los días seleccionados
-                const sumP = plantillasPorFecha.reduce((a, b) => a + b, 0);
-                totalHcProgramadoRoster = Math.round(sumP / plantillasPorFecha.length);
-            } else {
-                totalHcProgramadoRoster = Math.max(...progMaxVector, 0);
-            }
+            document.getElementById('kpiHcRequerido').innerText = totalHcRequerido + ' HC';
+            document.getElementById('kpiHcProgramado').innerText = totalHcProgramado + ' HC';
 
-            // --- REQUERIDO PICO ESTRICTAMENTE DEL VECTOR DE ERLANG ---
-            const maxReqPico = Math.max(...reqMaxVector, 1);
-
-            document.getElementById('kpiHcRequerido').innerText = maxReqPico + ' HC';
-            document.getElementById('kpiHcProgramado').innerText = totalHcProgramadoRoster + ' HC';
-
-            const deltaNet = totalHcProgramadoRoster - maxReqPico;
+            const deltaNet = totalHcProgramado - totalHcRequerido;
             const elDeltaHc = document.getElementById('kpiHcDelta');
             const badgeDelta = document.getElementById('badgeDeltaHc');
 
@@ -742,14 +679,16 @@
                 badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
             }
 
-            // CORRECCIÓN MATEMÁTICA DEL STAFFING LEVEL REAL
-            const fulfillment = totalHcProgramadoRoster > 0 ? ((totalHcProgramadoRoster / maxReqPico) * 100).toFixed(1) : "0.0";
+            const fulfillment = totalHcRequerido > 0 ? ((totalHcProgramado / totalHcRequerido) * 100).toFixed(1) : "0.0";
             document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
 
             const sumLlamadasSl = dfFiltered.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
             const avgSl = totCalls > 0 ? (sumLlamadasSl / totCalls).toFixed(1) : "0.0";
 
+            document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
+            document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
             document.getElementById('kpiSl').innerText = avgSl + '%';
+
             document.getElementById('compSlActual').innerText = avgSl + '%';
             document.getElementById('compStaffActual').innerText = fulfillment + '%';
 
@@ -814,8 +753,8 @@
                 data: {
                     labels: todosIntervalos,
                     datasets: [
-                        { label: 'Demanda Erlang C Día Pico (HC)', data: reqMaxVector, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.08)', fill: true, tension: 0.35, borderWidth: 3 },
-                        { label: 'Plantilla Programada Día Pico (HC)', data: progMaxVector, borderColor: '#10B981', borderDash: [4, 4], tension: 0.35, borderWidth: 2.5 }
+                        { label: 'Demanda Erlang C (Pico Intervalo)', data: reqMaxVector, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.08)', fill: true, tension: 0.35, borderWidth: 3 },
+                        { label: 'Plantilla Programada (Pico Intervalo)', data: progMaxVector, borderColor: '#10B981', borderDash: [4, 4], tension: 0.35, borderWidth: 2.5 }
                     ]
                 },
                 options: { 
@@ -833,7 +772,6 @@
                 }
             });
 
-            // ENVÍO DE DATOS AL OPTIMIZADOR
             ejecutarOptimizadorHorarios(todosIntervalos, reqMaxVector, llamadasMaxVector, ahtMaxVector, targetTimeObj, targetSlObj, mermaVal, slArr);
         }
 
@@ -867,7 +805,7 @@
 
                     const totalDiarioMalla = optData.total_agentes_diarios || 0;
 
-                    // SOLO ACTUALIZAMOS LOS COMPONENTES DE LA SECCIÓN INFERIOR DE RECOMENDACIÓN DE TURNOS
+                    // SOLO SE ACTUALIZAN LAS TARJETAS DEL MÓDULO DE ABAJO
                     document.getElementById('optDailyStaff').innerText = totalDiarioMalla.toLocaleString();
                     document.getElementById('optHeadcount').innerText = (optData.headcount_semanal_6x1 || 0).toLocaleString();
                     
@@ -989,14 +927,11 @@
                 alert("No hay turnos optimizados para exportar.");
                 return;
             }
-
             const headers = ["Horario_Entrada", "Horario_Salida", "Duracion", "Agentes_HC_A_Programar"];
             const csvRows = [headers.join(",")];
-
             globalTurnosOptimos.forEach(t => {
                 csvRows.push([t.horario_entrada, t.horario_salida, t.duracion, t.agentes_a_programar].join(","));
             });
-
             const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -1010,10 +945,8 @@
                 alert("No hay datos cargados para exportar.");
                 return;
             }
-
             const headers = ["Campana", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT", "Agentes_Requeridos_HC", "Agentes_Programados_HC", "Delta_Net_Staffing_HC", "SL_Proyectado_Pct"];
             const csvRows = [headers.join(",")];
-
             globalData.forEach(row => {
                 const values = [
                     getProp(row, ['Campaña', 'Campana'], 'General'),
@@ -1029,7 +962,6 @@
                 ];
                 csvRows.push(values.join(","));
             });
-
             const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
