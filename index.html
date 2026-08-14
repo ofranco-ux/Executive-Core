@@ -82,18 +82,8 @@
                     <h1 class="text-2xl font-black text-white tracking-tight">Executive Core</h1>
                     <span id="tagModoOps" class="hidden text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider">Vista Operaciones</span>
                 </div>
-                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer (Vista Diaria / Proyección Semanal)</p>
+                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer (Vista Diaria)</p>
             </div>
-        </div>
-
-        <!-- CONMUTADOR VISTA DIARIA / SEMANAL -->
-        <div class="flex items-center gap-2 bg-slate-900/90 p-1.5 rounded-xl border border-slate-800 z-10">
-            <button id="btnVistaDiaria" onclick="cambiarModoVista('diario')" class="px-3.5 py-2 text-xs font-bold rounded-lg bg-cyan-500 text-white transition-all shadow-md">
-                📅 Vista Diaria
-            </button>
-            <button id="btnVistaSemanal" onclick="cambiarModoVista('semanal')" class="px-3.5 py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all">
-                📊 Proyección Semanal
-            </button>
         </div>
     </header>
 
@@ -199,13 +189,6 @@
                         </button>
                         <div id="dropdownFechaMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#0D1322] border border-cyan-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200">
                         </div>
-                    </div>
-
-                    <!-- CONTAINER VISTA SEMANAL (SELECTOR DE SEMANAS) -->
-                    <div id="containerFiltroSemana" class="hidden flex flex-col relative">
-                        <label class="text-[9px] text-amber-400 font-bold uppercase mb-1">Semana Proyectada</label>
-                        <select id="selectSemana" onchange="actualizarGraficaSemanal()" class="bg-brand-surface border border-amber-500/40 text-xs rounded-xl px-3 py-2 text-amber-300 font-mono-num font-bold focus:outline-none min-w-[200px] h-[36px]">
-                        </select>
                     </div>
 
                     <!-- MULTI-INTERVALO -->
@@ -350,7 +333,6 @@
                     <table class="w-full text-left text-xs text-slate-300">
                         <thead class="bg-brand-surface text-slate-400 font-bold uppercase tracking-wider text-[9px] sticky top-0 border-b border-slate-800">
                             <tr>
-                                <th id="thColDia" class="py-3 px-4 hidden">Día de la Semana</th>
                                 <th class="py-3 px-4">Horario de Entrada</th>
                                 <th class="py-3 px-4">Horario de Salida</th>
                                 <th class="py-3 px-4">Duración</th>
@@ -360,7 +342,7 @@
                         </thead>
                         <tbody id="optShiftsTableBody" class="divide-y divide-slate-800/50 font-mono-num text-[11px]">
                             <tr>
-                                <td colspan="6" class="text-center py-6 text-slate-500 font-sans">Selecciona filtros para generar la recomendación de turnos...</td>
+                                <td colspan="5" class="text-center py-6 text-slate-500 font-sans">Selecciona filtros para generar la recomendación de turnos...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -394,7 +376,7 @@
                     <table class="w-full text-left text-xs text-slate-300 cursor-pointer">
                         <thead class="bg-brand-surface text-slate-400 font-bold uppercase tracking-wider text-[9px] sticky top-0 border-b border-slate-800">
                             <tr>
-                                <th class="py-3 px-4">Intervalo / Día</th>
+                                <th class="py-3 px-4">Intervalo</th>
                                 <th class="py-3 px-4">Llamadas</th>
                                 <th class="py-3 px-4">AHT (HH:MM)</th>
                                 <th class="py-3 px-4">Agentes Req. (HC)</th>
@@ -423,11 +405,9 @@
         let optChartInstance = null;
         let globalTurnosOptimos = [];
         
-        let modoVista = 'diario';
         let selectedCampanas = new Set();
         let selectedFechas = new Set();
         let selectedIntervalos = new Set();
-        let mapaSemanas = {};
 
         window.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
@@ -495,33 +475,7 @@
                 subt.innerText = 'Impacto proyectado en SL y Cobertura si se implementa la malla de turnos sugerida (6x1)';
             }
 
-            if (modoVista === 'semanal') actualizarGraficaSemanal();
-            else actualizarGrafica();
-        }
-
-        function cambiarModoVista(nuevoModo) {
-            modoVista = nuevoModo;
-            const btnD = document.getElementById('btnVistaDiaria');
-            const btnS = document.getElementById('btnVistaSemanal');
-            const fFecha = document.getElementById('containerFiltroFecha');
-            const fSemana = document.getElementById('containerFiltroSemana');
-            const thDia = document.getElementById('thColDia');
-
-            if (modoVista === 'semanal') {
-                btnS.className = 'px-3.5 py-2 text-xs font-bold rounded-lg bg-cyan-500 text-white transition-all shadow-md';
-                btnD.className = 'px-3.5 py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all';
-                fFecha.classList.add('hidden');
-                fSemana.classList.remove('hidden');
-                thDia.classList.remove('hidden');
-                actualizarGraficaSemanal();
-            } else {
-                btnD.className = 'px-3.5 py-2 text-xs font-bold rounded-lg bg-cyan-500 text-white transition-all shadow-md';
-                btnS.className = 'px-3.5 py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-all';
-                fSemana.classList.add('hidden');
-                fFecha.classList.remove('hidden');
-                thDia.classList.add('hidden');
-                actualizarGrafica();
-            }
+            actualizarGrafica();
         }
 
         async function procesarWFM() {
@@ -552,8 +506,7 @@
                 
                 if (response.ok && Array.isArray(globalData)) {
                     inicializarFiltrosMultiples();
-                    if (modoVista === 'semanal') actualizarGraficaSemanal();
-                    else actualizarGrafica();
+                    actualizarGrafica();
                 } else {
                     alert("Error procesando los datos: " + (globalData.error || "Formato no válido"));
                 }
@@ -577,26 +530,6 @@
             const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
             selectedIntervalos = new Set(intervalos);
             renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
-
-            mapaSemanas = {};
-            fechas.forEach(fStr => {
-                const dateObj = new Date(fStr + 'T00:00:00');
-                const firstDayOfYear = new Date(dateObj.getFullYear(), 0, 1);
-                const pastDaysOfYear = (dateObj - firstDayOfYear) / 86400000;
-                const weekNum = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
-                const semKey = `Semana ${weekNum} (${dateObj.getFullYear()})`;
-                if (!mapaSemanas[semKey]) mapaSemanas[semKey] = [];
-                mapaSemanas[semKey].push(fStr);
-            });
-
-            const selSemana = document.getElementById('selectSemana');
-            selSemana.innerHTML = '';
-            Object.keys(mapaSemanas).forEach(sKey => {
-                const opt = document.createElement('option');
-                opt.value = sKey;
-                opt.innerText = sKey;
-                selSemana.appendChild(opt);
-            });
 
             actualizarTextosBotones();
         }
@@ -632,8 +565,7 @@
             else setRef.delete(value);
             
             actualizarTextosBotones();
-            if (modoVista === 'semanal') actualizarGraficaSemanal();
-            else actualizarGrafica();
+            actualizarGrafica();
         }
 
         function selectAllFilter(type, selectAll) {
@@ -652,8 +584,7 @@
 
             renderMenuOptions(type, allOptions.sort(), setRef);
             actualizarTextosBotones();
-            if (modoVista === 'semanal') actualizarGraficaSemanal();
-            else actualizarGrafica();
+            actualizarGrafica();
         }
 
         function toggleDropdown(type) {
@@ -685,8 +616,7 @@
 
         function resetAllFilters() {
             inicializarFiltrosMultiples();
-            if (modoVista === 'semanal') actualizarGraficaSemanal();
-            else actualizarGrafica();
+            actualizarGrafica();
         }
 
         function toggleTableInterval(inter) {
@@ -696,8 +626,7 @@
             const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
             renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
             actualizarTextosBotones();
-            if (modoVista === 'semanal') actualizarGraficaSemanal();
-            else actualizarGrafica();
+            actualizarGrafica();
         }
 
         async function actualizarGrafica() {
@@ -730,51 +659,47 @@
             }, 0);
 
             const avgAhtSegs = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
-            
-            // --- NUEVA LÓGICA: REQUERIMIENTO BASADO EN EL PICO MÁXIMO (NO PROMEDIO) ---
-            const agrupado = {};
-            dfFiltered.forEach(row => {
-                const inter = String(getProp(row, ['Intervalo'], '00:00'));
-                let ahtSegs = Number(getProp(row, ['AHT_Segundos'], 0));
-                if (!ahtSegs) {
-                    const valAht = getProp(row, ['AHT'], 180);
-                    if (typeof valAht === 'string' && valAht.includes(':')) {
-                        const parts = valAht.split(':').map(Number);
-                        ahtSegs = parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + parts[1];
-                    } else {
-                        ahtSegs = Number(valAht) || 180;
+
+            // LÓGICA DE DÍA PICO MÁXIMO
+            const fechasEnFiltro = [...new Set(dfFiltered.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0]))].filter(Boolean);
+            const todosIntervalos = [...new Set(dfFiltered.map(r => String(getProp(r, ['Intervalo'], '00:00'))))].sort();
+
+            const reqMaxVector = todosIntervalos.map(() => 0);
+            const progMaxVector = todosIntervalos.map(() => 0);
+            const llamadasMaxVector = todosIntervalos.map(() => 0);
+            const ahtMaxVector = todosIntervalos.map(() => 0);
+
+            todosIntervalos.forEach((inter, idx) => {
+                fechasEnFiltro.forEach(fStr => {
+                    const subRows = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0] === fStr && String(getProp(r, ['Intervalo'], '00:00')) === inter);
+                    if (subRows.length > 0) {
+                        const sumReq = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0), 0);
+                        const sumProg = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Programados_Reales'], 0)) || 0), 0);
+                        const sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
+                        const avgAht = subRows.reduce((a, b) => a + (Number(getProp(b, ['AHT_Segundos'], 180)) || 180), 0) / subRows.length;
+
+                        if (sumReq > reqMaxVector[idx]) reqMaxVector[idx] = sumReq;
+                        if (sumProg > progMaxVector[idx]) progMaxVector[idx] = sumProg;
+                        if (sumCalls > llamadasMaxVector[idx]) llamadasMaxVector[idx] = sumCalls;
+                        if (avgAht > ahtMaxVector[idx]) ahtMaxVector[idx] = avgAht;
                     }
-                }
-
-                if (!agrupado[inter]) {
-                    agrupado[inter] = { reqMax: 0, progMax: 0, llamadas: 0, ahtSum: 0, slSum: 0, count: 0 };
-                }
-                
-                // MÁXIMO REAL DEL INTERVALO PARA NO PROMEDIAR NI SUAVIZAR PICOS
-                const curReq = Number(getProp(row, ['Agentes_Requeridos'], 0)) || 0;
-                const curProg = Number(getProp(row, ['Agentes_Programados_Reales'], 0)) || 0;
-
-                if (curReq > agrupado[inter].reqMax) agrupado[inter].reqMax = curReq;
-                if (curProg > agrupado[inter].progMax) agrupado[inter].progMax = curProg;
-
-                agrupado[inter].llamadas += Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0;
-                agrupado[inter].ahtSum += ahtSegs;
-                agrupado[inter].slSum += Number(getProp(row, ['SL_Proyectado'], 0)) || 0;
-                agrupado[inter].count += 1;
+                });
             });
 
-            const intervalos = Object.keys(agrupado).sort();
-            const req = intervalos.map(i => agrupado[i].reqMax);
-            const prog = intervalos.map(i => agrupado[i].progMax);
-            const llamadasArr = intervalos.map(i => Math.round(agrupado[i].llamadas / agrupado[i].count));
-            const ahtSegsArr = intervalos.map(i => Math.round(agrupado[i].ahtSum / agrupado[i].count));
-            const slArr = intervalos.map(i => (agrupado[i].slSum / agrupado[i].count).toFixed(1));
-            const deltas = intervalos.map(i => agrupado[i].progMax - agrupado[i].reqMax);
+            const agrupadoPromedios = {};
+            dfFiltered.forEach(row => {
+                const inter = String(getProp(row, ['Intervalo'], '00:00'));
+                if (!agrupadoPromedios[inter]) agrupadoPromedios[inter] = { slSum: 0, count: 0 };
+                agrupadoPromedios[inter].slSum += Number(getProp(row, ['SL_Proyectado'], 0)) || 0;
+                agrupadoPromedios[inter].count += 1;
+            });
 
-            // PERSONAS ACTIVAS TOTALES EN EL DÍA PICO
-            const totalHcProgramadoDia = Math.max(...prog, 0);
+            const slArr = todosIntervalos.map(i => (agrupadoPromedios[i].slSum / agrupadoPromedios[i].count).toFixed(1));
+            const deltas = todosIntervalos.map((_, idx) => progMaxVector[idx] - reqMaxVector[idx]);
 
-            const fulfillment = totalHcProgramadoDia > 0 ? ((totalHcProgramadoDia / (Math.max(...req, 1))) * 100).toFixed(1) : "100.0";
+            const totalHcProgramadoDia = Math.max(...progMaxVector, 0);
+            const totalHcRequeridoPico = Math.max(...reqMaxVector, 1);
+            const fulfillment = totalHcProgramadoDia > 0 ? ((totalHcProgramadoDia / totalHcRequeridoPico) * 100).toFixed(1) : "100.0";
 
             const sumLlamadasSl = dfFiltered.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
             const avgSl = totCalls > 0 ? (sumLlamadasSl / totCalls).toFixed(1) : "0.0";
@@ -799,11 +724,11 @@
             const tbody = document.getElementById('intervalTableBody');
             tbody.innerHTML = '';
 
-            intervalos.forEach((inter, idx) => {
-                const rowLlamadas = llamadasArr[idx];
-                const rowAhtSegs = ahtSegsArr[idx];
-                const rowReq = req[idx];
-                const rowProg = prog[idx];
+            todosIntervalos.forEach((inter, idx) => {
+                const rowLlamadas = llamadasMaxVector[idx];
+                const rowAhtSegs = ahtMaxVector[idx];
+                const rowReq = reqMaxVector[idx];
+                const rowProg = progMaxVector[idx];
                 const rowDelta = deltas[idx];
                 const rowSl = slArr[idx];
 
@@ -835,10 +760,10 @@
             chartInstance = new Chart(ctx1, {
                 type: 'line',
                 data: {
-                    labels: intervalos,
+                    labels: todosIntervalos,
                     datasets: [
-                        { label: 'Demanda Erlang C (HC)', data: req, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.08)', fill: true, tension: 0.35, borderWidth: 3 },
-                        { label: 'Plantilla Programada (HC)', data: prog, borderColor: '#10B981', borderDash: [4, 4], tension: 0.35, borderWidth: 2.5 }
+                        { label: 'Demanda Erlang C Día Pico (HC)', data: reqMaxVector, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.08)', fill: true, tension: 0.35, borderWidth: 3 },
+                        { label: 'Plantilla Programada Día Pico (HC)', data: progMaxVector, borderColor: '#10B981', borderDash: [4, 4], tension: 0.35, borderWidth: 2.5 }
                     ]
                 },
                 options: { 
@@ -863,100 +788,7 @@
                 }
             });
 
-            ejecutarOptimizadorHorarios(intervalos, req, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slArr, totalHcProgramadoDia);
-        }
-
-        async function actualizarGraficaSemanal() {
-            const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
-            const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
-            const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
-            const duracionJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
-            const esNocturno = document.getElementById('chkNocturno').checked;
-
-            const semKey = document.getElementById('selectSemana').value;
-            const fechasSemana = mapaSemanas[semKey] || [];
-
-            const dfFiltered = globalData.filter(item => {
-                const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
-                const f = String(getProp(item, ['Fecha'], '')).split(' ')[0];
-                return selectedCampanas.has(c) && fechasSemana.includes(f);
-            });
-
-            const diasOrden = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-            const semanaDataArray = [];
-
-            diasOrden.forEach(dNombre => {
-                const subDia = dfFiltered.filter(r => String(getProp(r, ['Día_Semana', 'Dia_Semana'], '')).toLowerCase() === dNombre.toLowerCase());
-                if (subDia.length > 0) {
-                    const inters = [...new Set(subDia.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].sort();
-                    const reqs = inters.map(i => {
-                        const rows = subDia.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === i);
-                        return Math.max(...rows.map(b => Number(getProp(b, ['Agentes_Requeridos'], 0))), 0);
-                    });
-                    const llams = inters.map(i => {
-                        const rows = subDia.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === i);
-                        return Math.round(rows.reduce((a, b) => a + Number(getProp(b, ['Llamadas', 'Recibidas'], 0)), 0) / (rows.length || 1));
-                    });
-                    const ahts = inters.map(i => {
-                        const rows = subDia.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === i);
-                        return Math.round(rows.reduce((a, b) => a + Number(getProp(b, ['AHT_Segundos'], 180)), 0) / (rows.length || 1));
-                    });
-
-                    semanaDataArray.push({
-                        dia_semana: dNombre,
-                        intervalos: inters,
-                        requeridos: reqs,
-                        llamadas: llams,
-                        ahts: ahts
-                    });
-                }
-            });
-
-            try {
-                const res = await fetch('/api/optimize-schedules-weekly', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        semana_data: semanaDataArray,
-                        campanas: Array.from(selectedCampanas),
-                        target_sl: targetSlObj,
-                        target_time: targetTimeObj,
-                        merma: mermaVal,
-                        duracion_jornada: duracionJornada,
-                        es_nocturno: esNocturno
-                    })
-                });
-
-                if (res.ok) {
-                    const resSem = await res.json();
-                    const mallaSem = resSem.malla_semanal || {};
-
-                    document.getElementById('optDailyStaff').innerText = (resSem.agentes_promedio_dia || 0).toLocaleString();
-                    document.getElementById('optHeadcount').innerText = (resSem.headcount_semanal_requerido || 0).toLocaleString();
-                    
-                    const optTbody = document.getElementById('optShiftsTableBody');
-                    optTbody.innerHTML = '';
-
-                    Object.keys(mallaSem).forEach(dNom => {
-                        const dInfo = mallaSem[dNom];
-                        (dInfo.turnos || []).forEach(t => {
-                            const tr = document.createElement('tr');
-                            tr.className = 'hover:bg-slate-800/40 transition-colors';
-                            tr.innerHTML = `
-                                <td class="py-2.5 px-4 font-bold text-amber-300">${dNom}</td>
-                                <td class="py-2.5 px-4 font-bold text-cyan-400">🕒 ${t.horario_entrada}</td>
-                                <td class="py-2.5 px-4 text-slate-300 font-bold">${t.horario_salida}</td>
-                                <td class="py-2.5 px-4 text-slate-400">${t.duracion}</td>
-                                <td class="py-2.5 px-4 text-amber-300 font-black text-sm">${t.agentes_a_programar}</td>
-                                <td class="py-2.5 px-4 text-emerald-400 font-bold">100%</td>
-                            `;
-                            optTbody.appendChild(tr);
-                        });
-                    });
-                }
-            } catch (e) {
-                console.log("Error en proyección semanal:", e);
-            }
+            ejecutarOptimizadorHorarios(todosIntervalos, reqMaxVector, llamadasMaxVector, ahtMaxVector, targetTimeObj, targetSlObj, mermaVal, slArr, totalHcProgramadoDia);
         }
 
         async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slActualArray, totalHcProgramadoDia) {
@@ -989,7 +821,6 @@
 
                     const totalDiarioMalla = optData.total_agentes_diarios || 0;
 
-                    // UNIFICACIÓN RIGUROSA DE CARDS SUPERIORES CON AGENTES EN DÍA PICO
                     document.getElementById('kpiHcRequerido').innerText = totalDiarioMalla.toLocaleString() + ' HC';
                     document.getElementById('kpiHcProgramado').innerText = totalHcProgramadoDia.toLocaleString() + ' HC';
 
@@ -1021,14 +852,13 @@
                     const totalStaff = totalDiarioMalla || 1;
 
                     if (globalTurnosOptimos.length === 0) {
-                        optTbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-slate-500">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
+                        optTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-500">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
                     } else {
                         globalTurnosOptimos.forEach(t => {
                             const pct = ((t.agentes_a_programar / totalStaff) * 100).toFixed(1);
                             const tr = document.createElement('tr');
                             tr.className = 'hover:bg-slate-800/40 transition-colors';
                             tr.innerHTML = `
-                                <td class="py-2.5 px-4 font-bold text-slate-500 hidden">-</td>
                                 <td class="py-2.5 px-4 font-bold text-amber-400 flex items-center gap-2">
                                     <span>🕒</span> ${t.horario_entrada}
                                 </td>
