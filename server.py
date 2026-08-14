@@ -43,7 +43,6 @@ def clean_num(val, default=0.0):
     except Exception:
         return default
 
-# CORRECCIÓN 1: BLINDAJE DEL AHT (Convierte a Segundos Reales)
 def parse_aht_to_seconds(val):
     if pd.isna(val) or val is None: return 180.0
     
@@ -64,7 +63,6 @@ def parse_aht_to_seconds(val):
             try: secs = float(val_str)
             except: pass
             
-    # SAFEGUARD: Si el AHT resulta menor a 15 segundos, es matemáticamente seguro que son minutos. (Ej. 00:05 -> 5 secs -> 300 secs)
     if 0 < secs <= 15:
         secs = secs * 60.0
         
@@ -104,16 +102,12 @@ def parse_time_str(t_str):
         return int(parts[0]) * 60 + int(parts[1])
     except: return None
 
-# CORRECCIÓN 2: PARSEADOR UNIVERSAL DE TURNOS ROSTER
 def extract_shift_hours(val):
     v = str(val).strip().lower()
     if not v or any(x in v for x in ['descanso', 'falta', 'vacacion', 'baja', 'nan']):
         return None, None
-    
-    # Estandarizar separadores
     v = v.replace(' a ', '-').replace(' to ', '-').replace('_', '-').replace('am', '').replace('pm', '').replace('hrs', '').replace(' ', '')
     if '-' not in v: return None, None
-    
     parts = v.split('-')
     if len(parts) >= 2:
         def clean_t(t):
@@ -162,7 +156,7 @@ def construir_matriz_plantilla(xls_file):
                         try:
                             m_in, m_out = parse_time_str(in_str), parse_time_str(out_str)
                             if m_in is not None and m_out is not None:
-                                if m_out < m_in: m_out += 24 * 60 # Turnos nocturnos
+                                if m_out < m_in: m_out += 24 * 60 
                                 
                                 agentes_por_dia[key_dia] = agentes_por_dia.get(key_dia, 0) + 1
                                 agentes_por_dia[key_dia_gen] = agentes_por_dia.get(key_dia_gen, 0) + 1
@@ -171,7 +165,6 @@ def construir_matriz_plantilla(xls_file):
                                 while cur < m_out:
                                     hh, mm = (cur // 60) % 24, cur % 60
                                     inter_str = f"{hh:02d}:{mm:02d}"
-                                    
                                     malla[(camp, base_day, inter_str)] = malla.get((camp, base_day, inter_str), 0) + 1
                                     malla[('general', base_day, inter_str)] = malla.get(('general', base_day, inter_str), 0) + 1
                                     cur += 30
