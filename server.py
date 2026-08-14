@@ -100,18 +100,10 @@ def esta_en_ventana_servicio(campana, intervalo_str):
         return True
     return ventana['inicio'] <= minutos_inter < ventana['fin']
 
-def obtener_ventana_global(campanas_lista):
-    inicios, fines = [], []
-    for c in campanas_lista:
-        c_key = str(c).strip().lower()
-        if c_key in VENTANAS_SERVICIO:
-            inicios.append(VENTANAS_SERVICIO[c_key]['inicio'])
-            fines.append(VENTANAS_SERVICIO[c_key]['fin'])
-    inicio_global = min(inicios) if inicios else 9 * 60
-    fin_global = max(fines) if fines else 21 * 60
-    return inicio_global, fin_global
-
 def construir_matriz_plantilla(xls_file):
+    """
+    Construye la matriz por intervalo Y calcula el conteo real de cabezas/agentes por día.
+    """
     try:
         sheet_names = xls_file.sheet_names
         sheet_plantilla = None
@@ -121,14 +113,15 @@ def construir_matriz_plantilla(xls_file):
                 break
 
         if not sheet_plantilla:
-            return {}
+            return {}, {}
 
         df_p = pd.read_excel(xls_file, sheet_name=sheet_plantilla, engine='openpyxl')
         dias_cols = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
         malla = {}
+        agentes_por_dia = {}
 
         for _, row in df_p.iterrows():
-            camp = str(row.get('Campaña', 'General')).strip()
+            camp = str(row.get('Campaña', 'General')).strip().lower()
             for dia in dias_cols:
                 if dia not in df_p.columns:
                     continue
@@ -136,6 +129,10 @@ def construir_matriz_plantilla(xls_file):
                 if not horario or 'descanso' in horario.lower() or '-' not in horario:
                     continue
                 
+                # Se cuenta como agente activo real para este día
+                key_dia = (camp, dia.lower())
+                agentes_por_dia[key_dia] = agentes_por_dia.get(key_dia, 0) + 1
+
                 try:
                     h_in, h_out = horario.split('-')
                     m_in = parse_time_str(h_in)
@@ -147,15 +144,15 @@ def construir_matriz_plantilla(xls_file):
                             hh = cur // 60
                             mm = cur % 60
                             inter_str = f"{hh:02d}:{mm:02d}"
-                            key = (camp.lower(), dia.lower(), inter_str)
+                            key = (camp, dia.lower(), inter_str)
                             malla[key] = malla.get(key, 0) + 1
                             cur += 30
                 except Exception:
                     continue
-        return malla
+        return malla, agentes_por_dia
     except Exception as e:
         print("Error procesando hoja plantilla:", e)
-        return {}
+        return {}, {}
 
 def encontrar_columna(df, posibles_nombres):
     columnas_df = {str(c).strip().lower(): c for c in df.columns}
@@ -252,7 +249,7 @@ def limpiar_outliers_iqr(series_list):
 
 def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=30):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
-    matriz_roster = construir_matriz_plantilla(xls_file)
+    matriz_roster, agentes_por_dia = construir_matriz_plantilla(xls_file)
 
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
@@ -358,6 +355,9 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
 
+            # Conteo real de plantilla única activa para esta campaña y este día
+            plantilla_dia_real = agentes_por_dia.get((str(camp).lower(), nombre_dia.lower()), 0)
+
             for inter in intervalos_validos:
                 key_p = (camp, nombre_dia, inter)
                 info_p = mapa_perfil.get(key_p, {'weight': 0.0, 'aht': 0.0})
@@ -389,7 +389,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'Agentes_Requeridos': req_hc,
                     'Agentes_Programados_Reales': prog_efectivo_int,
                     'Delta_Net_Staffing': delta_net_hc,
-                    'SL_Proyectado': sl
+                    'SL_Proyectado': sl,
+                    'Plantilla_Dia_Real': plantilla_dia_real
                 })
 
     try:
