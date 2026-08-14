@@ -635,7 +635,6 @@
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
             const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
 
-            // 1. FILTRADO CON LIMPIEZA DE FECHA (Sin la hora)
             const dfFiltered = globalData.filter(item => {
                 const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
                 const f = String(getProp(item, ['Fecha'], '')).split(' ')[0].split('T')[0];
@@ -658,16 +657,7 @@
             
             const sumLlamadasAht = dfFiltered.reduce((acc, row) => {
                 const calls = Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0;
-                let ahtSegs = Number(getProp(row, ['AHT_Segundos'], 0));
-                if (!ahtSegs) {
-                    const valAht = getProp(row, ['AHT'], 180);
-                    if (typeof valAht === 'string' && valAht.includes(':')) {
-                        const parts = valAht.split(':').map(Number);
-                        ahtSegs = parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + parts[1];
-                    } else {
-                        ahtSegs = Number(valAht) || 180;
-                    }
-                }
+                let ahtSegs = Number(getProp(row, ['AHT_Segundos'], 0)) || 180;
                 return acc + (calls * ahtSegs);
             }, 0);
 
@@ -698,16 +688,23 @@
                 });
             });
 
-            // 2. EXTRAER DIRECTAMENTE LA PLANTILLA PROGRAMADA REAL DEL ROSTER
+            // --- EXTRACCIÓN REAL DE LA PLANTILLA SUMANDO CAMPAÑAS ÚNICAS ---
             let totalHcProgramadoRoster = 0;
             const plantillasPorFecha = [];
 
             fechasFiltradas.forEach(fStr => {
                 const subRowsFecha = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fStr);
                 if (subRowsFecha.length > 0) {
-                    const pRealBack = Number(getProp(subRowsFecha[0], ['Plantilla_Dia_Real'], 0));
-                    if (pRealBack > 0) {
-                        plantillasPorFecha.push(pRealBack);
+                    const uniqueCamps = [...new Set(subRowsFecha.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
+                    let sumPlantillaDia = 0;
+                    
+                    uniqueCamps.forEach(camp => {
+                        const row = subRowsFecha.find(r => getProp(r, ['Campaña', 'Campana'], 'General') === camp);
+                        sumPlantillaDia += Number(getProp(row, ['Plantilla_Dia_Real'], 0));
+                    });
+
+                    if (sumPlantillaDia > 0) {
+                        plantillasPorFecha.push(sumPlantillaDia);
                     } else {
                         const sumaProg = subRowsFecha.reduce((acc, r) => acc + (Number(getProp(r, ['Agentes_Programados_Reales'], 0)) || 0), 0);
                         plantillasPorFecha.push(Math.round(sumaProg / (durJornada * 2)));
@@ -716,13 +713,14 @@
             });
 
             if (plantillasPorFecha.length > 0) {
+                // Saca el promedio de la plantilla de los días seleccionados
                 const sumP = plantillasPorFecha.reduce((a, b) => a + b, 0);
                 totalHcProgramadoRoster = Math.round(sumP / plantillasPorFecha.length);
             } else {
                 totalHcProgramadoRoster = Math.max(...progMaxVector, 0);
             }
 
-            // 3. REQUERIDO PICO REAL Y DELTA MATEMÁTICO
+            // --- REQUERIDO PICO ESTRICTAMENTE DEL VECTOR DE ERLANG ---
             const maxReqPico = Math.max(...reqMaxVector, 1);
 
             document.getElementById('kpiHcRequerido').innerText = maxReqPico + ' HC';
@@ -744,17 +742,14 @@
                 badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
             }
 
-            // 4. CORRECCIÓN MATEMÁTICA DEL STAFFING LEVEL
+            // CORRECCIÓN MATEMÁTICA DEL STAFFING LEVEL REAL
             const fulfillment = totalHcProgramadoRoster > 0 ? ((totalHcProgramadoRoster / maxReqPico) * 100).toFixed(1) : "0.0";
             document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
 
             const sumLlamadasSl = dfFiltered.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
             const avgSl = totCalls > 0 ? (sumLlamadasSl / totCalls).toFixed(1) : "0.0";
 
-            document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
-            document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
             document.getElementById('kpiSl').innerText = avgSl + '%';
-
             document.getElementById('compSlActual').innerText = avgSl + '%';
             document.getElementById('compStaffActual').innerText = fulfillment + '%';
 
@@ -838,10 +833,11 @@
                 }
             });
 
-            ejecutarOptimizadorHorarios(todosIntervalos, reqMaxVector, llamadasMaxVector, ahtMaxVector, targetTimeObj, targetSlObj, mermaVal, slArr, totalHcProgramadoRoster);
+            // ENVÍO DE DATOS AL OPTIMIZADOR
+            ejecutarOptimizadorHorarios(todosIntervalos, reqMaxVector, llamadasMaxVector, ahtMaxVector, targetTimeObj, targetSlObj, mermaVal, slArr);
         }
 
-        async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slActualArray, totalHcProgramadoRoster) {
+        async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slActualArray) {
             if (!intervalos || intervalos.length === 0) return;
 
             const duracionJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
