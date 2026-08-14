@@ -350,7 +350,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             historial_volumenes[camp].append(volumen_predicho_diario)
 
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
-            plantilla_dia_real = agentes_por_dia.get((str(camp).lower(), nombre_dia.lower()), 0)
 
             for inter in intervalos_validos:
                 key_p = (camp, nombre_dia, inter)
@@ -383,8 +382,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'Agentes_Requeridos': req_hc,
                     'Agentes_Programados_Reales': prog_efectivo_int,
                     'Delta_Net_Staffing': delta_net_hc,
-                    'SL_Proyectado': sl,
-                    'Plantilla_Dia_Real': plantilla_dia_real
+                    'SL_Proyectado': sl
                 })
 
     try:
