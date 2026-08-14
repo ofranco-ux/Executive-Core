@@ -366,7 +366,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
                 a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
                 
-                # REQUERIDO EN HEADCOUNT (HC) APEGADO STRICTAMENTE AL TARGET SL DINÁMICO
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
 
@@ -401,7 +400,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN LÍMITES STRICTOS (EVITA EL SOBRE-DIMENSIONAMIENTO EN TARDE) ---
+# --- MOTOR DE OPTIMIZACIÓN BASADO EN LA JORNADA CONFIGURADA Y EL TARGET SL DINÁMICO ---
 def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, 
                             target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, 
                             es_nocturno=False):
@@ -459,7 +458,7 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
             for idx in indices_nocturnos:
                 cob_hc[idx] = agentes_noc_hc
 
-    # --- PASO 2: TURNOS DIURNOS (PROGRAMACIÓN AJUSTADA SIN CASCADA) ---
+    # --- PASO 2: TURNOS DIURNOS SEGÚN LA JORNADA SELECCIONADA EN EL CUADRO DE CONTROL ---
     duracion_jornada = float(duracion_jornada)
     SHIFT_BLOCKS = int(round(duracion_jornada * 2))
     duracion_minutos = int(round(duracion_jornada * 60))
@@ -479,44 +478,24 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
             aht_s = aht_arr[j]
             a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
             
-            # Requerimiento exacto en HC para este intervalo
-            req_ftes_j = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico) if c > 0 else 0
-            req_hc_j = math.ceil(req_ftes_j / factor_asistencia) if req_ftes_j > 0 else 0
+            cob_efectiva_ftes = cob_hc[j] * factor_asistencia
+            sl_actual = erlang_c_sl_optimizado(a_erl, cob_efectiva_ftes, aht_s, target_time) if c > 0 else 100.0
 
-            # Evaluar cuál es el déficit real considerando lo que ya se acumuló previamente
-            deficit_hc = req_hc_j - cob_hc[j]
-
-            # SOLO programar si existe un déficit real y si agregar ese turno no crea un sobre-exceso masivo en el bloque
-            if deficit_hc > 0:
-                agentes_hc_a_programar = math.ceil(deficit_hc)
-
-                # Verificar que en los bloques futuros del turno no sobrepasemos por más de 2 agentes la demanda requerida de esos bloques
-                idx_inicio_real = j
-                for search_idx in range(m):
-                    if parse_time_str(intervalos[search_idx]) == min_in:
-                        idx_inicio_real = search_idx
-                        break
-
-                max_exceso_permitido = 2
-                se_puede_agregar = True
+            if sl_actual < target_sl_dinamico and c > 0:
+                req_ftes_j = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico)
+                req_hc_j = math.ceil(req_ftes_j / factor_asistencia)
                 
-                # Control de sobre-dimensionamiento
-                for t in range(idx_inicio_real, min(idx_inicio_real + SHIFT_BLOCKS, m)):
-                    min_t = parse_time_str(intervalos[t])
-                    if min_t is not None and min_t >= min_diurno_limite:
-                        break
-                    
-                    cobertura_futura = cob_hc[t] + agentes_hc_a_programar
-                    req_futuro = req_hc_arr[t]
-                    
-                    if req_futuro > 0 and (cobertura_futura - req_futuro) > max_exceso_permitido:
-                        # Si meter este turno completo causa un exceso masivo en la tarde, limitamos los agentes
-                        agentes_hc_a_programar = max(1, int(req_futuro + max_exceso_permitido - cob_hc[t]))
-                        if agentes_hc_a_programar <= 0:
-                            se_puede_agregar = False
-                        break
+                deficit_hc = req_hc_j - cob_hc[j]
 
-                if se_puede_agregar and agentes_hc_a_programar > 0:
+                if deficit_hc > 0:
+                    agentes_hc_a_programar = math.ceil(deficit_hc)
+
+                    idx_inicio_real = j
+                    for search_idx in range(m):
+                        if parse_time_str(intervalos[search_idx]) == min_in:
+                            idx_inicio_real = search_idx
+                            break
+
                     min_entrada_efectiva = min_in
                     if min_entrada_efectiva > min_entrada_maxima:
                         min_entrada_efectiva = max(min_diurno_inicio, min_entrada_maxima)
