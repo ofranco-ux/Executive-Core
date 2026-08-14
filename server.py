@@ -366,7 +366,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
                 a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
                 
-                # CÁLCULO DE REQUERIDO EN HEADCOUNT (HC) -> FTEs / (1 - Merma)
+                # CÁLCULO DE REQUERIDO EN HEADCOUNT (HC)
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
 
@@ -387,7 +387,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'Llamadas': int(round(calls)),
                     'AHT': format_aht_str(aht),
                     'AHT_Segundos': int(round(aht)),
-                    'Agentes_Requeridos': req_hc,  # REQUERIDO VISUALIZADO EN HC
+                    'Agentes_Requeridos': req_hc,  # REQUERIDO EN HEADCOUNT (HC)
                     'Agentes_Programados_Reales': prog_efectivo_int,
                     'Delta_Net_Staffing': delta_net_hc,
                     'SL_Proyectado': sl
@@ -414,7 +414,6 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
     tot_llamadas = np.sum(llamadas_arr)
     factor_asistencia = max(0.01, 1.0 - merma)
     
-    # Requerimientos vectoriales expresados en Headcount
     req_hc_arr = np.array(req_vector, dtype=float)
 
     cob_hc = np.zeros(m, dtype=float)
@@ -461,7 +460,7 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
             for idx in indices_nocturnos:
                 cob_hc[idx] = agentes_noc_hc
 
-    # --- PASO 2: TURNOS DIURNOS EN HC (ENTRADA MÁXIMA PARA CUBRIR 07:00 A 22:00) ---
+    # --- PASO 2: TURNOS DIURNOS EN HC (07:00 A 22:00) ---
     duracion_jornada = float(duracion_jornada)
     SHIFT_BLOCKS = int(round(duracion_jornada * 2))
     duracion_minutos = int(round(duracion_jornada * 60))
