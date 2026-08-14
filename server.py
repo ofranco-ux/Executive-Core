@@ -43,18 +43,13 @@ def clean_num(val, default=0.0):
     except Exception:
         return default
 
-# 1. PARSEADOR INTELIGENTE DE AHT (Evita que 5 mins se lean como 5 segundos)
 def parse_aht_to_seconds(val):
     if pd.isna(val) or val is None:
         return 180.0
-    
     if isinstance(val, (int, float)):
-        # Si envían "5", asume 5 minutos = 300 segs. Si envían "300", asume segundos.
         return float(val) if float(val) > 15 else float(val) * 60.0
-        
     if hasattr(val, 'hour') and hasattr(val, 'minute') and hasattr(val, 'second'):
         return val.hour * 3600 + val.minute * 60 + val.second
-        
     val_str = str(val).strip()
     if ':' in val_str:
         parts = val_str.split(':')
@@ -63,7 +58,6 @@ def parse_aht_to_seconds(val):
             if len(parts) == 2: return int(parts[0]) * 60 + float(parts[1])
         except:
             pass
-            
     try:
         val_float = float(val_str)
         return val_float if val_float > 15 else val_float * 60.0
@@ -85,14 +79,11 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         sum_terms = 1.0
         current_term = 1.0
         int_N = min(int(N), 1000)
-
         for k in range(1, int_N):
             current_term *= (A / k)
             sum_terms += current_term
-            
         last_term = current_term * (A / N) / (1.0 - (A / N))
         pw = last_term / (sum_terms + last_term)
-        
         intensity = N - A
         sl = 1.0 - (pw * math.exp(-intensity * (target_time / AHT)))
         return round(max(0.0, min(100.0, sl * 100.0)), 1)
@@ -135,44 +126,26 @@ def construir_matriz_plantilla(xls_file):
             if 'plat' in s.lower() or 'plan' in s.lower() or 'rost' in s.lower():
                 sheet_plantilla = s
                 break
-
         if not sheet_plantilla:
-            return {}, {}
-
+            return {}
         df_p = pd.read_excel(xls_file, sheet_name=sheet_plantilla, engine='openpyxl')
         dias_cols = ['lunes', 'martes', 'miércoles', 'miercoles', 'jueves', 'viernes', 'sábado', 'sabado', 'domingo']
         malla = {}
-        agentes_por_dia = {}
-
         for _, row in df_p.iterrows():
             camp = str(row.get('Campaña', row.get('Campana', row.get('Ring Group', row.get('Skill', 'General'))))).strip().lower()
-            
             for col_name in df_p.columns:
                 dia_key = str(col_name).strip().lower()
-                
-                # Identifica si la columna pertenece a un día de la semana
                 if any(d in dia_key for d in dias_cols):
                     horario = str(row[col_name]).strip()
-                    
-                    # 2. FILTRO ESTRICTO: Solo cuenta celdas que tengan un formato de hora válido (ej. 09:00 - 18:00)
-                    # Esto ignora automáticamente "Descanso", "Vacaciones", "Baja", "Falta", etc.
                     if not re.search(r'\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}', horario):
                         continue
-                    
                     base_day = next(d for d in dias_cols if d in dia_key)
                     if base_day == 'miercoles': base_day = 'miércoles'
                     if base_day == 'sabado': base_day = 'sábado'
-                    
-                    key_dia = (camp, base_day)
-                    key_dia_gen = ('general', base_day)
-                    agentes_por_dia[key_dia] = agentes_por_dia.get(key_dia, 0) + 1
-                    agentes_por_dia[key_dia_gen] = agentes_por_dia.get(key_dia_gen, 0) + 1
-
                     try:
                         h_in, h_out = horario.split('-')
                         m_in = parse_time_str(h_in)
                         m_out = parse_time_str(h_out)
-
                         if m_in is not None and m_out is not None:
                             cur = m_in
                             while cur < m_out:
@@ -186,10 +159,10 @@ def construir_matriz_plantilla(xls_file):
                                 cur += 30
                     except Exception:
                         continue
-        return malla, agentes_por_dia
+        return malla
     except Exception as e:
         print("Error procesando hoja plantilla:", e)
-        return {}, {}
+        return {}
 
 def encontrar_columna(df, posibles_nombres):
     columnas_df = {str(c).strip().lower(): c for c in df.columns}
@@ -197,6 +170,12 @@ def encontrar_columna(df, posibles_nombres):
         pos_clean = pos.strip().lower()
         if pos_clean in columnas_df:
             return columnas_df[pos_clean]
+    # Búsqueda difusa para sortear espacios ocultos
+    for col_orig in df.columns:
+        col_clean = str(col_orig).strip().lower()
+        for pos in posibles_nombres:
+            if pos.strip().lower() in col_clean:
+                return col_orig
     return None
 
 def entrenar_ridge_ml(X, y, l2_reg=10.0):
@@ -239,7 +218,6 @@ def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.
     level = np.mean(series[:season_len])
     trend = (np.mean(series[season_len:2*season_len]) - np.mean(series[:season_len])) / season_len
     seasonals = [series[i] - level for i in range(season_len)]
-    
     for i in range(n):
         val = series[i]
         last_level, last_trend = level, trend
@@ -247,7 +225,6 @@ def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.
         level = alpha * (val - st_prev) + (1 - alpha) * (last_level + last_trend)
         trend = beta * (level - last_level) + (1 - beta) * last_trend
         seasonals[i % season_len] = gamma * (val - level) + (1 - gamma) * st_prev
-        
     preds = []
     for m in range(1, n_preds + 1):
         p = level + m * trend + seasonals[(n + m - 1) % season_len]
@@ -262,7 +239,6 @@ def grid_search_auto_hw(series, n_preds=30):
     best_wmape = float('inf')
     best_params = (0.2, 0.05, 0.2)
     sum_true = np.sum(val_true) if np.sum(val_true) > 0 else 1.0
-
     for a in [0.1, 0.2, 0.3]:
         for b in [0.01, 0.05, 0.1]:
             for g in [0.1, 0.2, 0.3, 0.5]:
@@ -271,7 +247,6 @@ def grid_search_auto_hw(series, n_preds=30):
                 if wmape < best_wmape:
                     best_wmape = wmape
                     best_params = (a, b, g)
-                    
     a_opt, b_opt, g_opt = best_params
     return holt_winters_fit_predict(series, season_len=7, alpha=a_opt, beta=b_opt, gamma=g_opt, n_preds=n_preds)
 
@@ -286,27 +261,26 @@ def limpiar_outliers_iqr(series_list):
 
 def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=30):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
-    matriz_roster, agentes_por_dia = construir_matriz_plantilla(xls_file)
+    matriz_roster = construir_matriz_plantilla(xls_file)
 
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
-        if 'llam' in s.lower() or 'hist' in s.lower():
+        if 'llam' in s.lower() or 'hist' in s.lower() or 'datos' in s.lower():
             sheet_calls = s
             break
 
     df = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
 
-    col_calls = encontrar_columna(df, ['Recibidas', 'Llamadas', 'Calls', 'Volumen', 'Ofrecidas'])
-    col_aht = encontrar_columna(df, ['AHT', 'TMO', 'Handle_Time'])
-    col_camp = encontrar_columna(df, ['Campaña', 'Campana', 'Ring Group', 'Skill'])
-    col_inter = encontrar_columna(df, ['Intervalo', 'Hora'])
-    col_dia = encontrar_columna(df, ['Día', 'Dia', 'Día_Semana', 'Dia_Semana'])
-    col_fecha = encontrar_columna(df, ['Fecha', 'Date'])
+    col_calls = encontrar_columna(df, ['recibidas', 'llamadas', 'calls', 'volumen', 'ofrecidas', 'entrada'])
+    col_aht = encontrar_columna(df, ['aht', 'tmo', 'handle', 'duracion'])
+    col_camp = encontrar_columna(df, ['campaña', 'campana', 'ring group', 'skill', 'servicio'])
+    col_inter = encontrar_columna(df, ['intervalo', 'hora', 'time'])
+    col_dia = encontrar_columna(df, ['día', 'dia', 'semana'])
+    col_fecha = encontrar_columna(df, ['fecha', 'date'])
 
     df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce')
     df = df.dropna(subset=[col_fecha])
 
-    # APLICACIÓN DE LA CORRECCIÓN DE AHT
     if col_aht:
         df[col_aht] = df[col_aht].apply(parse_aht_to_seconds)
 
@@ -395,7 +369,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             historial_volumenes[camp].append(volumen_predicho_diario)
 
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
-            plantilla_dia_real = agentes_por_dia.get((str(camp).lower(), nombre_dia.lower()), 0)
 
             for inter in intervalos_validos:
                 key_p = (camp, nombre_dia, inter)
@@ -404,7 +377,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 aht = info_p['aht'] if (info_p['aht'] > 0 and not pd.isna(info_p['aht'])) else aht_global_campana.get(camp, 180.0)
 
                 a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
-                
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
 
@@ -430,8 +402,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'Agentes_Requeridos': req_hc,
                     'Agentes_Programados_Reales': prog_efectivo_int,
                     'Delta_Net_Staffing': delta_net_hc,
-                    'SL_Proyectado': sl,
-                    'Plantilla_Dia_Real': plantilla_dia_real
+                    'SL_Proyectado': sl
                 })
 
     try:
@@ -465,7 +436,6 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
     if es_nocturno:
         label_jornada_noc = "9.0 hrs (Nocturno 5x2)"
         indices_nocturnos = []
-
         for j in range(m):
             min_in = parse_time_str(intervalos[j])
             if min_in is not None:
@@ -484,16 +454,13 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
                     sl_v = erlang_c_sl_optimizado(a_erl, cob_temp_ftes, aht_s, target_time) if c > 0 else 100.0
                     sl_acum += (c * sl_v)
                     llamadas_noc += c
-
                 sl_prom_noc = (sl_acum / llamadas_noc) if llamadas_noc > 0 else 100.0
                 if sl_prom_noc >= target_sl_dinamico:
                     break
                 agentes_noc_hc += 1
-
             key_turno_noc = ("22:00", "07:00", label_jornada_noc)
             x_turnos_dict[key_turno_noc] = agentes_noc_hc
             agentes_nocturnos_totales_hc = agentes_noc_hc
-
             for idx in indices_nocturnos:
                 cob_hc[idx] = agentes_noc_hc
 
@@ -522,18 +489,15 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
             if sl_actual < target_sl_dinamico and c > 0:
                 req_ftes_j = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico)
                 req_hc_j = math.ceil(req_ftes_j / factor_asistencia)
-                
                 deficit_hc = req_hc_j - cob_hc[j]
 
                 if deficit_hc > 0:
                     agentes_hc_a_programar = math.ceil(deficit_hc)
-
                     idx_inicio_real = j
                     for search_idx in range(m):
                         if parse_time_str(intervalos[search_idx]) == min_in:
                             idx_inicio_real = search_idx
                             break
-
                     min_entrada_efectiva = min_in
                     if min_entrada_efectiva > min_entrada_maxima:
                         min_entrada_efectiva = max(min_diurno_inicio, min_entrada_maxima)
@@ -606,15 +570,11 @@ def api_optimize_schedules():
         duracion_jornada = float(body.get('duracion_jornada', 8.0))
         es_nocturno = bool(body.get('es_nocturno', False))
 
-        if not intervalos or not requeridos or len(intervalos) != len(requeridos):
-            return jsonify({'error': 'Datos incompletos'}), 400
-
         turnos, cob_optima, total_diario, total_hc, eficiencia, sl_vec, sl_global, staff_level = resolver_turnos_optimos(
             intervalos, requeridos, campanas, llamadas_vec=llamadas, aht_vec=ahts, 
             target_sl=target_sl, target_time=target_time, merma=merma, 
             duracion_jornada=duracion_jornada, es_nocturno=es_nocturno
         )
-
         return jsonify({
             'turnos': turnos,
             'cobertura_optima': cob_optima,
@@ -625,7 +585,6 @@ def api_optimize_schedules():
             'sl_optimo_global': sl_global,
             'staffing_level_optimo': staff_level
         }), 200
-
     except Exception as e:
         return jsonify({'error': f'Error optimizando turnos: {str(e)}'}), 500
 
@@ -639,14 +598,12 @@ def get_latest_forecast():
                 return jsonify(data), 200
         except Exception:
             pass
-
     if os.path.exists(EXCEL_DEFAULT):
         try:
             data = procesar_archivo_excel(EXCEL_DEFAULT)
             return jsonify(data), 200
         except Exception as e:
             return jsonify({'error': f'Error procesando historico.xlsx automático: {str(e)}'}), 500
-
     return jsonify({'error': 'No se encontró historico.xlsx en GitHub.'}), 404
 
 @app.route('/api/process', methods=['POST', 'GET'])
@@ -681,10 +638,9 @@ def not_found(e):
 
 if os.path.exists(EXCEL_DEFAULT) and not os.path.exists(CACHE_FILE):
     try:
-        print("Procesando historico.xlsx inicial...")
         procesar_archivo_excel(EXCEL_DEFAULT)
     except Exception as e:
-        print("Error inicial:", e)
+        pass
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
