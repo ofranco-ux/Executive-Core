@@ -118,7 +118,7 @@ def construir_matriz_plantilla(xls_file):
         agentes_por_dia = {}
 
         for _, row in df_p.iterrows():
-            camp = str(row.get('Campaña', 'General')).strip().lower()
+            camp = str(row.get('Campaña', row.get('Campana', row.get('Skill', 'General')))).strip().lower()
             for dia in dias_cols:
                 if dia not in df_p.columns:
                     continue
