@@ -252,7 +252,7 @@
                 <div class="flex justify-between items-center mb-6">
                     <div>
                         <h3 id="wfmChartTitle" class="text-xs font-black text-slate-200 uppercase tracking-widest">Balance Intradía: Capacidad vs. Roster Real</h3>
-                        <p class="text-xs text-slate-400 font-medium mt-0.5">Evolución por intervalo entre requerimiento Erlang C y plantilla programada</p>
+                        <p class="text-xs text-slate-400 font-medium mt-0.5">Evolución por intervalo entre requerimiento Headcount (HC) y plantilla programada</p>
                     </div>
                 </div>
                 <div class="h-60">
@@ -300,7 +300,7 @@
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800">
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Plantilla Día (Activa)</p>
                         <p id="optDailyStaff" class="text-2xl font-black font-mono-num text-amber-400 mt-1">--</p>
-                        <p class="text-[10px] text-slate-400 mt-0.5">Agentes en mesa por día</p>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Agentes HC por día</p>
                     </div>
 
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800">
@@ -324,7 +324,7 @@
                                 <th class="py-3 px-4">Horario de Entrada</th>
                                 <th class="py-3 px-4">Horario de Salida</th>
                                 <th class="py-3 px-4">Duración</th>
-                                <th class="py-3 px-4 text-amber-400">Agentes a Programar</th>
+                                <th class="py-3 px-4 text-amber-400">Agentes HC a Programar</th>
                                 <th class="py-3 px-4">% de la Plantilla</th>
                             </tr>
                         </thead>
@@ -367,9 +367,9 @@
                                 <th class="py-3 px-4">Intervalo / Día</th>
                                 <th class="py-3 px-4">Llamadas</th>
                                 <th class="py-3 px-4">AHT (HH:MM)</th>
-                                <th class="py-3 px-4">Agentes Req.</th>
-                                <th class="py-3 px-4">Agentes Prog.</th>
-                                <th class="py-3 px-4">Net Staffing</th>
+                                <th class="py-3 px-4">Agentes Req. (HC)</th>
+                                <th class="py-3 px-4">Agentes Prog. (HC)</th>
+                                <th class="py-3 px-4">Net Staffing (HC)</th>
                                 <th class="py-3 px-4">SL Proyectado (%)</th>
                             </tr>
                         </thead>
@@ -802,14 +802,25 @@
                 data: {
                     labels: intervalos,
                     datasets: [
-                        { label: 'Demanda Erlang C (FTEs)', data: req, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.08)', fill: true, tension: 0.35, borderWidth: 3 },
-                        { label: 'Plantilla Programada (Roster)', data: prog, borderColor: '#10B981', borderDash: [4, 4], tension: 0.35, borderWidth: 2.5 }
+                        { label: 'Demanda Erlang C (HC)', data: req, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.08)', fill: true, tension: 0.35, borderWidth: 3 },
+                        { label: 'Plantilla Programada (HC)', data: prog, borderColor: '#10B981', borderDash: [4, 4], tension: 0.35, borderWidth: 2.5 }
                     ]
                 },
                 options: { 
                     responsive: true, 
                     maintainAspectRatio: false, 
-                    plugins: { legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } } }, 
+                    plugins: { 
+                        legend: { 
+                            labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } 
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: ${context.raw} HC`;
+                                }
+                            }
+                        }
+                    }, 
                     scales: { 
                         x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
                         y: { ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
@@ -976,21 +987,32 @@
                     if (optChartInstance) optChartInstance.destroy();
                     const ctxOpt = document.getElementById('optChart').getContext('2d');
                     
-                    const labelCurvaCob = esNocturno ? "Cobertura Mixta (Nocturna + Diurna)" : `Cobertura Horarios Óptimos (${duracionJornada}h)`;
+                    const labelCurvaCob = esNocturno ? "Cobertura Mixta HC (Nocturna + Diurna)" : `Cobertura HC Horarios Óptimos (${duracionJornada}h)`;
 
                     optChartInstance = new Chart(ctxOpt, {
                         type: 'line',
                         data: {
                             labels: intervalos,
                             datasets: [
-                                { label: 'Demanda Erlang C (Req)', data: reqArray, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.05)', fill: true, tension: 0.35, borderWidth: 2.5 },
+                                { label: 'Demanda Erlang C (HC)', data: reqArray, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.05)', fill: true, tension: 0.35, borderWidth: 2.5 },
                                 { label: labelCurvaCob, data: optData.cobertura_optima, borderColor: '#F59E0B', backgroundColor: 'rgba(245, 158, 11, 0.1)', fill: true, tension: 0.35, borderWidth: 2.5, borderDash: [2, 2] }
                             ]
                         },
                         options: { 
                             responsive: true, 
                             maintainAspectRatio: false, 
-                            plugins: { legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } } }, 
+                            plugins: { 
+                                legend: { 
+                                    labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } 
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            return `${context.dataset.label}: ${context.raw} HC`;
+                                        }
+                                    }
+                                }
+                            }, 
                             scales: { 
                                 x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
                                 y: { ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
@@ -1060,7 +1082,7 @@
                 return;
             }
 
-            const headers = ["Horario_Entrada", "Horario_Salida", "Duracion", "Agentes_A_Programar"];
+            const headers = ["Horario_Entrada", "Horario_Salida", "Duracion", "Agentes_HC_A_Programar"];
             const csvRows = [headers.join(",")];
 
             globalTurnosOptimos.forEach(t => {
@@ -1071,7 +1093,7 @@
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.setAttribute('href', url);
-            a.setAttribute('download', `Malla_Turnos_Optimos_${new Date().toISOString().slice(0,10)}.csv`);
+            a.setAttribute('download', `Malla_Turnos_Optimos_HC_${new Date().toISOString().slice(0,10)}.csv`);
             a.click();
         }
 
@@ -1081,7 +1103,7 @@
                 return;
             }
 
-            const headers = ["Campana", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT", "Agentes_Requeridos", "Agentes_Programados", "Delta_Net_Staffing", "SL_Proyectado_Pct"];
+            const headers = ["Campana", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT", "Agentes_Requeridos_HC", "Agentes_Programados_HC", "Delta_Net_Staffing_HC", "SL_Proyectado_Pct"];
             const csvRows = [headers.join(",")];
 
             globalData.forEach(row => {
@@ -1104,7 +1126,7 @@
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.setAttribute('href', url);
-            a.setAttribute('download', `WFM_Reporte_Ejecutivo_${new Date().toISOString().slice(0,10)}.csv`);
+            a.setAttribute('download', `WFM_Reporte_Ejecutivo_HC_${new Date().toISOString().slice(0,10)}.csv`);
             a.click();
         }
     </script>
