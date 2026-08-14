@@ -43,41 +43,42 @@ def clean_num(val, default=0.0):
     except Exception:
         return default
 
+# CORRECCIÓN 1: BLINDAJE DEL AHT (Convierte a Segundos Reales)
 def parse_aht_to_seconds(val):
-    if pd.isna(val) or val is None:
-        return 180.0
+    if pd.isna(val) or val is None: return 180.0
+    
+    secs = 180.0
     if isinstance(val, (int, float)):
-        return float(val) if float(val) > 15 else float(val) * 60.0
-    if hasattr(val, 'hour') and hasattr(val, 'minute') and hasattr(val, 'second'):
-        return val.hour * 3600 + val.minute * 60 + val.second
-    val_str = str(val).strip()
-    if ':' in val_str:
-        parts = val_str.split(':')
-        try:
-            if len(parts) == 3: return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
-            if len(parts) == 2: return int(parts[0]) * 60 + float(parts[1])
-        except:
-            pass
-    try:
-        val_float = float(val_str)
-        return val_float if val_float > 15 else val_float * 60.0
-    except:
-        return 180.0
+        secs = float(val)
+    elif hasattr(val, 'hour') and hasattr(val, 'minute') and hasattr(val, 'second'):
+        secs = val.hour * 3600 + val.minute * 60 + val.second
+    else:
+        val_str = str(val).strip()
+        if ':' in val_str:
+            parts = val_str.split(':')
+            try:
+                if len(parts) == 3: secs = int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+                elif len(parts) == 2: secs = int(parts[0]) * 60 + float(parts[1])
+            except: pass
+        else:
+            try: secs = float(val_str)
+            except: pass
+            
+    # SAFEGUARD: Si el AHT resulta menor a 15 segundos, es matemáticamente seguro que son minutos. (Ej. 00:05 -> 5 secs -> 300 secs)
+    if 0 < secs <= 15:
+        secs = secs * 60.0
+        
+    return secs if secs > 0 else 180.0
 
 def format_aht_str(seconds):
-    if pd.isna(seconds) or seconds is None or seconds <= 0:
-        return "00:00"
+    if pd.isna(seconds) or seconds is None or seconds <= 0: return "00:00"
     secs = int(round(seconds))
-    hrs = secs // 3600
-    mins = (secs % 3600) // 60
-    return f"{hrs:02d}:{mins:02d}"
+    return f"{secs // 3600:02d}:{(secs % 3600) // 60:02d}"
 
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
-    if N <= A or A <= 0 or N <= 0:
-        return 0.0
+    if N <= A or A <= 0 or N <= 0: return 0.0
     try:
-        sum_terms = 1.0
-        current_term = 1.0
+        sum_terms, current_term = 1.0, 1.0
         int_N = min(int(N), 1000)
         for k in range(1, int_N):
             current_term *= (A / k)
@@ -87,17 +88,13 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         intensity = N - A
         sl = 1.0 - (pw * math.exp(-intensity * (target_time / AHT)))
         return round(max(0.0, min(100.0, sl * 100.0)), 1)
-    except (OverflowError, ZeroDivisionError):
-        return 0.0
+    except: return 0.0
 
 def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
-    if A <= 0 or aht <= 0:
-        return 0
+    if A <= 0 or aht <= 0: return 0
     n = max(1, int(math.floor(A)) + 1)
     while n < 1000:
-        sl = erlang_c_sl_optimizado(A, n, aht, target_time)
-        if sl >= target_sl:
-            return n
+        if erlang_c_sl_optimizado(A, n, aht, target_time) >= target_sl: return n
         n += 1
     return n
 
@@ -105,72 +102,86 @@ def parse_time_str(t_str):
     try:
         parts = str(t_str).strip().split(':')
         return int(parts[0]) * 60 + int(parts[1])
-    except Exception:
-        return None
+    except: return None
+
+# CORRECCIÓN 2: PARSEADOR UNIVERSAL DE TURNOS ROSTER
+def extract_shift_hours(val):
+    v = str(val).strip().lower()
+    if not v or any(x in v for x in ['descanso', 'falta', 'vacacion', 'baja', 'nan']):
+        return None, None
+    
+    # Estandarizar separadores
+    v = v.replace(' a ', '-').replace(' to ', '-').replace('_', '-').replace('am', '').replace('pm', '').replace('hrs', '').replace(' ', '')
+    if '-' not in v: return None, None
+    
+    parts = v.split('-')
+    if len(parts) >= 2:
+        def clean_t(t):
+            t = re.sub(r'[^\d:]', '', t)
+            if not t: return None
+            if ':' not in t: t += ':00'
+            return t
+        return clean_t(parts[0]), clean_t(parts[1])
+    return None, None
 
 def esta_en_ventana_servicio(campana, intervalo_str):
     camp_key = str(campana).strip().lower()
     minutos_inter = parse_time_str(intervalo_str)
-    if minutos_inter is None:
-        return True
+    if minutos_inter is None: return True
     ventana = VENTANAS_SERVICIO.get(camp_key)
-    if not ventana:
-        return True
+    if not ventana: return True
     return ventana['inicio'] <= minutos_inter < ventana['fin']
 
 def construir_matriz_plantilla(xls_file):
     try:
-        sheet_names = xls_file.sheet_names
         sheet_plantilla = None
-        for s in sheet_names:
+        for s in xls_file.sheet_names:
             if 'plat' in s.lower() or 'plan' in s.lower() or 'rost' in s.lower():
                 sheet_plantilla = s
                 break
-        if not sheet_plantilla:
-            return {}
+        if not sheet_plantilla: return {}, {}
+
         df_p = pd.read_excel(xls_file, sheet_name=sheet_plantilla, engine='openpyxl')
         dias_cols = ['lunes', 'martes', 'miércoles', 'miercoles', 'jueves', 'viernes', 'sábado', 'sabado', 'domingo']
-        malla = {}
+        malla, agentes_por_dia = {}, {}
+
         for _, row in df_p.iterrows():
             camp = str(row.get('Campaña', row.get('Campana', row.get('Ring Group', row.get('Skill', 'General'))))).strip().lower()
             for col_name in df_p.columns:
                 dia_key = str(col_name).strip().lower()
                 if any(d in dia_key for d in dias_cols):
-                    horario = str(row[col_name]).strip()
-                    if not re.search(r'\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}', horario):
-                        continue
-                    base_day = next(d for d in dias_cols if d in dia_key)
-                    if base_day == 'miercoles': base_day = 'miércoles'
-                    if base_day == 'sabado': base_day = 'sábado'
-                    try:
-                        h_in, h_out = horario.split('-')
-                        m_in = parse_time_str(h_in)
-                        m_out = parse_time_str(h_out)
-                        if m_in is not None and m_out is not None:
-                            cur = m_in
-                            while cur < m_out:
-                                hh = cur // 60
-                                mm = cur % 60
-                                inter_str = f"{hh:02d}:{mm:02d}"
-                                key = (camp, base_day, inter_str)
-                                key_gen = ('general', base_day, inter_str)
-                                malla[key] = malla.get(key, 0) + 1
-                                malla[key_gen] = malla.get(key_gen, 0) + 1
-                                cur += 30
-                    except Exception:
-                        continue
-        return malla
+                    in_str, out_str = extract_shift_hours(row[col_name])
+                    if in_str and out_str:
+                        base_day = next(d for d in dias_cols if d in dia_key)
+                        if base_day == 'miercoles': base_day = 'miércoles'
+                        if base_day == 'sabado': base_day = 'sábado'
+                        
+                        key_dia = (camp, base_day)
+                        key_dia_gen = ('general', base_day)
+                        
+                        try:
+                            m_in, m_out = parse_time_str(in_str), parse_time_str(out_str)
+                            if m_in is not None and m_out is not None:
+                                if m_out < m_in: m_out += 24 * 60 # Turnos nocturnos
+                                
+                                agentes_por_dia[key_dia] = agentes_por_dia.get(key_dia, 0) + 1
+                                agentes_por_dia[key_dia_gen] = agentes_por_dia.get(key_dia_gen, 0) + 1
+                                
+                                cur = m_in
+                                while cur < m_out:
+                                    hh, mm = (cur // 60) % 24, cur % 60
+                                    inter_str = f"{hh:02d}:{mm:02d}"
+                                    
+                                    malla[(camp, base_day, inter_str)] = malla.get((camp, base_day, inter_str), 0) + 1
+                                    malla[('general', base_day, inter_str)] = malla.get(('general', base_day, inter_str), 0) + 1
+                                    cur += 30
+                        except Exception: pass
+        return malla, agentes_por_dia
     except Exception as e:
         print("Error procesando hoja plantilla:", e)
-        return {}
+        return {}, {}
 
 def encontrar_columna(df, posibles_nombres):
-    columnas_df = {str(c).strip().lower(): c for c in df.columns}
-    for pos in posibles_nombres:
-        pos_clean = pos.strip().lower()
-        if pos_clean in columnas_df:
-            return columnas_df[pos_clean]
-    # Búsqueda difusa para sortear espacios ocultos
     for col_orig in df.columns:
         col_clean = str(col_orig).strip().lower()
         for pos in posibles_nombres:
@@ -261,7 +272,7 @@ def limpiar_outliers_iqr(series_list):
 
 def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=30):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
-    matriz_roster = construir_matriz_plantilla(xls_file)
+    matriz_roster, agentes_por_dia = construir_matriz_plantilla(xls_file)
 
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
@@ -369,6 +380,9 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             historial_volumenes[camp].append(volumen_predicho_diario)
 
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
+            plantilla_dia_real = agentes_por_dia.get((str(camp).lower(), nombre_dia.lower()), 0)
+            if plantilla_dia_real == 0:
+                plantilla_dia_real = agentes_por_dia.get(('general', nombre_dia.lower()), 0)
 
             for inter in intervalos_validos:
                 key_p = (camp, nombre_dia, inter)
@@ -402,7 +416,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'Agentes_Requeridos': req_hc,
                     'Agentes_Programados_Reales': prog_efectivo_int,
                     'Delta_Net_Staffing': delta_net_hc,
-                    'SL_Proyectado': sl
+                    'SL_Proyectado': sl,
+                    'Plantilla_Dia_Real': plantilla_dia_real
                 })
 
     try:
