@@ -397,7 +397,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN DE HORARIOS (CORREGIDO: COBERTURA NOCTURNA + DIURNA EQUILIBRADA) ---
+# --- MOTOR DE OPTIMIZACIÓN BASADO EN LA META SL CONFIGURADA DINÁMICAMENTE ---
 def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, 
                             target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, 
                             es_nocturno=False):
@@ -417,32 +417,46 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
     agentes_nocturnos_totales = 0
     agentes_diurnos_totales = 0
 
+    target_sl_dinamico = float(target_sl)
+
     # --- PASO 1: TURNO NOCTURNO FIJO (22:00 A 07:00 / 5x2) ---
     if es_nocturno:
         label_jornada_noc = "9.0 hrs (Nocturno 5x2)"
-        reqs_nocturnos = []
         indices_nocturnos = []
 
         for j in range(m):
             min_in = parse_time_str(intervalos[j])
             if min_in is not None:
                 if min_in >= (22 * 60) or min_in < (7 * 60):
-                    reqs_nocturnos.append(req_arr[j])
                     indices_nocturnos.append(j)
 
-        promedio_req_noc = np.mean(reqs_nocturnos) if reqs_nocturnos else 0
-        if promedio_req_noc > 0:
-            agentes_nocturnos = max(1, int(round(promedio_req_noc)))
-            key_turno_noc = ("22:00", "07:00", label_jornada_noc)
-            x_turnos_dict[key_turno_noc] = agentes_nocturnos
-            agentes_nocturnos_totales = agentes_nocturnos
+        if len(indices_nocturnos) > 0:
+            agentes_noc = 1
+            while agentes_noc <= 200:
+                cob_temp = agentes_noc * factor_asistencia
+                sl_acum, llamadas_noc = 0.0, 0.0
+                for idx in indices_nocturnos:
+                    c = llamadas_arr[idx]
+                    aht_s = aht_arr[idx]
+                    a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
+                    sl_v = erlang_c_sl_optimizado(a_erl, cob_temp, aht_s, target_time) if c > 0 else 100.0
+                    sl_acum += (c * sl_v)
+                    llamadas_noc += c
 
-            cob_real_noc = agentes_nocturnos * factor_asistencia
+                sl_prom_noc = (sl_acum / llamadas_noc) if llamadas_noc > 0 else 100.0
+                if sl_prom_noc >= target_sl_dinamico:
+                    break
+                agentes_noc += 1
+
+            key_turno_noc = ("22:00", "07:00", label_jornada_noc)
+            x_turnos_dict[key_turno_noc] = agentes_noc
+            agentes_nocturnos_totales = agentes_noc
+
+            cob_real_noc = agentes_noc * factor_asistencia
             for idx in indices_nocturnos:
                 cob_efectiva[idx] = cob_real_noc
 
-    # --- PASO 2: TURNOS DIURNOS Y AJUSTE INTRADÍA ---
-    inicio_global, fin_global = obtener_ventana_global(campanas_activas)
+    # --- PASO 2: TURNOS DIURNOS QUE CUBREN LA META DINAMICA ---
     duracion_jornada = float(duracion_jornada)
     SHIFT_BLOCKS = int(round(duracion_jornada * 2))
     duracion_minutos = int(round(duracion_jornada * 60))
@@ -453,29 +467,33 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
         if min_in is None:
             continue
 
-        if min_in >= inicio_global and min_in < fin_global:
-            deficit = req_arr[j] - cob_efectiva[j]
-            if deficit > 0.2:
-                agentes_necesarios = max(1, int(round(deficit / factor_asistencia)))
+        c = llamadas_arr[j]
+        aht_s = aht_arr[j]
+        a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
+        sl_actual = erlang_c_sl_optimizado(a_erl, cob_efectiva[j], aht_s, target_time) if c > 0 else 100.0
+
+        if sl_actual < target_sl_dinamico and req_arr[j] > 0:
+            agentes_req_erlang = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico)
+            deficit_efectivo = agentes_req_erlang - cob_efectiva[j]
+
+            if deficit_efectivo > 0.05:
+                agentes_a_programar = math.ceil(deficit_efectivo / factor_asistencia)
                 min_out = (min_in + duracion_minutos) % (24 * 60)
                 h_out = f"{(int(min_out // 60)):02d}:{(int(min_out % 60)):02d}"
-                
+
                 key_turno = (intervalos[j], h_out, label_jornada_diurna)
-                x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + agentes_necesarios
+                x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + agentes_a_programar
 
                 for t in range(j, min(j + SHIFT_BLOCKS, m)):
-                    min_t = parse_time_str(intervalos[t])
-                    if min_t is not None and (min_t < (22 * 60) and min_t >= (7 * 60)):
-                        cob_efectiva[t] += agentes_necesarios * factor_asistencia
+                    cob_efectiva[t] += agentes_a_programar * factor_asistencia
 
-    # --- PASO 3: METRICAS Y PROYECCIÓN SL ---
+    # --- PASO 3: METRICAS Y PROYECCIÓN FINAL SL ---
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
         aht_s = aht_arr[i]
         n_opt = cob_efectiva[i]
         a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-        
         sl_val = erlang_c_sl_optimizado(a_erl, n_opt, aht_s, target_time) if c > 0 else 100.0
         sl_optimo_vector.append(sl_val)
 
