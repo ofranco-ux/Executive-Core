@@ -366,7 +366,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
                 a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
                 
-                # CÁLCULO DE REQUERIDO EN HEADCOUNT (HC)
+                # CÁLCULO DE REQUERIDO EN HEADCOUNT (HC) APEGADO STRICTAMENTE AL TARGET SL DINÁMICO
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
 
@@ -387,7 +387,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'Llamadas': int(round(calls)),
                     'AHT': format_aht_str(aht),
                     'AHT_Segundos': int(round(aht)),
-                    'Agentes_Requeridos': req_hc,  # REQUERIDO EN HEADCOUNT (HC)
+                    'Agentes_Requeridos': req_hc,
                     'Agentes_Programados_Reales': prog_efectivo_int,
                     'Delta_Net_Staffing': delta_net_hc,
                     'SL_Proyectado': sl
@@ -401,7 +401,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN BASADO EN HEADCOUNT (HC) ---
+# --- MOTOR DE OPTIMIZACIÓN APEGADO ESTRICTAMENTE AL TARGET SL SELECCIONADO ---
 def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, 
                             target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, 
                             es_nocturno=False):
@@ -413,7 +413,6 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
     aht_arr = np.array(aht_vec, dtype=float) if aht_vec is not None else np.full(m, 180.0)
     tot_llamadas = np.sum(llamadas_arr)
     factor_asistencia = max(0.01, 1.0 - merma)
-    
     req_hc_arr = np.array(req_vector, dtype=float)
 
     cob_hc = np.zeros(m, dtype=float)
@@ -424,7 +423,7 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
 
     target_sl_dinamico = float(target_sl)
 
-    # --- PASO 1: TURNO NOCTURNO FIJO (22:00 A 07:00 / 5x2) EN HC ---
+    # --- PASO 1: TURNO NOCTURNO FIJO (22:00 A 07:00 / 5x2) ---
     if es_nocturno:
         label_jornada_noc = "9.0 hrs (Nocturno 5x2)"
         indices_nocturnos = []
@@ -438,13 +437,13 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
         if len(indices_nocturnos) > 0:
             agentes_noc_hc = 1
             while agentes_noc_hc <= 200:
-                cob_efectiva_ftes = agentes_noc_hc * factor_asistencia
+                cob_temp_ftes = agentes_noc_hc * factor_asistencia
                 sl_acum, llamadas_noc = 0.0, 0.0
                 for idx in indices_nocturnos:
                     c = llamadas_arr[idx]
                     aht_s = aht_arr[idx]
                     a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-                    sl_v = erlang_c_sl_optimizado(a_erl, cob_efectiva_ftes, aht_s, target_time) if c > 0 else 100.0
+                    sl_v = erlang_c_sl_optimizado(a_erl, cob_temp_ftes, aht_s, target_time) if c > 0 else 100.0
                     sl_acum += (c * sl_v)
                     llamadas_noc += c
 
@@ -460,14 +459,14 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
             for idx in indices_nocturnos:
                 cob_hc[idx] = agentes_noc_hc
 
-    # --- PASO 2: TURNOS DIURNOS EN HC (07:00 A 22:00) ---
+    # --- PASO 2: TURNOS DIURNOS (CUBRIR HASTA CUMPLIR EXACTAMENTE EL TARGET SL) ---
     duracion_jornada = float(duracion_jornada)
     SHIFT_BLOCKS = int(round(duracion_jornada * 2))
     duracion_minutos = int(round(duracion_jornada * 60))
     label_jornada_diurna = f"{duracion_jornada:.1f} hrs".replace('.0', '')
 
-    min_diurno_inicio = 7 * 60    # 07:00 AM
-    min_diurno_limite = 22 * 60   # 10:00 PM
+    min_diurno_inicio = 7 * 60    # 07:00
+    min_diurno_limite = 22 * 60   # 22:00
     min_entrada_maxima = min_diurno_limite - duracion_minutos
 
     for j in range(m):
@@ -475,11 +474,10 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
         if min_in is None:
             continue
 
+        cob_efectiva_ftes = cob_hc[j] * factor_asistencia
         c = llamadas_arr[j]
         aht_s = aht_arr[j]
         a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-        
-        cob_efectiva_ftes = cob_hc[j] * factor_asistencia
         sl_actual = erlang_c_sl_optimizado(a_erl, cob_efectiva_ftes, aht_s, target_time) if c > 0 else 100.0
 
         if sl_actual < target_sl_dinamico and req_hc_arr[j] > 0:
@@ -511,7 +509,7 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
                 for t in range(idx_inicio_real, min(idx_inicio_real + SHIFT_BLOCKS, m)):
                     cob_hc[t] += agentes_hc_a_programar
 
-    # --- PASO 3: METRICAS Y PROYECCIÓN FINAL SL ---
+    # --- PASO 3: METRICAS Y PROYECCIÓN FINAL SL RIGUROSAMENTE ALINEADA ---
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
