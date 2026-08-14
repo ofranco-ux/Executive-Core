@@ -43,6 +43,33 @@ def clean_num(val, default=0.0):
     except Exception:
         return default
 
+# 1. PARSEADOR INTELIGENTE DE AHT (Evita que 5 mins se lean como 5 segundos)
+def parse_aht_to_seconds(val):
+    if pd.isna(val) or val is None:
+        return 180.0
+    
+    if isinstance(val, (int, float)):
+        # Si envían "5", asume 5 minutos = 300 segs. Si envían "300", asume segundos.
+        return float(val) if float(val) > 15 else float(val) * 60.0
+        
+    if hasattr(val, 'hour') and hasattr(val, 'minute') and hasattr(val, 'second'):
+        return val.hour * 3600 + val.minute * 60 + val.second
+        
+    val_str = str(val).strip()
+    if ':' in val_str:
+        parts = val_str.split(':')
+        try:
+            if len(parts) == 3: return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+            if len(parts) == 2: return int(parts[0]) * 60 + float(parts[1])
+        except:
+            pass
+            
+    try:
+        val_float = float(val_str)
+        return val_float if val_float > 15 else val_float * 60.0
+    except:
+        return 180.0
+
 def format_aht_str(seconds):
     if pd.isna(seconds) or seconds is None or seconds <= 0:
         return "00:00"
@@ -113,43 +140,52 @@ def construir_matriz_plantilla(xls_file):
             return {}, {}
 
         df_p = pd.read_excel(xls_file, sheet_name=sheet_plantilla, engine='openpyxl')
-        dias_cols = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+        dias_cols = ['lunes', 'martes', 'miércoles', 'miercoles', 'jueves', 'viernes', 'sábado', 'sabado', 'domingo']
         malla = {}
         agentes_por_dia = {}
 
         for _, row in df_p.iterrows():
             camp = str(row.get('Campaña', row.get('Campana', row.get('Ring Group', row.get('Skill', 'General'))))).strip().lower()
-            for dia in dias_cols:
-                if dia not in df_p.columns:
-                    continue
-                horario = str(row.get(dia, '')).strip()
-                if not horario or 'descanso' in horario.lower() or '-' not in horario or horario.lower() == 'nan':
-                    continue
+            
+            for col_name in df_p.columns:
+                dia_key = str(col_name).strip().lower()
                 
-                # Mapear por campaña específica y clave general de respaldo
-                key_dia = (camp, dia.lower())
-                key_dia_gen = ('general', dia.lower())
-                agentes_por_dia[key_dia] = agentes_por_dia.get(key_dia, 0) + 1
-                agentes_por_dia[key_dia_gen] = agentes_por_dia.get(key_dia_gen, 0) + 1
+                # Identifica si la columna pertenece a un día de la semana
+                if any(d in dia_key for d in dias_cols):
+                    horario = str(row[col_name]).strip()
+                    
+                    # 2. FILTRO ESTRICTO: Solo cuenta celdas que tengan un formato de hora válido (ej. 09:00 - 18:00)
+                    # Esto ignora automáticamente "Descanso", "Vacaciones", "Baja", "Falta", etc.
+                    if not re.search(r'\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}', horario):
+                        continue
+                    
+                    base_day = next(d for d in dias_cols if d in dia_key)
+                    if base_day == 'miercoles': base_day = 'miércoles'
+                    if base_day == 'sabado': base_day = 'sábado'
+                    
+                    key_dia = (camp, base_day)
+                    key_dia_gen = ('general', base_day)
+                    agentes_por_dia[key_dia] = agentes_por_dia.get(key_dia, 0) + 1
+                    agentes_por_dia[key_dia_gen] = agentes_por_dia.get(key_dia_gen, 0) + 1
 
-                try:
-                    h_in, h_out = horario.split('-')
-                    m_in = parse_time_str(h_in)
-                    m_out = parse_time_str(h_out)
+                    try:
+                        h_in, h_out = horario.split('-')
+                        m_in = parse_time_str(h_in)
+                        m_out = parse_time_str(h_out)
 
-                    if m_in is not None and m_out is not None:
-                        cur = m_in
-                        while cur < m_out:
-                            hh = cur // 60
-                            mm = cur % 60
-                            inter_str = f"{hh:02d}:{mm:02d}"
-                            key = (camp, dia.lower(), inter_str)
-                            key_gen = ('general', dia.lower(), inter_str)
-                            malla[key] = malla.get(key, 0) + 1
-                            malla[key_gen] = malla.get(key_gen, 0) + 1
-                            cur += 30
-                except Exception:
-                    continue
+                        if m_in is not None and m_out is not None:
+                            cur = m_in
+                            while cur < m_out:
+                                hh = cur // 60
+                                mm = cur % 60
+                                inter_str = f"{hh:02d}:{mm:02d}"
+                                key = (camp, base_day, inter_str)
+                                key_gen = ('general', base_day, inter_str)
+                                malla[key] = malla.get(key, 0) + 1
+                                malla[key_gen] = malla.get(key_gen, 0) + 1
+                                cur += 30
+                    except Exception:
+                        continue
         return malla, agentes_por_dia
     except Exception as e:
         print("Error procesando hoja plantilla:", e)
@@ -270,6 +306,10 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce')
     df = df.dropna(subset=[col_fecha])
 
+    # APLICACIÓN DE LA CORRECCIÓN DE AHT
+    if col_aht:
+        df[col_aht] = df[col_aht].apply(parse_aht_to_seconds)
+
     fecha_maxima = df[col_fecha].max()
     fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
     aht_global_campana = df.groupby(col_camp)[col_aht].apply(lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 180.0).to_dict()
@@ -355,11 +395,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             historial_volumenes[camp].append(volumen_predicho_diario)
 
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
-
-            # Obtener el número real de personas agendadas en Roster
             plantilla_dia_real = agentes_por_dia.get((str(camp).lower(), nombre_dia.lower()), 0)
-            if plantilla_dia_real == 0:
-                plantilla_dia_real = agentes_por_dia.get(('general', nombre_dia.lower()), 0)
 
             for inter in intervalos_validos:
                 key_p = (camp, nombre_dia, inter)
