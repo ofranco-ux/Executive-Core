@@ -400,7 +400,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN CON CONTROL DE TRASLAPES FUTUROS (GREEDY REMANENTE) ---
+# --- MOTOR DE OPTIMIZACIÓN CORREGIDO (MALLA RESTATIVA PRECISA) ---
 def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, 
                             target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, 
                             es_nocturno=False):
@@ -458,7 +458,7 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
             for idx in indices_nocturnos:
                 cob_hc[idx] = agentes_noc_hc
 
-    # --- PASO 2: TURNOS DIURNOS OPTIMIZADOS SIN SOBRE-DIMENSIONAMIENTO ---
+    # --- PASO 2: TURNOS DIURNOS (PROGRAMACIÓN RESTATIVA PUNTO A PUNTO) ---
     duracion_jornada = float(duracion_jornada)
     SHIFT_BLOCKS = int(round(duracion_jornada * 2))
     duracion_minutos = int(round(duracion_jornada * 60))
@@ -473,33 +473,21 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
         if min_in is None:
             continue
 
+        # Evaluar únicamente si la hora está en la ventana diurna
         if min_in >= min_diurno_inicio and min_in < min_diurno_limite:
-            # Evaluar cuál es el déficit MÁXIMO en la ventana de trabajo de esta nueva entrada
-            idx_fin = min(j + SHIFT_BLOCKS, m)
+            c = llamadas_arr[j]
+            aht_s = aht_arr[j]
+            a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
             
-            deficits_en_bloque = []
-            for t in range(j, idx_fin):
-                min_t = parse_time_str(intervalos[t])
-                if min_t is not None and min_t >= min_diurno_limite:
-                    break
+            # Requerimiento exacto en HC para este punto específico
+            req_ftes_j = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico) if c > 0 else 0
+            req_hc_j = math.ceil(req_ftes_j / factor_asistencia) if req_ftes_j > 0 else 0
 
-                c_t = llamadas_arr[t]
-                aht_t = aht_arr[t]
-                a_erl_t = (c_t * aht_t) / 1800.0 if (c_t > 0 and aht_t > 0) else 0.0
-                
-                if c_t > 0:
-                    req_ftes_t = calcular_agentes_requeridos_erlang_c(a_erl_t, aht_t, target_time, target_sl_dinamico)
-                    req_hc_t = math.ceil(req_ftes_t / factor_asistencia)
-                else:
-                    req_hc_t = 0
+            # Evaluar cuál es el déficit real considerando la cobertura previa que YA llegó a este punto
+            deficit_real = req_hc_j - cob_hc[j]
 
-                deficit_t = max(0.0, req_hc_t - cob_hc[t])
-                deficits_en_bloque.append(deficit_t)
-
-            max_deficit = max(deficits_en_bloque) if deficits_en_bloque else 0
-
-            if max_deficit > 0:
-                agentes_hc_a_programar = math.ceil(max_deficit)
+            if deficit_real > 0:
+                agentes_hc_a_programar = math.ceil(deficit_real)
 
                 min_entrada_efectiva = min_in
                 if min_entrada_efectiva > min_entrada_maxima:
@@ -518,6 +506,7 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
                         idx_inicio_real = search_idx
                         break
 
+                # Aplicar cobertura exacta a los bloques futuros del turno
                 for t in range(idx_inicio_real, min(idx_inicio_real + SHIFT_BLOCKS, m)):
                     min_t = parse_time_str(intervalos[t])
                     if min_t is not None and min_t >= min_diurno_limite:
