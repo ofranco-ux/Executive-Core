@@ -105,7 +105,7 @@ def construir_matriz_plantilla(xls_file):
         sheet_names = xls_file.sheet_names
         sheet_plantilla = None
         for s in sheet_names:
-            if 'plat' in s.lower() or 'plan' in s.lower():
+            if 'plat' in s.lower() or 'plan' in s.lower() or 'rost' in s.lower():
                 sheet_plantilla = s
                 break
 
@@ -118,16 +118,19 @@ def construir_matriz_plantilla(xls_file):
         agentes_por_dia = {}
 
         for _, row in df_p.iterrows():
-            camp = str(row.get('Campaña', row.get('Campana', row.get('Skill', 'General')))).strip().lower()
+            camp = str(row.get('Campaña', row.get('Campana', row.get('Ring Group', row.get('Skill', 'General'))))).strip().lower()
             for dia in dias_cols:
                 if dia not in df_p.columns:
                     continue
                 horario = str(row.get(dia, '')).strip()
-                if not horario or 'descanso' in horario.lower() or '-' not in horario:
+                if not horario or 'descanso' in horario.lower() or '-' not in horario or horario.lower() == 'nan':
                     continue
                 
+                # Mapear por campaña específica y clave general de respaldo
                 key_dia = (camp, dia.lower())
+                key_dia_gen = ('general', dia.lower())
                 agentes_por_dia[key_dia] = agentes_por_dia.get(key_dia, 0) + 1
+                agentes_por_dia[key_dia_gen] = agentes_por_dia.get(key_dia_gen, 0) + 1
 
                 try:
                     h_in, h_out = horario.split('-')
@@ -141,7 +144,9 @@ def construir_matriz_plantilla(xls_file):
                             mm = cur % 60
                             inter_str = f"{hh:02d}:{mm:02d}"
                             key = (camp, dia.lower(), inter_str)
+                            key_gen = ('general', dia.lower(), inter_str)
                             malla[key] = malla.get(key, 0) + 1
+                            malla[key_gen] = malla.get(key_gen, 0) + 1
                             cur += 30
                 except Exception:
                     continue
@@ -351,6 +356,11 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
 
+            # Obtener el número real de personas agendadas en Roster
+            plantilla_dia_real = agentes_por_dia.get((str(camp).lower(), nombre_dia.lower()), 0)
+            if plantilla_dia_real == 0:
+                plantilla_dia_real = agentes_por_dia.get(('general', nombre_dia.lower()), 0)
+
             for inter in intervalos_validos:
                 key_p = (camp, nombre_dia, inter)
                 info_p = mapa_perfil.get(key_p, {'weight': 0.0, 'aht': 0.0})
@@ -364,6 +374,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
                 key_roster = (str(camp).lower(), nombre_dia.lower(), inter)
                 prog_nominal_hc = matriz_roster.get(key_roster, 0)
+                if prog_nominal_hc == 0:
+                    prog_nominal_hc = matriz_roster.get(('general', nombre_dia.lower(), inter), 0)
                 
                 prog_efectivo_raw = prog_nominal_hc * factor_asistencia if calls > 0 else 0.0
                 prog_efectivo_int = int(round(prog_nominal_hc))
@@ -382,7 +394,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'Agentes_Requeridos': req_hc,
                     'Agentes_Programados_Reales': prog_efectivo_int,
                     'Delta_Net_Staffing': delta_net_hc,
-                    'SL_Proyectado': sl
+                    'SL_Proyectado': sl,
+                    'Plantilla_Dia_Real': plantilla_dia_real
                 })
 
     try:
