@@ -633,7 +633,6 @@
             const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
             const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
-            const esNocturno = document.getElementById('chkNocturno').checked;
 
             const dfFiltered = globalData.filter(item => {
                 const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
@@ -687,6 +686,22 @@
                 });
             });
 
+            // --- CÁLCULO DIRECTO DEL ROSTER REAL POR DÍA ---
+            let totalHcProgramadoRoster = 0;
+            const agentesProgUnicos = dfFiltered.reduce((max, r) => {
+                const val = Number(getProp(r, ['Plantilla_Dia_Real', 'Total_Agentes_Roster'], 0));
+                return val > max ? val : max;
+            }, 0);
+
+            if (agentesProgUnicos > 0) {
+                totalHcProgramadoRoster = agentesProgUnicos;
+            } else {
+                const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
+                const bloquesJornada = durJornada * 2;
+                const sumaProgIntervalos = progMaxVector.reduce((a, b) => a + b, 0);
+                totalHcProgramadoRoster = Math.round(sumaProgIntervalos / bloquesJornada);
+            }
+
             const agrupadoPromedios = {};
             dfFiltered.forEach(row => {
                 const inter = String(getProp(row, ['Intervalo'], '00:00'));
@@ -697,11 +712,6 @@
 
             const slArr = todosIntervalos.map(i => (agrupadoPromedios[i].slSum / agrupadoPromedios[i].count).toFixed(1));
             const deltas = todosIntervalos.map((_, idx) => progMaxVector[idx] - reqMaxVector[idx]);
-
-            // --- CORRECCIÓN MATEMÁTICA EN EL CÁLCULO DE PROGRAMADO ---
-            const maxProgSimultaneo = Math.max(...progMaxVector, 0);
-            const factorDescanso = esNocturno ? (7.0 / 5.0) : (7.0 / 6.0);
-            const totalHcProgramadoRoster = Math.ceil(maxProgSimultaneo * factorDescanso);
 
             const fulfillment = totalHcProgramadoRoster > 0 ? ((totalHcProgramadoRoster / (Math.max(...reqMaxVector, 1))) * 100).toFixed(1) : "100.0";
 
@@ -825,7 +835,6 @@
 
                     const totalDiarioMalla = optData.total_agentes_diarios || 0;
 
-                    // CARDS SUPERIORES CON UNIFICACIÓN CONTRACTUAL
                     document.getElementById('kpiHcRequerido').innerText = totalDiarioMalla.toLocaleString() + ' HC';
                     document.getElementById('kpiHcProgramado').innerText = totalHcProgramadoRoster.toLocaleString() + ' HC';
 
