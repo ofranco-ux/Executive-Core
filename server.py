@@ -366,7 +366,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
                 a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
                 
-                # CÁLCULO DE REQUERIDO EN HEADCOUNT (HC) APEGADO STRICTAMENTE AL TARGET SL DINÁMICO
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
 
@@ -401,7 +400,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN APEGADO ESTRICTAMENTE AL TARGET SL SELECCIONADO ---
+# --- MOTOR DE OPTIMIZACIÓN CON CONTROL DE TRASLAPES FUTUROS (GREEDY REMANENTE) ---
 def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, 
                             target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, 
                             es_nocturno=False):
@@ -459,7 +458,7 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
             for idx in indices_nocturnos:
                 cob_hc[idx] = agentes_noc_hc
 
-    # --- PASO 2: TURNOS DIURNOS (CUBRIR HASTA CUMPLIR EXACTAMENTE EL TARGET SL) ---
+    # --- PASO 2: TURNOS DIURNOS OPTIMIZADOS SIN SOBRE-DIMENSIONAMIENTO ---
     duracion_jornada = float(duracion_jornada)
     SHIFT_BLOCKS = int(round(duracion_jornada * 2))
     duracion_minutos = int(round(duracion_jornada * 60))
@@ -474,21 +473,34 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
         if min_in is None:
             continue
 
-        cob_efectiva_ftes = cob_hc[j] * factor_asistencia
-        c = llamadas_arr[j]
-        aht_s = aht_arr[j]
-        a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-        sl_actual = erlang_c_sl_optimizado(a_erl, cob_efectiva_ftes, aht_s, target_time) if c > 0 else 100.0
-
-        if sl_actual < target_sl_dinamico and req_hc_arr[j] > 0:
-            agentes_ftes_req = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico)
-            agentes_hc_req = math.ceil(agentes_ftes_req / factor_asistencia)
+        if min_in >= min_diurno_inicio and min_in < min_diurno_limite:
+            # Evaluar cuál es el déficit MÁXIMO en la ventana de trabajo de esta nueva entrada
+            idx_fin = min(j + SHIFT_BLOCKS, m)
             
-            deficit_hc = agentes_hc_req - cob_hc[j]
+            deficits_en_bloque = []
+            for t in range(j, idx_fin):
+                min_t = parse_time_str(intervalos[t])
+                if min_t is not None and min_t >= min_diurno_limite:
+                    break
 
-            if deficit_hc > 0.05:
-                agentes_hc_a_programar = math.ceil(deficit_hc)
+                c_t = llamadas_arr[t]
+                aht_t = aht_arr[t]
+                a_erl_t = (c_t * aht_t) / 1800.0 if (c_t > 0 and aht_t > 0) else 0.0
                 
+                if c_t > 0:
+                    req_ftes_t = calcular_agentes_requeridos_erlang_c(a_erl_t, aht_t, target_time, target_sl_dinamico)
+                    req_hc_t = math.ceil(req_ftes_t / factor_asistencia)
+                else:
+                    req_hc_t = 0
+
+                deficit_t = max(0.0, req_hc_t - cob_hc[t])
+                deficits_en_bloque.append(deficit_t)
+
+            max_deficit = max(deficits_en_bloque) if deficits_en_bloque else 0
+
+            if max_deficit > 0:
+                agentes_hc_a_programar = math.ceil(max_deficit)
+
                 min_entrada_efectiva = min_in
                 if min_entrada_efectiva > min_entrada_maxima:
                     min_entrada_efectiva = max(min_diurno_inicio, min_entrada_maxima)
@@ -507,9 +519,12 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
                         break
 
                 for t in range(idx_inicio_real, min(idx_inicio_real + SHIFT_BLOCKS, m)):
+                    min_t = parse_time_str(intervalos[t])
+                    if min_t is not None and min_t >= min_diurno_limite:
+                        break
                     cob_hc[t] += agentes_hc_a_programar
 
-    # --- PASO 3: METRICAS Y PROYECCIÓN FINAL SL RIGUROSAMENTE ALINEADA ---
+    # --- PASO 3: METRICAS Y PROYECCIÓN FINAL DE SL EXACTA ---
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
