@@ -247,7 +247,7 @@
                         <span class="text-xs text-emerald-400">👥</span>
                     </div>
                     <p id="kpiHcProgramado" class="text-2xl font-black font-mono-num mt-2 text-emerald-300">--</p>
-                    <p class="text-[10px] text-slate-500 mt-1">Personas activas asignadas por día</p>
+                    <p class="text-[10px] text-slate-500 mt-1">Plantilla activa contratada estimada en Roster</p>
                 </div>
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-cyan-500 relative overflow-hidden">
@@ -633,6 +633,7 @@
             const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
             const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
+            const esNocturno = document.getElementById('chkNocturno').checked;
 
             const dfFiltered = globalData.filter(item => {
                 const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
@@ -697,9 +698,12 @@
             const slArr = todosIntervalos.map(i => (agrupadoPromedios[i].slSum / agrupadoPromedios[i].count).toFixed(1));
             const deltas = todosIntervalos.map((_, idx) => progMaxVector[idx] - reqMaxVector[idx]);
 
-            const totalHcProgramadoDia = Math.max(...progMaxVector, 0);
-            const totalHcRequeridoPico = Math.max(...reqMaxVector, 1);
-            const fulfillment = totalHcProgramadoDia > 0 ? ((totalHcProgramadoDia / totalHcRequeridoPico) * 100).toFixed(1) : "100.0";
+            // --- CORRECCIÓN MATEMÁTICA EN EL CÁLCULO DE PROGRAMADO ---
+            const maxProgSimultaneo = Math.max(...progMaxVector, 0);
+            const factorDescanso = esNocturno ? (7.0 / 5.0) : (7.0 / 6.0);
+            const totalHcProgramadoRoster = Math.ceil(maxProgSimultaneo * factorDescanso);
+
+            const fulfillment = totalHcProgramadoRoster > 0 ? ((totalHcProgramadoRoster / (Math.max(...reqMaxVector, 1))) * 100).toFixed(1) : "100.0";
 
             const sumLlamadasSl = dfFiltered.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
             const avgSl = totCalls > 0 ? (sumLlamadasSl / totCalls).toFixed(1) : "0.0";
@@ -788,10 +792,10 @@
                 }
             });
 
-            ejecutarOptimizadorHorarios(todosIntervalos, reqMaxVector, llamadasMaxVector, ahtMaxVector, targetTimeObj, targetSlObj, mermaVal, slArr, totalHcProgramadoDia);
+            ejecutarOptimizadorHorarios(todosIntervalos, reqMaxVector, llamadasMaxVector, ahtMaxVector, targetTimeObj, targetSlObj, mermaVal, slArr, totalHcProgramadoRoster);
         }
 
-        async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slActualArray, totalHcProgramadoDia) {
+        async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slActualArray, totalHcProgramadoRoster) {
             if (!intervalos || intervalos.length === 0) return;
 
             const duracionJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
@@ -821,10 +825,11 @@
 
                     const totalDiarioMalla = optData.total_agentes_diarios || 0;
 
+                    // CARDS SUPERIORES CON UNIFICACIÓN CONTRACTUAL
                     document.getElementById('kpiHcRequerido').innerText = totalDiarioMalla.toLocaleString() + ' HC';
-                    document.getElementById('kpiHcProgramado').innerText = totalHcProgramadoDia.toLocaleString() + ' HC';
+                    document.getElementById('kpiHcProgramado').innerText = totalHcProgramadoRoster.toLocaleString() + ' HC';
 
-                    const deltaDiario = totalHcProgramadoDia - totalDiarioMalla;
+                    const deltaDiario = totalHcProgramadoRoster - totalDiarioMalla;
                     const elDeltaHc = document.getElementById('kpiHcDelta');
                     const badgeDelta = document.getElementById('badgeDeltaHc');
 
