@@ -698,30 +698,31 @@
                 });
             });
 
-            // 2. CÁLCULO ESTRICTO DEL HC PROGRAMADO USANDO MATEMÁTICAS DE INTERVALOS
+            // 2. EXTRAER DIRECTAMENTE LA PLANTILLA PROGRAMADA REAL DEL ROSTER
             let totalHcProgramadoRoster = 0;
-            const fechasEnFiltro = [...fechasFiltradas];
+            const plantillasPorFecha = [];
 
-            if (fechasEnFiltro.length === 1) {
-                const fTarget = fechasEnFiltro[0];
-                const subRowsFecha = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fTarget);
-                const sumaHorasProg = subRowsFecha.reduce((acc, r) => acc + (Number(getProp(r, ['Agentes_Programados_Reales'], 0)) || 0), 0);
-                totalHcProgramadoRoster = Math.round(sumaHorasProg / (durJornada * 2));
+            fechasFiltradas.forEach(fStr => {
+                const subRowsFecha = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fStr);
+                if (subRowsFecha.length > 0) {
+                    const pRealBack = Number(getProp(subRowsFecha[0], ['Plantilla_Dia_Real'], 0));
+                    if (pRealBack > 0) {
+                        plantillasPorFecha.push(pRealBack);
+                    } else {
+                        const sumaProg = subRowsFecha.reduce((acc, r) => acc + (Number(getProp(r, ['Agentes_Programados_Reales'], 0)) || 0), 0);
+                        plantillasPorFecha.push(Math.round(sumaProg / (durJornada * 2)));
+                    }
+                }
+            });
+
+            if (plantillasPorFecha.length > 0) {
+                const sumP = plantillasPorFecha.reduce((a, b) => a + b, 0);
+                totalHcProgramadoRoster = Math.round(sumP / plantillasPorFecha.length);
             } else {
-                let sumaTotPlantillas = 0;
-                fechasEnFiltro.forEach(fStr => {
-                    const sub = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fStr);
-                    const sProg = sub.reduce((acc, r) => acc + (Number(getProp(r, ['Agentes_Programados_Reales'], 0)) || 0), 0);
-                    sumaTotPlantillas += Math.round(sProg / (durJornada * 2));
-                });
-                totalHcProgramadoRoster = fechasEnFiltro.length > 0 ? Math.round(sumaTotPlantillas / fechasEnFiltro.length) : 0;
-            }
-
-            if (totalHcProgramadoRoster === 0) {
                 totalHcProgramadoRoster = Math.max(...progMaxVector, 0);
             }
 
-            // 3. HC REQUERIDO Y DELTA
+            // 3. REQUERIDO PICO REAL Y DELTA MATEMÁTICO
             const maxReqPico = Math.max(...reqMaxVector, 1);
 
             document.getElementById('kpiHcRequerido').innerText = maxReqPico + ' HC';
@@ -743,7 +744,7 @@
                 badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
             }
 
-            // 4. CORRECCIÓN MATEMÁTICA DEL STAFFING LEVEL REAL
+            // 4. CORRECCIÓN MATEMÁTICA DEL STAFFING LEVEL
             const fulfillment = totalHcProgramadoRoster > 0 ? ((totalHcProgramadoRoster / maxReqPico) * 100).toFixed(1) : "0.0";
             document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
 
@@ -870,7 +871,7 @@
 
                     const totalDiarioMalla = optData.total_agentes_diarios || 0;
 
-                    // SOLO SE ACTUALIZAN LOS KPIs INFERIORES DEL OPTIMIZADOR
+                    // SOLO ACTUALIZAMOS LOS COMPONENTES DE LA SECCIÓN INFERIOR DE RECOMENDACIÓN DE TURNOS
                     document.getElementById('optDailyStaff').innerText = totalDiarioMalla.toLocaleString();
                     document.getElementById('optHeadcount').innerText = (optData.headcount_semanal_6x1 || 0).toLocaleString();
                     
