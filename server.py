@@ -397,7 +397,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-# --- MOTOR DE OPTIMIZACIÓN CON TOPES Y CUBRIMIENTO COMPLETO DE TARDE Y NOCHE ---
+# --- MOTOR DE OPTIMIZACIÓN CON JORNADAS UNIFORMES SIN FRAGMENTACIÓN Y ENTRADA MÁXIMA DINÁMICA ---
 def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, 
                             target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, 
                             es_nocturno=False):
@@ -456,50 +456,56 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
             for idx in indices_nocturnos:
                 cob_efectiva[idx] = cob_real_noc
 
-    # --- PASO 2: TURNOS DIURNOS (CUBRE DESDE 07:00 HASTA TOPAR EN 22:00) ---
+    # --- PASO 2: TURNOS DIURNOS CON DURACIÓN EXACTA Y LÍMITE DE ENTRADA DINÁMICO ---
     duracion_jornada = float(duracion_jornada)
-    duracion_minutos_std = int(round(duracion_jornada * 60))
-    min_diurno_inicio = 7 * 60    # 07:00
-    min_diurno_limite = 22 * 60   # 22:00
+    SHIFT_BLOCKS = int(round(duracion_jornada * 2))
+    duracion_minutos = int(round(duracion_jornada * 60))
+    label_jornada_diurna = f"{duracion_jornada:.1f} hrs".replace('.0', '')
+
+    min_diurno_inicio = 7 * 60    # 07:00 AM
+    min_diurno_limite = 22 * 60   # 10:00 PM
+
+    # La entrada MÁXIMA permitida garantiza que el turno salga exactamente a las 22:00 o antes
+    min_entrada_maxima = min_diurno_limite - duracion_minutos
 
     for j in range(m):
         min_in = parse_time_str(intervalos[j])
         if min_in is None:
             continue
 
-        # Solo permitir entradas diurnas entre 07:00 y antes de las 22:00
-        if min_in >= min_diurno_inicio and min_in < min_diurno_limite:
-            c = llamadas_arr[j]
-            aht_s = aht_arr[j]
-            a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-            sl_actual = erlang_c_sl_optimizado(a_erl, cob_efectiva[j], aht_s, target_time) if c > 0 else 100.0
+        c = llamadas_arr[j]
+        aht_s = aht_arr[j]
+        a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
+        sl_actual = erlang_c_sl_optimizado(a_erl, cob_efectiva[j], aht_s, target_time) if c > 0 else 100.0
 
-            # Si el SL en este intervalo está por debajo de la meta
-            if sl_actual < target_sl_dinamico and req_arr[j] > 0:
-                agentes_req_erlang = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico)
-                deficit_efectivo = agentes_req_erlang - cob_efectiva[j]
+        if sl_actual < target_sl_dinamico and req_arr[j] > 0:
+            agentes_req_erlang = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico)
+            deficit_efectivo = agentes_req_erlang - cob_efectiva[j]
 
-                if deficit_efectivo > 0.05:
-                    agentes_a_programar = math.ceil(deficit_efectivo / factor_asistencia)
-                    
-                    # Salida topada estrictamente a las 22:00 para no invadir la noche
-                    min_out_ideal = min_in + duracion_minutos_std
-                    min_out_real = min(min_out_ideal, min_diurno_limite)
-                    
-                    duracion_real_hrs = round((min_out_real - min_in) / 60.0, 1)
-                    if duracion_real_hrs <= 0:
-                        continue
+            if deficit_efectivo > 0.05:
+                agentes_a_programar = math.ceil(deficit_efectivo / factor_asistencia)
+                
+                # Ajustar el punto de entrada si la hora excede el límite
+                min_entrada_efectiva = min_in
+                if min_entrada_efectiva > min_entrada_maxima:
+                    min_entrada_efectiva = max(min_diurno_inicio, min_entrada_maxima)
 
-                    h_out = f"{(int(min_out_real // 60)):02d}:{(int(min_out_real % 60)):02d}"
-                    label_jornada = f"{duracion_real_hrs} hrs"
+                min_out = min_entrada_efectiva + duracion_minutos
+                h_in_str = f"{(int(min_entrada_efectiva // 60)):02d}:{(int(min_entrada_efectiva % 60)):02d}"
+                h_out_str = f"{(int(min_out // 60)):02d}:{(int(min_out % 60)):02d}"
 
-                    key_turno = (intervalos[j], h_out, label_jornada)
-                    x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + agentes_a_programar
+                key_turno = (h_in_str, h_out_str, label_jornada_diurna)
+                x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + agentes_a_programar
 
-                    # Sumar cobertura efectiva hasta la hora de salida real topada
-                    bloques_cubiertos = int((min_out_real - min_in) // 30)
-                    for t in range(j, min(j + bloques_cubiertos, m)):
-                        cob_efectiva[t] += agentes_a_programar * factor_asistencia
+                # Buscar índice real de inicio en la lista de intervalos
+                idx_inicio_real = j
+                for search_idx in range(m):
+                    if parse_time_str(intervalos[search_idx]) == min_entrada_efectiva:
+                        idx_inicio_real = search_idx
+                        break
+
+                for t in range(idx_inicio_real, min(idx_inicio_real + SHIFT_BLOCKS, m)):
+                    cob_efectiva[t] += agentes_a_programar * factor_asistencia
 
     # --- PASO 3: METRICAS Y PROYECCIÓN FINAL SL ---
     sl_optimo_vector = []
