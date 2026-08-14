@@ -350,7 +350,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             historial_volumenes[camp].append(volumen_predicho_diario)
 
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
-
             plantilla_dia_real = agentes_por_dia.get((str(camp).lower(), nombre_dia.lower()), 0)
 
             for inter in intervalos_validos:
@@ -365,7 +364,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
 
                 key_roster = (str(camp).lower(), nombre_dia.lower(), inter)
-                prog_nominal_hc = matriz_roster.get(key_roster, req_hc)
+                prog_nominal_hc = matriz_roster.get(key_roster, 0)
                 
                 prog_efectivo_raw = prog_nominal_hc * factor_asistencia if calls > 0 else 0.0
                 prog_efectivo_int = int(round(prog_nominal_hc))
@@ -414,7 +413,6 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
 
     agentes_nocturnos_totales_hc = 0
     agentes_diurnos_totales_hc = 0
-
     target_sl_dinamico = float(target_sl)
 
     if es_nocturno:
