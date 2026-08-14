@@ -72,6 +72,7 @@
 </head>
 <body class="p-6 md:p-8 min-h-screen">
 
+    <!-- Header Corporativo -->
     <header class="flex justify-between items-center glass-panel rounded-2xl p-6 mb-8 border-b border-white/10 relative overflow-hidden">
         <div class="absolute -left-10 -top-10 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div class="flex items-center gap-5 z-10">
@@ -86,8 +87,10 @@
         </div>
     </header>
 
+    <!-- Layout Principal -->
     <div class="grid grid-cols-12 gap-8">
 
+        <!-- Panel de Control Izquierdo -->
         <aside id="panelControl" class="col-span-12 lg:col-span-3 glass-panel p-6 rounded-2xl space-y-6 h-fit relative">
             <div class="flex items-center justify-between pb-4 border-b border-slate-800/80">
                 <h2 class="text-xs font-black text-slate-200 uppercase tracking-widest flex items-center gap-2">
@@ -147,8 +150,10 @@
             </button>
         </aside>
 
+        <!-- Dashboard C-Level -->
         <main id="dashboardMain" class="col-span-12 lg:col-span-9 space-y-6">
 
+            <!-- BARRA DE FILTROS MULTI-SELECCIÓN -->
             <div class="glass-panel p-4 rounded-2xl flex justify-between items-center border border-slate-800/80 flex-wrap gap-4 relative z-50 overflow-visible">
                 <div class="flex items-center gap-3">
                     <div class="p-2.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-xl text-sm">🎯</div>
@@ -163,6 +168,7 @@
                         🔄 Resetear Filtros
                     </button>
 
+                    <!-- MULTI-CAMPAÑA -->
                     <div class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Campaña(s)</label>
                         <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-brand-surface border border-violet-500/30 text-xs rounded-xl px-3 py-2 text-violet-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
@@ -173,6 +179,7 @@
                         </div>
                     </div>
 
+                    <!-- CONTAINER VISTA DIARIA (FECHAS) -->
                     <div id="containerFiltroFecha" class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Fecha(s)</label>
                         <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-brand-surface border border-cyan-500/30 text-xs rounded-xl px-3 py-2 text-cyan-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
@@ -183,6 +190,7 @@
                         </div>
                     </div>
 
+                    <!-- MULTI-INTERVALO -->
                     <div class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Intervalo(s)</label>
                         <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-brand-surface border border-emerald-500/30 text-xs rounded-xl px-3 py-2 text-emerald-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
@@ -195,6 +203,7 @@
                 </div>
             </div>
 
+            <!-- Cards Métricas Principales (GRID DE 4 COLUMNAS) -->
             <div class="grid grid-cols-4 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Volumen Tráfico</p>
@@ -220,6 +229,7 @@
                 </div>
             </div>
 
+            <!-- TARJETAS EXCLUSIVAS DE PERSONAS TOTALES POR DÍA (DÍA PICO) -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-violet-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
@@ -249,6 +259,7 @@
                 </div>
             </div>
 
+            <!-- Gráfica 1 -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl">
                 <div class="flex justify-between items-center mb-6">
                     <div>
@@ -261,6 +272,7 @@
                 </div>
             </div>
 
+            <!-- MÓDULO: RECOMENDACIÓN DE HORARIOS ÓPTIMOS & COMPARATIVA -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-amber-500 relative overflow-hidden">
                 <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
                     <div>
@@ -275,40 +287,37 @@
                     </button>
                 </div>
 
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800">
+                <!-- NUEVA TABLA COMPARATIVA EJECUTIVA (3 COLUMNAS) -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-brand-surface/80 p-5 rounded-xl border border-slate-800">
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">SL Proyectado</p>
-                        <div class="flex items-baseline gap-2 mt-1">
-                            <span id="compSlActual" class="text-base font-bold text-rose-400 line-through">--%</span>
-                            <span class="text-slate-500 text-xs">➔</span>
-                            <span id="compSlOptimo" class="text-2xl font-black font-mono-num text-emerald-400">--%</span>
+                        <div class="flex items-baseline gap-2 mt-2">
+                            <span id="compSlActual" class="text-lg font-bold text-rose-400 line-through">--%</span>
+                            <span class="text-slate-500 text-sm">➔</span>
+                            <span id="compSlOptimo" class="text-3xl font-black font-mono-num text-emerald-400">--%</span>
                         </div>
-                        <p class="text-[10px] text-slate-400 mt-0.5">Actual vs. Malla Sugerida</p>
+                        <p class="text-[10px] text-slate-400 mt-1">Actual vs. Malla Sugerida</p>
                     </div>
 
-                    <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800">
+                    <div class="bg-brand-surface/80 p-5 rounded-xl border border-slate-800">
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Staffing Level</p>
-                        <div class="flex items-baseline gap-2 mt-1">
-                            <span id="compStaffActual" class="text-base font-bold text-slate-400 line-through">--%</span>
-                            <span class="text-slate-500 text-xs">➔</span>
-                            <span id="compStaffOptimo" class="text-2xl font-black font-mono-num text-cyan-400">--%</span>
+                        <div class="flex items-baseline gap-2 mt-2">
+                            <span id="compStaffActual" class="text-lg font-bold text-slate-400 line-through">--%</span>
+                            <span class="text-slate-500 text-sm">➔</span>
+                            <span id="compStaffOptimo" class="text-3xl font-black font-mono-num text-cyan-400">--%</span>
                         </div>
-                        <p class="text-[10px] text-slate-400 mt-0.5">Cobertura de Demanda</p>
+                        <p class="text-[10px] text-slate-400 mt-1">Cobertura de Demanda</p>
                     </div>
 
-                    <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Plantilla Día (Sugerida)</p>
-                        <p id="optDailyStaff" class="text-2xl font-black font-mono-num text-amber-400 mt-1">--</p>
-                        <p class="text-[10px] text-slate-400 mt-0.5">Agentes HC al día</p>
-                    </div>
-
-                    <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800">
-                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Headcount Total (6x1)</p>
-                        <p id="optHeadcount" class="text-2xl font-black font-mono-num text-violet-400 mt-1">--</p>
-                        <p id="lblHeadcountSub" class="text-[10px] text-slate-400 mt-0.5">Incluye 1 día de descanso rotativo</p>
+                    <div class="bg-brand-surface/80 p-5 rounded-xl border border-violet-500/30 shadow-[0_0_15px_rgba(139,92,246,0.1)] relative overflow-hidden">
+                        <div class="absolute -right-4 -top-4 w-16 h-16 bg-violet-500/20 rounded-full blur-xl pointer-events-none"></div>
+                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold">Headcount Total Requerido</p>
+                        <p id="optHeadcount" class="text-4xl font-black font-mono-num text-white mt-2">--</p>
+                        <p id="lblHeadcountSub" class="text-[10px] text-violet-300/70 mt-1">Nómina total a contratar (Incluye descansos 6x1)</p>
                     </div>
                 </div>
 
+                <!-- Gráfica de Cobertura -->
                 <div class="h-56 mb-6">
                     <canvas id="optChart"></canvas>
                 </div>
@@ -333,6 +342,7 @@
                 </div>
             </div>
 
+            <!-- Gráfica 2: SL Auditoría -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t border-violet-500/20">
                 <div class="mb-4">
                     <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📈 Auditoría de Service Level (% SL)</h3>
@@ -434,15 +444,12 @@
             const esNocturno = document.getElementById('chkNocturno').checked;
             const lblType = document.getElementById('lblHeadcountType');
             const lblSub = document.getElementById('lblHeadcountSub');
-            const subt = document.getElementById('subtHeadcountMod');
             if (esNocturno) {
-                lblType.innerText = 'Headcount Total (Malla Mixta)';
-                lblSub.innerText = 'Pondera 5x2 (Noche) y 6x1 (Día)';
-                subt.innerText = 'Impacto proyectado combinando Turno Nocturno y Diurnos';
+                lblType.innerText = 'Headcount Total Requerido (Mixto)';
+                lblSub.innerText = 'Nómina total: Pondera 5x2 (Noche) y 6x1 (Día)';
             } else {
-                lblType.innerText = 'Headcount Total (6x1)';
-                lblSub.innerText = 'Incluye 1 día de descanso rotativo';
-                subt.innerText = 'Impacto proyectado si se implementa la malla sugerida (6x1)';
+                lblType.innerText = 'Headcount Total Requerido';
+                lblSub.innerText = 'Nómina total a contratar (Incluye descansos 6x1)';
             }
             actualizarGrafica();
         }
@@ -634,17 +641,37 @@
                 });
             });
 
-            // 1. EXTRACCIÓN SIMPLE DIRECTA DEL VALOR ROSTER
+            // 1. EXTRACCIÓN DIRECTA DEL VALOR ROSTER (Evitando duplicación 116 HC)
             let totalHcProgramadoRoster = 0;
             const plantillasPorFecha = [];
 
             fechasFiltradas.forEach(fStr => {
                 const subRowsFecha = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fStr);
                 if (subRowsFecha.length > 0) {
-                    // Tomar la Plantilla Directa sin sumar duplicados
-                    const maxPlantilla = Math.max(...subRowsFecha.map(r => Number(getProp(r, ['Plantilla_Dia_Real'], 0))));
-                    if (maxPlantilla > 0) {
-                        plantillasPorFecha.push(maxPlantilla);
+                    const uniqueCamps = [...new Set(subRowsFecha.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
+                    
+                    const pValues = uniqueCamps.map(camp => {
+                        const row = subRowsFecha.find(r => getProp(r, ['Campaña', 'Campana'], 'General') === camp);
+                        return Number(getProp(row, ['Plantilla_Dia_Real'], 0));
+                    });
+
+                    const nonZeroPValues = pValues.filter(v => v > 0);
+                    let sumPlantillaDia = 0;
+
+                    if (nonZeroPValues.length > 0) {
+                        const allSame = nonZeroPValues.every(val => val === nonZeroPValues[0]);
+                        if (allSame) {
+                            sumPlantillaDia = nonZeroPValues[0];
+                        } else {
+                            sumPlantillaDia = nonZeroPValues.reduce((a, b) => a + b, 0);
+                        }
+                    } else {
+                        const progs = subRowsFecha.map(r => Number(getProp(r, ['Agentes_Programados_Reales'], 0)) || 0);
+                        sumPlantillaDia = Math.max(...progs);
+                    }
+
+                    if (sumPlantillaDia > 0) {
+                        plantillasPorFecha.push(sumPlantillaDia);
                     }
                 }
             });
@@ -804,7 +831,7 @@
 
                     const totalDiarioMalla = optData.total_agentes_diarios || 0;
 
-                    document.getElementById('optDailyStaff').innerText = totalDiarioMalla.toLocaleString();
+                    // SOLO ACTUALIZAMOS LOS COMPONENTES DE LA SECCIÓN INFERIOR
                     document.getElementById('optHeadcount').innerText = (optData.headcount_semanal_6x1 || 0).toLocaleString();
                     
                     document.getElementById('compSlOptimo').innerText = (optData.sl_optimo_global || 80.0) + '%';
