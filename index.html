@@ -72,7 +72,6 @@
 </head>
 <body class="p-6 md:p-8 min-h-screen">
 
-    <!-- Header Corporativo -->
     <header class="flex justify-between items-center glass-panel rounded-2xl p-6 mb-8 border-b border-white/10 relative overflow-hidden">
         <div class="absolute -left-10 -top-10 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div class="flex items-center gap-5 z-10">
@@ -87,10 +86,8 @@
         </div>
     </header>
 
-    <!-- Layout Principal -->
     <div class="grid grid-cols-12 gap-8">
 
-        <!-- Panel de Control Izquierdo -->
         <aside id="panelControl" class="col-span-12 lg:col-span-3 glass-panel p-6 rounded-2xl space-y-6 h-fit relative">
             <div class="flex items-center justify-between pb-4 border-b border-slate-800/80">
                 <h2 class="text-xs font-black text-slate-200 uppercase tracking-widest flex items-center gap-2">
@@ -217,7 +214,7 @@
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden border-t-2 border-t-cyan-400">
                     <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">SL Proyectado</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">SL Proyectado (Actual)</p>
                         <span id="badgeSl" class="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold">--</span>
                     </div>
                     <p id="kpiSl" class="text-2xl font-black font-mono-num mt-2 text-white">0.0%</p>
@@ -259,19 +256,6 @@
                 </div>
             </div>
 
-            <!-- Gráfica 1 -->
-            <div class="glass-panel p-6 rounded-2xl shadow-2xl">
-                <div class="flex justify-between items-center mb-6">
-                    <div>
-                        <h3 id="wfmChartTitle" class="text-xs font-black text-slate-200 uppercase tracking-widest">Balance Intradía: Capacidad vs. Roster Real</h3>
-                        <p class="text-xs text-slate-400 font-medium mt-0.5">Evolución por intervalo de la curva de demanda (Pico) vs plantilla activa</p>
-                    </div>
-                </div>
-                <div class="h-60">
-                    <canvas id="wfmChart"></canvas>
-                </div>
-            </div>
-
             <!-- MÓDULO: RECOMENDACIÓN DE HORARIOS ÓPTIMOS & COMPARATIVA -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-amber-500 relative overflow-hidden">
                 <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
@@ -287,10 +271,10 @@
                     </button>
                 </div>
 
-                <!-- NUEVA TABLA COMPARATIVA EJECUTIVA (4 COLUMNAS) -->
+                <!-- TABLA COMPARATIVA EJECUTIVA (4 COLUMNAS) -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <div class="bg-brand-surface/80 p-5 rounded-xl border border-slate-800">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">SL Proyectado</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">SL Proyectado (Global)</p>
                         <div class="flex items-baseline gap-2 mt-2">
                             <span id="compSlActual" class="text-lg font-bold text-rose-400 line-through">--%</span>
                             <span class="text-slate-500 text-sm">➔</span>
@@ -300,33 +284,33 @@
                     </div>
 
                     <div class="bg-brand-surface/80 p-5 rounded-xl border border-slate-800">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Staffing Level</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Staffing Level (Sugerido / Requerido)</p>
                         <div class="flex items-baseline gap-2 mt-2">
                             <span id="compStaffActual" class="text-lg font-bold text-slate-400 line-through">--%</span>
                             <span class="text-slate-500 text-sm">➔</span>
                             <span id="compStaffOptimo" class="text-3xl font-black font-mono-num text-cyan-400">--%</span>
                         </div>
-                        <p class="text-[10px] text-slate-400 mt-1">Cobertura de Demanda</p>
+                        <p class="text-[10px] text-slate-400 mt-1">Cobertura Malla Sugerida vs Requerimiento</p>
                     </div>
 
                     <!-- NUEVA TARJETA: HC ACTUAL ROSTER -->
                     <div class="bg-brand-surface/80 p-5 rounded-xl border border-emerald-500/20">
                         <p class="text-[10px] uppercase tracking-widest text-emerald-400 font-bold">Plantilla Actual (Roster)</p>
-                        <p id="optCurrentRoster" class="text-3xl font-black font-mono-num text-white mt-2">--</p>
+                        <p id="optCurrentRoster" class="text-3xl font-black font-mono-num text-emerald-400 mt-2">--</p>
                         <p class="text-[10px] text-emerald-400/60 mt-1">Nómina física activa en filtro</p>
                     </div>
 
                     <!-- TARJETA: HC REQUERIDO ÓPTIMO -->
                     <div class="bg-brand-surface/80 p-5 rounded-xl border border-violet-500/30 shadow-[0_0_15px_rgba(139,92,246,0.1)] relative overflow-hidden">
                         <div class="absolute -right-4 -top-4 w-16 h-16 bg-violet-500/20 rounded-full blur-xl pointer-events-none"></div>
-                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold">Nómina Requerida (Sugerida)</p>
+                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold">Nómina Requerida (Óptima)</p>
                         <p id="optHeadcount" class="text-3xl font-black font-mono-num text-white mt-2">--</p>
                         <p id="lblHeadcountSub" class="text-[10px] text-violet-300/70 mt-1">A contratar (Incluye descansos)</p>
                     </div>
                 </div>
 
-                <!-- Gráfica de Cobertura -->
-                <div class="h-56 mb-6">
+                <!-- Gráfica de Cobertura con 3 líneas -->
+                <div class="h-64 mb-6">
                     <canvas id="optChart"></canvas>
                 </div>
 
@@ -350,51 +334,11 @@
                 </div>
             </div>
 
-            <!-- Gráfica 2: SL Auditoría -->
-            <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t border-violet-500/20">
-                <div class="mb-4">
-                    <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📈 Auditoría de Service Level (% SL)</h3>
-                </div>
-                <div class="h-56">
-                    <canvas id="slChart"></canvas>
-                </div>
-            </div>
-
-            <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-cyan-500">
-                <div class="flex justify-between items-center mb-4">
-                    <div>
-                        <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📊 Matriz de Auditoría Intradía</h3>
-                    </div>
-                    <button onclick="exportarCSV()" class="bg-brand-surface hover:bg-slate-800 text-cyan-400 border border-cyan-500/30 text-xs font-bold py-2 px-4 rounded-xl transition duration-200 font-mono">
-                        <span>📥</span> Exportar CSV
-                    </button>
-                </div>
-                <div class="overflow-x-auto max-h-80 border border-slate-800/80 rounded-xl">
-                    <table class="w-full text-left text-xs text-slate-300 cursor-pointer">
-                        <thead class="bg-brand-surface text-slate-400 font-bold uppercase tracking-wider text-[9px] sticky top-0 border-b border-slate-800">
-                            <tr>
-                                <th class="py-3 px-4">Intervalo</th>
-                                <th class="py-3 px-4">Llamadas</th>
-                                <th class="py-3 px-4">AHT (MM:SS)</th>
-                                <th class="py-3 px-4">Agentes Req. (HC)</th>
-                                <th class="py-3 px-4">Agentes Prog. (HC)</th>
-                                <th class="py-3 px-4">Net Staffing (HC)</th>
-                                <th class="py-3 px-4">SL Proyectado (%)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="intervalTableBody" class="divide-y divide-slate-800/50 font-mono-num text-[11px]">
-                            <tr><td colspan="7" class="text-center py-6 text-slate-500">Cargue datos...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
         </main>
     </div>
 
     <script>
         let globalData = [];
-        let chartInstance = null;
         let slChartInstance = null;
         let optChartInstance = null;
         let globalTurnosOptimos = [];
@@ -733,81 +677,10 @@
                 badgeSl.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
             }
 
-            const tbody = document.getElementById('intervalTableBody');
-            tbody.innerHTML = '';
-
-            const agrupadoPromedios = {};
-            dfFiltered.forEach(row => {
-                const inter = String(getProp(row, ['Intervalo'], '00:00'));
-                if (!agrupadoPromedios[inter]) agrupadoPromedios[inter] = { slSum: 0, count: 0 };
-                agrupadoPromedios[inter].slSum += Number(getProp(row, ['SL_Proyectado'], 0)) || 0;
-                agrupadoPromedios[inter].count += 1;
-            });
-
-            const slArr = todosIntervalos.map(i => (agrupadoPromedios[i].slSum / agrupadoPromedios[i].count).toFixed(1));
-            const deltas = todosIntervalos.map((_, idx) => progMaxVector[idx] - reqMaxVector[idx]);
-
-            todosIntervalos.forEach((inter, idx) => {
-                const rowLlamadas = llamadasMaxVector[idx];
-                const rowAhtSegs = ahtMaxVector[idx];
-                const rowReq = reqMaxVector[idx];
-                const rowProg = progMaxVector[idx];
-                const rowDelta = deltas[idx];
-                const rowSl = slArr[idx];
-
-                const deltaColor = rowDelta >= 0 ? 'text-cyan-400 font-bold' : 'text-rose-400 font-bold';
-                const slBadge = parseFloat(rowSl) >= targetSlObj
-                    ? `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">${rowSl}%</span>`
-                    : `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">${rowSl}%</span>`;
-
-                const tr = document.createElement('tr');
-                tr.onclick = () => toggleTableInterval(inter);
-                tr.className = `transition-all duration-200 hover:bg-slate-800/40`;
-                tr.innerHTML = `
-                    <td class="py-2.5 px-4 font-bold text-slate-200 flex items-center gap-2">
-                        <span class="text-[10px] text-cyan-400">●</span> ${inter}
-                    </td>
-                    <td class="py-2.5 px-4 text-slate-300">${rowLlamadas.toLocaleString()}</td>
-                    <td class="py-2.5 px-4 text-slate-300">${formatAHT(rowAhtSegs)}</td>
-                    <td class="py-2.5 px-4 text-violet-400 font-bold">${rowReq}</td>
-                    <td class="py-2.5 px-4 text-emerald-400 font-bold">${rowProg}</td>
-                    <td class="py-2.5 px-4 ${deltaColor}">${rowDelta >= 0 ? '+' : ''}${rowDelta}</td>
-                    <td class="py-2.5 px-4">${slBadge}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-
-            if (chartInstance) chartInstance.destroy();
-
-            const ctx1 = document.getElementById('wfmChart').getContext('2d');
-            chartInstance = new Chart(ctx1, {
-                type: 'line',
-                data: {
-                    labels: todosIntervalos,
-                    datasets: [
-                        { label: 'Demanda Erlang C Día Pico (HC)', data: reqMaxVector, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.08)', fill: true, tension: 0.35, borderWidth: 3 },
-                        { label: 'Plantilla Programada Día Pico (HC)', data: progMaxVector, borderColor: '#10B981', borderDash: [4, 4], tension: 0.35, borderWidth: 2.5 }
-                    ]
-                },
-                options: { 
-                    responsive: true, 
-                    maintainAspectRatio: false, 
-                    plugins: { 
-                        legend: { 
-                            labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } 
-                        }
-                    }, 
-                    scales: { 
-                        x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
-                        y: { ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
-                    } 
-                }
-            });
-
-            ejecutarOptimizadorHorarios(todosIntervalos, reqMaxVector, llamadasMaxVector, ahtMaxVector, targetTimeObj, targetSlObj, mermaVal, slArr, totalHcProgramadoRoster);
+            ejecutarOptimizadorHorarios(todosIntervalos, reqMaxVector, llamadasMaxVector, ahtMaxVector, targetTimeObj, targetSlObj, mermaVal, slArr, totalHcProgramadoRoster, progMaxVector);
         }
 
-        async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slActualArray, hcActualRoster) {
+        async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slActualArray, hcActualRoster, progActualArray) {
             if (!intervalos || intervalos.length === 0) return;
 
             const duracionJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
@@ -834,13 +707,20 @@
                 if (res.ok) {
                     const optData = await res.json();
                     globalTurnosOptimos = optData.turnos || [];
-
                     const totalDiarioMalla = optData.total_agentes_diarios || 0;
 
                     document.getElementById('optCurrentRoster').innerText = hcActualRoster.toLocaleString();
                     document.getElementById('optHeadcount').innerText = (optData.headcount_semanal_6x1 || 0).toLocaleString();
                     
-                    document.getElementById('compSlOptimo').innerText = (optData.sl_optimo_global || 80.0) + '%';
+                    const slOptimoVal = parseFloat(optData.sl_optimo_global || 80.0);
+                    const slEl = document.getElementById('compSlOptimo');
+                    slEl.innerText = slOptimoVal.toFixed(1) + '%';
+                    if (slOptimoVal >= targetSlObj) {
+                        slEl.className = "text-3xl font-black font-mono-num text-emerald-400";
+                    } else {
+                        slEl.className = "text-3xl font-black font-mono-num text-rose-400";
+                    }
+
                     document.getElementById('compStaffOptimo').innerText = (optData.staffing_level_optimo || 100.0) + '%';
 
                     const optTbody = document.getElementById('optShiftsTableBody');
@@ -871,15 +751,16 @@
                     if (optChartInstance) optChartInstance.destroy();
                     const ctxOpt = document.getElementById('optChart').getContext('2d');
                     
-                    const labelCurvaCob = esNocturno ? "Cobertura Mixta HC (Nocturna + Diurna)" : `Cobertura HC Horarios Óptimos (${duracionJornada}h)`;
+                    const labelCurvaCob = esNocturno ? "Cobertura Sugerida (Mixta)" : `Cobertura Sugerida (${duracionJornada}h)`;
 
                     optChartInstance = new Chart(ctxOpt, {
                         type: 'line',
                         data: {
                             labels: intervalos,
                             datasets: [
-                                { label: 'Demanda Erlang C (HC)', data: reqArray, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.05)', fill: true, tension: 0.35, borderWidth: 2.5 },
-                                { label: labelCurvaCob, data: optData.cobertura_optima, borderColor: '#F59E0B', backgroundColor: 'rgba(245, 158, 11, 0.1)', fill: true, tension: 0.35, borderWidth: 2.5, borderDash: [2, 2] }
+                                { label: 'Demanda Erlang C (Requerido)', data: optData.req_hc_pooled, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.05)', fill: true, tension: 0.35, borderWidth: 3 },
+                                { label: 'Cobertura Actual (Roster)', data: progActualArray, borderColor: '#10B981', backgroundColor: 'transparent', fill: false, tension: 0.35, borderWidth: 2.5, borderDash: [2, 2] },
+                                { label: labelCurvaCob, data: optData.cobertura_optima, borderColor: '#F59E0B', backgroundColor: 'transparent', fill: false, tension: 0.35, borderWidth: 2.5, borderDash: [4, 4] }
                             ]
                         },
                         options: { 
@@ -893,57 +774,6 @@
                             scales: { 
                                 x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
                                 y: { ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
-                            } 
-                        }
-                    });
-
-                    if (slChartInstance) slChartInstance.destroy();
-                    const targetArray = intervalos.map(() => targetSlObj);
-                    const ctx2 = document.getElementById('slChart').getContext('2d');
-                    
-                    slChartInstance = new Chart(ctx2, {
-                        type: 'line',
-                        data: {
-                            labels: intervalos,
-                            datasets: [
-                                { 
-                                    label: 'SL Proyectado (Actual)', 
-                                    data: slActualArray, 
-                                    borderColor: '#8B5CF6', 
-                                    backgroundColor: 'rgba(139, 92, 246, 0.08)', 
-                                    fill: true, 
-                                    tension: 0.3, 
-                                    borderWidth: 2.5,
-                                    pointRadius: 3
-                                },
-                                { 
-                                    label: 'SL Proyectado (Con Turnos Óptimos)', 
-                                    data: optData.sl_optimo_vector, 
-                                    borderColor: '#10B981', 
-                                    backgroundColor: 'rgba(16, 185, 129, 0.1)', 
-                                    fill: false, 
-                                    tension: 0.3, 
-                                    borderWidth: 2.5,
-                                    borderDash: [3, 3],
-                                    pointRadius: 3
-                                },
-                                { 
-                                    label: `Meta Target (${targetSlObj}%)`, 
-                                    data: targetArray, 
-                                    borderColor: '#F59E0B', 
-                                    borderDash: [2, 2], 
-                                    borderWidth: 1.5,
-                                    pointRadius: 0
-                                }
-                            ]
-                        },
-                        options: { 
-                            responsive: true, 
-                            maintainAspectRatio: false, 
-                            plugins: { legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11 } } } }, 
-                            scales: { 
-                                x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
-                                y: { min: 0, max: 100, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
                             } 
                         }
                     });
