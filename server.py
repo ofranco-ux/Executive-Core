@@ -421,18 +421,27 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_vec=None, aht_vec=None, 
+def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht_vec=None, 
                             target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, 
                             es_nocturno=False):
     m = len(intervalos)
     if m == 0:
-        return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0
+        return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0, [0]*m
 
     llamadas_arr = np.array(llamadas_vec, dtype=float) if llamadas_vec is not None else np.zeros(m)
     aht_arr = np.array(aht_vec, dtype=float) if aht_vec is not None else np.full(m, 180.0)
     tot_llamadas = np.sum(llamadas_arr)
     factor_asistencia = max(0.01, 1.0 - merma)
-    req_hc_arr = np.array(req_vector, dtype=float)
+    
+    # Recálculo exacto del requerimiento Erlang C consolidado
+    req_hc_pooled = []
+    for i in range(m):
+        c = llamadas_arr[i]
+        aht_s = aht_arr[i]
+        a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
+        req_ftes_i = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl) if c > 0 else 0
+        req_hc_i = math.ceil(req_ftes_i / factor_asistencia) if req_ftes_i > 0 else 0
+        req_hc_pooled.append(req_hc_i)
 
     cob_hc = np.zeros(m, dtype=float)
     x_turnos_dict = {}
@@ -556,19 +565,18 @@ def resolver_turnos_optimos(intervalos, req_vector, campanas_activas, llamadas_v
     hc_diurno = math.ceil(agentes_diurnos_totales_hc * (7.0 / 6.0))
     headcount_semanal_requerido = hc_nocturno + hc_diurno
 
-    total_req_hc = np.sum(req_hc_arr)
+    total_req_hc_pooled = np.sum(req_hc_pooled)
     total_prog_hc = np.sum(cob_hc)
-    staffing_level_optimo = round(float((total_prog_hc / total_req_hc * 100.0)), 1) if total_req_hc > 0 else 100.0
-    eficiencia = round(min(100.0, (total_req_hc / total_prog_hc * 100.0)), 1) if total_prog_hc > 0 else 100.0
+    staffing_level_optimo = round(float((total_prog_hc / total_req_hc_pooled * 100.0)), 1) if total_req_hc_pooled > 0 else 100.0
+    eficiencia = round(min(100.0, (total_req_hc_pooled / total_prog_hc * 100.0)), 1) if total_prog_hc > 0 else 100.0
 
-    return turnos_sugeridos, cobertura_hc_entera, total_agentes_diarios_hc, headcount_semanal_requerido, eficiencia, sl_optimo_vector, sl_optimo_global, staffing_level_optimo
+    return turnos_sugeridos, cobertura_hc_entera, total_agentes_diarios_hc, headcount_semanal_requerido, eficiencia, sl_optimo_vector, sl_optimo_global, staffing_level_optimo, req_hc_pooled
 
 @app.route('/api/optimize-schedules', methods=['POST'])
 def api_optimize_schedules():
     try:
         body = request.get_json(force=True)
         intervalos = body.get('intervalos', [])
-        requeridos = body.get('requeridos', [])
         campanas = body.get('campanas', [])
         llamadas = body.get('llamadas', [])
         ahts = body.get('ahts', [])
@@ -578,8 +586,8 @@ def api_optimize_schedules():
         duracion_jornada = float(body.get('duracion_jornada', 8.0))
         es_nocturno = bool(body.get('es_nocturno', False))
 
-        turnos, cob_optima, total_diario, total_hc, eficiencia, sl_vec, sl_global, staff_level = resolver_turnos_optimos(
-            intervalos, requeridos, campanas, llamadas_vec=llamadas, aht_vec=ahts, 
+        turnos, cob_optima, total_diario, total_hc, eficiencia, sl_vec, sl_global, staff_level, req_hc_pooled = resolver_turnos_optimos(
+            intervalos, campanas, llamadas_vec=llamadas, aht_vec=ahts, 
             target_sl=target_sl, target_time=target_time, merma=merma, 
             duracion_jornada=duracion_jornada, es_nocturno=es_nocturno
         )
@@ -591,7 +599,8 @@ def api_optimize_schedules():
             'eficiencia_cobertura': eficiencia,
             'sl_optimo_vector': sl_vec,
             'sl_optimo_global': sl_global,
-            'staffing_level_optimo': staff_level
+            'staffing_level_optimo': staff_level,
+            'req_hc_pooled': req_hc_pooled
         }), 200
     except Exception as e:
         return jsonify({'error': f'Error optimizando turnos: {str(e)}'}), 500
