@@ -104,7 +104,7 @@ def parse_time_str(t_str):
 
 def extract_shift_hours(val):
     v = str(val).strip().lower()
-    if not v or any(x in v for x in ['descanso', 'falta', 'vacacion', 'baja', 'nan']):
+    if not v or any(x in v for x in ['dd', 'descanso', 'falta', 'vacacion', 'baja', 'nan']):
         return None, None
     v = v.replace(' a ', '-').replace(' to ', '-').replace('_', '-').replace('am', '').replace('pm', '').replace('hrs', '').replace(' ', '')
     if '-' not in v: return None, None
