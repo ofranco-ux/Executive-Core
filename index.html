@@ -633,6 +633,7 @@
             const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
             const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
+            const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
 
             const dfFiltered = globalData.filter(item => {
                 const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
@@ -640,6 +641,17 @@
                 const i = String(getProp(item, ['Intervalo'], '00:00'));
                 return selectedCampanas.has(c) && selectedFechas.has(f) && selectedIntervalos.has(i);
             });
+
+            if (!dfFiltered || dfFiltered.length === 0) {
+                document.getElementById('kpiCalls').innerText = "0";
+                document.getElementById('kpiAht').innerText = "00:00";
+                document.getElementById('kpiSl').innerText = "0.0%";
+                document.getElementById('kpiFulfillment').innerText = "0.0%";
+                document.getElementById('kpiHcRequerido').innerText = "0 HC";
+                document.getElementById('kpiHcProgramado').innerText = "0 HC";
+                document.getElementById('kpiHcDelta').innerText = "0 HC";
+                return;
+            }
 
             const totCalls = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
             
@@ -660,8 +672,7 @@
 
             const avgAhtSegs = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
 
-            // LÓGICA DE DÍA PICO MÁXIMO
-            const fechasEnFiltro = [...new Set(dfFiltered.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0]))].filter(Boolean);
+            const fechasFiltradas = [...new Set(dfFiltered.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0]))].filter(Boolean);
             const todosIntervalos = [...new Set(dfFiltered.map(r => String(getProp(r, ['Intervalo'], '00:00'))))].sort();
 
             const reqMaxVector = todosIntervalos.map(() => 0);
@@ -670,7 +681,7 @@
             const ahtMaxVector = todosIntervalos.map(() => 0);
 
             todosIntervalos.forEach((inter, idx) => {
-                fechasEnFiltro.forEach(fStr => {
+                fechasFiltradas.forEach(fStr => {
                     const subRows = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0] === fStr && String(getProp(r, ['Intervalo'], '00:00')) === inter);
                     if (subRows.length > 0) {
                         const sumReq = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0), 0);
@@ -686,20 +697,40 @@
                 });
             });
 
-            // --- CÁLCULO DIRECTO DEL ROSTER REAL POR DÍA ---
+            // --- CÁLCULO DIRECTO DEL HC PROGRAMADO POR FECHA FILTRADA ---
             let totalHcProgramadoRoster = 0;
-            const agentesProgUnicos = dfFiltered.reduce((max, r) => {
-                const val = Number(getProp(r, ['Plantilla_Dia_Real', 'Total_Agentes_Roster'], 0));
-                return val > max ? val : max;
-            }, 0);
+            const fechasEnFiltro = [...selectedFechas];
 
-            if (agentesProgUnicos > 0) {
-                totalHcProgramadoRoster = agentesProgUnicos;
+            if (fechasEnFiltro.length === 1) {
+                const fTarget = fechasEnFiltro[0];
+                const subRowsFecha = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0] === fTarget);
+                const plantillaRealBack = subRowsFecha.length > 0 ? Number(getProp(subRowsFecha[0], ['Plantilla_Dia_Real'], 0)) : 0;
+                
+                if (plantillaRealBack > 0) {
+                    totalHcProgramadoRoster = plantillaRealBack;
+                } else {
+                    const sumaHorasProg = subRowsFecha.reduce((acc, r) => acc + (Number(getProp(r, ['Agentes_Programados_Reales'], 0)) || 0), 0);
+                    totalHcProgramadoRoster = Math.round(sumaHorasProg / (durJornada * 2));
+                }
             } else {
-                const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
-                const bloquesJornada = durJornada * 2;
-                const sumaProgIntervalos = progMaxVector.reduce((a, b) => a + b, 0);
-                totalHcProgramadoRoster = Math.round(sumaProgIntervalos / bloquesJornada);
+                let sumaTotPlantillas = 0;
+                let contFechas = 0;
+
+                fechasEnFiltro.forEach(fStr => {
+                    const sub = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0] === fStr);
+                    if (sub.length > 0) {
+                        const pBack = Number(getProp(sub[0], ['Plantilla_Dia_Real'], 0));
+                        if (pBack > 0) {
+                            sumaTotPlantillas += pBack;
+                        } else {
+                            const sProg = sub.reduce((acc, r) => acc + (Number(getProp(r, ['Agentes_Programados_Reales'], 0)) || 0), 0);
+                            sumaTotPlantillas += Math.round(sProg / (durJornada * 2));
+                        }
+                        contFechas++;
+                    }
+                });
+
+                totalHcProgramadoRoster = contFechas > 0 ? Math.round(sumaTotPlantillas / contFechas) : 0;
             }
 
             const agrupadoPromedios = {};
