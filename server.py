@@ -428,12 +428,12 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     if m == 0:
         return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0, [0]*m
 
-    llamadas_arr = np.array(llamadas_vec, dtype=float) if llamadas_vec is not None else np.zeros(m)
-    aht_arr = np.array(aht_vec, dtype=float) if aht_vec is not None else np.full(m, 180.0)
+    llamadas_arr = np.nan_to_num(np.array(llamadas_vec, dtype=float), nan=0.0) if llamadas_vec is not None else np.zeros(m)
+    aht_arr = np.nan_to_num(np.array(aht_vec, dtype=float), nan=180.0) if aht_vec is not None else np.full(m, 180.0)
+    
     tot_llamadas = float(np.sum(llamadas_arr))
     factor_asistencia = max(0.01, 1.0 - merma)
     
-    # Recalculate strict Erlang C requirement
     req_hc_pooled = []
     for i in range(m):
         c = llamadas_arr[i]
@@ -543,7 +543,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 
     sl_arr = np.array(sl_optimo_vector)
     sl_optimo_global = float(np.sum(llamadas_arr * sl_arr) / tot_llamadas) if tot_llamadas > 0 else 100.0
-    sl_optimo_global = float(round(sl_optimo_global, 1))
 
     cobertura_hc_entera = [int(x) for x in np.round(cob_hc)]
     turnos_sugeridos = []
@@ -565,13 +564,12 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     hc_diurno = math.ceil(agentes_diurnos_totales_hc * (7.0 / 6.0))
     headcount_semanal_requerido = int(hc_nocturno + hc_diurno)
 
-    # Conversión forzosa a float para evitar que el serializer de JSON arroje Error 500
     total_req_hc_pooled = float(np.sum(req_hc_pooled))
     total_prog_hc = float(np.sum(cob_hc))
     
     if total_req_hc_pooled > 0:
-        staffing_level_optimo = float(round((total_prog_hc / total_req_hc_pooled * 100.0), 1))
-        eficiencia = float(round(min(100.0, (total_req_hc_pooled / total_prog_hc * 100.0)), 1)) if total_prog_hc > 0 else 100.0
+        staffing_level_optimo = float((total_prog_hc / total_req_hc_pooled) * 100.0)
+        eficiencia = float(min(100.0, (total_req_hc_pooled / total_prog_hc) * 100.0)) if total_prog_hc > 0 else 100.0
     else:
         staffing_level_optimo = 100.0
         eficiencia = 100.0
@@ -599,17 +597,17 @@ def api_optimize_schedules():
         )
         return jsonify({
             'turnos': turnos,
-            'cobertura_optima': cob_optima,
-            'total_agentes_diarios': total_diario,
-            'headcount_semanal_6x1': total_hc,
-            'eficiencia_cobertura': eficiencia,
-            'sl_optimo_vector': sl_vec,
-            'sl_optimo_global': sl_global,
-            'staffing_level_optimo': staff_level,
-            'req_hc_pooled': req_hc_pooled
+            'cobertura_optima': [int(x) for x in cob_optima],
+            'total_agentes_diarios': int(total_diario),
+            'headcount_semanal_6x1': int(total_hc),
+            'eficiencia_cobertura': float(eficiencia),
+            'sl_optimo_vector': [float(x) for x in sl_vec],
+            'sl_optimo_global': float(sl_global),
+            'staffing_level_optimo': float(staff_level),
+            'req_hc_pooled': [int(x) for x in req_hc_pooled]
         }), 200
     except Exception as e:
-        print("Error en backend:", str(e))
+        print("Error en backend optimizador:", str(e))
         return jsonify({'error': f'Error optimizando turnos: {str(e)}'}), 500
 
 @app.route('/api/latest', methods=['GET'])
