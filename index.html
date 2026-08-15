@@ -147,10 +147,8 @@
             </button>
         </aside>
 
-        <!-- Dashboard C-Level -->
         <main id="dashboardMain" class="col-span-12 lg:col-span-9 space-y-6">
 
-            <!-- BARRA DE FILTROS MULTI-SELECCIÓN -->
             <div class="glass-panel p-4 rounded-2xl flex justify-between items-center border border-slate-800/80 flex-wrap gap-4 relative z-50 overflow-visible">
                 <div class="flex items-center gap-3">
                     <div class="p-2.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-xl text-sm">🎯</div>
@@ -197,7 +195,7 @@
                 </div>
             </div>
 
-            <!-- Cards Métricas Principales -->
+            <!-- Cards Principales -->
             <div class="grid grid-cols-4 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Volumen Tráfico</p>
@@ -211,7 +209,7 @@
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden border-t-2 border-t-cyan-400">
                     <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">SL Proyectado</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">SL Proyectado (Actual)</p>
                         <span id="badgeSl" class="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold">--</span>
                     </div>
                     <p id="kpiSl" class="text-2xl font-black font-mono-num mt-2 text-white">0.0%</p>
@@ -257,8 +255,8 @@
             <div class="glass-panel p-6 rounded-2xl shadow-2xl">
                 <div class="flex justify-between items-center mb-6">
                     <div>
-                        <h3 id="wfmChartTitle" class="text-xs font-black text-slate-200 uppercase tracking-widest">Balance Intradía: Capacidad vs. Roster Real</h3>
-                        <p class="text-xs text-slate-400 font-medium mt-0.5">Evolución por intervalo de la curva de demanda (Pico) vs plantilla activa</p>
+                        <h3 id="wfmChartTitle" class="text-xs font-black text-slate-200 uppercase tracking-widest">Balance Intradía: Requerimiento vs. Roster Actual</h3>
+                        <p class="text-xs text-slate-400 font-medium mt-0.5">Evolución de la curva de personal requerido vs personal programado (sin duplicados)</p>
                     </div>
                 </div>
                 <div class="h-60">
@@ -274,7 +272,7 @@
                             <span class="text-amber-400 text-base">🧠</span>
                             <h3 id="optModuleTitle" class="text-xs font-black text-slate-200 uppercase tracking-widest">Optimización de Horarios (Sugerencia)</h3>
                         </div>
-                        <p id="subtHeadcountMod" class="text-xs text-slate-400 font-medium mt-0.5">Impacto proyectado en SL y Cobertura si se implementa la malla de turnos sugerida (6x1)</p>
+                        <p id="subtHeadcountMod" class="text-xs text-slate-400 font-medium mt-0.5">Impacto proyectado en SL y Cobertura si se implementa la malla de turnos sugerida</p>
                     </div>
                     <button onclick="exportarTurnosCSV()" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold py-2 px-4 rounded-xl transition duration-200 flex items-center gap-2 font-mono">
                         <span>📥</span> Exportar Malla Sugerida
@@ -287,7 +285,7 @@
                         <div class="flex items-baseline gap-2 mt-2">
                             <span id="compSlActual" class="text-lg font-bold text-rose-400 line-through">--%</span>
                             <span class="text-slate-500 text-sm">➔</span>
-                            <span id="compSlOptimo" class="text-3xl font-black font-mono-num text-emerald-400">--%</span>
+                            <span id="compSlOptimo" class="text-3xl font-black font-mono-num">--%</span>
                         </div>
                         <p class="text-[10px] text-slate-400 mt-1">Actual vs. Malla Sugerida</p>
                     </div>
@@ -625,20 +623,40 @@
             const ahtMaxVector = todosIntervalos.map(() => 0);
 
             todosIntervalos.forEach((inter, idx) => {
+                let localProgMax = 0;
                 fechasFiltradas.forEach(fStr => {
                     const subRows = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fStr && String(getProp(r, ['Intervalo'], '00:00')) === inter);
                     if (subRows.length > 0) {
                         const sumReq = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0), 0);
-                        const sumProg = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Programados_Reales'], 0)) || 0), 0);
                         const sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
                         const avgAht = subRows.reduce((a, b) => a + (Number(getProp(b, ['AHT_Segundos'], 180)) || 180), 0) / subRows.length;
 
+                        // FIX: Prevenir duplicación en la gráfica de Roster Actual por intervalo
+                        const uniqueCamps = [...new Set(subRows.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
+                        const pValues = uniqueCamps.map(camp => {
+                            const row = subRows.find(r => getProp(r, ['Campaña', 'Campana'], 'General') === camp);
+                            return Number(getProp(row, ['Agentes_Programados_Reales'], 0));
+                        });
+
+                        const nonZeroPValues = pValues.filter(v => v > 0);
+                        let sumProg = 0;
+
+                        if (nonZeroPValues.length > 0) {
+                            const allSame = nonZeroPValues.every(val => val === nonZeroPValues[0]);
+                            if (allSame) {
+                                sumProg = nonZeroPValues[0];
+                            } else {
+                                sumProg = nonZeroPValues.reduce((a, b) => a + b, 0);
+                            }
+                        }
+
                         if (sumReq > reqMaxVector[idx]) reqMaxVector[idx] = sumReq;
-                        if (sumProg > progMaxVector[idx]) progMaxVector[idx] = sumProg;
+                        if (sumProg > localProgMax) localProgMax = sumProg;
                         if (sumCalls > llamadasMaxVector[idx]) llamadasMaxVector[idx] = sumCalls;
                         if (avgAht > ahtMaxVector[idx]) ahtMaxVector[idx] = avgAht;
                     }
                 });
+                progMaxVector[idx] = localProgMax;
             });
 
             let totalHcProgramadoRoster = 0;
@@ -780,8 +798,8 @@
                 data: {
                     labels: todosIntervalos,
                     datasets: [
-                        { label: 'Demanda Erlang C Día Pico (HC)', data: reqMaxVector, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.08)', fill: true, tension: 0.35, borderWidth: 3 },
-                        { label: 'Plantilla Programada Día Pico (HC)', data: progMaxVector, borderColor: '#10B981', borderDash: [4, 4], tension: 0.35, borderWidth: 2.5 }
+                        { label: 'HC Total Requerido por Intervalo', data: reqMaxVector, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.08)', fill: true, tension: 0.35, borderWidth: 3 },
+                        { label: 'HC Actual Programado (Roster)', data: progMaxVector, borderColor: '#10B981', borderDash: [4, 4], tension: 0.35, borderWidth: 2.5 }
                     ]
                 },
                 options: { 
@@ -882,15 +900,15 @@
                 if (optChartInstance) optChartInstance.destroy();
                 const ctxOpt = document.getElementById('optChart').getContext('2d');
                 
-                const labelCurvaCob = esNocturno ? "Cobertura Sugerida (Mixta)" : `Cobertura Sugerida (${duracionJornada}h)`;
+                const labelCurvaCob = esNocturno ? "Malla de Turnos Sugerida (Mixta)" : `Malla de Turnos Sugerida (${duracionJornada}h)`;
 
                 optChartInstance = new Chart(ctxOpt, {
                     type: 'line',
                     data: {
                         labels: intervalos,
                         datasets: [
-                            { label: 'Demanda Erlang C (Requerido)', data: (optData.req_hc_pooled || reqArray), borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.05)', fill: true, tension: 0.35, borderWidth: 2.5 },
-                            { label: 'Cobertura Actual (Roster)', data: progActualArray, borderColor: '#10B981', backgroundColor: 'transparent', fill: false, tension: 0.35, borderWidth: 2.5, borderDash: [2, 2] },
+                            { label: 'HC Total Requerido por Intervalo', data: (optData.req_hc_pooled || reqArray), borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.05)', fill: true, tension: 0.35, borderWidth: 2.5 },
+                            { label: 'Roster Actual Programado', data: progActualArray, borderColor: '#10B981', backgroundColor: 'transparent', fill: false, tension: 0.35, borderWidth: 2.5, borderDash: [2, 2] },
                             { label: labelCurvaCob, data: (optData.cobertura_optima || []), borderColor: '#F59E0B', backgroundColor: 'transparent', fill: false, tension: 0.35, borderWidth: 2.5, borderDash: [4, 4] }
                         ]
                     },
@@ -913,7 +931,6 @@
                 const targetArray = intervalos.map(() => targetSlObj);
                 const ctx2 = document.getElementById('slChart').getContext('2d');
                 
-                // Asegurarse de que el slActualArray sea un array de numeros para Chart.js
                 const cleanSlActualArray = slActualArray.map(val => parseFloat(val) || 0);
 
                 slChartInstance = new Chart(ctx2, {
