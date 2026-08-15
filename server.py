@@ -430,10 +430,10 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 
     llamadas_arr = np.array(llamadas_vec, dtype=float) if llamadas_vec is not None else np.zeros(m)
     aht_arr = np.array(aht_vec, dtype=float) if aht_vec is not None else np.full(m, 180.0)
-    tot_llamadas = np.sum(llamadas_arr)
+    tot_llamadas = float(np.sum(llamadas_arr))
     factor_asistencia = max(0.01, 1.0 - merma)
     
-    # Recálculo exacto del requerimiento Erlang C consolidado
+    # Recalculate strict Erlang C requirement
     req_hc_pooled = []
     for i in range(m):
         c = llamadas_arr[i]
@@ -441,7 +441,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
         req_ftes_i = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl) if c > 0 else 0
         req_hc_i = math.ceil(req_ftes_i / factor_asistencia) if req_ftes_i > 0 else 0
-        req_hc_pooled.append(req_hc_i)
+        req_hc_pooled.append(int(req_hc_i))
 
     cob_hc = np.zeros(m, dtype=float)
     x_turnos_dict = {}
@@ -539,13 +539,13 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         n_opt_ftes = cob_hc[i] * factor_asistencia
         a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
         sl_val = erlang_c_sl_optimizado(a_erl, n_opt_ftes, aht_s, target_time) if c > 0 else 100.0
-        sl_optimo_vector.append(sl_val)
+        sl_optimo_vector.append(float(sl_val))
 
     sl_arr = np.array(sl_optimo_vector)
     sl_optimo_global = float(np.sum(llamadas_arr * sl_arr) / tot_llamadas) if tot_llamadas > 0 else 100.0
-    sl_optimo_global = round(sl_optimo_global, 1)
+    sl_optimo_global = float(round(sl_optimo_global, 1))
 
-    cobertura_hc_entera = np.round(cob_hc).astype(int).tolist()
+    cobertura_hc_entera = [int(x) for x in np.round(cob_hc)]
     turnos_sugeridos = []
     total_agentes_diarios_hc = 0
 
@@ -554,21 +554,27 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             turnos_sugeridos.append({
                 'horario_entrada': h_in,
                 'horario_salida': h_out,
-                'agentes_a_programar': qty,
+                'agentes_a_programar': int(qty),
                 'duracion': label_dur
             })
-            total_agentes_diarios_hc += qty
+            total_agentes_diarios_hc += int(qty)
             if "Nocturno" not in label_dur:
-                agentes_diurnos_totales_hc += qty
+                agentes_diurnos_totales_hc += int(qty)
 
     hc_nocturno = math.ceil(agentes_nocturnos_totales_hc * (7.0 / 5.0))
     hc_diurno = math.ceil(agentes_diurnos_totales_hc * (7.0 / 6.0))
-    headcount_semanal_requerido = hc_nocturno + hc_diurno
+    headcount_semanal_requerido = int(hc_nocturno + hc_diurno)
 
-    total_req_hc_pooled = np.sum(req_hc_pooled)
-    total_prog_hc = np.sum(cob_hc)
-    staffing_level_optimo = round(float((total_prog_hc / total_req_hc_pooled * 100.0)), 1) if total_req_hc_pooled > 0 else 100.0
-    eficiencia = round(min(100.0, (total_req_hc_pooled / total_prog_hc * 100.0)), 1) if total_prog_hc > 0 else 100.0
+    # Conversión forzosa a float para evitar que el serializer de JSON arroje Error 500
+    total_req_hc_pooled = float(np.sum(req_hc_pooled))
+    total_prog_hc = float(np.sum(cob_hc))
+    
+    if total_req_hc_pooled > 0:
+        staffing_level_optimo = float(round((total_prog_hc / total_req_hc_pooled * 100.0), 1))
+        eficiencia = float(round(min(100.0, (total_req_hc_pooled / total_prog_hc * 100.0)), 1)) if total_prog_hc > 0 else 100.0
+    else:
+        staffing_level_optimo = 100.0
+        eficiencia = 100.0
 
     return turnos_sugeridos, cobertura_hc_entera, total_agentes_diarios_hc, headcount_semanal_requerido, eficiencia, sl_optimo_vector, sl_optimo_global, staffing_level_optimo, req_hc_pooled
 
@@ -603,6 +609,7 @@ def api_optimize_schedules():
             'req_hc_pooled': req_hc_pooled
         }), 200
     except Exception as e:
+        print("Error en backend:", str(e))
         return jsonify({'error': f'Error optimizando turnos: {str(e)}'}), 500
 
 @app.route('/api/latest', methods=['GET'])
