@@ -279,41 +279,52 @@
                     </button>
                 </div>
 
+                <!-- TABLA COMPARATIVA EJECUTIVA REDISEÑADA PARA NO DESBORDARSE -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-brand-surface/80 p-5 rounded-xl border border-slate-800">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">SL Proyectado (Global)</p>
-                        <div class="flex items-baseline gap-2 mt-2">
-                            <span id="compSlActual" class="text-lg font-bold text-rose-400 line-through">--%</span>
-                            <span class="text-slate-500 text-sm">➔</span>
-                            <span id="compSlOptimo" class="text-3xl font-black font-mono-num">--%</span>
+                    
+                    <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold leading-tight">SL Proyectado (Global)</p>
+                        <div class="my-2">
+                            <div class="flex items-center gap-1.5 mb-0.5">
+                                <span id="compSlActual" class="text-xs font-bold text-rose-400 line-through">--%</span>
+                                <span class="text-slate-500 text-[10px]">➔</span>
+                            </div>
+                            <span id="compSlOptimo" class="text-3xl font-black font-mono-num text-emerald-400 truncate block">--%</span>
                         </div>
-                        <p class="text-[10px] text-slate-400 mt-1">Actual vs. Malla Sugerida</p>
+                        <p class="text-[9px] text-slate-500 leading-tight">Actual vs. Malla Sugerida</p>
                     </div>
 
-                    <div class="bg-brand-surface/80 p-5 rounded-xl border border-slate-800">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Staffing Level (Sugerido / Requerido)</p>
-                        <div class="flex items-baseline gap-2 mt-2">
-                            <span id="compStaffActual" class="text-lg font-bold text-slate-400 line-through">--%</span>
-                            <span class="text-slate-500 text-sm">➔</span>
-                            <span id="compStaffOptimo" class="text-3xl font-black font-mono-num text-cyan-400">--%</span>
+                    <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold leading-tight">Staffing Level Sugerido</p>
+                        <div class="my-2">
+                            <div class="flex items-center gap-1.5 mb-0.5">
+                                <span id="compStaffActual" class="text-xs font-bold text-slate-400 line-through">--%</span>
+                                <span class="text-slate-500 text-[10px]">➔</span>
+                            </div>
+                            <span id="compStaffOptimo" class="text-3xl font-black font-mono-num text-cyan-400 truncate block">--%</span>
                         </div>
-                        <p class="text-[10px] text-slate-400 mt-1">Cobertura Malla Sugerida vs Requerimiento</p>
+                        <p class="text-[9px] text-slate-500 leading-tight">Cobertura Malla Sugerida vs Req.</p>
                     </div>
 
                     <!-- TARJETA: HC ACTUAL ROSTER -->
-                    <div class="bg-brand-surface/80 p-5 rounded-xl border border-emerald-500/20">
-                        <p class="text-[10px] uppercase tracking-widest text-emerald-400 font-bold">Plantilla Actual (Roster)</p>
-                        <p id="optCurrentRoster" class="text-3xl font-black font-mono-num text-emerald-400 mt-2">--</p>
-                        <p class="text-[10px] text-emerald-400/60 mt-1">Nómina física activa en filtro</p>
+                    <div class="bg-brand-surface/80 p-4 rounded-xl border border-emerald-500/20 flex flex-col justify-between">
+                        <p class="text-[10px] uppercase tracking-widest text-emerald-400 font-bold leading-tight">Plantilla Actual (Roster)</p>
+                        <div class="my-2">
+                            <p id="optCurrentRoster" class="text-3xl font-black font-mono-num text-emerald-400 truncate">--</p>
+                        </div>
+                        <p class="text-[9px] text-emerald-400/60 leading-tight">Nómina física activa en filtro</p>
                     </div>
 
                     <!-- TARJETA: HC REQUERIDO ÓPTIMO -->
-                    <div class="bg-brand-surface/80 p-5 rounded-xl border border-violet-500/30 shadow-[0_0_15px_rgba(139,92,246,0.1)] relative overflow-hidden">
+                    <div class="bg-brand-surface/80 p-4 rounded-xl border border-violet-500/30 shadow-[0_0_15px_rgba(139,92,246,0.1)] relative overflow-hidden flex flex-col justify-between">
                         <div class="absolute -right-4 -top-4 w-16 h-16 bg-violet-500/20 rounded-full blur-xl pointer-events-none"></div>
-                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold">Nómina Requerida (Sugerida)</p>
-                        <p id="optHeadcount" class="text-3xl font-black font-mono-num text-white mt-2">--</p>
-                        <p id="lblHeadcountSub" class="text-[10px] text-violet-300/70 mt-1">A contratar (Incluye descansos)</p>
+                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold relative z-10 leading-tight">Nómina Requerida (Sugerida)</p>
+                        <div class="my-2 relative z-10">
+                            <p id="optHeadcount" class="text-3xl font-black font-mono-num text-white truncate">--</p>
+                        </div>
+                        <p id="lblHeadcountSub" class="text-[9px] text-violet-300/70 relative z-10 leading-tight">A contratar (Incluye descansos)</p>
                     </div>
+
                 </div>
 
                 <div class="h-64 mb-6 relative">
@@ -865,12 +876,13 @@
                 const slEl = document.getElementById('compSlOptimo');
                 slEl.innerText = slOptimoVal.toFixed(1) + '%';
                 if (slOptimoVal >= targetSlObj) {
-                    slEl.className = "text-3xl font-black font-mono-num text-emerald-400";
+                    slEl.className = "text-3xl font-black font-mono-num text-emerald-400 truncate block";
                 } else {
-                    slEl.className = "text-3xl font-black font-mono-num text-rose-400";
+                    slEl.className = "text-3xl font-black font-mono-num text-rose-400 truncate block";
                 }
 
-                document.getElementById('compStaffOptimo').innerText = parseFloat(optData.staffing_level_optimo || 0).toFixed(1) + '%';
+                const staffOptimoVal = parseFloat(optData.staffing_level_optimo || 0).toFixed(1);
+                document.getElementById('compStaffOptimo').innerText = staffOptimoVal + '%';
 
                 const optTbody = document.getElementById('optShiftsTableBody');
                 optTbody.innerHTML = '';
@@ -931,6 +943,7 @@
                 const targetArray = intervalos.map(() => targetSlObj);
                 const ctx2 = document.getElementById('slChart').getContext('2d');
                 
+                // Asegurarse de que el slActualArray sea un array de numeros para Chart.js
                 const cleanSlActualArray = slActualArray.map(val => parseFloat(val) || 0);
 
                 slChartInstance = new Chart(ctx2, {
