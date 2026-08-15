@@ -147,10 +147,8 @@
             </button>
         </aside>
 
-        <!-- Dashboard C-Level -->
         <main id="dashboardMain" class="col-span-12 lg:col-span-9 space-y-6">
 
-            <!-- BARRA DE FILTROS MULTI-SELECCIÓN -->
             <div class="glass-panel p-4 rounded-2xl flex justify-between items-center border border-slate-800/80 flex-wrap gap-4 relative z-50 overflow-visible">
                 <div class="flex items-center gap-3">
                     <div class="p-2.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-xl text-sm">🎯</div>
@@ -165,7 +163,6 @@
                         🔄 Resetear Filtros
                     </button>
 
-                    <!-- MULTI-CAMPAÑA -->
                     <div class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Campaña(s)</label>
                         <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-brand-surface border border-violet-500/30 text-xs rounded-xl px-3 py-2 text-violet-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
@@ -176,7 +173,6 @@
                         </div>
                     </div>
 
-                    <!-- CONTAINER VISTA DIARIA (FECHAS) -->
                     <div id="containerFiltroFecha" class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Fecha(s)</label>
                         <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-brand-surface border border-cyan-500/30 text-xs rounded-xl px-3 py-2 text-cyan-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
@@ -187,7 +183,6 @@
                         </div>
                     </div>
 
-                    <!-- MULTI-INTERVALO -->
                     <div class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Intervalo(s)</label>
                         <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-brand-surface border border-emerald-500/30 text-xs rounded-xl px-3 py-2 text-emerald-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
@@ -200,7 +195,7 @@
                 </div>
             </div>
 
-            <!-- Cards Métricas Principales (GRID DE 4 COLUMNAS) -->
+            <!-- Cards Principales -->
             <div class="grid grid-cols-4 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Volumen Tráfico</p>
@@ -226,7 +221,7 @@
                 </div>
             </div>
 
-            <!-- TARJETAS EXCLUSIVAS DE PERSONAS TOTALES POR DÍA (DÍA PICO) -->
+            <!-- MÓDULO PICO -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-violet-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
@@ -271,14 +266,13 @@
                     </button>
                 </div>
 
-                <!-- TABLA COMPARATIVA EJECUTIVA (4 COLUMNAS) -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <div class="bg-brand-surface/80 p-5 rounded-xl border border-slate-800">
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">SL Proyectado (Global)</p>
                         <div class="flex items-baseline gap-2 mt-2">
                             <span id="compSlActual" class="text-lg font-bold text-rose-400 line-through">--%</span>
                             <span class="text-slate-500 text-sm">➔</span>
-                            <span id="compSlOptimo" class="text-3xl font-black font-mono-num text-emerald-400">--%</span>
+                            <span id="compSlOptimo" class="text-3xl font-black font-mono-num">--%</span>
                         </div>
                         <p class="text-[10px] text-slate-400 mt-1">Actual vs. Malla Sugerida</p>
                     </div>
@@ -293,24 +287,21 @@
                         <p class="text-[10px] text-slate-400 mt-1">Cobertura Malla Sugerida vs Requerimiento</p>
                     </div>
 
-                    <!-- NUEVA TARJETA: HC ACTUAL ROSTER -->
                     <div class="bg-brand-surface/80 p-5 rounded-xl border border-emerald-500/20">
                         <p class="text-[10px] uppercase tracking-widest text-emerald-400 font-bold">Plantilla Actual (Roster)</p>
                         <p id="optCurrentRoster" class="text-3xl font-black font-mono-num text-emerald-400 mt-2">--</p>
                         <p class="text-[10px] text-emerald-400/60 mt-1">Nómina física activa en filtro</p>
                     </div>
 
-                    <!-- TARJETA: HC REQUERIDO ÓPTIMO -->
                     <div class="bg-brand-surface/80 p-5 rounded-xl border border-violet-500/30 shadow-[0_0_15px_rgba(139,92,246,0.1)] relative overflow-hidden">
                         <div class="absolute -right-4 -top-4 w-16 h-16 bg-violet-500/20 rounded-full blur-xl pointer-events-none"></div>
-                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold">Nómina Requerida (Óptima)</p>
+                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold">Nómina Requerida (Mixta)</p>
                         <p id="optHeadcount" class="text-3xl font-black font-mono-num text-white mt-2">--</p>
-                        <p id="lblHeadcountSub" class="text-[10px] text-violet-300/70 mt-1">A contratar (Incluye descansos)</p>
+                        <p id="lblHeadcountSub" class="text-[10px] text-violet-300/70 mt-1">Nómina total: Pondera 5x2 (Noche) y 6x1 (Día)</p>
                     </div>
                 </div>
 
-                <!-- Gráfica de Cobertura con 3 líneas -->
-                <div class="h-64 mb-6">
+                <div class="h-64 mb-6 relative">
                     <canvas id="optChart"></canvas>
                 </div>
 
@@ -334,11 +325,51 @@
                 </div>
             </div>
 
+            <!-- Gráfica 2: SL Auditoría -->
+            <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t border-violet-500/20">
+                <div class="mb-4">
+                    <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📈 Auditoría de Service Level (% SL)</h3>
+                </div>
+                <div class="h-56">
+                    <canvas id="slChart"></canvas>
+                </div>
+            </div>
+
+            <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-cyan-500">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📊 Matriz de Auditoría Intradía</h3>
+                    </div>
+                    <button onclick="exportarCSV()" class="bg-brand-surface hover:bg-slate-800 text-cyan-400 border border-cyan-500/30 text-xs font-bold py-2 px-4 rounded-xl transition duration-200 font-mono">
+                        <span>📥</span> Exportar CSV
+                    </button>
+                </div>
+                <div class="overflow-x-auto max-h-80 border border-slate-800/80 rounded-xl">
+                    <table class="w-full text-left text-xs text-slate-300 cursor-pointer">
+                        <thead class="bg-brand-surface text-slate-400 font-bold uppercase tracking-wider text-[9px] sticky top-0 border-b border-slate-800">
+                            <tr>
+                                <th class="py-3 px-4">Intervalo</th>
+                                <th class="py-3 px-4">Llamadas</th>
+                                <th class="py-3 px-4">AHT (MM:SS)</th>
+                                <th class="py-3 px-4">Agentes Req. (HC)</th>
+                                <th class="py-3 px-4">Agentes Prog. (HC)</th>
+                                <th class="py-3 px-4">Net Staffing (HC)</th>
+                                <th class="py-3 px-4">SL Proyectado (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="intervalTableBody" class="divide-y divide-slate-800/50 font-mono-num text-[11px]">
+                            <tr><td colspan="7" class="text-center py-6 text-slate-500">Cargue datos...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </main>
     </div>
 
     <script>
         let globalData = [];
+        let chartInstance = null;
         let slChartInstance = null;
         let optChartInstance = null;
         let globalTurnosOptimos = [];
@@ -677,6 +708,77 @@
                 badgeSl.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
             }
 
+            const tbody = document.getElementById('intervalTableBody');
+            tbody.innerHTML = '';
+
+            const agrupadoPromedios = {};
+            dfFiltered.forEach(row => {
+                const inter = String(getProp(row, ['Intervalo'], '00:00'));
+                if (!agrupadoPromedios[inter]) agrupadoPromedios[inter] = { slSum: 0, count: 0 };
+                agrupadoPromedios[inter].slSum += Number(getProp(row, ['SL_Proyectado'], 0)) || 0;
+                agrupadoPromedios[inter].count += 1;
+            });
+
+            const slArr = todosIntervalos.map(i => (agrupadoPromedios[i].slSum / agrupadoPromedios[i].count).toFixed(1));
+            const deltas = todosIntervalos.map((_, idx) => progMaxVector[idx] - reqMaxVector[idx]);
+
+            todosIntervalos.forEach((inter, idx) => {
+                const rowLlamadas = llamadasMaxVector[idx];
+                const rowAhtSegs = ahtMaxVector[idx];
+                const rowReq = reqMaxVector[idx];
+                const rowProg = progMaxVector[idx];
+                const rowDelta = deltas[idx];
+                const rowSl = slArr[idx];
+
+                const deltaColor = rowDelta >= 0 ? 'text-cyan-400 font-bold' : 'text-rose-400 font-bold';
+                const slBadge = parseFloat(rowSl) >= targetSlObj
+                    ? `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">${rowSl}%</span>`
+                    : `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">${rowSl}%</span>`;
+
+                const tr = document.createElement('tr');
+                tr.onclick = () => toggleTableInterval(inter);
+                tr.className = `transition-all duration-200 hover:bg-slate-800/40`;
+                tr.innerHTML = `
+                    <td class="py-2.5 px-4 font-bold text-slate-200 flex items-center gap-2">
+                        <span class="text-[10px] text-cyan-400">●</span> ${inter}
+                    </td>
+                    <td class="py-2.5 px-4 text-slate-300">${rowLlamadas.toLocaleString()}</td>
+                    <td class="py-2.5 px-4 text-slate-300">${formatAHT(rowAhtSegs)}</td>
+                    <td class="py-2.5 px-4 text-violet-400 font-bold">${rowReq}</td>
+                    <td class="py-2.5 px-4 text-emerald-400 font-bold">${rowProg}</td>
+                    <td class="py-2.5 px-4 ${deltaColor}">${rowDelta >= 0 ? '+' : ''}${rowDelta}</td>
+                    <td class="py-2.5 px-4">${slBadge}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            if (chartInstance) chartInstance.destroy();
+
+            const ctx1 = document.getElementById('wfmChart').getContext('2d');
+            chartInstance = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: todosIntervalos,
+                    datasets: [
+                        { label: 'Demanda Erlang C Día Pico (HC)', data: reqMaxVector, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.08)', fill: true, tension: 0.35, borderWidth: 3 },
+                        { label: 'Plantilla Programada Día Pico (HC)', data: progMaxVector, borderColor: '#10B981', borderDash: [4, 4], tension: 0.35, borderWidth: 2.5 }
+                    ]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { 
+                        legend: { 
+                            labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } 
+                        }
+                    }, 
+                    scales: { 
+                        x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
+                        y: { ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
+                    } 
+                }
+            });
+
             ejecutarOptimizadorHorarios(todosIntervalos, reqMaxVector, llamadasMaxVector, ahtMaxVector, targetTimeObj, targetSlObj, mermaVal, slArr, totalHcProgramadoRoster, progMaxVector);
         }
 
@@ -704,82 +806,139 @@
                     })
                 });
 
-                if (res.ok) {
-                    const optData = await res.json();
-                    globalTurnosOptimos = optData.turnos || [];
-                    const totalDiarioMalla = optData.total_agentes_diarios || 0;
+                if (!res.ok) {
+                    console.error("Error del servidor (Backend falló). HTTP Status:", res.status);
+                    return;
+                }
 
-                    document.getElementById('optCurrentRoster').innerText = hcActualRoster.toLocaleString();
-                    document.getElementById('optHeadcount').innerText = (optData.headcount_semanal_6x1 || 0).toLocaleString();
-                    
-                    const slOptimoVal = parseFloat(optData.sl_optimo_global || 80.0);
-                    const slEl = document.getElementById('compSlOptimo');
-                    slEl.innerText = slOptimoVal.toFixed(1) + '%';
-                    if (slOptimoVal >= targetSlObj) {
-                        slEl.className = "text-3xl font-black font-mono-num text-emerald-400";
-                    } else {
-                        slEl.className = "text-3xl font-black font-mono-num text-rose-400";
-                    }
+                const optData = await res.json();
+                globalTurnosOptimos = optData.turnos || [];
 
-                    document.getElementById('compStaffOptimo').innerText = (optData.staffing_level_optimo || 100.0) + '%';
+                const totalDiarioMalla = optData.total_agentes_diarios || 0;
 
-                    const optTbody = document.getElementById('optShiftsTableBody');
-                    optTbody.innerHTML = '';
+                // PROTECCIÓN VISUAL - Asegurarse que se actualicen las tarjetas
+                document.getElementById('optCurrentRoster').innerText = (hcActualRoster || 0).toLocaleString();
+                document.getElementById('optHeadcount').innerText = (optData.headcount_semanal_6x1 || 0).toLocaleString();
+                
+                const slOptimoVal = parseFloat(optData.sl_optimo_global || 0);
+                const slEl = document.getElementById('compSlOptimo');
+                slEl.innerText = slOptimoVal.toFixed(1) + '%';
+                if (slOptimoVal >= targetSlObj) {
+                    slEl.className = "text-3xl font-black font-mono-num text-emerald-400";
+                } else {
+                    slEl.className = "text-3xl font-black font-mono-num text-rose-400";
+                }
 
-                    const totalStaff = totalDiarioMalla || 1;
+                document.getElementById('compStaffOptimo').innerText = parseFloat(optData.staffing_level_optimo || 0).toFixed(1) + '%';
 
-                    if (globalTurnosOptimos.length === 0) {
-                        optTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-500">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
-                    } else {
-                        globalTurnosOptimos.forEach(t => {
-                            const pct = ((t.agentes_a_programar / totalStaff) * 100).toFixed(1);
-                            const tr = document.createElement('tr');
-                            tr.className = 'hover:bg-slate-800/40 transition-colors';
-                            tr.innerHTML = `
-                                <td class="py-2.5 px-4 font-bold text-amber-400 flex items-center gap-2">
-                                    <span>🕒</span> ${t.horario_entrada}
-                                </td>
-                                <td class="py-2.5 px-4 text-slate-300 font-bold">${t.horario_salida}</td>
-                                <td class="py-2.5 px-4 text-slate-400">${t.duracion}</td>
-                                <td class="py-2.5 px-4 text-amber-300 font-black text-sm">${t.agentes_a_programar}</td>
-                                <td class="py-2.5 px-4 text-cyan-400 font-bold">${pct}%</td>
-                            `;
-                            optTbody.appendChild(tr);
-                        });
-                    }
+                const optTbody = document.getElementById('optShiftsTableBody');
+                optTbody.innerHTML = '';
 
-                    if (optChartInstance) optChartInstance.destroy();
-                    const ctxOpt = document.getElementById('optChart').getContext('2d');
-                    
-                    const labelCurvaCob = esNocturno ? "Cobertura Sugerida (Mixta)" : `Cobertura Sugerida (${duracionJornada}h)`;
+                const totalStaff = totalDiarioMalla || 1;
 
-                    optChartInstance = new Chart(ctxOpt, {
-                        type: 'line',
-                        data: {
-                            labels: intervalos,
-                            datasets: [
-                                { label: 'Demanda Erlang C (Requerido)', data: optData.req_hc_pooled, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.05)', fill: true, tension: 0.35, borderWidth: 3 },
-                                { label: 'Cobertura Actual (Roster)', data: progActualArray, borderColor: '#10B981', backgroundColor: 'transparent', fill: false, tension: 0.35, borderWidth: 2.5, borderDash: [2, 2] },
-                                { label: labelCurvaCob, data: optData.cobertura_optima, borderColor: '#F59E0B', backgroundColor: 'transparent', fill: false, tension: 0.35, borderWidth: 2.5, borderDash: [4, 4] }
-                            ]
-                        },
-                        options: { 
-                            responsive: true, 
-                            maintainAspectRatio: false, 
-                            plugins: { 
-                                legend: { 
-                                    labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } 
-                                }
-                            }, 
-                            scales: { 
-                                x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
-                                y: { ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
-                            } 
-                        }
+                if (globalTurnosOptimos.length === 0) {
+                    optTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-500">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
+                } else {
+                    globalTurnosOptimos.forEach(t => {
+                        const pct = ((t.agentes_a_programar / totalStaff) * 100).toFixed(1);
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-slate-800/40 transition-colors';
+                        tr.innerHTML = `
+                            <td class="py-2.5 px-4 font-bold text-amber-400 flex items-center gap-2">
+                                <span>🕒</span> ${t.horario_entrada}
+                            </td>
+                            <td class="py-2.5 px-4 text-slate-300 font-bold">${t.horario_salida}</td>
+                            <td class="py-2.5 px-4 text-slate-400">${t.duracion}</td>
+                            <td class="py-2.5 px-4 text-amber-300 font-black text-sm">${t.agentes_a_programar}</td>
+                            <td class="py-2.5 px-4 text-cyan-400 font-bold">${pct}%</td>
+                        `;
+                        optTbody.appendChild(tr);
                     });
                 }
+
+                if (optChartInstance) optChartInstance.destroy();
+                const ctxOpt = document.getElementById('optChart').getContext('2d');
+                
+                const labelCurvaCob = esNocturno ? "Cobertura Sugerida (Mixta)" : `Cobertura Sugerida (${duracionJornada}h)`;
+
+                optChartInstance = new Chart(ctxOpt, {
+                    type: 'line',
+                    data: {
+                        labels: intervalos,
+                        datasets: [
+                            { label: 'Demanda Erlang C (Requerido)', data: (optData.req_hc_pooled || reqArray), borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.05)', fill: true, tension: 0.35, borderWidth: 2.5 },
+                            { label: 'Cobertura Actual (Roster)', data: progActualArray, borderColor: '#10B981', backgroundColor: 'transparent', fill: false, tension: 0.35, borderWidth: 2.5, borderDash: [2, 2] },
+                            { label: labelCurvaCob, data: (optData.cobertura_optima || []), borderColor: '#F59E0B', backgroundColor: 'transparent', fill: false, tension: 0.35, borderWidth: 2.5, borderDash: [4, 4] }
+                        ]
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { 
+                                labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } 
+                            }
+                        }, 
+                        scales: { 
+                            x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
+                            y: { ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
+                        } 
+                    }
+                });
+
+                if (slChartInstance) slChartInstance.destroy();
+                const targetArray = intervalos.map(() => targetSlObj);
+                const ctx2 = document.getElementById('slChart').getContext('2d');
+                
+                slChartInstance = new Chart(ctx2, {
+                    type: 'line',
+                    data: {
+                        labels: intervalos,
+                        datasets: [
+                            { 
+                                label: 'SL Proyectado (Actual)', 
+                                data: slActualArray, 
+                                borderColor: '#8B5CF6', 
+                                backgroundColor: 'rgba(139, 92, 246, 0.08)', 
+                                fill: true, 
+                                tension: 0.3, 
+                                borderWidth: 2.5,
+                                pointRadius: 3
+                            },
+                            { 
+                                label: 'SL Proyectado (Con Turnos Óptimos)', 
+                                data: (optData.sl_optimo_vector || []), 
+                                borderColor: '#10B981', 
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)', 
+                                fill: false, 
+                                tension: 0.3, 
+                                borderWidth: 2.5,
+                                borderDash: [3, 3],
+                                pointRadius: 3
+                            },
+                            { 
+                                label: `Meta Target (${targetSlObj}%)`, 
+                                data: targetArray, 
+                                borderColor: '#F59E0B', 
+                                borderDash: [2, 2], 
+                                borderWidth: 1.5,
+                                pointRadius: 0
+                            }
+                        ]
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11 } } } }, 
+                        scales: { 
+                            x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
+                            y: { min: 0, max: 100, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
+                        } 
+                    }
+                });
+
             } catch (e) {
-                console.log("Error al optimizar turnos:", e);
+                console.log("Error al optimizar turnos en frontend:", e);
             }
         }
 
