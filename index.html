@@ -147,8 +147,10 @@
             </button>
         </aside>
 
+        <!-- Dashboard C-Level -->
         <main id="dashboardMain" class="col-span-12 lg:col-span-9 space-y-6">
 
+            <!-- BARRA DE FILTROS MULTI-SELECCIÓN -->
             <div class="glass-panel p-4 rounded-2xl flex justify-between items-center border border-slate-800/80 flex-wrap gap-4 relative z-50 overflow-visible">
                 <div class="flex items-center gap-3">
                     <div class="p-2.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-xl text-sm">🎯</div>
@@ -195,7 +197,7 @@
                 </div>
             </div>
 
-            <!-- Cards Principales -->
+            <!-- Cards Métricas Principales -->
             <div class="grid grid-cols-4 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Volumen Tráfico</p>
@@ -209,7 +211,7 @@
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden border-t-2 border-t-cyan-400">
                     <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">SL Proyectado (Actual)</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">SL Proyectado</p>
                         <span id="badgeSl" class="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold">--</span>
                     </div>
                     <p id="kpiSl" class="text-2xl font-black font-mono-num mt-2 text-white">0.0%</p>
@@ -251,6 +253,19 @@
                 </div>
             </div>
 
+            <!-- Gráfica 1 -->
+            <div class="glass-panel p-6 rounded-2xl shadow-2xl">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 id="wfmChartTitle" class="text-xs font-black text-slate-200 uppercase tracking-widest">Balance Intradía: Capacidad vs. Roster Real</h3>
+                        <p class="text-xs text-slate-400 font-medium mt-0.5">Evolución por intervalo de la curva de demanda (Pico) vs plantilla activa</p>
+                    </div>
+                </div>
+                <div class="h-60">
+                    <canvas id="wfmChart"></canvas>
+                </div>
+            </div>
+
             <!-- MÓDULO: RECOMENDACIÓN DE HORARIOS ÓPTIMOS & COMPARATIVA -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-amber-500 relative overflow-hidden">
                 <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
@@ -272,7 +287,7 @@
                         <div class="flex items-baseline gap-2 mt-2">
                             <span id="compSlActual" class="text-lg font-bold text-rose-400 line-through">--%</span>
                             <span class="text-slate-500 text-sm">➔</span>
-                            <span id="compSlOptimo" class="text-3xl font-black font-mono-num">--%</span>
+                            <span id="compSlOptimo" class="text-3xl font-black font-mono-num text-emerald-400">--%</span>
                         </div>
                         <p class="text-[10px] text-slate-400 mt-1">Actual vs. Malla Sugerida</p>
                     </div>
@@ -287,17 +302,19 @@
                         <p class="text-[10px] text-slate-400 mt-1">Cobertura Malla Sugerida vs Requerimiento</p>
                     </div>
 
+                    <!-- TARJETA: HC ACTUAL ROSTER -->
                     <div class="bg-brand-surface/80 p-5 rounded-xl border border-emerald-500/20">
                         <p class="text-[10px] uppercase tracking-widest text-emerald-400 font-bold">Plantilla Actual (Roster)</p>
                         <p id="optCurrentRoster" class="text-3xl font-black font-mono-num text-emerald-400 mt-2">--</p>
                         <p class="text-[10px] text-emerald-400/60 mt-1">Nómina física activa en filtro</p>
                     </div>
 
+                    <!-- TARJETA: HC REQUERIDO ÓPTIMO -->
                     <div class="bg-brand-surface/80 p-5 rounded-xl border border-violet-500/30 shadow-[0_0_15px_rgba(139,92,246,0.1)] relative overflow-hidden">
                         <div class="absolute -right-4 -top-4 w-16 h-16 bg-violet-500/20 rounded-full blur-xl pointer-events-none"></div>
-                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold">Nómina Requerida (Mixta)</p>
+                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold">Nómina Requerida (Sugerida)</p>
                         <p id="optHeadcount" class="text-3xl font-black font-mono-num text-white mt-2">--</p>
-                        <p id="lblHeadcountSub" class="text-[10px] text-violet-300/70 mt-1">Nómina total: Pondera 5x2 (Noche) y 6x1 (Día)</p>
+                        <p id="lblHeadcountSub" class="text-[10px] text-violet-300/70 mt-1">A contratar (Incluye descansos)</p>
                     </div>
                 </div>
 
@@ -719,7 +736,10 @@
                 agrupadoPromedios[inter].count += 1;
             });
 
-            const slArr = todosIntervalos.map(i => (agrupadoPromedios[i].slSum / agrupadoPromedios[i].count).toFixed(1));
+            const slArr = todosIntervalos.map(i => {
+                if (!agrupadoPromedios[i] || agrupadoPromedios[i].count === 0) return "0.0";
+                return (agrupadoPromedios[i].slSum / agrupadoPromedios[i].count).toFixed(1);
+            });
             const deltas = todosIntervalos.map((_, idx) => progMaxVector[idx] - reqMaxVector[idx]);
 
             todosIntervalos.forEach((inter, idx) => {
@@ -789,6 +809,9 @@
             const esNocturno = document.getElementById('chkNocturno').checked;
 
             try {
+                // Proteccion visual inmediata para que no quede vacio si algo demora
+                document.getElementById('optCurrentRoster').innerText = (hcActualRoster || 0).toLocaleString();
+
                 const res = await fetch('/api/optimize-schedules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -807,17 +830,17 @@
                 });
 
                 if (!res.ok) {
-                    console.error("Error del servidor (Backend falló). HTTP Status:", res.status);
+                    console.error("El backend retornó un error al optimizar. Status:", res.status);
+                    document.getElementById('compSlOptimo').innerText = "N/A";
+                    document.getElementById('compStaffOptimo').innerText = "N/A";
+                    document.getElementById('optHeadcount').innerText = "N/A";
                     return;
                 }
 
-                const optData = await res.json();
+                const optData = await res.json() || {};
                 globalTurnosOptimos = optData.turnos || [];
 
                 const totalDiarioMalla = optData.total_agentes_diarios || 0;
-
-                // PROTECCIÓN VISUAL - Asegurarse que se actualicen las tarjetas
-                document.getElementById('optCurrentRoster').innerText = (hcActualRoster || 0).toLocaleString();
                 document.getElementById('optHeadcount').innerText = (optData.headcount_semanal_6x1 || 0).toLocaleString();
                 
                 const slOptimoVal = parseFloat(optData.sl_optimo_global || 0);
@@ -890,6 +913,9 @@
                 const targetArray = intervalos.map(() => targetSlObj);
                 const ctx2 = document.getElementById('slChart').getContext('2d');
                 
+                // Asegurarse de que el slActualArray sea un array de numeros para Chart.js
+                const cleanSlActualArray = slActualArray.map(val => parseFloat(val) || 0);
+
                 slChartInstance = new Chart(ctx2, {
                     type: 'line',
                     data: {
@@ -897,7 +923,7 @@
                         datasets: [
                             { 
                                 label: 'SL Proyectado (Actual)', 
-                                data: slActualArray, 
+                                data: cleanSlActualArray, 
                                 borderColor: '#8B5CF6', 
                                 backgroundColor: 'rgba(139, 92, 246, 0.08)', 
                                 fill: true, 
@@ -939,6 +965,9 @@
 
             } catch (e) {
                 console.log("Error al optimizar turnos en frontend:", e);
+                document.getElementById('compSlOptimo').innerText = "Error";
+                document.getElementById('compStaffOptimo').innerText = "Error";
+                document.getElementById('optHeadcount').innerText = "Error";
             }
         }
 
