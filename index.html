@@ -197,7 +197,6 @@
                 </div>
             </div>
 
-            <!-- Cards Principales -->
             <div class="grid grid-cols-4 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Volumen Tráfico</p>
@@ -223,7 +222,6 @@
                 </div>
             </div>
 
-            <!-- MÓDULO PICO -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-violet-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
@@ -253,7 +251,6 @@
                 </div>
             </div>
 
-            <!-- MÓDULO: RECOMENDACIÓN DE HORARIOS ÓPTIMOS & COMPARATIVA -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-amber-500 relative overflow-hidden">
                 <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
                     <div>
@@ -337,7 +334,6 @@
                 </div>
             </div>
 
-            <!-- Gráfica 2: SL Auditoría -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t border-violet-500/20">
                 <div class="mb-4">
                     <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📈 Auditoría de Service Level (% SL)</h3>
@@ -623,22 +619,19 @@
                         const sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
                         const avgAht = subRows.reduce((a, b) => a + (Number(getProp(b, ['AHT_Segundos'], 180)) || 180), 0) / subRows.length;
 
-                        const uniqueCamps = [...new Set(subRows.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
-                        const pValues = uniqueCamps.map(camp => {
-                            const row = subRows.find(r => getProp(r, ['Campaña', 'Campana'], 'General') === camp);
-                            return Number(getProp(row, ['Agentes_Programados_Reales'], 0));
-                        });
-
-                        const nonZeroPValues = pValues.filter(v => v > 0);
+                        // NUEVO BLOQUE QUE NO DEFORMA LA GRÁFICA
+                        const rosterHasCampaigns = Boolean(getProp(subRows[0], ['Roster_Has_Campaigns'], false));
                         let sumProg = 0;
-
-                        if (nonZeroPValues.length > 0) {
-                            const allSame = nonZeroPValues.every(val => val === nonZeroPValues[0]);
-                            if (allSame) {
-                                sumProg = nonZeroPValues[0];
-                            } else {
-                                sumProg = nonZeroPValues.reduce((a, b) => a + b, 0);
-                            }
+                        
+                        if (!rosterHasCampaigns) {
+                            sumProg = Number(getProp(subRows[0], ['Plantilla_General_Intervalo'], 0));
+                        } else {
+                            const uniqueCamps = [...new Set(subRows.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
+                            const pValues = uniqueCamps.map(camp => {
+                                const row = subRows.find(r => getProp(r, ['Campaña', 'Campana'], 'General') === camp);
+                                return Number(getProp(row, ['Agentes_Programados_Reales'], 0));
+                            });
+                            sumProg = pValues.reduce((a, b) => a + b, 0);
                         }
 
                         if (sumReq > reqMaxVector[idx]) reqMaxVector[idx] = sumReq;
@@ -663,20 +656,7 @@
                         return Number(getProp(row, ['Plantilla_Dia_Real'], 0));
                     });
 
-                    const nonZeroPValues = pValues.filter(v => v > 0);
-                    let sumPlantillaDia = 0;
-
-                    if (nonZeroPValues.length > 0) {
-                        const allSame = nonZeroPValues.every(val => val === nonZeroPValues[0]);
-                        if (allSame) {
-                            sumPlantillaDia = nonZeroPValues[0];
-                        } else {
-                            sumPlantillaDia = nonZeroPValues.reduce((a, b) => a + b, 0);
-                        }
-                    } else {
-                        const progs = subRowsFecha.map(r => Number(getProp(r, ['Agentes_Programados_Reales'], 0)) || 0);
-                        sumPlantillaDia = Math.max(...progs);
-                    }
+                    let sumPlantillaDia = pValues.reduce((a, b) => a + b, 0);
 
                     if (sumPlantillaDia > 0) {
                         plantillasPorFecha.push(sumPlantillaDia);
@@ -684,24 +664,28 @@
                 }
             });
 
+            // LÓGICA QUE EVITA EL HC 145 (Evita multiplicar por campaña si el Roster es un Pool General)
             if (plantillasPorFecha.length > 0) {
                 const sumP = plantillasPorFecha.reduce((a, b) => a + b, 0);
                 const promedioDiarioReal = sumP / plantillasPorFecha.length;
                 
                 if (esVistaSemanal) {
-                    const campsInFilter = [...new Set(dfFiltered.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
-                    const totalCamps = [...new Set(globalData.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
+                    const rosterHasCampaigns = Boolean(getProp(dfFiltered[0], ['Roster_Has_Campaigns'], false));
                     
-                    if (campsInFilter.length === totalCamps.length && dfFiltered.length > 0) {
+                    if (!rosterHasCampaigns) {
                         totalHcProgramadoRoster = Number(getProp(dfFiltered[0], ['Plantilla_Nominal_Global'], 0));
                     } else {
-                        let sumNominal = 0;
+                        const campsInFilter = [...new Set(dfFiltered.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
+                        let sumNominalCampanas = 0;
                         campsInFilter.forEach(c => {
                             const rowCamp = dfFiltered.find(r => getProp(r, ['Campaña', 'Campana'], 'General') === c);
-                            sumNominal += Number(getProp(rowCamp, ['Plantilla_Nominal_Campana'], 0));
+                            sumNominalCampanas += Number(getProp(rowCamp, ['Plantilla_Nominal_Campana'], 0));
                         });
-                        
-                        totalHcProgramadoRoster = sumNominal > 0 ? sumNominal : Math.round(promedioDiarioReal * (7.0 / 6.0));
+                        totalHcProgramadoRoster = sumNominalCampanas;
+                    }
+                    
+                    if (totalHcProgramadoRoster === 0) {
+                        totalHcProgramadoRoster = Math.round(promedioDiarioReal * (7.0 / 6.0));
                     }
                     
                     document.getElementById('kpiHcProgramadoSub').innerText = "Plantilla total en la nómina (extraída de Excel)";
