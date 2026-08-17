@@ -492,7 +492,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     min_diurno_limite = 22 * 60   # 22:00
     min_entrada_maxima = min_diurno_limite - duracion_minutos
 
-    # ALGORITMO GREEDY "SET-COVER" (MÁXIMA EFICIENCIA, CERO DÉFICIT)
     valid_starts = []
     for j in range(m):
         min_in = parse_time_str(intervalos[j])
@@ -501,21 +500,36 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 
     if len(valid_starts) > 0:
         while True:
-            # 1. Calcular dónde falta personal
-            deficit = np.maximum(0, req_hc_base - cob_hc)
+            # Calcular SL Global actual para saber si ya cumplimos la meta general
+            sl_optimo_vector = []
+            for i in range(m):
+                c = llamadas_arr[i]
+                aht_s = aht_arr[i]
+                n_opt_ftes = cob_hc[i] * factor_asistencia
+                a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
+                sl_val = erlang_c_sl_optimizado(a_erl, n_opt_ftes, aht_s, target_time) if c > 0 else 100.0
+                sl_optimo_vector.append(float(sl_val))
             
-            # Si ya no falta nadie en ningún intervalo, terminamos (Cumple regla "Nunca por debajo")
-            if np.max(deficit) <= 0:
-                break 
+            sl_arr = np.array(sl_optimo_vector)
+            current_global_sl = float(np.sum(llamadas_arr * sl_arr) / tot_llamadas) if tot_llamadas > 0 else 100.0
+
+            deficit = np.maximum(0, req_hc_base - cob_hc)
+            max_def = np.max(deficit)
+
+            if max_def <= 0:
+                break # Cobertura perfecta
+                
+            # UMBRAL DE TOLERANCIA INTELIGENTE: 
+            # Si el SL Global del día ya llegó a la meta, y el hueco máximo es menor a 0.85 personas, 
+            # paramos el ciclo para no agregar todo un turno de 8 horas por una fracción de persona.
+            if current_global_sl >= target_sl_dinamico and max_def < 0.85:
+                break
 
             best_start_idx = -1
             max_covered = -1
 
-            # 2. Buscar el turno que logre cubrir la MAYOR cantidad de huecos simultáneos
             for s_idx in valid_starts:
                 e_idx = min(s_idx + SHIFT_BLOCKS, m)
-                
-                # Evaluamos cuántas horas de "utilidad real" aporta este turno
                 covered = np.sum(np.minimum(1, deficit[s_idx:e_idx]))
                 
                 if covered > max_covered:
@@ -523,9 +537,8 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                     best_start_idx = s_idx
 
             if best_start_idx == -1 or max_covered == 0:
-                break # Fallback de seguridad
+                break
 
-            # 3. Agregar 1 solo agente en ese horario óptimo y repetir el escaneo
             min_in_val = parse_time_str(intervalos[best_start_idx])
             min_out_val = min_in_val + duracion_minutos
             h_in_str = f"{(int(min_in_val // 60)):02d}:{(int(min_in_val % 60)):02d}"
@@ -538,6 +551,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             for t in range(best_start_idx, e_idx):
                 cob_hc[t] += 1
 
+    # Recalcular SL final
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
