@@ -623,6 +623,7 @@
                         const sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
                         const avgAht = subRows.reduce((a, b) => a + (Number(getProp(b, ['AHT_Segundos'], 180)) || 180), 0) / subRows.length;
 
+                        // SUMA DIRECTA DE AGENTES PROGRAMADOS EN EL INTERVALO
                         let sumProg = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Programados_Reales'], 0)) || 0), 0);
 
                         if (sumReq > reqMaxVector[idx]) reqMaxVector[idx] = sumReq;
@@ -634,7 +635,7 @@
                 progMaxVector[idx] = localProgMax;
             });
 
-            // OBTENER EL PLANTILLA NOMINAL DIRECTAMENTE DE LOS DATOS
+            // OBTENER LA NÓMINA GENERAL
             let maxNominalGlobal = 0;
             let maxNominalCampanas = 0;
             let maxRealDia = 0;
