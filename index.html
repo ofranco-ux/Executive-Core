@@ -326,7 +326,6 @@
                                 <th class="py-3 px-4">Horario de Entrada</th>
                                 <th class="py-3 px-4">Horario de Salida</th>
                                 <th class="py-3 px-4">Duración</th>
-                                <!-- CAMBIO DE TÍTULO A NÓMINA A CONTRATAR -->
                                 <th class="py-3 px-4 text-amber-400">Nómina a Contratar (HC)</th>
                                 <th class="py-3 px-4">% de la Plantilla</th>
                             </tr>
@@ -704,6 +703,7 @@
             // El kpiHcRequerido y Delta se llenan temporalmente hasta que la API responda
             document.getElementById('kpiHcRequerido').innerText = maxReqPico + ' HC';
 
+            // Este cálculo preliminar será sobrescrito abajo con el valor global correcto
             const fulfillment = totalHcProgramadoRoster > 0 ? ((totalHcProgramadoRoster / maxReqPico) * 100).toFixed(1) : "0.0";
             document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
 
@@ -834,6 +834,11 @@
                     badgeDelta.innerText = 'DÉFICIT';
                     badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
                 }
+                
+                // RECALCULAR STAFFING LEVEL REAL con base a la Nómina Global (45)
+                const fulfillmentReal = nominaRequeridaTotal > 0 ? ((hcActualRoster / nominaRequeridaTotal) * 100).toFixed(1) : "0.0";
+                document.getElementById('kpiFulfillment').innerText = fulfillmentReal + '%';
+                document.getElementById('compStaffActual').innerText = fulfillmentReal + '%';
                 
                 const slOptimoVal = parseFloat(optData.sl_optimo_global || 0);
                 const slEl = document.getElementById('compSlOptimo');
