@@ -130,16 +130,9 @@
                     </div>
                 </div>
 
-                <!-- NUEVO CAMPO AÑADIDO AQUÍ: NÓMINA BASE -->
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-emerald-500/40 focus-within:border-emerald-500/80 transition-colors">
-                        <label class="block text-[10px] text-emerald-400 font-bold mb-1">Nómina Base (HC)</label>
-                        <input type="number" id="hcRealManual" value="29" class="w-full bg-transparent text-sm text-emerald-300 font-mono-num font-bold focus:outline-none"/>
-                    </div>
-                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80 focus-within:border-cyan-500/50 transition-colors">
-                        <label class="block text-[10px] text-slate-400 font-medium mb-1">Horizonte (Días)</label>
-                        <input type="number" id="dias" value="30" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
-                    </div>
+                <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
+                    <label class="block text-[10px] text-slate-400 font-medium mb-1">Horizonte Proyección (Días)</label>
+                    <input type="number" id="dias" value="30" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
                 </div>
 
                 <div class="bg-brand-surface/60 p-3 rounded-xl border border-violet-500/40 flex items-center justify-between">
@@ -232,7 +225,6 @@
 
             <!-- MÓDULO PICO -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <!-- TARJETA GLOBAL (UNIFICADA) -->
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-violet-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
                         <p id="kpiHcRequeridoTitle" class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC REQUERIDO</p>
@@ -303,7 +295,6 @@
                         <p class="text-[9px] text-slate-500 leading-tight">Cobertura Malla Sugerida vs Req.</p>
                     </div>
 
-                    <!-- TARJETA: HC ACTUAL ROSTER -->
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-emerald-500/20 flex flex-col justify-between">
                         <p class="text-[10px] uppercase tracking-widest text-emerald-400 font-bold leading-tight">HC Actual</p>
                         <div class="my-2">
@@ -312,7 +303,6 @@
                         <p id="optCurrentRosterSub" class="text-[9px] text-emerald-400/60 leading-tight">Nómina física activa en filtro</p>
                     </div>
 
-                    <!-- TARJETA: HC REQUERIDO ÓPTIMO -->
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-violet-500/30 shadow-[0_0_15px_rgba(139,92,246,0.1)] relative overflow-hidden flex flex-col justify-between">
                         <div class="absolute -right-4 -top-4 w-16 h-16 bg-violet-500/20 rounded-full blur-xl pointer-events-none"></div>
                         <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold relative z-10 leading-tight">HC Requerido</p>
@@ -427,12 +417,6 @@
                 } catch (e) {
                     console.log("Error cargando pronóstico automático.");
                 }
-            }
-            
-            // Listener para actualizar cuando el usuario cambie su plantilla manual
-            const hcInput = document.getElementById('hcRealManual');
-            if(hcInput) {
-                hcInput.addEventListener('change', actualizarGrafica);
             }
         });
 
@@ -592,7 +576,6 @@
             const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
             const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
-            const hcRealManual = parseInt(document.getElementById('hcRealManual').value) || 0;
 
             const dfFiltered = globalData.filter(item => {
                 const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
@@ -702,16 +685,22 @@
                 }
             });
 
-            // LÓGICA DE CONTROL MANUAL PARA EVITAR INFLAR DATOS
+            // LÓGICA DE CONTROL: EXTRACCIÓN EXACTA DESDE EL EXCEL
             if (plantillasPorFecha.length > 0) {
                 const sumP = plantillasPorFecha.reduce((a, b) => a + b, 0);
                 const promedioDiarioReal = sumP / plantillasPorFecha.length;
                 
                 if (esVistaSemanal) {
-                    // Ahora usa exactamente lo que digitaste en tu panel de control
-                    totalHcProgramadoRoster = hcRealManual > 0 ? hcRealManual : Math.round(promedioDiarioReal * (7.0 / 6.0));
-                    document.getElementById('kpiHcProgramadoSub').innerText = "Plantilla total física declarada (Nómina Base)";
-                    document.getElementById('optCurrentRosterSub').innerText = "Nómina base declarada";
+                    const campsInFilter = [...new Set(dfFiltered.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
+                    let sumNominal = 0;
+                    campsInFilter.forEach(c => {
+                        const rowCamp = dfFiltered.find(r => getProp(r, ['Campaña', 'Campana'], 'General') === c);
+                        sumNominal += Number(getProp(rowCamp, ['Plantilla_Nominal'], 0));
+                    });
+                    
+                    totalHcProgramadoRoster = sumNominal > 0 ? sumNominal : Math.round(promedioDiarioReal * (7.0 / 6.0));
+                    document.getElementById('kpiHcProgramadoSub').innerText = "Plantilla total en la nómina (extraída de Excel)";
+                    document.getElementById('optCurrentRosterSub').innerText = "Nómina base real en filtro";
                 } else {
                     totalHcProgramadoRoster = Math.round(promedioDiarioReal);
                     document.getElementById('kpiHcProgramadoSub').innerText = "Personas activas programadas en el día";
