@@ -614,7 +614,6 @@
             const llamadasMaxVector = todosIntervalos.map(() => 0);
             const ahtMaxVector = todosIntervalos.map(() => 0);
 
-            // CORRECCIÓN DE ACUMULACIÓN MULTI-FECHA (PROMEDIO O MÁXIMO DIARIO REAL POR INTERVALO)
             todosIntervalos.forEach((inter, idx) => {
                 let dailyProgValues = [];
                 fechasFiltradas.forEach(fStr => {
@@ -624,7 +623,8 @@
                         const sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
                         const avgAht = subRows.reduce((a, b) => a + (Number(getProp(b, ['AHT_Segundos'], 180)) || 180), 0) / subRows.length;
 
-                        let sumProgDia = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Programados_Reales'], 0)) || 0), 0);
+                        // PROMEDIO DIARIO POR INTERVALO DE AGENTES PROGRAMADOS
+                        let sumProgDia = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Programados_Reales'], 0)) || 0), 0) / subRows.length;
                         dailyProgValues.push(sumProgDia);
 
                         if (sumReq > reqMaxVector[idx]) reqMaxVector[idx] = sumReq;
