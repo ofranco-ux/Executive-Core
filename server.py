@@ -17,16 +17,6 @@ EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 app = Flask(__name__)
 CORS(app)
 
-VENTANAS_SERVICIO = {
-    'coppel': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'telemedic': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'correo/backoffice': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'experiencias liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
-    'experiencias suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60},
-    'retenciones liverpool':   {'inicio': 9 * 60, 'fin': 20 * 60},
-    'retenciones suburbia':    {'inicio': 9 * 60, 'fin': 20 * 60}
-}
-
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
@@ -49,15 +39,6 @@ def serve_index():
 @app.route('/favicon.ico')
 def favicon():
     return '', 204
-
-def normalizar_nombre_campana(nombre):
-    n = str(nombre).lower().strip()
-    if 'coppel' in n: return 'Coppel'
-    if 'telemedic' in n: return 'Telemedic'
-    if 'correo' in n or 'email' in n: return 'Correo/Backoffice'
-    if 'liverpool' in n: return 'Liverpool'
-    if 'suburbia' in n: return 'Suburbia'
-    return nombre.strip().title()
 
 def clean_num(val, default=0.0):
     if pd.isna(val) or val is None:
@@ -153,9 +134,11 @@ def esta_en_ventana_servicio(campana, intervalo_str):
     camp_key = str(campana).strip().lower()
     minutos_inter = parse_time_str(intervalo_str)
     if minutos_inter is None: return True
-    ventana = VENTANAS_SERVICIO.get(camp_key)
-    if not ventana: return True
-    return ventana['inicio'] <= minutos_inter < ventana['fin']
+    if 'liverpool' in camp_key:
+        return (9 * 60) <= minutos_inter < (21 * 60)
+    if 'suburbia' in camp_key:
+        return (9 * 60) <= minutos_inter < (21 * 60)
+    return True
 
 def construir_matriz_plantilla(xls_file):
     try:
@@ -173,7 +156,7 @@ def construir_matriz_plantilla(xls_file):
 
         for _, row in df_p.iterrows():
             camp_raw = str(row.get('Campaña', row.get('Campana', row.get('Ring Group', row.get('Skill', 'General')))))
-            camp = normalizar_nombre_campana(camp_raw).lower()
+            camp = camp_raw.strip().lower()
             
             agente_contado = False
             for col_name in df_p.columns:
@@ -332,7 +315,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     col_dia = encontrar_columna(df, ['día', 'dia', 'semana'])
     col_fecha = encontrar_columna(df, ['fecha', 'date'])
 
-    df[col_camp] = df[col_camp].apply(normalizar_nombre_campana)
+    df[col_camp] = df[col_camp].astype(str).str.strip()
 
     df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce')
     df = df.dropna(subset=[col_fecha])
