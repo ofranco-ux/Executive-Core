@@ -17,6 +17,16 @@ EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 app = Flask(__name__)
 CORS(app)
 
+VENTANAS_SERVICIO = {
+    'coppel': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'telemedic': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'correo/backoffice': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'experiencias liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
+    'experiencias suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60},
+    'retenciones liverpool':   {'inicio': 9 * 60, 'fin': 20 * 60},
+    'retenciones suburbia':    {'inicio': 9 * 60, 'fin': 20 * 60}
+}
+
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
@@ -299,6 +309,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     
     matriz_roster, agentes_por_dia, hc_nominal = construir_matriz_plantilla(xls_file)
     hc_nominal_global = hc_nominal.get('general', 0)
+    has_campaigns_in_roster = len(hc_nominal) > 1
 
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
@@ -425,9 +436,13 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
 
                 key_roster = (str(camp).lower(), nombre_dia.lower(), inter)
-                prog_nominal_hc = matriz_roster.get(key_roster, 0)
-                if prog_nominal_hc == 0:
-                    prog_nominal_hc = matriz_roster.get(('general', nombre_dia.lower(), inter), 0)
+                prog_general_hc = matriz_roster.get(('general', nombre_dia.lower(), inter), 0)
+                
+                # EVITA DUPLICAR ROSTER SI NO HAY CAMPAÑAS DECLARADAS
+                if not has_campaigns_in_roster:
+                    prog_nominal_hc = prog_general_hc
+                else:
+                    prog_nominal_hc = matriz_roster.get(key_roster, 0)
                 
                 prog_efectivo_raw = prog_nominal_hc * factor_asistencia if calls > 0 else 0.0
                 prog_efectivo_int = int(round(prog_nominal_hc))
@@ -449,7 +464,9 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'SL_Proyectado': sl,
                     'Plantilla_Dia_Real': plantilla_dia_real,
                     'Plantilla_Nominal_Campana': nominal_camp,
-                    'Plantilla_Nominal_Global': hc_nominal_global
+                    'Plantilla_Nominal_Global': hc_nominal_global,
+                    'Roster_Has_Campaigns': has_campaigns_in_roster,
+                    'Plantilla_General_Intervalo': int(round(prog_general_hc))
                 })
 
     try:
@@ -527,8 +544,8 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     duracion_minutos = int(round(duracion_jornada * 60))
     label_jornada_diurna = f"{duracion_jornada:.1f} hrs".replace('.0', '')
 
-    min_diurno_inicio = 7 * 60    # 07:00
-    min_diurno_limite = 22 * 60   # 22:00
+    min_diurno_inicio = 7 * 60    
+    min_diurno_limite = 22 * 60   
     min_entrada_maxima = min_diurno_limite - duracion_minutos
 
     valid_starts = []
