@@ -130,17 +130,24 @@
                     </div>
                 </div>
 
+                <!-- NUEVO CAMPO AÑADIDO AQUÍ: NÓMINA BASE -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-emerald-500/40 focus-within:border-emerald-500/80 transition-colors">
+                        <label class="block text-[10px] text-emerald-400 font-bold mb-1">Nómina Base (HC)</label>
+                        <input type="number" id="hcRealManual" value="29" class="w-full bg-transparent text-sm text-emerald-300 font-mono-num font-bold focus:outline-none"/>
+                    </div>
+                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80 focus-within:border-cyan-500/50 transition-colors">
+                        <label class="block text-[10px] text-slate-400 font-medium mb-1">Horizonte (Días)</label>
+                        <input type="number" id="dias" value="30" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
+                    </div>
+                </div>
+
                 <div class="bg-brand-surface/60 p-3 rounded-xl border border-violet-500/40 flex items-center justify-between">
                     <div>
                         <label for="chkNocturno" class="text-[11px] text-violet-300 font-bold block">🌙 Turno Nocturno (5x2)</label>
                         <span class="text-[9px] text-slate-400 block">Jornada 22:00 a 07:00 (2 días descanso)</span>
                     </div>
                     <input type="checkbox" id="chkNocturno" onchange="actualizarModoEspecial()" class="w-4 h-4 rounded bg-slate-900 border-violet-500 text-violet-500 focus:ring-0 cursor-pointer">
-                </div>
-
-                <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
-                    <label class="block text-[10px] text-slate-400 font-medium mb-1">Horizonte Proyección (Días)</label>
-                    <input type="number" id="dias" value="30" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
                 </div>
             </div>
 
@@ -421,6 +428,12 @@
                     console.log("Error cargando pronóstico automático.");
                 }
             }
+            
+            // Listener para actualizar cuando el usuario cambie su plantilla manual
+            const hcInput = document.getElementById('hcRealManual');
+            if(hcInput) {
+                hcInput.addEventListener('change', actualizarGrafica);
+            }
         });
 
         function getProp(row, keys, def = '') {
@@ -579,6 +592,7 @@
             const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
             const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
+            const hcRealManual = parseInt(document.getElementById('hcRealManual').value) || 0;
 
             const dfFiltered = globalData.filter(item => {
                 const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
@@ -611,7 +625,6 @@
             const fechasFiltradas = [...new Set(dfFiltered.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
             const todosIntervalos = [...new Set(dfFiltered.map(r => String(getProp(r, ['Intervalo'], '00:00'))))].sort();
             
-            // DETECTOR DE CONTEXTO: ¿Semana o Día?
             const esVistaSemanal = fechasFiltradas.length > 1;
 
             const reqMaxVector = todosIntervalos.map(() => 0);
@@ -689,17 +702,16 @@
                 }
             });
 
-            // LÓGICA CONTEXT-AWARE PARA EL ROSTER PROGRAMADO
+            // LÓGICA DE CONTROL MANUAL PARA EVITAR INFLAR DATOS
             if (plantillasPorFecha.length > 0) {
                 const sumP = plantillasPorFecha.reduce((a, b) => a + b, 0);
                 const promedioDiarioReal = sumP / plantillasPorFecha.length;
                 
                 if (esVistaSemanal) {
-                    const esNoc = document.getElementById('chkNocturno').checked;
-                    const factorDescanso = esNoc ? (7.0 / 5.0) : (7.0 / 6.0);
-                    totalHcProgramadoRoster = Math.round(promedioDiarioReal * factorDescanso);
-                    document.getElementById('kpiHcProgramadoSub').innerText = "Plantilla total en la nómina (incluye descansos)";
-                    document.getElementById('optCurrentRosterSub').innerText = "Nómina total física en filtro";
+                    // Ahora usa exactamente lo que digitaste en tu panel de control
+                    totalHcProgramadoRoster = hcRealManual > 0 ? hcRealManual : Math.round(promedioDiarioReal * (7.0 / 6.0));
+                    document.getElementById('kpiHcProgramadoSub').innerText = "Plantilla total física declarada (Nómina Base)";
+                    document.getElementById('optCurrentRosterSub').innerText = "Nómina base declarada";
                 } else {
                     totalHcProgramadoRoster = Math.round(promedioDiarioReal);
                     document.getElementById('kpiHcProgramadoSub').innerText = "Personas activas programadas en el día";
@@ -811,7 +823,6 @@
 
                 const optData = await res.json() || {};
                 
-                // LÓGICA CONTEXT-AWARE PARA EL REQUERIMIENTO
                 const nominaRequeridaTotalSemana = optData.headcount_semanal_6x1 || 0;
                 const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
                 
