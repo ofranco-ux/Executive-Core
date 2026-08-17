@@ -96,27 +96,38 @@ def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
         n += 1
     return n
 
-def parse_time_str(t_str):
-    try:
-        parts = str(t_str).strip().split(':')
-        return int(parts[0]) * 60 + int(parts[1])
-    except: return None
-
+# ACTUALIZADO: PARSEADOR INTELIGENTE DE TURNOS
 def extract_shift_hours(val):
     v = str(val).strip().lower()
     if not v or any(x in v for x in ['dd', 'descanso', 'falta', 'vacacion', 'baja', 'nan']):
         return None, None
-    v = v.replace(' a ', '-').replace(' to ', '-').replace('_', '-').replace('am', '').replace('pm', '').replace('hrs', '').replace(' ', '')
+    # Mantiene los am/pm para analizarlos
+    v = v.replace(' a ', '-').replace(' to ', '-').replace('_', '-')
     if '-' not in v: return None, None
     parts = v.split('-')
     if len(parts) >= 2:
-        def clean_t(t):
-            t = re.sub(r'[^\d:]', '', t)
-            if not t: return None
-            if ':' not in t: t += ':00'
-            return t
-        return clean_t(parts[0]), clean_t(parts[1])
+        return parts[0].strip(), parts[1].strip()
     return None, None
+
+# ACTUALIZADO: LÓGICA DE DEDUCCIÓN 12 HORAS
+def parse_time_str(t_str):
+    if not t_str: return None
+    t = str(t_str).lower().replace('hrs', '').replace(' ', '')
+    is_pm = 'pm' in t
+    is_am = 'am' in t
+    t = t.replace('am', '').replace('pm', '')
+    t = re.sub(r'[^\d:]', '', t)
+    if not t: return None
+    if ':' not in t: t += ':00'
+    try:
+        parts = t.split(':')
+        hh = int(parts[0])
+        mm = int(parts[1])
+        if is_pm and hh < 12: hh += 12
+        if is_am and hh == 12: hh = 0
+        return hh * 60 + mm
+    except:
+        return None
 
 def esta_en_ventana_servicio(campana, intervalo_str):
     camp_key = str(campana).strip().lower()
@@ -156,7 +167,19 @@ def construir_matriz_plantilla(xls_file):
                         try:
                             m_in, m_out = parse_time_str(in_str), parse_time_str(out_str)
                             if m_in is not None and m_out is not None:
-                                if m_out < m_in: m_out += 24 * 60 
+                                
+                                # MOTOR INTELIGENTE: Si el turno es de 2 a 10 (sin PM), lo vuelve 14 a 22
+                                if m_in < 6 * 60 and m_out <= 12 * 60 and 'pm' not in in_str.lower() and 'am' not in in_str.lower():
+                                    m_in += 12 * 60
+                                    m_out += 12 * 60
+                                    
+                                if m_out < m_in:
+                                    # MOTOR INTELIGENTE: Si es de "9 a 6", suma 12 horas al 6 para que sea 18:00
+                                    shift_len_12 = (m_out + 12 * 60) - m_in
+                                    if 4 * 60 <= shift_len_12 <= 12 * 60:
+                                        m_out += 12 * 60
+                                    else:
+                                        m_out += 24 * 60 
                                 
                                 agentes_por_dia[key_dia] = agentes_por_dia.get(key_dia, 0) + 1
                                 agentes_por_dia[key_dia_gen] = agentes_por_dia.get(key_dia_gen, 0) + 1
@@ -504,7 +527,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         while iteration < max_iterations:
             iteration += 1
             
-            # NUEVA LÓGICA: Evaluar SL GLOBAL en tiempo real
             sl_optimo_vector = []
             for i in range(m):
                 c = llamadas_arr[i]
@@ -517,8 +539,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             sl_arr = np.array(sl_optimo_vector)
             current_global_sl = float(np.sum(llamadas_arr * sl_arr) / tot_llamadas) if tot_llamadas > 0 else 100.0
 
-            # STOP INTELLIGENTE: Si ya llegamos al Target de la campaña, nos detenemos.
-            # Evita desperdiciar nómina por micro-huecos en las tardes.
             if current_global_sl >= target_sl_dinamico:
                 break
 
@@ -539,13 +559,12 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                     best_start_idx = s_idx
 
             if best_start_idx == -1 or max_covered == 0:
-                # Si no hay déficit crítico pero el SL Global sigue bajo, atacamos el peor intervalo
                 worst_interval = np.argmin(sl_arr)
                 possible_starts = [s for s in valid_starts if s <= worst_interval < s + SHIFT_BLOCKS]
                 if possible_starts:
                     best_start_idx = possible_starts[0]
                 else:
-                    break # Falla segura, salir del loop
+                    break 
 
             min_in_val = parse_time_str(intervalos[best_start_idx])
             min_out_val = min_in_val + duracion_minutos
@@ -559,7 +578,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             for t in range(best_start_idx, e_idx):
                 cob_hc[t] += 1
 
-    # Recálculo Final
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
