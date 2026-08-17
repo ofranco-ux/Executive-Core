@@ -81,7 +81,6 @@
                     <h1 class="text-2xl font-black text-white tracking-tight">Executive Core</h1>
                     <span id="tagModoOps" class="hidden text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider">Vista Operaciones</span>
                 </div>
-                <!-- AQUÍ SE AJUSTÓ EL TEXTO -->
                 <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer</p>
             </div>
         </div>
@@ -227,7 +226,8 @@
                 <!-- TARJETA GLOBAL (UNIFICADA) -->
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-violet-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <p id="kpiHcRequeridoTitle" class="text-[10px] uppercase tracking-widest text-slate-400 font-black">NÓMINA REQUERIDA (GLOBAL)</p>
+                        <!-- AQUÍ SE AJUSTÓ EL TEXTO -->
+                        <p id="kpiHcRequeridoTitle" class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC REQUERIDO</p>
                         <span class="text-xs text-violet-400">📊</span>
                     </div>
                     <p id="kpiHcRequerido" class="text-2xl font-black font-mono-num mt-2 text-violet-300">0 HC</p>
@@ -236,7 +236,8 @@
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-emerald-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC PROGRAMADO TOTAL (ROSTER)</p>
+                        <!-- AQUÍ SE AJUSTÓ EL TEXTO -->
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC PROGRAMADO</p>
                         <span class="text-xs text-emerald-400">👥</span>
                     </div>
                     <p id="kpiHcProgramado" class="text-2xl font-black font-mono-num mt-2 text-emerald-300">0 HC</p>
@@ -245,7 +246,8 @@
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-cyan-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Delta Net Staffing Global (HC)</p>
+                        <!-- AQUÍ SE AJUSTÓ EL TEXTO -->
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC DELTA</p>
                         <span id="badgeDeltaHc" class="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold">--</span>
                     </div>
                     <p id="kpiHcDelta" class="text-2xl font-black font-mono-num mt-2 text-cyan-300">0 HC</p>
@@ -814,8 +816,8 @@
                 // UNIFICAR MÉTRICA: La tarjeta morada muestra 45
                 document.getElementById('optHeadcount').innerText = nominaRequeridaTotal.toLocaleString();
                 
-                // UNIFICAR MÉTRICA: Modificar la tarjeta superior izquierda para mostrar 45 en lugar del Pico
-                document.getElementById('kpiHcRequeridoTitle').innerText = "NÓMINA REQUERIDA (GLOBAL)";
+                // AQUÍ SE AJUSTÓ EL TEXTO PARA LA VISTA DINÁMICA
+                document.getElementById('kpiHcRequeridoTitle').innerText = "HC REQUERIDO";
                 document.getElementById('kpiHcRequerido').innerText = nominaRequeridaTotal + ' HC';
                 document.getElementById('kpiHcRequeridoSub').innerText = "Plantilla total sugerida para cubrir la operación";
 
