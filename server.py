@@ -435,7 +435,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     factor_asistencia = max(0.01, 1.0 - merma)
     target_sl_dinamico = float(target_sl)
     
-    # 1. Base Erlang C (Requerimiento estricto)
     req_hc_pooled = []
     req_hc_base = np.zeros(m)
     for i in range(m):
@@ -453,7 +452,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     agentes_nocturnos_totales_hc = 0
     agentes_diurnos_totales_hc = 0
 
-    # 2. Asignación de Turnos Nocturnos
     if es_nocturno:
         label_jornada_noc = "9.0 hrs (Nocturno 5x2)"
         indices_nocturnos = []
@@ -494,7 +492,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     min_diurno_limite = 22 * 60   # 22:00
     min_entrada_maxima = min_diurno_limite - duracion_minutos
 
-    # 3. Nuevo Algoritmo Greedy "Peak-First" (Máxima Cobertura) para turnos diurnos
+    # ALGORITMO GREEDY "BEST-FIT" (MÍNIMA INEFICIENCIA DE MALLA)
     valid_starts = []
     for j in range(m):
         min_in = parse_time_str(intervalos[j])
@@ -503,7 +501,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 
     if len(valid_starts) > 0:
         while True:
-            # Calcular dónde nos falta gente (déficit)
             deficit = np.zeros(m)
             for j in range(m):
                 min_in = parse_time_str(intervalos[j])
@@ -512,25 +509,29 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 
             max_def = np.max(deficit)
             if max_def <= 0:
-                break  # Todo cubierto de manera óptima
+                break  # Regla cumplida: Cero déficit en todos los intervalos.
 
             best_start_idx = -1
-            max_covered = -1
+            best_score = -float('inf')
 
-            # Buscar qué horario de entrada cubre la mayor cantidad de déficit de un solo golpe
+            # Evaluamos qué turno genera menos horas ociosas
             for s_idx in valid_starts:
                 e_idx = min(s_idx + SHIFT_BLOCKS, m)
                 sub_deficit = deficit[s_idx:e_idx]
-                covered = np.sum(sub_deficit[sub_deficit > 0])
                 
-                if covered > max_covered:
-                    max_covered = covered
+                covered = np.sum(sub_deficit[sub_deficit > 0])
+                surplus_generated = np.sum(np.abs(sub_deficit[sub_deficit < 0]))
+                
+                # Penalizamos matemáticamente el surplus
+                score = covered - (surplus_generated * 0.45) 
+
+                if score > best_score and covered > 0:
+                    best_score = score
                     best_start_idx = s_idx
 
-            if best_start_idx == -1 or max_covered == 0:
+            if best_start_idx == -1:
                 break
 
-            # Añadir 1 agente al mejor turno encontrado
             min_in_val = parse_time_str(intervalos[best_start_idx])
             min_out_val = min_in_val + duracion_minutos
             h_in_str = f"{(int(min_in_val // 60)):02d}:{(int(min_in_val % 60)):02d}"
@@ -539,12 +540,10 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             key_turno = (h_in_str, h_out_str, label_jornada_diurna)
             x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + 1
             
-            # Actualizar la malla proyectada
             e_idx = min(best_start_idx + SHIFT_BLOCKS, m)
             for t in range(best_start_idx, e_idx):
                 cob_hc[t] += 1
 
-    # 4. Cálculos Finales
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
