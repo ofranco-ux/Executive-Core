@@ -223,13 +223,14 @@
 
             <!-- MÓDULO PICO -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- TARJETA GLOBAL (UNIFICADA) -->
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-violet-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC REQUERIDO DÍA PICO (MALLA)</p>
+                        <p id="kpiHcRequeridoTitle" class="text-[10px] uppercase tracking-widest text-slate-400 font-black">NÓMINA REQUERIDA (GLOBAL)</p>
                         <span class="text-xs text-violet-400">📊</span>
                     </div>
                     <p id="kpiHcRequerido" class="text-2xl font-black font-mono-num mt-2 text-violet-300">0 HC</p>
-                    <p class="text-[10px] text-slate-500 mt-1">Garantiza cobertura en el día de mayor demanda</p>
+                    <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1">Plantilla total sugerida para cubrir la operación</p>
                 </div>
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-emerald-500 relative overflow-hidden">
@@ -243,24 +244,11 @@
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-cyan-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Delta Net Staffing Día Pico (HC)</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Delta Net Staffing Global (HC)</p>
                         <span id="badgeDeltaHc" class="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold">--</span>
                     </div>
                     <p id="kpiHcDelta" class="text-2xl font-black font-mono-num mt-2 text-cyan-300">0 HC</p>
-                    <p class="text-[10px] text-slate-500 mt-1">Diferencia de plantilla sobre el pico diario</p>
-                </div>
-            </div>
-
-            <!-- Gráfica 1 -->
-            <div class="glass-panel p-6 rounded-2xl shadow-2xl">
-                <div class="flex justify-between items-center mb-6">
-                    <div>
-                        <h3 id="wfmChartTitle" class="text-xs font-black text-slate-200 uppercase tracking-widest">Balance Intradía: Requerimiento vs. Roster Actual</h3>
-                        <p class="text-xs text-slate-400 font-medium mt-0.5">Evolución de la curva de personal requerido vs personal programado (sin duplicados)</p>
-                    </div>
-                </div>
-                <div class="h-60">
-                    <canvas id="wfmChart"></canvas>
+                    <p class="text-[10px] text-slate-500 mt-1">Diferencia de plantilla sobre el requerimiento global</p>
                 </div>
             </div>
 
@@ -338,7 +326,8 @@
                                 <th class="py-3 px-4">Horario de Entrada</th>
                                 <th class="py-3 px-4">Horario de Salida</th>
                                 <th class="py-3 px-4">Duración</th>
-                                <th class="py-3 px-4 text-amber-400">Agentes HC a Programar</th>
+                                <!-- CAMBIO DE TÍTULO A NÓMINA A CONTRATAR -->
+                                <th class="py-3 px-4 text-amber-400">Nómina a Contratar (HC)</th>
                                 <th class="py-3 px-4">% de la Plantilla</th>
                             </tr>
                         </thead>
@@ -395,7 +384,6 @@
 
     <script>
         let globalData = [];
-        let chartInstance = null;
         let slChartInstance = null;
         let optChartInstance = null;
         let globalTurnosOptimos = [];
@@ -642,7 +630,6 @@
                         const sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
                         const avgAht = subRows.reduce((a, b) => a + (Number(getProp(b, ['AHT_Segundos'], 180)) || 180), 0) / subRows.length;
 
-                        // FIX: Prevenir duplicación en la gráfica de Roster Actual por intervalo
                         const uniqueCamps = [...new Set(subRows.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
                         const pValues = uniqueCamps.map(camp => {
                             const row = subRows.find(r => getProp(r, ['Campaña', 'Campana'], 'General') === camp);
@@ -712,25 +699,10 @@
             }
 
             const maxReqPico = Math.max(...reqMaxVector, 1);
-
-            document.getElementById('kpiHcRequerido').innerText = maxReqPico + ' HC';
             document.getElementById('kpiHcProgramado').innerText = totalHcProgramadoRoster + ' HC';
 
-            const deltaNet = totalHcProgramadoRoster - maxReqPico;
-            const elDeltaHc = document.getElementById('kpiHcDelta');
-            const badgeDelta = document.getElementById('badgeDeltaHc');
-
-            if (deltaNet >= 0) {
-                elDeltaHc.innerText = `+${deltaNet} HC`;
-                elDeltaHc.className = 'text-2xl font-black font-mono-num mt-2 text-cyan-400';
-                badgeDelta.innerText = 'SUPERÁVIT';
-                badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30';
-            } else {
-                elDeltaHc.innerText = `${deltaNet} HC`;
-                elDeltaHc.className = 'text-2xl font-black font-mono-num mt-2 text-rose-400';
-                badgeDelta.innerText = 'DÉFICIT';
-                badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
-            }
+            // El kpiHcRequerido y Delta se llenan temporalmente hasta que la API responda
+            document.getElementById('kpiHcRequerido').innerText = maxReqPico + ' HC';
 
             const fulfillment = totalHcProgramadoRoster > 0 ? ((totalHcProgramadoRoster / maxReqPico) * 100).toFixed(1) : "0.0";
             document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
@@ -801,33 +773,6 @@
                 tbody.appendChild(tr);
             });
 
-            if (chartInstance) chartInstance.destroy();
-
-            const ctx1 = document.getElementById('wfmChart').getContext('2d');
-            chartInstance = new Chart(ctx1, {
-                type: 'line',
-                data: {
-                    labels: todosIntervalos,
-                    datasets: [
-                        { label: 'HC Total Requerido por Intervalo', data: reqMaxVector, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.08)', fill: true, tension: 0.35, borderWidth: 3 },
-                        { label: 'HC Actual Programado (Roster)', data: progMaxVector, borderColor: '#10B981', borderDash: [4, 4], tension: 0.35, borderWidth: 2.5 }
-                    ]
-                },
-                options: { 
-                    responsive: true, 
-                    maintainAspectRatio: false, 
-                    plugins: { 
-                        legend: { 
-                            labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } 
-                        }
-                    }, 
-                    scales: { 
-                        x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
-                        y: { ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
-                    } 
-                }
-            });
-
             ejecutarOptimizadorHorarios(todosIntervalos, reqMaxVector, llamadasMaxVector, ahtMaxVector, targetTimeObj, targetSlObj, mermaVal, slArr, totalHcProgramadoRoster, progMaxVector);
         }
 
@@ -838,7 +783,6 @@
             const esNocturno = document.getElementById('chkNocturno').checked;
 
             try {
-                // Proteccion visual inmediata para que no quede vacio si algo demora
                 document.getElementById('optCurrentRoster').innerText = (hcActualRoster || 0).toLocaleString();
 
                 const res = await fetch('/api/optimize-schedules', {
@@ -860,17 +804,36 @@
 
                 if (!res.ok) {
                     console.error("El backend retornó un error al optimizar. Status:", res.status);
-                    document.getElementById('compSlOptimo').innerText = "N/A";
-                    document.getElementById('compStaffOptimo').innerText = "N/A";
-                    document.getElementById('optHeadcount').innerText = "N/A";
                     return;
                 }
 
                 const optData = await res.json() || {};
-                globalTurnosOptimos = optData.turnos || [];
+                const nominaRequeridaTotal = optData.headcount_semanal_6x1 || 0;
+                
+                // UNIFICAR MÉTRICA: La tarjeta morada muestra 45
+                document.getElementById('optHeadcount').innerText = nominaRequeridaTotal.toLocaleString();
+                
+                // UNIFICAR MÉTRICA: Modificar la tarjeta superior izquierda para mostrar 45 en lugar del Pico
+                document.getElementById('kpiHcRequeridoTitle').innerText = "NÓMINA REQUERIDA (GLOBAL)";
+                document.getElementById('kpiHcRequerido').innerText = nominaRequeridaTotal + ' HC';
+                document.getElementById('kpiHcRequeridoSub').innerText = "Plantilla total sugerida para cubrir la operación";
 
-                const totalDiarioMalla = optData.total_agentes_diarios || 0;
-                document.getElementById('optHeadcount').innerText = (optData.headcount_semanal_6x1 || 0).toLocaleString();
+                // Recalcular Delta con base a los 45
+                const deltaNet = hcActualRoster - nominaRequeridaTotal;
+                const elDeltaHc = document.getElementById('kpiHcDelta');
+                const badgeDelta = document.getElementById('badgeDeltaHc');
+
+                if (deltaNet >= 0) {
+                    elDeltaHc.innerText = `+${deltaNet} HC`;
+                    elDeltaHc.className = 'text-2xl font-black font-mono-num mt-2 text-cyan-400';
+                    badgeDelta.innerText = 'SUPERÁVIT';
+                    badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30';
+                } else {
+                    elDeltaHc.innerText = `${deltaNet} HC`;
+                    elDeltaHc.className = 'text-2xl font-black font-mono-num mt-2 text-rose-400';
+                    badgeDelta.innerText = 'DÉFICIT';
+                    badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
+                }
                 
                 const slOptimoVal = parseFloat(optData.sl_optimo_global || 0);
                 const slEl = document.getElementById('compSlOptimo');
@@ -881,19 +844,34 @@
                     slEl.className = "text-3xl font-black font-mono-num text-rose-400 truncate block";
                 }
 
-                const staffOptimoVal = parseFloat(optData.staffing_level_optimo || 0).toFixed(1);
-                document.getElementById('compStaffOptimo').innerText = staffOptimoVal + '%';
+                document.getElementById('compStaffOptimo').innerText = parseFloat(optData.staffing_level_optimo || 0).toFixed(1) + '%';
 
+                // UNIFICAR MÉTRICA: Distribuir los 45 agentes en la tabla
                 const optTbody = document.getElementById('optShiftsTableBody');
                 optTbody.innerHTML = '';
-
-                const totalStaff = totalDiarioMalla || 1;
+                
+                const totalDiarioMalla = optData.total_agentes_diarios || 1;
+                let turnosBase = optData.turnos || [];
+                let accumulatedNomina = 0;
+                
+                // Mapeo para inyectar "nomina_a_contratar" directamente en el array (sirve para CSV)
+                globalTurnosOptimos = turnosBase.map((t, index) => {
+                    let nominaTurno;
+                    if (index === turnosBase.length - 1) {
+                        nominaTurno = nominaRequeridaTotal - accumulatedNomina; // Remanente exacto
+                    } else {
+                        nominaTurno = Math.round((t.agentes_a_programar / totalDiarioMalla) * nominaRequeridaTotal);
+                        accumulatedNomina += nominaTurno;
+                    }
+                    nominaTurno = Math.max(0, nominaTurno); // Evitar negativos
+                    return { ...t, nomina_a_contratar: nominaTurno };
+                });
 
                 if (globalTurnosOptimos.length === 0) {
                     optTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-500">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
                 } else {
                     globalTurnosOptimos.forEach(t => {
-                        const pct = ((t.agentes_a_programar / totalStaff) * 100).toFixed(1);
+                        const pct = nominaRequeridaTotal > 0 ? ((t.nomina_a_contratar / nominaRequeridaTotal) * 100).toFixed(1) : 0;
                         const tr = document.createElement('tr');
                         tr.className = 'hover:bg-slate-800/40 transition-colors';
                         tr.innerHTML = `
@@ -902,7 +880,7 @@
                             </td>
                             <td class="py-2.5 px-4 text-slate-300 font-bold">${t.horario_salida}</td>
                             <td class="py-2.5 px-4 text-slate-400">${t.duracion}</td>
-                            <td class="py-2.5 px-4 text-amber-300 font-black text-sm">${t.agentes_a_programar}</td>
+                            <td class="py-2.5 px-4 text-amber-300 font-black text-sm">${t.nomina_a_contratar}</td>
                             <td class="py-2.5 px-4 text-cyan-400 font-bold">${pct}%</td>
                         `;
                         optTbody.appendChild(tr);
@@ -943,7 +921,6 @@
                 const targetArray = intervalos.map(() => targetSlObj);
                 const ctx2 = document.getElementById('slChart').getContext('2d');
                 
-                // Asegurarse de que el slActualArray sea un array de numeros para Chart.js
                 const cleanSlActualArray = slActualArray.map(val => parseFloat(val) || 0);
 
                 slChartInstance = new Chart(ctx2, {
@@ -1006,10 +983,10 @@
                 alert("No hay turnos optimizados para exportar.");
                 return;
             }
-            const headers = ["Horario_Entrada", "Horario_Salida", "Duracion", "Agentes_HC_A_Programar"];
+            const headers = ["Horario_Entrada", "Horario_Salida", "Duracion", "Agentes_Nomina_A_Contratar"];
             const csvRows = [headers.join(",")];
             globalTurnosOptimos.forEach(t => {
-                csvRows.push([t.horario_entrada, t.horario_salida, t.duracion, t.agentes_a_programar].join(","));
+                csvRows.push([t.horario_entrada, t.horario_salida, t.duracion, t.nomina_a_contratar].join(","));
             });
             const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
