@@ -72,8 +72,11 @@
 </head>
 <body class="p-6 md:p-8 min-h-screen">
 
-    <header class="flex justify-between items-center glass-panel rounded-2xl p-6 mb-8 border-b border-white/10 relative overflow-hidden">
-        <div class="absolute -left-10 -top-10 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+    <!-- AQUÍ SE APLICÓ EL NUEVO FONDO Y ESTILO AL ENCABEZADO -->
+    <header class="flex justify-between items-center bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 border border-indigo-500/30 shadow-[0_0_30px_-10px_rgba(99,102,241,0.3)] backdrop-blur-xl rounded-2xl p-6 mb-8 relative overflow-hidden">
+        <div class="absolute -left-10 -top-10 w-40 h-40 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute right-0 bottom-0 w-64 h-64 bg-violet-600/10 rounded-full blur-3xl pointer-events-none"></div>
+        
         <div class="flex items-center gap-5 z-10">
             <div class="w-2.5 h-10 bg-gradient-to-b from-cyan-400 via-indigo-500 to-violet-600 rounded-full glow-cyan"></div>
             <div>
@@ -81,7 +84,7 @@
                     <h1 class="text-2xl font-black text-white tracking-tight">Executive Core</h1>
                     <span id="tagModoOps" class="hidden text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider">Vista Operaciones</span>
                 </div>
-                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer</p>
+                <p class="text-xs text-indigo-200 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer</p>
             </div>
         </div>
     </header>
@@ -271,7 +274,6 @@
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
-                        <!-- TÍTULO 1 ACTUALIZADO -->
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold leading-tight">SL Real vs Proyectado</p>
                         <div class="my-2">
                             <div class="flex items-center gap-1.5 mb-0.5">
@@ -284,7 +286,6 @@
                     </div>
 
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
-                        <!-- TÍTULO 2 ACTUALIZADO -->
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold leading-tight">Staffing Level Real vs Proyectado</p>
                         <div class="my-2">
                             <div class="flex items-center gap-1.5 mb-0.5">
@@ -298,7 +299,6 @@
 
                     <!-- TARJETA: HC ACTUAL ROSTER -->
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-emerald-500/20 flex flex-col justify-between">
-                        <!-- TÍTULO 3 ACTUALIZADO -->
                         <p class="text-[10px] uppercase tracking-widest text-emerald-400 font-bold leading-tight">HC Actual</p>
                         <div class="my-2">
                             <p id="optCurrentRoster" class="text-3xl font-black font-mono-num text-emerald-400 truncate">--</p>
@@ -309,7 +309,6 @@
                     <!-- TARJETA: HC REQUERIDO ÓPTIMO -->
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-violet-500/30 shadow-[0_0_15px_rgba(139,92,246,0.1)] relative overflow-hidden flex flex-col justify-between">
                         <div class="absolute -right-4 -top-4 w-16 h-16 bg-violet-500/20 rounded-full blur-xl pointer-events-none"></div>
-                        <!-- TÍTULO 4 ACTUALIZADO -->
                         <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold relative z-10 leading-tight">HC Requerido</p>
                         <div class="my-2 relative z-10">
                             <p id="optHeadcount" class="text-3xl font-black font-mono-num text-white truncate">--</p>
@@ -440,7 +439,6 @@
             return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
         }
 
-        // SE ACTUALIZÓ PARA QUE RESPETE LOS NUEVOS TÍTULOS
         function actualizarModoEspecial() {
             const esNocturno = document.getElementById('chkNocturno').checked;
             const lblType = document.getElementById('lblHeadcountType');
@@ -546,7 +544,7 @@
 
         function toggleDropdown(type) {
             ['Campana', 'Fecha', 'Intervalo'].forEach(t => {
-                if (t !== type) document.getElementById(`dropdown${t}Menu`).classList.add('hidden');
+                if (t !== type) document.getElementById(`dropdown${t}MenuclassList.add('hidden');
             });
             document.getElementById(`dropdown${type}Menu`).classList.toggle('hidden');
         }
