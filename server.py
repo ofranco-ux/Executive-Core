@@ -17,21 +17,24 @@ app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
 CORS(app)
 
 VENTANAS_SERVICIO = {
+    'coppel': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'telemedic': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'correo/backoffice': {'inicio': 0 * 60, 'fin': 24 * 60},
     'experiencias liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
     'experiencias suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60},
     'retenciones liverpool':   {'inicio': 9 * 60, 'fin': 20 * 60},
-    'retenciones suburbia':    {'inicio': 9 * 60, 'fin': 20 * 60},
-    'Coppel Servicios':        {'inicio': 0 * 60, 'fin': 24 * 60}
+    'retenciones suburbia':    {'inicio': 9 * 60, 'fin': 20 * 60}
 }
 
-@app.route('/')
-@app.route('/index.html')
-def serve_index():
-    return send_from_directory(BASE_DIR, 'index.html')
-
-@app.route('/favicon.ico')
-def favicon():
-    return '', 204
+# NUEVA FUNCIÓN: Agrupa nombres sucios del PBX en campañas limpias para Erlang C
+def normalizar_nombre_campana(nombre):
+    n = str(nombre).lower().strip()
+    if 'coppel' in n: return 'Coppel'
+    if 'telemedic' in n: return 'Telemedic'
+    if 'correo' in n or 'email' in n: return 'Correo/Backoffice'
+    if 'liverpool' in n: return 'Liverpool'
+    if 'suburbia' in n: return 'Suburbia'
+    return nombre.strip().title()
 
 def clean_num(val, default=0.0):
     if pd.isna(val) or val is None:
@@ -45,7 +48,6 @@ def clean_num(val, default=0.0):
 
 def parse_aht_to_seconds(val):
     if pd.isna(val) or val is None: return 180.0
-    
     secs = 180.0
     if isinstance(val, (int, float)):
         secs = float(val)
@@ -62,10 +64,8 @@ def parse_aht_to_seconds(val):
         else:
             try: secs = float(val_str)
             except: pass
-            
     if 0 < secs <= 15:
         secs = secs * 60.0
-        
     return secs if secs > 0 else 180.0
 
 def format_aht_str(seconds):
@@ -146,18 +146,18 @@ def construir_matriz_plantilla(xls_file):
         df_p = pd.read_excel(xls_file, sheet_name=sheet_plantilla, engine='openpyxl')
         dias_cols = ['lunes', 'martes', 'miércoles', 'miercoles', 'jueves', 'viernes', 'sábado', 'sabado', 'domingo']
         
-        # AQUÍ NACE LA LÓGICA EXACTA DE CONTEO DE FILAS (HC NOMINAL)
         malla, agentes_por_dia, hc_nominal = {}, {}, {}
 
         for _, row in df_p.iterrows():
-            camp = str(row.get('Campaña', row.get('Campana', row.get('Ring Group', row.get('Skill', 'General'))))).strip().lower()
+            camp_raw = str(row.get('Campaña', row.get('Campana', row.get('Ring Group', row.get('Skill', 'General')))))
+            camp = normalizar_nombre_campana(camp_raw).lower()
+            
             agente_contado = False
             for col_name in df_p.columns:
                 dia_key = str(col_name).strip().lower()
                 if any(d in dia_key for d in dias_cols):
                     in_str, out_str = extract_shift_hours(row[col_name])
                     if in_str and out_str:
-                        # Contar al agente UNA SOLA VEZ para la nómina total de su campaña
                         if not agente_contado:
                             hc_nominal[camp] = hc_nominal.get(camp, 0) + 1
                             hc_nominal['general'] = hc_nominal.get('general', 0) + 1
@@ -176,7 +176,6 @@ def construir_matriz_plantilla(xls_file):
                                 if m_in < 6 * 60 and m_out <= 12 * 60 and 'pm' not in in_str.lower() and 'am' not in in_str.lower():
                                     m_in += 12 * 60
                                     m_out += 12 * 60
-                                    
                                 if m_out < m_in:
                                     shift_len_12 = (m_out + 12 * 60) - m_in
                                     if 4 * 60 <= shift_len_12 <= 12 * 60:
@@ -292,8 +291,8 @@ def limpiar_outliers_iqr(series_list):
 def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=30):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     
-    # IMPORTANTE: AHORA RECIBIMOS LA NOMINAL_HC EXACTA
     matriz_roster, agentes_por_dia, hc_nominal = construir_matriz_plantilla(xls_file)
+    hc_nominal_global = hc_nominal.get('general', 0)
 
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
@@ -309,6 +308,9 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     col_inter = encontrar_columna(df, ['intervalo', 'hora', 'time'])
     col_dia = encontrar_columna(df, ['día', 'dia', 'semana'])
     col_fecha = encontrar_columna(df, ['fecha', 'date'])
+
+    # LIMPIEZA DE NOMBRES DE CAMPAÑA
+    df[col_camp] = df[col_camp].apply(normalizar_nombre_campana)
 
     df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce')
     df = df.dropna(subset=[col_fecha])
@@ -406,8 +408,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 plantilla_dia_real = agentes_por_dia.get(('general', nombre_dia.lower()), 0)
                 
             nominal_camp = hc_nominal.get(str(camp).lower(), 0)
-            if nominal_camp == 0:
-                nominal_camp = hc_nominal.get('general', 0)
 
             for inter in intervalos_validos:
                 key_p = (camp, nombre_dia, inter)
@@ -443,7 +443,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'Delta_Net_Staffing': delta_net_hc,
                     'SL_Proyectado': sl,
                     'Plantilla_Dia_Real': plantilla_dia_real,
-                    'Plantilla_Nominal': nominal_camp
+                    'Plantilla_Nominal_Campana': nominal_camp,
+                    'Plantilla_Nominal_Global': hc_nominal_global
                 })
 
     try:
