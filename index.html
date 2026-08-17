@@ -130,15 +130,9 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-emerald-500/40 focus-within:border-emerald-500/80 transition-colors">
-                        <label class="block text-[10px] text-emerald-400 font-bold mb-1">Nómina Base (HC)</label>
-                        <input type="number" id="hcRealManual" value="29" class="w-full bg-transparent text-sm text-emerald-300 font-mono-num font-bold focus:outline-none"/>
-                    </div>
-                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
-                        <label class="block text-[10px] text-slate-400 font-medium mb-1">Horizonte (Días)</label>
-                        <input type="number" id="dias" value="30" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
-                    </div>
+                <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
+                    <label class="block text-[10px] text-slate-400 font-medium mb-1">Horizonte Proyección (Días)</label>
+                    <input type="number" id="dias" value="30" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
                 </div>
 
                 <div class="bg-brand-surface/60 p-3 rounded-xl border border-violet-500/40 flex items-center justify-between">
@@ -246,7 +240,7 @@
                         <span class="text-xs text-emerald-400">👥</span>
                     </div>
                     <p id="kpiHcProgramado" class="text-2xl font-black font-mono-num mt-2 text-emerald-300">0 HC</p>
-                    <p id="kpiHcProgramadoSub" class="text-[10px] text-slate-500 mt-1">Personas activas programadas en el día</p>
+                    <p id="kpiHcProgramadoSub" class="text-[10px] text-slate-500 mt-1">Suma de nómina de las campañas seleccionadas</p>
                 </div>
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-cyan-500 relative overflow-hidden">
@@ -305,7 +299,7 @@
                         <div class="my-2">
                             <p id="optCurrentRoster" class="text-3xl font-black font-mono-num text-emerald-400 truncate">--</p>
                         </div>
-                        <p id="optCurrentRosterSub" class="text-[9px] text-emerald-400/60 leading-tight">Nómina física activa en filtro</p>
+                        <p id="optCurrentRosterSub" class="text-[9px] text-emerald-400/60 leading-tight">Nómina de campañas filtradas</p>
                     </div>
 
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-violet-500/30 shadow-[0_0_15px_rgba(139,92,246,0.1)] relative overflow-hidden flex flex-col justify-between">
@@ -422,12 +416,6 @@
                 } catch (e) {
                     console.log("Error cargando pronóstico automático.");
                 }
-            }
-            
-            // LISENER DEL CAMPO MANUAL DE NÓMINA
-            const hcInput = document.getElementById('hcRealManual');
-            if(hcInput) {
-                hcInput.addEventListener('change', actualizarGrafica);
             }
         });
 
@@ -587,8 +575,6 @@
             const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
             const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
-            // LEER EL CAMPO MANUAL A PRUEBA DE BALAS
-            const hcRealManual = parseInt(document.getElementById('hcRealManual').value) || 0;
 
             const dfFiltered = globalData.filter(item => {
                 const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
@@ -637,23 +623,7 @@
                         const sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
                         const avgAht = subRows.reduce((a, b) => a + (Number(getProp(b, ['AHT_Segundos'], 180)) || 180), 0) / subRows.length;
 
-                        const uniqueCamps = [...new Set(subRows.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
-                        const pValues = uniqueCamps.map(camp => {
-                            const row = subRows.find(r => getProp(r, ['Campaña', 'Campana'], 'General') === camp);
-                            return Number(getProp(row, ['Agentes_Programados_Reales'], 0));
-                        });
-
-                        const nonZeroPValues = pValues.filter(v => v > 0);
-                        let sumProg = 0;
-
-                        if (nonZeroPValues.length > 0) {
-                            const allSame = nonZeroPValues.every(val => val === nonZeroPValues[0]);
-                            if (allSame) {
-                                sumProg = nonZeroPValues[0];
-                            } else {
-                                sumProg = nonZeroPValues.reduce((a, b) => a + b, 0);
-                            }
-                        }
+                        let sumProg = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Programados_Reales'], 0)) || 0), 0);
 
                         if (sumReq > reqMaxVector[idx]) reqMaxVector[idx] = sumReq;
                         if (sumProg > localProgMax) localProgMax = sumProg;
@@ -664,44 +634,33 @@
                 progMaxVector[idx] = localProgMax;
             });
 
-            let totalHcProgramadoRoster = 0;
-            const plantillasPorFecha = [];
+            const campsInFilter = [...new Set(dfFiltered.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
+            let totalNominal = 0;
+            let totalRealDia = 0;
 
-            fechasFiltradas.forEach(fStr => {
-                const subRowsFecha = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fStr);
-                if (subRowsFecha.length > 0) {
-                    const uniqueCamps = [...new Set(subRowsFecha.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
+            campsInFilter.forEach(c => {
+                const rowsForCamp = dfFiltered.filter(r => getProp(r, ['Campaña', 'Campana'], 'General') === c);
+                if (rowsForCamp.length > 0) {
+                    totalNominal += Number(getProp(rowsForCamp[0], ['Plantilla_Nominal_Campana'], 0));
                     
-                    const pValues = uniqueCamps.map(camp => {
-                        const row = subRowsFecha.find(r => getProp(r, ['Campaña', 'Campana'], 'General') === camp);
-                        return Number(getProp(row, ['Plantilla_Dia_Real'], 0));
-                    });
-
-                    let sumPlantillaDia = pValues.reduce((a, b) => a + b, 0);
-
-                    if (sumPlantillaDia > 0) {
-                        plantillasPorFecha.push(sumPlantillaDia);
+                    let diaReal = Number(getProp(rowsForCamp[0], ['Plantilla_Dia_Real'], 0));
+                    if (diaReal === 0) {
+                        diaReal = Math.max(...rowsForCamp.map(r => Number(getProp(r, ['Agentes_Programados_Reales'], 0))));
                     }
+                    totalRealDia += diaReal;
                 }
             });
 
-            // LÓGICA DE CONTROL MANUAL ABSOLUTO: IGNORA AGRUPACIONES QUE DAÑAN LA MÉTRICA
-            if (plantillasPorFecha.length > 0) {
-                const sumP = plantillasPorFecha.reduce((a, b) => a + b, 0);
-                const promedioDiarioReal = sumP / plantillasPorFecha.length;
-                
-                if (esVistaSemanal) {
-                    // SE UTILIZA EL CAMPO MANUAL EN LUGAR DE MULTIPLICAR
-                    totalHcProgramadoRoster = hcRealManual > 0 ? hcRealManual : Math.round(promedioDiarioReal * (7.0 / 6.0));
-                    document.getElementById('kpiHcProgramadoSub').innerText = "Plantilla total física declarada (Nómina Base)";
-                    document.getElementById('optCurrentRosterSub').innerText = "Nómina base declarada";
-                } else {
-                    totalHcProgramadoRoster = Math.round(promedioDiarioReal);
-                    document.getElementById('kpiHcProgramadoSub').innerText = "Personas activas programadas en el día";
-                    document.getElementById('optCurrentRosterSub').innerText = "Personas activas programadas hoy";
-                }
+            let totalHcProgramadoRoster = 0;
+
+            if (esVistaSemanal) {
+                totalHcProgramadoRoster = totalNominal;
+                document.getElementById('kpiHcProgramadoSub').innerText = "Suma de nómina de las campañas seleccionadas";
+                document.getElementById('optCurrentRosterSub').innerText = "Nómina de campañas filtradas";
             } else {
-                totalHcProgramadoRoster = Math.max(...progMaxVector, 0);
+                totalHcProgramadoRoster = totalRealDia;
+                document.getElementById('kpiHcProgramadoSub').innerText = "Agentes programados hoy (filtrados)";
+                document.getElementById('optCurrentRosterSub').innerText = "Programados hoy en filtro";
             }
 
             document.getElementById('kpiHcProgramado').innerText = totalHcProgramadoRoster + ' HC';
