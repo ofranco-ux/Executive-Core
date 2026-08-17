@@ -337,6 +337,7 @@
                 </div>
             </div>
 
+            <!-- Gráfica 2: SL Auditoría -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t border-violet-500/20">
                 <div class="mb-4">
                     <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📈 Auditoría de Service Level (% SL)</h3>
@@ -683,7 +684,6 @@
                 }
             });
 
-            // LÓGICA REFINADA PARA LEER LA NÓMINA EXACTA DESDE EXCEL
             if (plantillasPorFecha.length > 0) {
                 const sumP = plantillasPorFecha.reduce((a, b) => a + b, 0);
                 const promedioDiarioReal = sumP / plantillasPorFecha.length;
