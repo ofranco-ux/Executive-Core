@@ -9,11 +9,12 @@ from flask_cors import CORS
 import pandas as pd
 import numpy as np
 
+# Rutas base
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_FILE = os.path.join(BASE_DIR, 'forecast_cache.json')
 EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 
-app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
+app = Flask(__name__)
 CORS(app)
 
 VENTANAS_SERVICIO = {
@@ -26,7 +27,29 @@ VENTANAS_SERVICIO = {
     'retenciones suburbia':    {'inicio': 9 * 60, 'fin': 20 * 60}
 }
 
-# NUEVA FUNCIÓN: Agrupa nombres sucios del PBX en campañas limpias para Erlang C
+@app.route('/')
+@app.route('/index.html')
+def serve_index():
+    rutas_a_buscar = [
+        BASE_DIR,
+        os.getcwd(),
+        os.path.dirname(BASE_DIR)
+    ]
+    
+    for ruta in rutas_a_buscar:
+        if os.path.exists(os.path.join(ruta, 'index.html')):
+            return send_from_directory(ruta, 'index.html')
+            
+    return jsonify({
+        "error": "ALERTA CRÍTICA: No se encontró el archivo index.html en el servidor.",
+        "rutas_escaneadas": rutas_a_buscar,
+        "archivos_en_raiz": os.listdir(os.getcwd())
+    }), 404
+
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204
+
 def normalizar_nombre_campana(nombre):
     n = str(nombre).lower().strip()
     if 'coppel' in n: return 'Coppel'
@@ -309,7 +332,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     col_dia = encontrar_columna(df, ['día', 'dia', 'semana'])
     col_fecha = encontrar_columna(df, ['fecha', 'date'])
 
-    # LIMPIEZA DE NOMBRES DE CAMPAÑA
     df[col_camp] = df[col_camp].apply(normalizar_nombre_campana)
 
     df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce')
