@@ -492,7 +492,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     min_diurno_limite = 22 * 60   # 22:00
     min_entrada_maxima = min_diurno_limite - duracion_minutos
 
-    # ALGORITMO GREEDY "BEST-FIT" (MÍNIMA INEFICIENCIA DE MALLA)
+    # ALGORITMO GREEDY "SET-COVER" (MÁXIMA EFICIENCIA, CERO DÉFICIT)
     valid_starts = []
     for j in range(m):
         min_in = parse_time_str(intervalos[j])
@@ -501,37 +501,31 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 
     if len(valid_starts) > 0:
         while True:
-            deficit = np.zeros(m)
-            for j in range(m):
-                min_in = parse_time_str(intervalos[j])
-                if min_in is not None and min_diurno_inicio <= min_in < min_diurno_limite:
-                    deficit[j] = req_hc_base[j] - cob_hc[j]
-
-            max_def = np.max(deficit)
-            if max_def <= 0:
-                break  # Regla cumplida: Cero déficit en todos los intervalos.
+            # 1. Calcular dónde falta personal
+            deficit = np.maximum(0, req_hc_base - cob_hc)
+            
+            # Si ya no falta nadie en ningún intervalo, terminamos (Cumple regla "Nunca por debajo")
+            if np.max(deficit) <= 0:
+                break 
 
             best_start_idx = -1
-            best_score = -float('inf')
+            max_covered = -1
 
-            # Evaluamos qué turno genera menos horas ociosas
+            # 2. Buscar el turno que logre cubrir la MAYOR cantidad de huecos simultáneos
             for s_idx in valid_starts:
                 e_idx = min(s_idx + SHIFT_BLOCKS, m)
-                sub_deficit = deficit[s_idx:e_idx]
                 
-                covered = np.sum(sub_deficit[sub_deficit > 0])
-                surplus_generated = np.sum(np.abs(sub_deficit[sub_deficit < 0]))
+                # Evaluamos cuántas horas de "utilidad real" aporta este turno
+                covered = np.sum(np.minimum(1, deficit[s_idx:e_idx]))
                 
-                # Penalizamos matemáticamente el surplus
-                score = covered - (surplus_generated * 0.45) 
-
-                if score > best_score and covered > 0:
-                    best_score = score
+                if covered > max_covered:
+                    max_covered = covered
                     best_start_idx = s_idx
 
-            if best_start_idx == -1:
-                break
+            if best_start_idx == -1 or max_covered == 0:
+                break # Fallback de seguridad
 
+            # 3. Agregar 1 solo agente en ese horario óptimo y repetir el escaneo
             min_in_val = parse_time_str(intervalos[best_start_idx])
             min_out_val = min_in_val + duracion_minutos
             h_in_str = f"{(int(min_in_val // 60)):02d}:{(int(min_in_val % 60)):02d}"
