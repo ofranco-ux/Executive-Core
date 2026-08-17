@@ -499,8 +499,12 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             valid_starts.append(j)
 
     if len(valid_starts) > 0:
-        while True:
-            # Calcular SL Global actual para saber si ya cumplimos la meta general
+        max_iterations = 200
+        iteration = 0
+        while iteration < max_iterations:
+            iteration += 1
+            
+            # NUEVA LÓGICA: Evaluar SL GLOBAL en tiempo real
             sl_optimo_vector = []
             for i in range(m):
                 c = llamadas_arr[i]
@@ -513,17 +517,15 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             sl_arr = np.array(sl_optimo_vector)
             current_global_sl = float(np.sum(llamadas_arr * sl_arr) / tot_llamadas) if tot_llamadas > 0 else 100.0
 
-            deficit = np.maximum(0, req_hc_base - cob_hc)
-            max_def = np.max(deficit)
-
-            if max_def <= 0:
-                break # Cobertura perfecta
-                
-            # UMBRAL DE TOLERANCIA INTELIGENTE: 
-            # Si el SL Global del día ya llegó a la meta, y el hueco máximo es menor a 0.85 personas, 
-            # paramos el ciclo para no agregar todo un turno de 8 horas por una fracción de persona.
-            if current_global_sl >= target_sl_dinamico and max_def < 0.85:
+            # STOP INTELLIGENTE: Si ya llegamos al Target de la campaña, nos detenemos.
+            # Evita desperdiciar nómina por micro-huecos en las tardes.
+            if current_global_sl >= target_sl_dinamico:
                 break
+
+            deficit = np.maximum(0, req_hc_base - cob_hc)
+            
+            if np.max(deficit) <= 0:
+                break 
 
             best_start_idx = -1
             max_covered = -1
@@ -537,7 +539,13 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                     best_start_idx = s_idx
 
             if best_start_idx == -1 or max_covered == 0:
-                break
+                # Si no hay déficit crítico pero el SL Global sigue bajo, atacamos el peor intervalo
+                worst_interval = np.argmin(sl_arr)
+                possible_starts = [s for s in valid_starts if s <= worst_interval < s + SHIFT_BLOCKS]
+                if possible_starts:
+                    best_start_idx = possible_starts[0]
+                else:
+                    break # Falla segura, salir del loop
 
             min_in_val = parse_time_str(intervalos[best_start_idx])
             min_out_val = min_in_val + duracion_minutos
@@ -551,7 +559,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             for t in range(best_start_idx, e_idx):
                 cob_hc[t] += 1
 
-    # Recalcular SL final
+    # Recálculo Final
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
