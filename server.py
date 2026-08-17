@@ -515,46 +515,73 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         if min_in is not None and min_diurno_inicio <= min_in <= min_entrada_maxima:
             valid_starts.append(j)
 
+    # NUEVO MOTOR: ALGORITMO BASADO EN BALANCE DE SERVICE LEVEL (No en cero déficit absoluto)
     if len(valid_starts) > 0:
-        while True:
-            # REGLA DE ORO: Encontrar exactamente cuánto déficit hay. Nunca puede ser negativo.
-            deficit = np.maximum(0, req_hc_base - cob_hc)
+        max_iterations = 200
+        iteration = 0
+        while iteration < max_iterations:
+            iteration += 1
             
-            # Si el déficit máximo ya es 0, toda la curva está cubierta. ¡Terminamos!
-            if np.max(deficit) <= 0:
-                break 
+            sl_optimo_vector = []
+            for i in range(m):
+                c = llamadas_arr[i]
+                if c > 0:
+                    aht_s = aht_arr[i]
+                    n_opt_ftes = cob_hc[i] * factor_asistencia
+                    a_erl = (c * aht_s) / 1800.0
+                    sl_val = erlang_c_sl_optimizado(a_erl, n_opt_ftes, aht_s, target_time)
+                else:
+                    sl_val = 100.0
+                sl_optimo_vector.append(float(sl_val))
+            
+            sl_arr = np.array(sl_optimo_vector)
+            
+            if tot_llamadas > 0:
+                current_global_sl = float(np.sum(llamadas_arr * sl_arr) / tot_llamadas)
+            else:
+                current_global_sl = 100.0
+
+            active_intervals = (llamadas_arr > 0)
+            if np.any(active_intervals):
+                min_sl_active = np.min(sl_arr[active_intervals])
+            else:
+                min_sl_active = 100.0
+
+            # DETENCIÓN INTELIGENTE:
+            # Si tocamos el Target Global Y el peor intervalo no está colapsado (ej. no menos de Target - 15%)
+            umbral_critico = max(0.0, target_sl_dinamico - 15.0)
+            if current_global_sl >= target_sl_dinamico and min_sl_active >= umbral_critico:
+                break
 
             best_start_idx = -1
-            best_score = -float('inf')
+            max_score = -1
 
-            # Evaluar qué horario nos conviene más para evitar desperdicio de nómina
             for s_idx in valid_starts:
                 e_idx = min(s_idx + SHIFT_BLOCKS, m)
-                sub_deficit = deficit[s_idx:e_idx]
                 
-                # ¿Cuántos intervalos de necesidad real cubrimos con este turno?
-                covered = np.sum(np.minimum(1, sub_deficit))
+                # ¿Cuánto mejoramos el Service Level con este turno?
+                sub_sl = sl_arr[s_idx:e_idx]
+                sub_calls = llamadas_arr[s_idx:e_idx]
                 
-                # ¿Cuántas horas vamos a desperdiciar porque el agente estará ocioso?
-                added_surplus = (e_idx - s_idx) - covered
+                # Puntos por salvar llamadas en baches rojos
+                sl_deficit = np.maximum(0, target_sl_dinamico - sub_sl)
+                score_salvavidas = np.sum(sl_deficit * sub_calls)
                 
-                # Calificación: Premiar la cobertura, penalizar severamente la ociosidad
-                score = covered - (added_surplus * 0.35)
-
-                if score > best_score and covered > 0:
-                    best_score = score
+                if score_salvavidas > max_score:
+                    max_score = score_salvavidas
                     best_start_idx = s_idx
 
-            if best_start_idx == -1:
-                # Fallback de seguridad por si la curva es anómala
-                idx_def = np.argmax(deficit)
-                pos_starts = [s for s in valid_starts if s <= idx_def < s + SHIFT_BLOCKS]
-                if pos_starts:
-                    best_start_idx = pos_starts[0]
+            if best_start_idx == -1 or max_score == 0:
+                if np.any(active_intervals):
+                    worst_idx = np.argmin(sl_arr)
+                    pos_starts = [s for s in valid_starts if s <= worst_idx < s + SHIFT_BLOCKS]
+                    if pos_starts:
+                        best_start_idx = pos_starts[0]
+                    else:
+                        break
                 else:
                     break
 
-            # Agregar el turno a la matriz
             min_in_val = parse_time_str(intervalos[best_start_idx])
             min_out_val = min_in_val + duracion_minutos
             h_in_str = f"{(int(min_in_val // 60)):02d}:{(int(min_in_val % 60)):02d}"
@@ -567,7 +594,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             for t in range(best_start_idx, e_idx):
                 cob_hc[t] += 1
 
-    # Recalcular SL final con la matriz pulida
+    # Recalcular SL final
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
