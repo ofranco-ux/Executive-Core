@@ -241,7 +241,7 @@
                         <span class="text-xs text-emerald-400">👥</span>
                     </div>
                     <p id="kpiHcProgramado" class="text-2xl font-black font-mono-num mt-2 text-emerald-300">0 HC</p>
-                    <p class="text-[10px] text-slate-500 mt-1">Personas activas programadas en el día</p>
+                    <p id="kpiHcProgramadoSub" class="text-[10px] text-slate-500 mt-1">Personas activas programadas en el día</p>
                 </div>
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-cyan-500 relative overflow-hidden">
@@ -269,7 +269,7 @@
                     </button>
                 </div>
 
-                <!-- TABLA COMPARATIVA EJECUTIVA REDISEÑADA PARA NO DESBORDARSE -->
+                <!-- TABLA COMPARATIVA EJECUTIVA -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
@@ -302,7 +302,7 @@
                         <div class="my-2">
                             <p id="optCurrentRoster" class="text-3xl font-black font-mono-num text-emerald-400 truncate">--</p>
                         </div>
-                        <p class="text-[9px] text-emerald-400/60 leading-tight">Nómina física activa en filtro</p>
+                        <p id="optCurrentRosterSub" class="text-[9px] text-emerald-400/60 leading-tight">Nómina física activa en filtro</p>
                     </div>
 
                     <!-- TARJETA: HC REQUERIDO ÓPTIMO -->
@@ -439,16 +439,6 @@
         }
 
         function actualizarModoEspecial() {
-            const esNocturno = document.getElementById('chkNocturno').checked;
-            const lblType = document.getElementById('lblHeadcountType');
-            const lblSub = document.getElementById('lblHeadcountSub');
-            if (esNocturno) {
-                lblType.innerText = 'HC Requerido (Mixto)';
-                lblSub.innerText = 'Nómina total: Pondera 5x2 (Noche) y 6x1 (Día)';
-            } else {
-                lblType.innerText = 'HC Requerido';
-                lblSub.innerText = 'A contratar (Incluye descansos)';
-            }
             actualizarGrafica();
         }
 
@@ -541,7 +531,6 @@
             actualizarGrafica();
         }
 
-        // AQUÍ FUE LA CORRECCIÓN DEL ERROR DE SINTAXIS DE JAVASCRIPT
         function toggleDropdown(type) {
             ['Campana', 'Fecha', 'Intervalo'].forEach(t => {
                 if (t !== type) {
@@ -621,6 +610,9 @@
 
             const fechasFiltradas = [...new Set(dfFiltered.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
             const todosIntervalos = [...new Set(dfFiltered.map(r => String(getProp(r, ['Intervalo'], '00:00'))))].sort();
+            
+            // DETECTOR DE CONTEXTO: ¿Semana o Día?
+            const esVistaSemanal = fechasFiltradas.length > 1;
 
             const reqMaxVector = todosIntervalos.map(() => 0);
             const progMaxVector = todosIntervalos.map(() => 0);
@@ -697,20 +689,28 @@
                 }
             });
 
+            // LÓGICA CONTEXT-AWARE PARA EL ROSTER PROGRAMADO
             if (plantillasPorFecha.length > 0) {
                 const sumP = plantillasPorFecha.reduce((a, b) => a + b, 0);
-                totalHcProgramadoRoster = Math.round(sumP / plantillasPorFecha.length);
+                const promedioDiarioReal = sumP / plantillasPorFecha.length;
+                
+                if (esVistaSemanal) {
+                    const esNoc = document.getElementById('chkNocturno').checked;
+                    const factorDescanso = esNoc ? (7.0 / 5.0) : (7.0 / 6.0);
+                    totalHcProgramadoRoster = Math.round(promedioDiarioReal * factorDescanso);
+                    document.getElementById('kpiHcProgramadoSub').innerText = "Plantilla total en la nómina (incluye descansos)";
+                    document.getElementById('optCurrentRosterSub').innerText = "Nómina total física en filtro";
+                } else {
+                    totalHcProgramadoRoster = Math.round(promedioDiarioReal);
+                    document.getElementById('kpiHcProgramadoSub').innerText = "Personas activas programadas en el día";
+                    document.getElementById('optCurrentRosterSub').innerText = "Personas activas programadas hoy";
+                }
             } else {
                 totalHcProgramadoRoster = Math.max(...progMaxVector, 0);
             }
 
-            const maxReqPico = Math.max(...reqMaxVector, 1);
             document.getElementById('kpiHcProgramado').innerText = totalHcProgramadoRoster + ' HC';
-
-            document.getElementById('kpiHcRequerido').innerText = maxReqPico + ' HC';
-
-            const fulfillment = totalHcProgramadoRoster > 0 ? ((totalHcProgramadoRoster / maxReqPico) * 100).toFixed(1) : "0.0";
-            document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
+            document.getElementById('optCurrentRoster').innerText = totalHcProgramadoRoster.toLocaleString();
 
             const sumLlamadasSl = dfFiltered.reduce((acc, row) => acc + ((Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(row, ['SL_Proyectado'], 0)) || 0)), 0);
             const avgSl = totCalls > 0 ? (sumLlamadasSl / totCalls).toFixed(1) : "0.0";
@@ -720,7 +720,6 @@
             document.getElementById('kpiSl').innerText = avgSl + '%';
 
             document.getElementById('compSlActual').innerText = avgSl + '%';
-            document.getElementById('compStaffActual').innerText = fulfillment + '%';
 
             const badgeSl = document.getElementById('badgeSl');
             if (parseFloat(avgSl) >= targetSlObj) {
@@ -778,18 +777,16 @@
                 tbody.appendChild(tr);
             });
 
-            ejecutarOptimizadorHorarios(todosIntervalos, reqMaxVector, llamadasMaxVector, ahtMaxVector, targetTimeObj, targetSlObj, mermaVal, slArr, totalHcProgramadoRoster, progMaxVector);
+            ejecutarOptimizadorHorarios(todosIntervalos, reqMaxVector, llamadasMaxVector, ahtMaxVector, targetTimeObj, targetSlObj, mermaVal, slArr, totalHcProgramadoRoster, progMaxVector, esVistaSemanal);
         }
 
-        async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slActualArray, hcActualRoster, progActualArray) {
+        async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, slActualArray, hcActualRoster, progActualArray, esVistaSemanal) {
             if (!intervalos || intervalos.length === 0) return;
 
             const duracionJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
             const esNocturno = document.getElementById('chkNocturno').checked;
 
             try {
-                document.getElementById('optCurrentRoster').innerText = (hcActualRoster || 0).toLocaleString();
-
                 const res = await fetch('/api/optimize-schedules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -813,15 +810,28 @@
                 }
 
                 const optData = await res.json() || {};
-                const nominaRequeridaTotal = optData.headcount_semanal_6x1 || 0;
                 
-                document.getElementById('optHeadcount').innerText = nominaRequeridaTotal.toLocaleString();
+                // LÓGICA CONTEXT-AWARE PARA EL REQUERIMIENTO
+                const nominaRequeridaTotalSemana = optData.headcount_semanal_6x1 || 0;
+                const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
                 
-                document.getElementById('kpiHcRequeridoTitle').innerText = "HC REQUERIDO";
-                document.getElementById('kpiHcRequerido').innerText = nominaRequeridaTotal + ' HC';
-                document.getElementById('kpiHcRequeridoSub').innerText = "Plantilla total sugerida para cubrir la operación";
+                const hcRequeridoDisplay = esVistaSemanal ? nominaRequeridaTotalSemana : nominaRequeridaDiaria;
+                
+                document.getElementById('optHeadcount').innerText = hcRequeridoDisplay.toLocaleString();
+                document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay + ' HC';
+                
+                if (esVistaSemanal) {
+                    const lblType = esNocturno ? 'HC Requerido (Mixto)' : 'HC Requerido';
+                    document.getElementById('lblHeadcountType').innerText = lblType;
+                    document.getElementById('kpiHcRequeridoSub').innerText = "Plantilla total sugerida para cubrir la semana";
+                    document.getElementById('lblHeadcountSub').innerText = "A contratar (Incluye descansos)";
+                } else {
+                    document.getElementById('lblHeadcountType').innerText = 'HC Requerido (Diario)';
+                    document.getElementById('kpiHcRequeridoSub').innerText = "Plantilla sugerida activa solo para hoy";
+                    document.getElementById('lblHeadcountSub').innerText = "Necesarios para hoy (Sin descansos)";
+                }
 
-                const deltaNet = hcActualRoster - nominaRequeridaTotal;
+                const deltaNet = hcActualRoster - hcRequeridoDisplay;
                 const elDeltaHc = document.getElementById('kpiHcDelta');
                 const badgeDelta = document.getElementById('badgeDeltaHc');
 
@@ -837,7 +847,7 @@
                     badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
                 }
                 
-                const fulfillmentReal = nominaRequeridaTotal > 0 ? ((hcActualRoster / nominaRequeridaTotal) * 100).toFixed(1) : "0.0";
+                const fulfillmentReal = hcRequeridoDisplay > 0 ? ((hcActualRoster / hcRequeridoDisplay) * 100).toFixed(1) : "0.0";
                 document.getElementById('kpiFulfillment').innerText = fulfillmentReal + '%';
                 document.getElementById('compStaffActual').innerText = fulfillmentReal + '%';
                 
@@ -862,12 +872,12 @@
                 globalTurnosOptimos = turnosBase.map((t, index) => {
                     let nominaTurno;
                     if (index === turnosBase.length - 1) {
-                        nominaTurno = nominaRequeridaTotal - accumulatedNomina; // Remanente exacto
+                        nominaTurno = hcRequeridoDisplay - accumulatedNomina;
                     } else {
-                        nominaTurno = Math.round((t.agentes_a_programar / totalDiarioMalla) * nominaRequeridaTotal);
+                        nominaTurno = Math.round((t.agentes_a_programar / totalDiarioMalla) * hcRequeridoDisplay);
                         accumulatedNomina += nominaTurno;
                     }
-                    nominaTurno = Math.max(0, nominaTurno); // Evitar negativos
+                    nominaTurno = Math.max(0, nominaTurno);
                     return { ...t, nomina_a_contratar: nominaTurno };
                 });
 
@@ -875,7 +885,7 @@
                     optTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-500">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
                 } else {
                     globalTurnosOptimos.forEach(t => {
-                        const pct = nominaRequeridaTotal > 0 ? ((t.nomina_a_contratar / nominaRequeridaTotal) * 100).toFixed(1) : 0;
+                        const pct = hcRequeridoDisplay > 0 ? ((t.nomina_a_contratar / hcRequeridoDisplay) * 100).toFixed(1) : 0;
                         const tr = document.createElement('tr');
                         tr.className = 'hover:bg-slate-800/40 transition-colors';
                         tr.innerHTML = `
