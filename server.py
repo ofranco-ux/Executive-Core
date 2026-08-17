@@ -96,16 +96,6 @@ def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
         n += 1
     return n
 
-def extract_shift_hours(val):
-    v = str(val).strip().lower()
-    if not v or any(x in v for x in ['dd', 'descanso', 'falta', 'vacacion', 'baja', 'nan']):
-        return None, None
-    v = v.replace(' a ', '-').replace(' to ', '-').replace('_', '-')
-    if '-' not in v: return None, None
-    parts = v.split('-')
-    if len(parts) >= 2: return parts[0].strip(), parts[1].strip()
-    return None, None
-
 def parse_time_str(t_str):
     if not t_str: return None
     t = str(t_str).lower().replace('hrs', '').replace(' ', '')
@@ -117,8 +107,7 @@ def parse_time_str(t_str):
     if ':' not in t: t += ':00'
     try:
         parts = t.split(':')
-        hh = int(parts[0])
-        mm = int(parts[1])
+        hh, mm = int(parts[0]), int(parts[1])
         if is_pm and hh < 12: hh += 12
         if is_am and hh == 12: hh = 0
         return hh * 60 + mm
@@ -131,77 +120,6 @@ def esta_en_ventana_servicio(campana, intervalo_str):
     if 'liverpool' in camp_key or 'suburbia' in camp_key:
         return (9 * 60) <= minutos_inter < (21 * 60)
     return True
-
-def construir_matriz_plantilla(xls_file):
-    try:
-        sheet_plantilla = None
-        for s in xls_file.sheet_names:
-            if 'plat' in s.lower() or 'plan' in s.lower() or 'rost' in s.lower():
-                sheet_plantilla = s
-                break
-        if not sheet_plantilla: return {}, {}, {}
-
-        df_p = pd.read_excel(xls_file, sheet_name=sheet_plantilla, engine='openpyxl')
-        dias_cols = ['lunes', 'martes', 'miércoles', 'miercoles', 'jueves', 'viernes', 'sábado', 'sabado', 'domingo']
-        
-        malla, agentes_por_dia, hc_nominal = {}, {}, {}
-
-        for _, row in df_p.iterrows():
-            if len(df_p.columns) >= 3:
-                camp_raw = str(row.iloc[2])
-            else:
-                camp_raw = str(row.get('Campaña', row.get('Campana', 'General')))
-                
-            camp_norm = camp_raw.strip().title()
-            camp_lower = camp_norm.lower()
-            
-            agente_contado = False
-            for col_name in df_p.columns:
-                dia_key = str(col_name).strip().lower()
-                if any(d in dia_key for d in dias_cols):
-                    in_str, out_str = extract_shift_hours(row[col_name])
-                    if in_str and out_str:
-                        if not agente_contado:
-                            hc_nominal[camp_norm] = hc_nominal.get(camp_norm, 0) + 1
-                            hc_nominal[camp_lower] = hc_nominal.get(camp_lower, 0) + 1
-                            hc_nominal['General'] = hc_nominal.get('General', 0) + 1
-                            agente_contado = True
-                        
-                        base_day = next(d for d in dias_cols if d in dia_key)
-                        if base_day == 'miercoles': base_day = 'miércoles'
-                        if base_day == 'sabado': base_day = 'sábado'
-                        
-                        try:
-                            m_in, m_out = parse_time_str(in_str), parse_time_str(out_str)
-                            if m_in is not None and m_out is not None:
-                                if m_in < 6 * 60 and m_out <= 12 * 60 and 'pm' not in in_str.lower() and 'am' not in in_str.lower():
-                                    m_in += 12 * 60
-                                    m_out += 12 * 60
-                                if m_out < m_in:
-                                    shift_len_12 = (m_out + 12 * 60) - m_in
-                                    if 4 * 60 <= shift_len_12 <= 12 * 60:
-                                        m_out += 12 * 60
-                                    else:
-                                        m_out += 24 * 60 
-                                
-                                agentes_por_dia[(camp_norm, base_day)] = agentes_por_dia.get((camp_norm, base_day), 0) + 1
-                                agentes_por_dia[(camp_lower, base_day)] = agentes_por_dia.get((camp_lower, base_day), 0) + 1
-                                agentes_por_dia[('General', base_day)] = agentes_por_dia.get(('General', base_day), 0) + 1
-                                
-                                cur = m_in
-                                while cur < m_out:
-                                    hh, mm = (cur // 60) % 24, cur % 60
-                                    inter_str = f"{hh:02d}:{mm:02d}"
-                                    
-                                    malla[(camp_norm, base_day, inter_str)] = malla.get((camp_norm, base_day, inter_str), 0) + 1
-                                    malla[(camp_lower, base_day, inter_str)] = malla.get((camp_lower, base_day, inter_str), 0) + 1
-                                    malla[('General', base_day, inter_str)] = malla.get(('General', base_day, inter_str), 0) + 1
-                                    cur += 30
-                        except Exception: pass
-        return malla, agentes_por_dia, hc_nominal
-    except Exception as e:
-        print("Error procesando hoja plantilla:", e)
-        return {}, {}, {}
 
 def encontrar_columna(df, posibles_nombres):
     for col_orig in df.columns:
@@ -295,9 +213,6 @@ def limpiar_outliers_iqr(series_list):
 def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=30):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     
-    matriz_roster, agentes_por_dia, hc_nominal = construir_matriz_plantilla(xls_file)
-    hc_nominal_global = hc_nominal.get('General', 0)
-
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
         if 'llam' in s.lower() or 'hist' in s.lower() or 'datos' in s.lower():
@@ -326,7 +241,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_raw['Total_Segundos_Handle'] = df_raw[col_calls] * df_raw[col_aht]
     df_raw['Inter_Clean'] = df_raw[col_inter].astype(str).str.strip().apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
 
-    # AGRUPACIÓN DE LÍNEAS DEL PBX POR (FECHA, INTERVALO, CAMPAÑA) PARA ELIMINAR REGISTROS DUPLICADOS
+    # CONSOLIDACIÓN DIRECTA DE TRÁFICO POR INTERVALO Y CAMPAÑA
     df = df_raw.groupby([col_fecha, col_camp, 'Inter_Clean']).agg({
         col_calls: 'sum',
         'Total_Segundos_Handle': 'sum'
@@ -420,17 +335,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             historial_volumenes[camp].append(volumen_predicho_diario)
 
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
-            plantilla_dia_real = agentes_por_dia.get((camp, nombre_dia.lower()), 0)
-            if plantilla_dia_real == 0:
-                plantilla_dia_real = agentes_por_dia.get((camp.lower(), nombre_dia.lower()), 0)
-            if plantilla_dia_real == 0:
-                plantilla_dia_real = agentes_por_dia.get(('General', nombre_dia.lower()), 0)
-                
-            nominal_camp = hc_nominal.get(camp, 0)
-            if nominal_camp == 0:
-                nominal_camp = hc_nominal.get(camp.lower(), 0)
-            if nominal_camp == 0:
-                nominal_camp = hc_nominal_global
 
             for inter in intervalos_validos:
                 key_p = (camp, nombre_dia, inter)
@@ -442,18 +346,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
 
-                prog_nominal_hc = matriz_roster.get((camp, nombre_dia.lower(), inter), 0)
-                if prog_nominal_hc == 0:
-                    prog_nominal_hc = matriz_roster.get((camp.lower(), nombre_dia.lower(), inter), 0)
-                if prog_nominal_hc == 0:
-                    prog_nominal_hc = matriz_roster.get(('General', nombre_dia.lower(), inter), 0)
-                
-                prog_efectivo_raw = prog_nominal_hc * factor_asistencia if calls > 0 else 0.0
-                prog_efectivo_int = int(round(prog_nominal_hc))
-
-                sl = erlang_c_sl_optimizado(a_erlang, prog_efectivo_raw, aht, target_time) if calls > 0 else 100.0
-                delta_net_hc = int(prog_efectivo_int - req_hc) if calls > 0 else 0
-
                 data_processed.append({
                     'Campaña': str(camp),
                     'Fecha': str_fecha,
@@ -462,13 +354,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'Llamadas': int(round(calls)),
                     'AHT': format_aht_str(aht),
                     'AHT_Segundos': int(round(aht)),
-                    'Agentes_Requeridos': req_hc,
-                    'Agentes_Programados_Reales': prog_efectivo_int,
-                    'Delta_Net_Staffing': delta_net_hc,
-                    'SL_Proyectado': sl,
-                    'Plantilla_Dia_Real': plantilla_dia_real,
-                    'Plantilla_Nominal_Campana': nominal_camp,
-                    'Plantilla_Nominal_Global': hc_nominal_global
+                    'Agentes_Requeridos': req_hc
                 })
 
     try:
