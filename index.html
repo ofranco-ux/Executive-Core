@@ -614,8 +614,9 @@
             const llamadasMaxVector = todosIntervalos.map(() => 0);
             const ahtMaxVector = todosIntervalos.map(() => 0);
 
+            // CORRECCIÓN DE ACUMULACIÓN MULTI-FECHA (PROMEDIO O MÁXIMO DIARIO REAL POR INTERVALO)
             todosIntervalos.forEach((inter, idx) => {
-                let localProgMax = 0;
+                let dailyProgValues = [];
                 fechasFiltradas.forEach(fStr => {
                     const subRows = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fStr && String(getProp(r, ['Intervalo'], '00:00')) === inter);
                     if (subRows.length > 0) {
@@ -623,16 +624,17 @@
                         const sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
                         const avgAht = subRows.reduce((a, b) => a + (Number(getProp(b, ['AHT_Segundos'], 180)) || 180), 0) / subRows.length;
 
-                        // SUMA DIRECTA DE AGENTES PROGRAMADOS EN EL INTERVALO
-                        let sumProg = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Programados_Reales'], 0)) || 0), 0);
+                        let sumProgDia = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Programados_Reales'], 0)) || 0), 0);
+                        dailyProgValues.push(sumProgDia);
 
                         if (sumReq > reqMaxVector[idx]) reqMaxVector[idx] = sumReq;
-                        if (sumProg > localProgMax) localProgMax = sumProg;
                         if (sumCalls > llamadasMaxVector[idx]) llamadasMaxVector[idx] = sumCalls;
                         if (avgAht > ahtMaxVector[idx]) ahtMaxVector[idx] = avgAht;
                     }
                 });
-                progMaxVector[idx] = localProgMax;
+                if (dailyProgValues.length > 0) {
+                    progMaxVector[idx] = Math.round(dailyProgValues.reduce((a, b) => a + b, 0) / dailyProgValues.length);
+                }
             });
 
             // OBTENER LA NÓMINA GENERAL
