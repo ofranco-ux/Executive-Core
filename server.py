@@ -96,12 +96,10 @@ def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
         n += 1
     return n
 
-# ACTUALIZADO: PARSEADOR INTELIGENTE DE TURNOS
 def extract_shift_hours(val):
     v = str(val).strip().lower()
     if not v or any(x in v for x in ['dd', 'descanso', 'falta', 'vacacion', 'baja', 'nan']):
         return None, None
-    # Mantiene los am/pm para analizarlos
     v = v.replace(' a ', '-').replace(' to ', '-').replace('_', '-')
     if '-' not in v: return None, None
     parts = v.split('-')
@@ -109,7 +107,6 @@ def extract_shift_hours(val):
         return parts[0].strip(), parts[1].strip()
     return None, None
 
-# ACTUALIZADO: LÓGICA DE DEDUCCIÓN 12 HORAS
 def parse_time_str(t_str):
     if not t_str: return None
     t = str(t_str).lower().replace('hrs', '').replace(' ', '')
@@ -167,14 +164,11 @@ def construir_matriz_plantilla(xls_file):
                         try:
                             m_in, m_out = parse_time_str(in_str), parse_time_str(out_str)
                             if m_in is not None and m_out is not None:
-                                
-                                # MOTOR INTELIGENTE: Si el turno es de 2 a 10 (sin PM), lo vuelve 14 a 22
                                 if m_in < 6 * 60 and m_out <= 12 * 60 and 'pm' not in in_str.lower() and 'am' not in in_str.lower():
                                     m_in += 12 * 60
                                     m_out += 12 * 60
                                     
                                 if m_out < m_in:
-                                    # MOTOR INTELIGENTE: Si es de "9 a 6", suma 12 horas al 6 para que sea 18:00
                                     shift_len_12 = (m_out + 12 * 60) - m_in
                                     if 4 * 60 <= shift_len_12 <= 12 * 60:
                                         m_out += 12 * 60
@@ -522,50 +516,45 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             valid_starts.append(j)
 
     if len(valid_starts) > 0:
-        max_iterations = 200
-        iteration = 0
-        while iteration < max_iterations:
-            iteration += 1
-            
-            sl_optimo_vector = []
-            for i in range(m):
-                c = llamadas_arr[i]
-                aht_s = aht_arr[i]
-                n_opt_ftes = cob_hc[i] * factor_asistencia
-                a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-                sl_val = erlang_c_sl_optimizado(a_erl, n_opt_ftes, aht_s, target_time) if c > 0 else 100.0
-                sl_optimo_vector.append(float(sl_val))
-            
-            sl_arr = np.array(sl_optimo_vector)
-            current_global_sl = float(np.sum(llamadas_arr * sl_arr) / tot_llamadas) if tot_llamadas > 0 else 100.0
-
-            if current_global_sl >= target_sl_dinamico:
-                break
-
+        while True:
+            # REGLA DE ORO: Encontrar exactamente cuánto déficit hay. Nunca puede ser negativo.
             deficit = np.maximum(0, req_hc_base - cob_hc)
             
+            # Si el déficit máximo ya es 0, toda la curva está cubierta. ¡Terminamos!
             if np.max(deficit) <= 0:
                 break 
 
             best_start_idx = -1
-            max_covered = -1
+            best_score = -float('inf')
 
+            # Evaluar qué horario nos conviene más para evitar desperdicio de nómina
             for s_idx in valid_starts:
                 e_idx = min(s_idx + SHIFT_BLOCKS, m)
-                covered = np.sum(np.minimum(1, deficit[s_idx:e_idx]))
+                sub_deficit = deficit[s_idx:e_idx]
                 
-                if covered > max_covered:
-                    max_covered = covered
+                # ¿Cuántos intervalos de necesidad real cubrimos con este turno?
+                covered = np.sum(np.minimum(1, sub_deficit))
+                
+                # ¿Cuántas horas vamos a desperdiciar porque el agente estará ocioso?
+                added_surplus = (e_idx - s_idx) - covered
+                
+                # Calificación: Premiar la cobertura, penalizar severamente la ociosidad
+                score = covered - (added_surplus * 0.35)
+
+                if score > best_score and covered > 0:
+                    best_score = score
                     best_start_idx = s_idx
 
-            if best_start_idx == -1 or max_covered == 0:
-                worst_interval = np.argmin(sl_arr)
-                possible_starts = [s for s in valid_starts if s <= worst_interval < s + SHIFT_BLOCKS]
-                if possible_starts:
-                    best_start_idx = possible_starts[0]
+            if best_start_idx == -1:
+                # Fallback de seguridad por si la curva es anómala
+                idx_def = np.argmax(deficit)
+                pos_starts = [s for s in valid_starts if s <= idx_def < s + SHIFT_BLOCKS]
+                if pos_starts:
+                    best_start_idx = pos_starts[0]
                 else:
-                    break 
+                    break
 
+            # Agregar el turno a la matriz
             min_in_val = parse_time_str(intervalos[best_start_idx])
             min_out_val = min_in_val + duracion_minutos
             h_in_str = f"{(int(min_in_val // 60)):02d}:{(int(min_in_val % 60)):02d}"
@@ -578,6 +567,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             for t in range(best_start_idx, e_idx):
                 cob_hc[t] += 1
 
+    # Recalcular SL final con la matriz pulida
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
