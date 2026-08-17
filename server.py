@@ -121,7 +121,6 @@ def esta_en_ventana_servicio(campana, intervalo_str):
         return (9 * 60) <= minutos_inter < (21 * 60)
     return True
 
-# BÚSQUEDA PRIORIZADA POR ORDEN DE IMPORTANCIA
 def encontrar_columna(df, posibles_nombres):
     for pos in posibles_nombres:
         for col_orig in df.columns:
@@ -224,7 +223,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     col_calls = encontrar_columna(df_raw, ['recibidas', 'llamadas', 'calls', 'volumen', 'ofrecidas', 'entrada'])
     col_aht = encontrar_columna(df_raw, ['aht', 'tmo', 'handle', 'duracion'])
-    # BUSCAMOS 'CAMPAÑA' PRIMERO Y LUEGO OTROS
     col_camp = encontrar_columna(df_raw, ['campaña', 'campana', 'skill', 'servicio', 'ring group'])
     col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
     col_dia = encontrar_columna(df_raw, ['día', 'dia', 'semana'])
@@ -243,7 +241,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_raw['Total_Segundos_Handle'] = df_raw[col_calls] * df_raw[col_aht]
     df_raw['Inter_Clean'] = df_raw[col_inter].astype(str).str.strip().apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
 
-    # CONSOLIDAMOS POR CAMPAÑA REAL
     df = df_raw.groupby([col_fecha, col_camp, 'Inter_Clean']).agg({
         col_calls: 'sum',
         'Total_Segundos_Handle': 'sum'
