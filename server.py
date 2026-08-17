@@ -141,19 +141,28 @@ def construir_matriz_plantilla(xls_file):
             if 'plat' in s.lower() or 'plan' in s.lower() or 'rost' in s.lower():
                 sheet_plantilla = s
                 break
-        if not sheet_plantilla: return {}, {}
+        if not sheet_plantilla: return {}, {}, {}
 
         df_p = pd.read_excel(xls_file, sheet_name=sheet_plantilla, engine='openpyxl')
         dias_cols = ['lunes', 'martes', 'miércoles', 'miercoles', 'jueves', 'viernes', 'sábado', 'sabado', 'domingo']
-        malla, agentes_por_dia = {}, {}
+        
+        # AQUÍ NACE LA LÓGICA EXACTA DE CONTEO DE FILAS (HC NOMINAL)
+        malla, agentes_por_dia, hc_nominal = {}, {}, {}
 
         for _, row in df_p.iterrows():
             camp = str(row.get('Campaña', row.get('Campana', row.get('Ring Group', row.get('Skill', 'General'))))).strip().lower()
+            agente_contado = False
             for col_name in df_p.columns:
                 dia_key = str(col_name).strip().lower()
                 if any(d in dia_key for d in dias_cols):
                     in_str, out_str = extract_shift_hours(row[col_name])
                     if in_str and out_str:
+                        # Contar al agente UNA SOLA VEZ para la nómina total de su campaña
+                        if not agente_contado:
+                            hc_nominal[camp] = hc_nominal.get(camp, 0) + 1
+                            hc_nominal['general'] = hc_nominal.get('general', 0) + 1
+                            agente_contado = True
+                        
                         base_day = next(d for d in dias_cols if d in dia_key)
                         if base_day == 'miercoles': base_day = 'miércoles'
                         if base_day == 'sabado': base_day = 'sábado'
@@ -186,10 +195,10 @@ def construir_matriz_plantilla(xls_file):
                                     malla[('general', base_day, inter_str)] = malla.get(('general', base_day, inter_str), 0) + 1
                                     cur += 30
                         except Exception: pass
-        return malla, agentes_por_dia
+        return malla, agentes_por_dia, hc_nominal
     except Exception as e:
         print("Error procesando hoja plantilla:", e)
-        return {}, {}
+        return {}, {}, {}
 
 def encontrar_columna(df, posibles_nombres):
     for col_orig in df.columns:
@@ -282,7 +291,9 @@ def limpiar_outliers_iqr(series_list):
 
 def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=30):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
-    matriz_roster, agentes_por_dia = construir_matriz_plantilla(xls_file)
+    
+    # IMPORTANTE: AHORA RECIBIMOS LA NOMINAL_HC EXACTA
+    matriz_roster, agentes_por_dia, hc_nominal = construir_matriz_plantilla(xls_file)
 
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
@@ -393,6 +404,10 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             plantilla_dia_real = agentes_por_dia.get((str(camp).lower(), nombre_dia.lower()), 0)
             if plantilla_dia_real == 0:
                 plantilla_dia_real = agentes_por_dia.get(('general', nombre_dia.lower()), 0)
+                
+            nominal_camp = hc_nominal.get(str(camp).lower(), 0)
+            if nominal_camp == 0:
+                nominal_camp = hc_nominal.get('general', 0)
 
             for inter in intervalos_validos:
                 key_p = (camp, nombre_dia, inter)
@@ -427,7 +442,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'Agentes_Programados_Reales': prog_efectivo_int,
                     'Delta_Net_Staffing': delta_net_hc,
                     'SL_Proyectado': sl,
-                    'Plantilla_Dia_Real': plantilla_dia_real
+                    'Plantilla_Dia_Real': plantilla_dia_real,
+                    'Plantilla_Nominal': nominal_camp
                 })
 
     try:
@@ -515,7 +531,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         if min_in is not None and min_diurno_inicio <= min_in <= min_entrada_maxima:
             valid_starts.append(j)
 
-    # NUEVO MOTOR: ALGORITMO BASADO EN BALANCE DE SERVICE LEVEL (No en cero déficit absoluto)
     if len(valid_starts) > 0:
         max_iterations = 200
         iteration = 0
@@ -547,8 +562,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             else:
                 min_sl_active = 100.0
 
-            # DETENCIÓN INTELIGENTE:
-            # Si tocamos el Target Global Y el peor intervalo no está colapsado (ej. no menos de Target - 15%)
             umbral_critico = max(0.0, target_sl_dinamico - 15.0)
             if current_global_sl >= target_sl_dinamico and min_sl_active >= umbral_critico:
                 break
@@ -558,12 +571,8 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 
             for s_idx in valid_starts:
                 e_idx = min(s_idx + SHIFT_BLOCKS, m)
-                
-                # ¿Cuánto mejoramos el Service Level con este turno?
                 sub_sl = sl_arr[s_idx:e_idx]
                 sub_calls = llamadas_arr[s_idx:e_idx]
-                
-                # Puntos por salvar llamadas en baches rojos
                 sl_deficit = np.maximum(0, target_sl_dinamico - sub_sl)
                 score_salvavidas = np.sum(sl_deficit * sub_calls)
                 
@@ -594,7 +603,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             for t in range(best_start_idx, e_idx):
                 cob_hc[t] += 1
 
-    # Recalcular SL final
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
