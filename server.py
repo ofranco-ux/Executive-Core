@@ -304,22 +304,38 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             sheet_calls = s
             break
 
-    df = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
+    df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
 
-    col_calls = encontrar_columna(df, ['recibidas', 'llamadas', 'calls', 'volumen', 'ofrecidas', 'entrada'])
-    col_aht = encontrar_columna(df, ['aht', 'tmo', 'handle', 'duracion'])
-    col_camp = encontrar_columna(df, ['campaña', 'campana', 'ring group', 'skill', 'servicio'])
-    col_inter = encontrar_columna(df, ['intervalo', 'hora', 'time'])
-    col_dia = encontrar_columna(df, ['día', 'dia', 'semana'])
-    col_fecha = encontrar_columna(df, ['fecha', 'date'])
+    col_calls = encontrar_columna(df_raw, ['recibidas', 'llamadas', 'calls', 'volumen', 'ofrecidas', 'entrada'])
+    col_aht = encontrar_columna(df_raw, ['aht', 'tmo', 'handle', 'duracion'])
+    col_camp = encontrar_columna(df_raw, ['campaña', 'campana', 'ring group', 'skill', 'servicio'])
+    col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
+    col_dia = encontrar_columna(df_raw, ['día', 'dia', 'semana'])
+    col_fecha = encontrar_columna(df_raw, ['fecha', 'date'])
 
-    df[col_camp] = df[col_camp].astype(str).str.strip().str.title()
-
-    df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce')
-    df = df.dropna(subset=[col_fecha])
+    df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
+    df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce')
+    df_raw = df_raw.dropna(subset=[col_fecha])
 
     if col_aht:
-        df[col_aht] = df[col_aht].apply(parse_aht_to_seconds)
+        df_raw[col_aht] = df_raw[col_aht].apply(parse_aht_to_seconds)
+    else:
+        df_raw['AHT_Calc'] = 180.0
+        col_aht = 'AHT_Calc'
+
+    df_raw['Total_Segundos_Handle'] = df_raw[col_calls] * df_raw[col_aht]
+    df_raw['Inter_Clean'] = df_raw[col_inter].astype(str).str.strip().apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
+
+    # AGRUPACIÓN DE LÍNEAS DEL PBX POR (FECHA, INTERVALO, CAMPAÑA) PARA ELIMINAR REGISTROS DUPLICADOS
+    df = df_raw.groupby([col_fecha, col_camp, 'Inter_Clean']).agg({
+        col_calls: 'sum',
+        'Total_Segundos_Handle': 'sum'
+    }).reset_index()
+
+    df[col_aht] = df.apply(lambda r: r['Total_Segundos_Handle'] / r[col_calls] if r[col_calls] > 0 else 180.0, axis=1)
+    df = df.drop(columns=['Total_Segundos_Handle'])
+    df[col_inter] = df['Inter_Clean']
+    df[col_dia] = df[col_fecha].dt.day_name().str.lower()
 
     fecha_maxima = df[col_fecha].max()
     fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
@@ -351,9 +367,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         else:
             modelos_ml[camp] = None
 
-    df['Dia_Semana_Clean'] = df[col_dia].astype(str).str.strip().str.lower() if col_dia else df[col_fecha].dt.day_name().str.lower()
-    df['Inter_Clean'] = df[col_inter].astype(str).str.strip().apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
-
+    df['Dia_Semana_Clean'] = df[col_dia].astype(str).str.strip().str.lower()
     df['En_Ventana'] = df.apply(lambda r: esta_en_ventana_servicio(r[col_camp], r['Inter_Clean']), axis=1)
     df_filtrado = df[df['En_Ventana']].copy()
 
@@ -378,7 +392,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         inters_camp = df_filtrado[df_filtrado[col_camp] == camp]['Inter_Clean'].unique().tolist()
         intervalos_operativos_por_camp[camp] = sorted([i for i in inters_camp if esta_en_ventana_servicio(camp, i)])
 
-    del df, df_diario, df_filtrado, df_reciente
+    del df_raw, df, df_diario, df_filtrado, df_reciente
     gc.collect()
 
     factor_asistencia = max(0.01, 1.0 - merma)
@@ -428,7 +442,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
 
-                # BÚSQUEDA ROBUSTA EN MULTIPLES VARIANTES DE MAYÚSCULAS/MINÚSCULAS
                 prog_nominal_hc = matriz_roster.get((camp, nombre_dia.lower(), inter), 0)
                 if prog_nominal_hc == 0:
                     prog_nominal_hc = matriz_roster.get((camp.lower(), nombre_dia.lower(), inter), 0)
@@ -543,7 +556,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         if min_in is not None and min_diurno_inicio <= min_in <= min_entrada_maxima:
             valid_starts.append(j)
 
-    # AJUSTE PONDERADO AL REQUERIMIENTO SINOPSIS PASO A PASO
     if len(valid_starts) > 0:
         max_iterations = 200
         iteration = 0
