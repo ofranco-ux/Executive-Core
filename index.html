@@ -81,7 +81,8 @@
                     <h1 class="text-2xl font-black text-white tracking-tight">Executive Core</h1>
                     <span id="tagModoOps" class="hidden text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider">Vista Operaciones</span>
                 </div>
-                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer (Vista Diaria)</p>
+                <!-- AQUÍ SE AJUSTÓ EL TEXTO -->
+                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer</p>
             </div>
         </div>
     </header>
@@ -835,7 +836,7 @@
                     badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
                 }
                 
-                // RECALCULAR STAFFING LEVEL REAL con base a la Nómina Global (45)
+                // RECALCULAR STAFFING LEVEL REAL con base a la Nómina Global
                 const fulfillmentReal = nominaRequeridaTotal > 0 ? ((hcActualRoster / nominaRequeridaTotal) * 100).toFixed(1) : "0.0";
                 document.getElementById('kpiFulfillment').innerText = fulfillmentReal + '%';
                 document.getElementById('compStaffActual').innerText = fulfillmentReal + '%';
@@ -851,7 +852,7 @@
 
                 document.getElementById('compStaffOptimo').innerText = parseFloat(optData.staffing_level_optimo || 0).toFixed(1) + '%';
 
-                // UNIFICAR MÉTRICA: Distribuir los 45 agentes en la tabla
+                // UNIFICAR MÉTRICA: Distribuir los agentes en la tabla
                 const optTbody = document.getElementById('optShiftsTableBody');
                 optTbody.innerHTML = '';
                 
