@@ -18,13 +18,12 @@ app = Flask(__name__)
 CORS(app)
 
 VENTANAS_SERVICIO = {
+    'coppel servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
     'coppel': {'inicio': 0 * 60, 'fin': 24 * 60},
     'telemedic': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'correo/backoffice': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'experiencias liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
-    'experiencias suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60},
-    'retenciones liverpool':   {'inicio': 9 * 60, 'fin': 20 * 60},
-    'retenciones suburbia':    {'inicio': 9 * 60, 'fin': 20 * 60}
+    'correo': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
+    'suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60}
 }
 
 @app.route('/')
@@ -41,9 +40,7 @@ def serve_index():
             return send_from_directory(ruta, 'index.html')
             
     return jsonify({
-        "error": "ALERTA CRÍTICA: No se encontró el archivo index.html en el servidor.",
-        "rutas_escaneadas": rutas_a_buscar,
-        "archivos_en_raiz": os.listdir(os.getcwd())
+        "error": "ALERTA CRÍTICA: No se encontró el archivo index.html en el servidor."
     }), 404
 
 @app.route('/favicon.ico')
@@ -165,8 +162,13 @@ def construir_matriz_plantilla(xls_file):
         malla, agentes_por_dia, hc_nominal = {}, {}, {}
 
         for _, row in df_p.iterrows():
-            camp_raw = str(row.get('Campaña', row.get('Campana', row.get('Ring Group', row.get('Skill', 'General')))))
-            camp = camp_raw.strip().lower()
+            # TOMAMOS LA CAMPAÑA DE LA COLUMNA C (ÍNDICE 2) DE LA HOJA PLANTILLA
+            if len(df_p.columns) >= 3:
+                camp_raw = str(row.iloc[2])
+            else:
+                camp_raw = str(row.get('Campaña', row.get('Campana', 'General')))
+                
+            camp = camp_raw.strip().title()
             
             agente_contado = False
             for col_name in df_p.columns:
@@ -176,7 +178,7 @@ def construir_matriz_plantilla(xls_file):
                     if in_str and out_str:
                         if not agente_contado:
                             hc_nominal[camp] = hc_nominal.get(camp, 0) + 1
-                            hc_nominal['general'] = hc_nominal.get('general', 0) + 1
+                            hc_nominal['General'] = hc_nominal.get('General', 0) + 1
                             agente_contado = True
                         
                         base_day = next(d for d in dias_cols if d in dia_key)
@@ -184,7 +186,7 @@ def construir_matriz_plantilla(xls_file):
                         if base_day == 'sabado': base_day = 'sábado'
                         
                         key_dia = (camp, base_day)
-                        key_dia_gen = ('general', base_day)
+                        key_dia_gen = ('General', base_day)
                         
                         try:
                             m_in, m_out = parse_time_str(in_str), parse_time_str(out_str)
@@ -207,7 +209,7 @@ def construir_matriz_plantilla(xls_file):
                                     hh, mm = (cur // 60) % 24, cur % 60
                                     inter_str = f"{hh:02d}:{mm:02d}"
                                     malla[(camp, base_day, inter_str)] = malla.get((camp, base_day, inter_str), 0) + 1
-                                    malla[('general', base_day, inter_str)] = malla.get(('general', base_day, inter_str), 0) + 1
+                                    malla[('General', base_day, inter_str)] = malla.get(('General', base_day, inter_str), 0) + 1
                                     cur += 30
                         except Exception: pass
         return malla, agentes_por_dia, hc_nominal
@@ -308,8 +310,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     
     matriz_roster, agentes_por_dia, hc_nominal = construir_matriz_plantilla(xls_file)
-    hc_nominal_global = hc_nominal.get('general', 0)
-    has_campaigns_in_roster = len(hc_nominal) > 1
+    hc_nominal_global = hc_nominal.get('General', 0)
 
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
@@ -326,7 +327,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     col_dia = encontrar_columna(df, ['día', 'dia', 'semana'])
     col_fecha = encontrar_columna(df, ['fecha', 'date'])
 
-    df[col_camp] = df[col_camp].astype(str).str.strip()
+    df[col_camp] = df[col_camp].astype(str).str.strip().str.title()
 
     df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce')
     df = df.dropna(subset=[col_fecha])
@@ -419,11 +420,9 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             historial_volumenes[camp].append(volumen_predicho_diario)
 
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
-            plantilla_dia_real = agentes_por_dia.get((str(camp).lower(), nombre_dia.lower()), 0)
-            if plantilla_dia_real == 0:
-                plantilla_dia_real = agentes_por_dia.get(('general', nombre_dia.lower()), 0)
-                
-            nominal_camp = hc_nominal.get(str(camp).lower(), 0)
+            plantilla_dia_real = agentes_por_dia.get((camp, nombre_dia.lower()), 0)
+            
+            nominal_camp = hc_nominal.get(camp, 0)
 
             for inter in intervalos_validos:
                 key_p = (camp, nombre_dia, inter)
@@ -435,13 +434,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
 
-                key_roster = (str(camp).lower(), nombre_dia.lower(), inter)
-                prog_general_hc = matriz_roster.get(('general', nombre_dia.lower(), inter), 0)
-                
-                if not has_campaigns_in_roster:
-                    prog_nominal_hc = prog_general_hc
-                else:
-                    prog_nominal_hc = matriz_roster.get(key_roster, 0)
+                key_roster = (camp, nombre_dia.lower(), inter)
+                prog_nominal_hc = matriz_roster.get(key_roster, 0)
                 
                 prog_efectivo_raw = prog_nominal_hc * factor_asistencia if calls > 0 else 0.0
                 prog_efectivo_int = int(round(prog_nominal_hc))
@@ -463,9 +457,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'SL_Proyectado': sl,
                     'Plantilla_Dia_Real': plantilla_dia_real,
                     'Plantilla_Nominal_Campana': nominal_camp,
-                    'Plantilla_Nominal_Global': hc_nominal_global,
-                    'Roster_Has_Campaigns': has_campaigns_in_roster,
-                    'Plantilla_General_Intervalo': int(round(prog_general_hc))
+                    'Plantilla_Nominal_Global': hc_nominal_global
                 })
 
     try:
@@ -490,7 +482,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     factor_asistencia = max(0.01, 1.0 - merma)
     target_sl_dinamico = float(target_sl)
     
-    # ARRAY BASE DE REQUERIMIENTOS: Cuántos necesitamos en cada intervalo
     req_hc_pooled = []
     req_hc_base = np.zeros(m)
     for i in range(m):
@@ -554,24 +545,19 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         if min_in is not None and min_diurno_inicio <= min_in <= min_entrada_maxima:
             valid_starts.append(j)
 
-    # AQUÍ ESTÁ LA CORRECCIÓN: ALGORITMO CERO DÉFICIT ROBUSTO
     if len(valid_starts) > 0:
         max_iterations = 200
         iteration = 0
         while iteration < max_iterations:
             iteration += 1
             
-            # Detecta en qué intervalos seguimos teniendo déficit de personas
             deficit = np.maximum(0, req_hc_base - cob_hc)
-            
-            # Si ya cubrimos todo el déficit matemático, terminamos.
             if np.max(deficit) <= 0:
                 break 
 
             best_start_idx = -1
             max_covered = -1
 
-            # Busca qué horario de entrada cubre la mayor cantidad de baches rojos
             for s_idx in valid_starts:
                 e_idx = min(s_idx + SHIFT_BLOCKS, m)
                 covered = np.sum(np.minimum(1, deficit[s_idx:e_idx]))
@@ -581,8 +567,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                     best_start_idx = s_idx
 
             if best_start_idx == -1 or max_covered == 0:
-                # Si encuentra un intervalo imposible de cubrir (ej. fuera de la ventana de entrada)
-                # lo ignora temporalmente para no abortar el resto del cálculo
                 worst_interval = np.argmax(deficit)
                 req_hc_base[worst_interval] = 0
                 continue
