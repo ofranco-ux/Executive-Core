@@ -9,7 +9,6 @@ from flask_cors import CORS
 import pandas as pd
 import numpy as np
 
-# Rutas base
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_FILE = os.path.join(BASE_DIR, 'forecast_cache.json')
 EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
@@ -29,27 +28,18 @@ VENTANAS_SERVICIO = {
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
-    rutas_a_buscar = [
-        BASE_DIR,
-        os.getcwd(),
-        os.path.dirname(BASE_DIR)
-    ]
-    
+    rutas_a_buscar = [BASE_DIR, os.getcwd(), os.path.dirname(BASE_DIR)]
     for ruta in rutas_a_buscar:
         if os.path.exists(os.path.join(ruta, 'index.html')):
             return send_from_directory(ruta, 'index.html')
-            
-    return jsonify({
-        "error": "ALERTA CRÍTICA: No se encontró el archivo index.html en el servidor."
-    }), 404
+    return jsonify({"error": "ALERTA CRÍTICA: No se encontró el archivo index.html en el servidor."}), 404
 
 @app.route('/favicon.ico')
 def favicon():
     return '', 204
 
 def clean_num(val, default=0.0):
-    if pd.isna(val) or val is None:
-        return default
+    if pd.isna(val) or val is None: return default
     try:
         val_str = str(val).strip().replace(',', '.')
         val_str = re.sub(r'[^0-9.]', '', val_str)
@@ -75,8 +65,7 @@ def parse_aht_to_seconds(val):
         else:
             try: secs = float(val_str)
             except: pass
-    if 0 < secs <= 15:
-        secs = secs * 60.0
+    if 0 < secs <= 15: secs = secs * 60.0
     return secs if secs > 0 else 180.0
 
 def format_aht_str(seconds):
@@ -114,8 +103,7 @@ def extract_shift_hours(val):
     v = v.replace(' a ', '-').replace(' to ', '-').replace('_', '-')
     if '-' not in v: return None, None
     parts = v.split('-')
-    if len(parts) >= 2:
-        return parts[0].strip(), parts[1].strip()
+    if len(parts) >= 2: return parts[0].strip(), parts[1].strip()
     return None, None
 
 def parse_time_str(t_str):
@@ -134,16 +122,13 @@ def parse_time_str(t_str):
         if is_pm and hh < 12: hh += 12
         if is_am and hh == 12: hh = 0
         return hh * 60 + mm
-    except:
-        return None
+    except: return None
 
 def esta_en_ventana_servicio(campana, intervalo_str):
     camp_key = str(campana).strip().lower()
     minutos_inter = parse_time_str(intervalo_str)
     if minutos_inter is None: return True
-    if 'liverpool' in camp_key:
-        return (9 * 60) <= minutos_inter < (21 * 60)
-    if 'suburbia' in camp_key:
+    if 'liverpool' in camp_key or 'suburbia' in camp_key:
         return (9 * 60) <= minutos_inter < (21 * 60)
     return True
 
@@ -162,13 +147,13 @@ def construir_matriz_plantilla(xls_file):
         malla, agentes_por_dia, hc_nominal = {}, {}, {}
 
         for _, row in df_p.iterrows():
-            # TOMAMOS LA CAMPAÑA DE LA COLUMNA C (ÍNDICE 2) DE LA HOJA PLANTILLA
             if len(df_p.columns) >= 3:
                 camp_raw = str(row.iloc[2])
             else:
                 camp_raw = str(row.get('Campaña', row.get('Campana', 'General')))
                 
-            camp = camp_raw.strip().title()
+            camp_norm = camp_raw.strip().title()
+            camp_lower = camp_norm.lower()
             
             agente_contado = False
             for col_name in df_p.columns:
@@ -177,16 +162,14 @@ def construir_matriz_plantilla(xls_file):
                     in_str, out_str = extract_shift_hours(row[col_name])
                     if in_str and out_str:
                         if not agente_contado:
-                            hc_nominal[camp] = hc_nominal.get(camp, 0) + 1
+                            hc_nominal[camp_norm] = hc_nominal.get(camp_norm, 0) + 1
+                            hc_nominal[camp_lower] = hc_nominal.get(camp_lower, 0) + 1
                             hc_nominal['General'] = hc_nominal.get('General', 0) + 1
                             agente_contado = True
                         
                         base_day = next(d for d in dias_cols if d in dia_key)
                         if base_day == 'miercoles': base_day = 'miércoles'
                         if base_day == 'sabado': base_day = 'sábado'
-                        
-                        key_dia = (camp, base_day)
-                        key_dia_gen = ('General', base_day)
                         
                         try:
                             m_in, m_out = parse_time_str(in_str), parse_time_str(out_str)
@@ -201,14 +184,17 @@ def construir_matriz_plantilla(xls_file):
                                     else:
                                         m_out += 24 * 60 
                                 
-                                agentes_por_dia[key_dia] = agentes_por_dia.get(key_dia, 0) + 1
-                                agentes_por_dia[key_dia_gen] = agentes_por_dia.get(key_dia_gen, 0) + 1
+                                agentes_por_dia[(camp_norm, base_day)] = agentes_por_dia.get((camp_norm, base_day), 0) + 1
+                                agentes_por_dia[(camp_lower, base_day)] = agentes_por_dia.get((camp_lower, base_day), 0) + 1
+                                agentes_por_dia[('General', base_day)] = agentes_por_dia.get(('General', base_day), 0) + 1
                                 
                                 cur = m_in
                                 while cur < m_out:
                                     hh, mm = (cur // 60) % 24, cur % 60
                                     inter_str = f"{hh:02d}:{mm:02d}"
-                                    malla[(camp, base_day, inter_str)] = malla.get((camp, base_day, inter_str), 0) + 1
+                                    
+                                    malla[(camp_norm, base_day, inter_str)] = malla.get((camp_norm, base_day, inter_str), 0) + 1
+                                    malla[(camp_lower, base_day, inter_str)] = malla.get((camp_lower, base_day, inter_str), 0) + 1
                                     malla[('General', base_day, inter_str)] = malla.get(('General', base_day, inter_str), 0) + 1
                                     cur += 30
                         except Exception: pass
@@ -421,8 +407,16 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
             plantilla_dia_real = agentes_por_dia.get((camp, nombre_dia.lower()), 0)
-            
+            if plantilla_dia_real == 0:
+                plantilla_dia_real = agentes_por_dia.get((camp.lower(), nombre_dia.lower()), 0)
+            if plantilla_dia_real == 0:
+                plantilla_dia_real = agentes_por_dia.get(('General', nombre_dia.lower()), 0)
+                
             nominal_camp = hc_nominal.get(camp, 0)
+            if nominal_camp == 0:
+                nominal_camp = hc_nominal.get(camp.lower(), 0)
+            if nominal_camp == 0:
+                nominal_camp = hc_nominal_global
 
             for inter in intervalos_validos:
                 key_p = (camp, nombre_dia, inter)
@@ -434,8 +428,12 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
 
-                key_roster = (camp, nombre_dia.lower(), inter)
-                prog_nominal_hc = matriz_roster.get(key_roster, 0)
+                # BÚSQUEDA ROBUSTA EN MULTIPLES VARIANTES DE MAYÚSCULAS/MINÚSCULAS
+                prog_nominal_hc = matriz_roster.get((camp, nombre_dia.lower(), inter), 0)
+                if prog_nominal_hc == 0:
+                    prog_nominal_hc = matriz_roster.get((camp.lower(), nombre_dia.lower(), inter), 0)
+                if prog_nominal_hc == 0:
+                    prog_nominal_hc = matriz_roster.get(('General', nombre_dia.lower(), inter), 0)
                 
                 prog_efectivo_raw = prog_nominal_hc * factor_asistencia if calls > 0 else 0.0
                 prog_efectivo_int = int(round(prog_nominal_hc))
@@ -545,31 +543,30 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         if min_in is not None and min_diurno_inicio <= min_in <= min_entrada_maxima:
             valid_starts.append(j)
 
+    # AJUSTE PONDERADO AL REQUERIMIENTO SINOPSIS PASO A PASO
     if len(valid_starts) > 0:
         max_iterations = 200
         iteration = 0
         while iteration < max_iterations:
             iteration += 1
-            
-            deficit = np.maximum(0, req_hc_base - cob_hc)
+            deficit = req_hc_base - cob_hc
             if np.max(deficit) <= 0:
                 break 
 
             best_start_idx = -1
-            max_covered = -1
+            best_score = -999999
 
             for s_idx in valid_starts:
                 e_idx = min(s_idx + SHIFT_BLOCKS, m)
-                covered = np.sum(np.minimum(1, deficit[s_idx:e_idx]))
+                sub_deficit = deficit[s_idx:e_idx]
+                score = np.sum(np.maximum(0, sub_deficit)) - np.sum(np.maximum(0, -sub_deficit)) * 0.5
                 
-                if covered > max_covered:
-                    max_covered = covered
+                if score > best_score:
+                    best_score = score
                     best_start_idx = s_idx
 
-            if best_start_idx == -1 or max_covered == 0:
-                worst_interval = np.argmax(deficit)
-                req_hc_base[worst_interval] = 0
-                continue
+            if best_start_idx == -1 or best_score <= 0:
+                break
                 
             min_in_val = parse_time_str(intervalos[best_start_idx])
             min_out_val = min_in_val + duracion_minutos
@@ -669,8 +666,7 @@ def get_latest_forecast():
                 data = json.load(f)
             if data and len(data) > 0:
                 return jsonify(data), 200
-        except Exception:
-            pass
+        except Exception: pass
     if os.path.exists(EXCEL_DEFAULT):
         try:
             data = procesar_archivo_excel(EXCEL_DEFAULT)
@@ -712,8 +708,7 @@ def not_found(e):
 if os.path.exists(EXCEL_DEFAULT) and not os.path.exists(CACHE_FILE):
     try:
         procesar_archivo_excel(EXCEL_DEFAULT)
-    except Exception as e:
-        pass
+    except Exception as e: pass
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
