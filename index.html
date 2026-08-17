@@ -72,7 +72,6 @@
 </head>
 <body class="p-6 md:p-8 min-h-screen">
 
-    <!-- AQUÍ SE APLICÓ EL NUEVO FONDO Y ESTILO AL ENCABEZADO -->
     <header class="flex justify-between items-center bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 border border-indigo-500/30 shadow-[0_0_30px_-10px_rgba(99,102,241,0.3)] backdrop-blur-xl rounded-2xl p-6 mb-8 relative overflow-hidden">
         <div class="absolute -left-10 -top-10 w-40 h-40 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none"></div>
         <div class="absolute right-0 bottom-0 w-64 h-64 bg-violet-600/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -270,7 +269,7 @@
                     </button>
                 </div>
 
-                <!-- TABLA COMPARATIVA EJECUTIVA -->
+                <!-- TABLA COMPARATIVA EJECUTIVA REDISEÑADA PARA NO DESBORDARSE -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
@@ -542,11 +541,16 @@
             actualizarGrafica();
         }
 
+        // AQUÍ FUE LA CORRECCIÓN DEL ERROR DE SINTAXIS DE JAVASCRIPT
         function toggleDropdown(type) {
             ['Campana', 'Fecha', 'Intervalo'].forEach(t => {
-                if (t !== type) document.getElementById(`dropdown${t}MenuclassList.add('hidden');
+                if (t !== type) {
+                    const menu = document.getElementById(`dropdown${t}Menu`);
+                    if (menu) menu.classList.add('hidden');
+                }
             });
-            document.getElementById(`dropdown${type}Menu`).classList.toggle('hidden');
+            const selectedMenu = document.getElementById(`dropdown${type}Menu`);
+            if (selectedMenu) selectedMenu.classList.toggle('hidden');
         }
 
         window.addEventListener('click', function(e) {
@@ -703,10 +707,8 @@
             const maxReqPico = Math.max(...reqMaxVector, 1);
             document.getElementById('kpiHcProgramado').innerText = totalHcProgramadoRoster + ' HC';
 
-            // El kpiHcRequerido y Delta se llenan temporalmente hasta que la API responda
             document.getElementById('kpiHcRequerido').innerText = maxReqPico + ' HC';
 
-            // Este cálculo preliminar será sobrescrito abajo con el valor global correcto
             const fulfillment = totalHcProgramadoRoster > 0 ? ((totalHcProgramadoRoster / maxReqPico) * 100).toFixed(1) : "0.0";
             document.getElementById('kpiFulfillment').innerText = fulfillment + '%';
 
@@ -813,14 +815,12 @@
                 const optData = await res.json() || {};
                 const nominaRequeridaTotal = optData.headcount_semanal_6x1 || 0;
                 
-                // UNIFICAR MÉTRICA: La tarjeta morada muestra 45
                 document.getElementById('optHeadcount').innerText = nominaRequeridaTotal.toLocaleString();
                 
                 document.getElementById('kpiHcRequeridoTitle').innerText = "HC REQUERIDO";
                 document.getElementById('kpiHcRequerido').innerText = nominaRequeridaTotal + ' HC';
                 document.getElementById('kpiHcRequeridoSub').innerText = "Plantilla total sugerida para cubrir la operación";
 
-                // Recalcular Delta con base a los 45
                 const deltaNet = hcActualRoster - nominaRequeridaTotal;
                 const elDeltaHc = document.getElementById('kpiHcDelta');
                 const badgeDelta = document.getElementById('badgeDeltaHc');
@@ -837,7 +837,6 @@
                     badgeDelta.className = 'text-[9px] px-2.5 py-0.5 rounded-full font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30';
                 }
                 
-                // RECALCULAR STAFFING LEVEL REAL con base a la Nómina Global
                 const fulfillmentReal = nominaRequeridaTotal > 0 ? ((hcActualRoster / nominaRequeridaTotal) * 100).toFixed(1) : "0.0";
                 document.getElementById('kpiFulfillment').innerText = fulfillmentReal + '%';
                 document.getElementById('compStaffActual').innerText = fulfillmentReal + '%';
@@ -853,7 +852,6 @@
 
                 document.getElementById('compStaffOptimo').innerText = parseFloat(optData.staffing_level_optimo || 0).toFixed(1) + '%';
 
-                // UNIFICAR MÉTRICA: Distribuir los agentes en la tabla
                 const optTbody = document.getElementById('optShiftsTableBody');
                 optTbody.innerHTML = '';
                 
@@ -861,7 +859,6 @@
                 let turnosBase = optData.turnos || [];
                 let accumulatedNomina = 0;
                 
-                // Mapeo para inyectar "nomina_a_contratar" directamente en el array (sirve para CSV)
                 globalTurnosOptimos = turnosBase.map((t, index) => {
                     let nominaTurno;
                     if (index === turnosBase.length - 1) {
