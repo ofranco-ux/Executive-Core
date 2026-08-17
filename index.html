@@ -231,7 +231,7 @@
                         <span class="text-xs text-violet-400">📊</span>
                     </div>
                     <p id="kpiHcRequerido" class="text-2xl font-black font-mono-num mt-2 text-violet-300">0 HC</p>
-                    <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1">Plantilla total sugerida para cubrir la operación</p>
+                    <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1">Plantilla total sugerida para cubrir la semana</p>
                 </div>
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-emerald-500 relative overflow-hidden">
@@ -240,7 +240,7 @@
                         <span class="text-xs text-emerald-400">👥</span>
                     </div>
                     <p id="kpiHcProgramado" class="text-2xl font-black font-mono-num mt-2 text-emerald-300">0 HC</p>
-                    <p id="kpiHcProgramadoSub" class="text-[10px] text-slate-500 mt-1">Suma de nómina de las campañas seleccionadas</p>
+                    <p id="kpiHcProgramadoSub" class="text-[10px] text-slate-500 mt-1">Plantilla extraída directamente de Excel</p>
                 </div>
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-cyan-500 relative overflow-hidden">
@@ -634,6 +634,7 @@
                 progMaxVector[idx] = localProgMax;
             });
 
+            // CORRECCIÓN ROBUSTA DE LECTURA DE PLANTILLA NOMINAL
             const campsInFilter = [...new Set(dfFiltered.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
             let totalNominal = 0;
             let totalRealDia = 0;
@@ -641,7 +642,14 @@
             campsInFilter.forEach(c => {
                 const rowsForCamp = dfFiltered.filter(r => getProp(r, ['Campaña', 'Campana'], 'General') === c);
                 if (rowsForCamp.length > 0) {
-                    totalNominal += Number(getProp(rowsForCamp[0], ['Plantilla_Nominal_Campana'], 0));
+                    let valNominal = Number(getProp(rowsForCamp[0], ['Plantilla_Nominal_Campana', 'Plantilla_Nominal_Global'], 0));
+                    if (valNominal === 0) {
+                        valNominal = Math.max(...rowsForCamp.map(r => Number(getProp(r, ['Plantilla_Nominal_Campana', 'Plantilla_Nominal_Global'], 0))));
+                    }
+                    if (valNominal === 0) {
+                        valNominal = Math.max(...rowsForCamp.map(r => Number(getProp(r, ['Plantilla_Dia_Real'], 0))));
+                    }
+                    totalNominal += valNominal;
                     
                     let diaReal = Number(getProp(rowsForCamp[0], ['Plantilla_Dia_Real'], 0));
                     if (diaReal === 0) {
