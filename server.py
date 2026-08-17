@@ -433,23 +433,27 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     
     tot_llamadas = float(np.sum(llamadas_arr))
     factor_asistencia = max(0.01, 1.0 - merma)
+    target_sl_dinamico = float(target_sl)
     
+    # 1. Base Erlang C (Requerimiento estricto)
     req_hc_pooled = []
+    req_hc_base = np.zeros(m)
     for i in range(m):
         c = llamadas_arr[i]
         aht_s = aht_arr[i]
         a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-        req_ftes_i = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl) if c > 0 else 0
+        req_ftes_i = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico) if c > 0 else 0
         req_hc_i = math.ceil(req_ftes_i / factor_asistencia) if req_ftes_i > 0 else 0
         req_hc_pooled.append(int(req_hc_i))
+        req_hc_base[i] = req_hc_i
 
     cob_hc = np.zeros(m, dtype=float)
     x_turnos_dict = {}
 
     agentes_nocturnos_totales_hc = 0
     agentes_diurnos_totales_hc = 0
-    target_sl_dinamico = float(target_sl)
 
+    # 2. Asignación de Turnos Nocturnos
     if es_nocturno:
         label_jornada_noc = "9.0 hrs (Nocturno 5x2)"
         indices_nocturnos = []
@@ -479,7 +483,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             x_turnos_dict[key_turno_noc] = agentes_noc_hc
             agentes_nocturnos_totales_hc = agentes_noc_hc
             for idx in indices_nocturnos:
-                cob_hc[idx] = agentes_noc_hc
+                cob_hc[idx] += agentes_noc_hc
 
     duracion_jornada = float(duracion_jornada)
     SHIFT_BLOCKS = int(round(duracion_jornada * 2))
@@ -490,48 +494,57 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     min_diurno_limite = 22 * 60   # 22:00
     min_entrada_maxima = min_diurno_limite - duracion_minutos
 
+    # 3. Nuevo Algoritmo Greedy "Peak-First" (Máxima Cobertura) para turnos diurnos
+    valid_starts = []
     for j in range(m):
         min_in = parse_time_str(intervalos[j])
-        if min_in is None:
-            continue
+        if min_in is not None and min_diurno_inicio <= min_in <= min_entrada_maxima:
+            valid_starts.append(j)
 
-        if min_in >= min_diurno_inicio and min_in < min_diurno_limite:
-            c = llamadas_arr[j]
-            aht_s = aht_arr[j]
-            a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
+    if len(valid_starts) > 0:
+        while True:
+            # Calcular dónde nos falta gente (déficit)
+            deficit = np.zeros(m)
+            for j in range(m):
+                min_in = parse_time_str(intervalos[j])
+                if min_in is not None and min_diurno_inicio <= min_in < min_diurno_limite:
+                    deficit[j] = req_hc_base[j] - cob_hc[j]
+
+            max_def = np.max(deficit)
+            if max_def <= 0:
+                break  # Todo cubierto de manera óptima
+
+            best_start_idx = -1
+            max_covered = -1
+
+            # Buscar qué horario de entrada cubre la mayor cantidad de déficit de un solo golpe
+            for s_idx in valid_starts:
+                e_idx = min(s_idx + SHIFT_BLOCKS, m)
+                sub_deficit = deficit[s_idx:e_idx]
+                covered = np.sum(sub_deficit[sub_deficit > 0])
+                
+                if covered > max_covered:
+                    max_covered = covered
+                    best_start_idx = s_idx
+
+            if best_start_idx == -1 or max_covered == 0:
+                break
+
+            # Añadir 1 agente al mejor turno encontrado
+            min_in_val = parse_time_str(intervalos[best_start_idx])
+            min_out_val = min_in_val + duracion_minutos
+            h_in_str = f"{(int(min_in_val // 60)):02d}:{(int(min_in_val % 60)):02d}"
+            h_out_str = f"{(int(min_out_val // 60)):02d}:{(int(min_out_val % 60)):02d}"
             
-            cob_efectiva_ftes = cob_hc[j] * factor_asistencia
-            sl_actual = erlang_c_sl_optimizado(a_erl, cob_efectiva_ftes, aht_s, target_time) if c > 0 else 100.0
+            key_turno = (h_in_str, h_out_str, label_jornada_diurna)
+            x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + 1
+            
+            # Actualizar la malla proyectada
+            e_idx = min(best_start_idx + SHIFT_BLOCKS, m)
+            for t in range(best_start_idx, e_idx):
+                cob_hc[t] += 1
 
-            if sl_actual < target_sl_dinamico and c > 0:
-                req_ftes_j = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico)
-                req_hc_j = math.ceil(req_ftes_j / factor_asistencia)
-                deficit_hc = req_hc_j - cob_hc[j]
-
-                if deficit_hc > 0:
-                    agentes_hc_a_programar = math.ceil(deficit_hc)
-                    idx_inicio_real = j
-                    for search_idx in range(m):
-                        if parse_time_str(intervalos[search_idx]) == min_in:
-                            idx_inicio_real = search_idx
-                            break
-                    min_entrada_efectiva = min_in
-                    if min_entrada_efectiva > min_entrada_maxima:
-                        min_entrada_efectiva = max(min_diurno_inicio, min_entrada_maxima)
-
-                    min_out = min_entrada_efectiva + duracion_minutos
-                    h_in_str = f"{(int(min_entrada_efectiva // 60)):02d}:{(int(min_entrada_efectiva % 60)):02d}"
-                    h_out_str = f"{(int(min_out // 60)):02d}:{(int(min_out % 60)):02d}"
-
-                    key_turno = (h_in_str, h_out_str, label_jornada_diurna)
-                    x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + agentes_hc_a_programar
-
-                    for t in range(idx_inicio_real, min(idx_inicio_real + SHIFT_BLOCKS, m)):
-                        min_t = parse_time_str(intervalos[t])
-                        if min_t is not None and min_t >= min_diurno_limite:
-                            break
-                        cob_hc[t] += agentes_hc_a_programar
-
+    # 4. Cálculos Finales
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
