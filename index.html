@@ -634,41 +634,27 @@
                 progMaxVector[idx] = localProgMax;
             });
 
-            // CORRECCIÓN ROBUSTA DE LECTURA DE PLANTILLA NOMINAL
-            const campsInFilter = [...new Set(dfFiltered.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
-            let totalNominal = 0;
-            let totalRealDia = 0;
+            // OBTENER EL PLANTILLA NOMINAL DIRECTAMENTE DE LOS DATOS
+            let maxNominalGlobal = 0;
+            let maxNominalCampanas = 0;
+            let maxRealDia = 0;
 
-            campsInFilter.forEach(c => {
-                const rowsForCamp = dfFiltered.filter(r => getProp(r, ['Campaña', 'Campana'], 'General') === c);
-                if (rowsForCamp.length > 0) {
-                    let valNominal = Number(getProp(rowsForCamp[0], ['Plantilla_Nominal_Campana', 'Plantilla_Nominal_Global'], 0));
-                    if (valNominal === 0) {
-                        valNominal = Math.max(...rowsForCamp.map(r => Number(getProp(r, ['Plantilla_Nominal_Campana', 'Plantilla_Nominal_Global'], 0))));
-                    }
-                    if (valNominal === 0) {
-                        valNominal = Math.max(...rowsForCamp.map(r => Number(getProp(r, ['Plantilla_Dia_Real'], 0))));
-                    }
-                    totalNominal += valNominal;
-                    
-                    let diaReal = Number(getProp(rowsForCamp[0], ['Plantilla_Dia_Real'], 0));
-                    if (diaReal === 0) {
-                        diaReal = Math.max(...rowsForCamp.map(r => Number(getProp(r, ['Agentes_Programados_Reales'], 0))));
-                    }
-                    totalRealDia += diaReal;
-                }
+            dfFiltered.forEach(row => {
+                const nomGlobal = Number(getProp(row, ['Plantilla_Nominal_Global'], 0));
+                const nomCamp = Number(getProp(row, ['Plantilla_Nominal_Campana'], 0));
+                const realDia = Number(getProp(row, ['Plantilla_Dia_Real'], 0));
+
+                if (nomGlobal > maxNominalGlobal) maxNominalGlobal = nomGlobal;
+                if (nomCamp > maxNominalCampanas) maxNominalCampanas = nomCamp;
+                if (realDia > maxRealDia) maxRealDia = realDia;
             });
 
             let totalHcProgramadoRoster = 0;
 
             if (esVistaSemanal) {
-                totalHcProgramadoRoster = totalNominal;
-                document.getElementById('kpiHcProgramadoSub').innerText = "Suma de nómina de las campañas seleccionadas";
-                document.getElementById('optCurrentRosterSub').innerText = "Nómina de campañas filtradas";
+                totalHcProgramadoRoster = maxNominalGlobal > 0 ? maxNominalGlobal : (maxNominalCampanas > 0 ? maxNominalCampanas : maxRealDia);
             } else {
-                totalHcProgramadoRoster = totalRealDia;
-                document.getElementById('kpiHcProgramadoSub').innerText = "Agentes programados hoy (filtrados)";
-                document.getElementById('optCurrentRosterSub').innerText = "Programados hoy en filtro";
+                totalHcProgramadoRoster = maxRealDia > 0 ? maxRealDia : Math.max(...progMaxVector, 0);
             }
 
             document.getElementById('kpiHcProgramado').innerText = totalHcProgramadoRoster + ' HC';
