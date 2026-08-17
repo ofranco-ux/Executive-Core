@@ -18,13 +18,7 @@ app = Flask(__name__)
 CORS(app)
 
 VENTANAS_SERVICIO = {
-    'coppel': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'telemedic': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'correo/backoffice': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'experiencias liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
-    'experiencias suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60},
-    'retenciones liverpool':   {'inicio': 9 * 60, 'fin': 20 * 60},
-    'retenciones suburbia':    {'inicio': 9 * 60, 'fin': 20 * 60}
+    'coppel servicios': {'inicio': 0 * 60, 'fin': 24 * 60}
 }
 
 @app.route('/')
@@ -141,13 +135,8 @@ def parse_time_str(t_str):
         return None
 
 def esta_en_ventana_servicio(campana, intervalo_str):
-    camp_key = str(campana).strip().lower()
     minutos_inter = parse_time_str(intervalo_str)
     if minutos_inter is None: return True
-    if 'liverpool' in camp_key:
-        return (9 * 60) <= minutos_inter < (21 * 60)
-    if 'suburbia' in camp_key:
-        return (9 * 60) <= minutos_inter < (21 * 60)
     return True
 
 def construir_matriz_plantilla(xls_file):
@@ -165,8 +154,8 @@ def construir_matriz_plantilla(xls_file):
         malla, agentes_por_dia, hc_nominal = {}, {}, {}
 
         for _, row in df_p.iterrows():
-            camp_raw = str(row.get('Campaña', row.get('Campana', row.get('Ring Group', row.get('Skill', 'General')))))
-            camp = camp_raw.strip().lower()
+            # FORZAMOS LA PLANTILLA A UNA SOLA OPERACIÓN (POOL MULTI-SKILL)
+            camp = 'coppel servicios'
             
             agente_contado = False
             for col_name in df_p.columns:
@@ -309,7 +298,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     
     matriz_roster, agentes_por_dia, hc_nominal = construir_matriz_plantilla(xls_file)
     hc_nominal_global = hc_nominal.get('general', 0)
-    has_campaigns_in_roster = len(hc_nominal) > 1
+    has_campaigns_in_roster = False
 
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
@@ -317,22 +306,39 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             sheet_calls = s
             break
 
-    df = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
+    df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
 
-    col_calls = encontrar_columna(df, ['recibidas', 'llamadas', 'calls', 'volumen', 'ofrecidas', 'entrada'])
-    col_aht = encontrar_columna(df, ['aht', 'tmo', 'handle', 'duracion'])
-    col_camp = encontrar_columna(df, ['campaña', 'campana', 'ring group', 'skill', 'servicio'])
-    col_inter = encontrar_columna(df, ['intervalo', 'hora', 'time'])
-    col_dia = encontrar_columna(df, ['día', 'dia', 'semana'])
-    col_fecha = encontrar_columna(df, ['fecha', 'date'])
+    col_calls = encontrar_columna(df_raw, ['recibidas', 'llamadas', 'calls', 'volumen', 'ofrecidas', 'entrada'])
+    col_aht = encontrar_columna(df_raw, ['aht', 'tmo', 'handle', 'duracion'])
+    col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
+    col_fecha = encontrar_columna(df_raw, ['fecha', 'date'])
 
-    df[col_camp] = df[col_camp].astype(str).str.strip()
-
-    df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce')
-    df = df.dropna(subset=[col_fecha])
+    df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce')
+    df_raw = df_raw.dropna(subset=[col_fecha])
 
     if col_aht:
-        df[col_aht] = df[col_aht].apply(parse_aht_to_seconds)
+        df_raw[col_aht] = df_raw[col_aht].apply(parse_aht_to_seconds)
+    else:
+        df_raw['AHT_Calc'] = 180.0
+        col_aht = 'AHT_Calc'
+
+    # AGRUPACIÓN MULTI-SKILL: Sumamos las 5 campañas del PBX en una sola fila por intervalo
+    df_raw['Total_Segundos_Handle'] = df_raw[col_calls] * df_raw[col_aht]
+    
+    df = df_raw.groupby([col_fecha, col_inter]).agg({
+        col_calls: 'sum',
+        'Total_Segundos_Handle': 'sum'
+    }).reset_index()
+    
+    # Recalculamos el AHT ponderado
+    df[col_aht] = df.apply(lambda r: r['Total_Segundos_Handle'] / r[col_calls] if r[col_calls] > 0 else 180.0, axis=1)
+    
+    # FORZAMOS LA CREACIÓN DE UNA CAMPAÑA ÚNICA EN EL TABLERO
+    col_camp = 'Campaña'
+    df[col_camp] = 'Coppel Servicios'
+    col_dia = 'Día_Semana'
+    df[col_dia] = df[col_fecha].dt.day_name().str.lower()
+    df = df.drop(columns=['Total_Segundos_Handle'])
 
     fecha_maxima = df[col_fecha].max()
     fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
@@ -364,7 +370,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         else:
             modelos_ml[camp] = None
 
-    df['Dia_Semana_Clean'] = df[col_dia].astype(str).str.strip().str.lower() if col_dia else df[col_fecha].dt.day_name().str.lower()
+    df['Dia_Semana_Clean'] = df[col_dia].astype(str).str.strip().str.lower()
     df['Inter_Clean'] = df[col_inter].astype(str).str.strip().apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
 
     df['En_Ventana'] = df.apply(lambda r: esta_en_ventana_servicio(r[col_camp], r['Inter_Clean']), axis=1)
@@ -391,7 +397,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         inters_camp = df_filtrado[df_filtrado[col_camp] == camp]['Inter_Clean'].unique().tolist()
         intervalos_operativos_por_camp[camp] = sorted([i for i in inters_camp if esta_en_ventana_servicio(camp, i)])
 
-    del df, df_diario, df_filtrado, df_reciente
+    del df_raw, df, df_diario, df_filtrado, df_reciente
     gc.collect()
 
     factor_asistencia = max(0.01, 1.0 - merma)
@@ -438,7 +444,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 key_roster = (str(camp).lower(), nombre_dia.lower(), inter)
                 prog_general_hc = matriz_roster.get(('general', nombre_dia.lower(), inter), 0)
                 
-                # EVITA DUPLICAR ROSTER SI NO HAY CAMPAÑAS DECLARADAS
                 if not has_campaigns_in_roster:
                     prog_nominal_hc = prog_general_hc
                 else:
