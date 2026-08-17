@@ -226,7 +226,6 @@
                 <!-- TARJETA GLOBAL (UNIFICADA) -->
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-violet-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <!-- AQUÍ SE AJUSTÓ EL TEXTO -->
                         <p id="kpiHcRequeridoTitle" class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC REQUERIDO</p>
                         <span class="text-xs text-violet-400">📊</span>
                     </div>
@@ -236,7 +235,6 @@
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-emerald-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <!-- AQUÍ SE AJUSTÓ EL TEXTO -->
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC PROGRAMADO</p>
                         <span class="text-xs text-emerald-400">👥</span>
                     </div>
@@ -246,7 +244,6 @@
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-cyan-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <!-- AQUÍ SE AJUSTÓ EL TEXTO -->
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC DELTA</p>
                         <span id="badgeDeltaHc" class="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold">--</span>
                     </div>
@@ -270,11 +267,12 @@
                     </button>
                 </div>
 
-                <!-- TABLA COMPARATIVA EJECUTIVA REDISEÑADA PARA NO DESBORDARSE -->
+                <!-- TABLA COMPARATIVA EJECUTIVA -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold leading-tight">SL Proyectado (Global)</p>
+                        <!-- TÍTULO 1 ACTUALIZADO -->
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold leading-tight">SL Real vs Proyectado</p>
                         <div class="my-2">
                             <div class="flex items-center gap-1.5 mb-0.5">
                                 <span id="compSlActual" class="text-xs font-bold text-rose-400 line-through">--%</span>
@@ -286,7 +284,8 @@
                     </div>
 
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold leading-tight">Staffing Level Sugerido</p>
+                        <!-- TÍTULO 2 ACTUALIZADO -->
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold leading-tight">Staffing Level Real vs Proyectado</p>
                         <div class="my-2">
                             <div class="flex items-center gap-1.5 mb-0.5">
                                 <span id="compStaffActual" class="text-xs font-bold text-slate-400 line-through">--%</span>
@@ -299,7 +298,8 @@
 
                     <!-- TARJETA: HC ACTUAL ROSTER -->
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-emerald-500/20 flex flex-col justify-between">
-                        <p class="text-[10px] uppercase tracking-widest text-emerald-400 font-bold leading-tight">Plantilla Actual (Roster)</p>
+                        <!-- TÍTULO 3 ACTUALIZADO -->
+                        <p class="text-[10px] uppercase tracking-widest text-emerald-400 font-bold leading-tight">HC Actual</p>
                         <div class="my-2">
                             <p id="optCurrentRoster" class="text-3xl font-black font-mono-num text-emerald-400 truncate">--</p>
                         </div>
@@ -309,7 +309,8 @@
                     <!-- TARJETA: HC REQUERIDO ÓPTIMO -->
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-violet-500/30 shadow-[0_0_15px_rgba(139,92,246,0.1)] relative overflow-hidden flex flex-col justify-between">
                         <div class="absolute -right-4 -top-4 w-16 h-16 bg-violet-500/20 rounded-full blur-xl pointer-events-none"></div>
-                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold relative z-10 leading-tight">Nómina Requerida (Sugerida)</p>
+                        <!-- TÍTULO 4 ACTUALIZADO -->
+                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold relative z-10 leading-tight">HC Requerido</p>
                         <div class="my-2 relative z-10">
                             <p id="optHeadcount" class="text-3xl font-black font-mono-num text-white truncate">--</p>
                         </div>
@@ -439,15 +440,16 @@
             return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
         }
 
+        // SE ACTUALIZÓ PARA QUE RESPETE LOS NUEVOS TÍTULOS
         function actualizarModoEspecial() {
             const esNocturno = document.getElementById('chkNocturno').checked;
             const lblType = document.getElementById('lblHeadcountType');
             const lblSub = document.getElementById('lblHeadcountSub');
             if (esNocturno) {
-                lblType.innerText = 'Nómina Requerida (Mixta)';
+                lblType.innerText = 'HC Requerido (Mixto)';
                 lblSub.innerText = 'Nómina total: Pondera 5x2 (Noche) y 6x1 (Día)';
             } else {
-                lblType.innerText = 'Nómina Requerida (Óptima)';
+                lblType.innerText = 'HC Requerido';
                 lblSub.innerText = 'A contratar (Incluye descansos)';
             }
             actualizarGrafica();
@@ -816,7 +818,6 @@
                 // UNIFICAR MÉTRICA: La tarjeta morada muestra 45
                 document.getElementById('optHeadcount').innerText = nominaRequeridaTotal.toLocaleString();
                 
-                // AQUÍ SE AJUSTÓ EL TEXTO PARA LA VISTA DINÁMICA
                 document.getElementById('kpiHcRequeridoTitle').innerText = "HC REQUERIDO";
                 document.getElementById('kpiHcRequerido').innerText = nominaRequeridaTotal + ' HC';
                 document.getElementById('kpiHcRequeridoSub').innerText = "Plantilla total sugerida para cubrir la operación";
