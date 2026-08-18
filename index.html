@@ -324,7 +324,7 @@
                     </button>
                 </div>
                 
-                <!-- NUEVA GRÁFICA DE CAPACIDAD (BARRAS Y LÍNEA) -->
+                <!-- GRÁFICA DE CAPACIDAD (BARRAS Y LÍNEAS) -->
                 <div class="h-64 mb-6 relative border border-slate-800/80 rounded-xl bg-[#0D1322]/50 p-2">
                     <canvas id="gapChart"></canvas>
                 </div>
@@ -355,7 +355,7 @@
     <script>
         let globalData = [];
         let optChartInstance = null;
-        let gapChartInstance = null; // Instancia para la nueva gráfica
+        let gapChartInstance = null;
         let globalTurnosOptimos = [];
         let selectedMeses = new Set();
         let selectedCampanas = new Set();
@@ -406,7 +406,7 @@
         function maxCallsForAgents(agentsNetos, aht, targetTime, targetSl) {
             if (agentsNetos <= 0 || aht <= 0) return 0;
             let low = 0;
-            let high = agentsNetos * (1800 / aht); // Límite Físico (Teórico)
+            let high = agentsNetos * (1800 / aht); 
             let maxCalls = 0;
             
             for (let i=0; i<20; i++) { 
@@ -793,9 +793,9 @@
 
                 const optData = await res.json() || {};
                 const reqAvgVector = optData.req_hc_pooled || [];
-                const capacidadRosterVector = []; // Arreglo para la gráfica nueva
+                const capacidadRosterVector = []; 
+                const capacidadSugeridaVector = []; // NUEVO VECTOR: Capacidad de Malla Sugerida
                 
-                // Actualizar Matriz (Tabla Inferior)
                 const tbody = document.getElementById('intervalTableBody');
                 tbody.innerHTML = '';
 
@@ -806,9 +806,16 @@
                     const rowRoster = rosterAvgVector[idx] || 0;
                     
                     const mermaDecimal = mermaVal / 100;
+                    // Capacidad del Roster Actual
                     const agentesConectadosRoster = rowRoster * (1 - mermaDecimal);
                     const capacidadRoster = maxCallsForAgents(agentesConectadosRoster, rowAhtSegs, targetTimeObj, targetSlObj);
                     capacidadRosterVector.push(capacidadRoster);
+
+                    // Capacidad de Malla Sugerida (Optimizador)
+                    const rowMallaSugerida = optData.cobertura_optima ? optData.cobertura_optima[idx] : 0;
+                    const agentesConectadosSugeridos = rowMallaSugerida * (1 - mermaDecimal);
+                    const capacidadSugerida = maxCallsForAgents(agentesConectadosSugeridos, rowAhtSegs, targetTimeObj, targetSlObj);
+                    capacidadSugeridaVector.push(capacidadSugerida);
                     
                     const gap = rowRoster - rowReq;
                     let gapHtml = '';
@@ -833,7 +840,7 @@
                     tbody.appendChild(tr);
                 });
 
-                // DIBUJAR LA NUEVA GRÁFICA DE CAPACIDAD (BARRAS Y LÍNEAS)
+                // DIBUJAR LA NUEVA GRÁFICA DE CAPACIDAD (BARRAS Y 2 LÍNEAS)
                 if (gapChartInstance) gapChartInstance.destroy();
                 const ctxGap = document.getElementById('gapChart').getContext('2d');
                 
@@ -843,7 +850,18 @@
                         labels: intervalos,
                         datasets: [
                             { 
-                                label: 'Capacidad Roster (SLA)', 
+                                label: 'Capacidad Malla Sugerida', 
+                                type: 'line',
+                                data: capacidadSugeridaVector, 
+                                borderColor: '#8B5CF6', // Violeta 
+                                backgroundColor: 'transparent',
+                                borderWidth: 3,
+                                tension: 0.35,
+                                pointRadius: 2,
+                                borderDash: [4, 4] // Punteada para representar proyección
+                            },
+                            { 
+                                label: 'Capacidad Roster Actual (SLA)', 
                                 type: 'line',
                                 data: capacidadRosterVector, 
                                 borderColor: '#F59E0B', // Ámbar
@@ -895,11 +913,9 @@
                 const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
                 const hcRequeridoDisplay = esVistaSemanal ? nominaRequeridaTotalSemana : nominaRequeridaDiaria;
                 
-                // Actualizar KPI Requerido
                 document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay.toLocaleString() + ' HC';
                 document.getElementById('optHeadcount').innerText = hcRequeridoDisplay.toLocaleString();
                 
-                // Actualizar KPI Roster
                 document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "PLANTILLA TOTAL ACTUAL" : "PLANTILLA PROGRAMADA HOY";
                 document.getElementById('kpiHcRosterSub').innerText = esVistaSemanal ? "Total de agentes contratados en Roster" : "Descuenta descansos (DD-DD) del día";
                 document.getElementById('kpiHcRoster').innerText = totalRosterHC.toLocaleString() + ' HC';
@@ -933,7 +949,6 @@
                 if (slOptimoVal >= targetSlObj) slEl.className = "text-3xl font-black font-mono-num text-emerald-400 truncate block";
                 else slEl.className = "text-3xl font-black font-mono-num text-rose-400 truncate block";
 
-                // Actualizar Tabla de Malla (Turnos Óptimos)
                 const optTbody = document.getElementById('optShiftsTableBody');
                 optTbody.innerHTML = '';
                 
@@ -975,7 +990,6 @@
                     });
                 }
 
-                // DIBUJAR GRÁFICA DE OPTIMIZACIÓN (LÍNEAS)
                 if (optChartInstance) optChartInstance.destroy();
                 const ctxOpt = document.getElementById('optChart').getContext('2d');
                 const labelCurvaCob = usarNocturno ? "Malla de Turnos Sugerida (Mixta)" : `Malla de Turnos Sugerida (${durJornada}h)`;
