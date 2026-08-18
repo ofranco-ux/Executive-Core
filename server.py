@@ -16,6 +16,15 @@ EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 app = Flask(__name__)
 CORS(app)
 
+VENTANAS_SERVICIO = {
+    'coppel servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'coppel': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'telemedic': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'correo': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
+    'suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60}
+}
+
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
@@ -69,10 +78,8 @@ def format_aht_str(seconds):
     secs = int(round(seconds))
     return f"{secs // 3600:02d}:{(secs % 3600) // 60:02d}"
 
-# CÁLCULO DE ERLANG C ULTRA RÁPIDO SQUAREROOT STAFFING
 def calcular_agentes_requeridos_erlang_c_rapido(A, target_sl=80.0):
     if A <= 0: return 0
-    # z-factor aproximado para SLA 80/20
     z = 0.84 if target_sl >= 80 else 0.5
     return int(math.ceil(A + (z * math.sqrt(A)) + 0.5))
 
@@ -110,17 +117,7 @@ def esta_en_ventana_servicio(campana, intervalo_str):
         return (9 * 60) <= minutos_inter < (21 * 60)
     return True
 
-def encontrar_columna_estricta(df, nombre_prioritario, alternativas):
-    for col_orig in df.columns:
-        if str(col_orig).strip().lower() == nombre_prioritario.lower():
-            return col_orig
-    for pos in alternativas:
-        for col_orig in df.columns:
-            if pos.strip().lower() in str(col_orig).strip().lower():
-                return col_orig
-    return None
-
-def extraer_datos_plantilla(xls_file):
+def extraer_datos_plantilla_rapido(xls_file):
     try:
         sheet_plantilla = None
         for s in xls_file.sheet_names:
@@ -132,8 +129,8 @@ def extraer_datos_plantilla(xls_file):
         df_p = pd.read_excel(xls_file, sheet_name=sheet_plantilla, engine='openpyxl')
         dias_cols = ['lunes', 'martes', 'miércoles', 'miercoles', 'jueves', 'viernes', 'sábado', 'sabado', 'domingo']
         
-        col_id = encontrar_columna_estricta(df_p, 'ID Agente', ['id', 'agente', 'empleado']) or df_p.columns[0]
-        col_camp = df_p.columns[2] if len(df_p.columns) >= 3 else (encontrar_columna_estricta(df_p, 'Campaña', ['campaña', 'campana']) or df_p.columns[0])
+        col_id = df_p.columns[0]
+        col_camp = df_p.columns[2] if len(df_p.columns) >= 3 else df_p.columns[0]
 
         df_p['Camp_Clean'] = df_p[col_camp].astype(str).str.strip().str.title()
         
@@ -228,7 +225,7 @@ def limpiar_outliers_iqr(series_list):
 def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=180):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     
-    hc_total_map, hc_diario_map = extraer_datos_plantilla(xls_file)
+    hc_total_map, hc_diario_map = extraer_datos_plantilla_rapido(xls_file)
 
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
@@ -236,25 +233,27 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             sheet_calls = s
             break
 
-    df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
+    # LECTURA ULTRA RÁPIDA: SOLO COLUMNAS REQUERIDAS
+    df_preview = pd.read_excel(xls_file, sheet_name=sheet_calls, nrows=5, engine='openpyxl')
+    cols_to_use = []
+    for c in df_preview.columns:
+        c_str = str(c).strip().lower()
+        if any(x in c_str for x in ['fecha', 'date', 'campa', 'skill', 'servicio', 'ring group', 'intervalo', 'hora', 'recibida', 'llamada', 'call', 'aht', 'tmo', 'duracio']):
+            cols_to_use.append(c)
 
-    col_calls = encontrar_columna_estricta(df_raw, 'Recibidas', ['recibidas', 'llamadas', 'calls', 'volumen', 'ofrecidas'])
-    col_aht = encontrar_columna_estricta(df_raw, 'AHT', ['aht', 'tmo', 'handle', 'duracion'])
-    col_camp = encontrar_columna_estricta(df_raw, 'Campaña', ['campaña', 'campana', 'skill', 'servicio', 'ring group'])
-    col_inter = encontrar_columna_estricta(df_raw, 'Intervalo', ['intervalo', 'hora', 'time'])
-    col_dia = encontrar_columna_estricta(df_raw, 'Día', ['día', 'dia', 'semana'])
-    col_fecha = encontrar_columna_estricta(df_raw, 'Fecha', ['fecha', 'date'])
+    df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, usecols=cols_to_use, engine='openpyxl')
+
+    col_calls = [c for c in df_raw.columns if any(x in str(c).lower() for x in ['recibida', 'llamada', 'call', 'volumen'])][0]
+    col_aht = [c for c in df_raw.columns if any(x in str(c).lower() for x in ['aht', 'tmo', 'duracio'])][0]
+    col_camp = [c for c in df_raw.columns if any(x in str(c).lower() for x in ['campa', 'skill', 'servicio', 'ring group'])][0]
+    col_inter = [c for c in df_raw.columns if any(x in str(c).lower() for x in ['intervalo', 'hora', 'time'])][0]
+    col_fecha = [c for c in df_raw.columns if any(x in str(c).lower() for x in ['fecha', 'date'])][0]
 
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce')
     df_raw = df_raw.dropna(subset=[col_fecha])
 
-    if col_aht:
-        df_raw[col_aht] = df_raw[col_aht].apply(parse_aht_to_seconds)
-    else:
-        df_raw['AHT_Calc'] = 180.0
-        col_aht = 'AHT_Calc'
-
+    df_raw[col_aht] = df_raw[col_aht].apply(parse_aht_to_seconds)
     df_raw['Total_Segundos_Handle'] = df_raw[col_calls] * df_raw[col_aht]
     df_raw['Inter_Clean'] = df_raw[col_inter].astype(str).str.strip().apply(lambda x: ':'.join(x.split(':'))[:5] if len(x.split(':')) >= 2 else x)
 
