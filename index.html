@@ -102,10 +102,11 @@
             </div>
             
             <div>
-                <label class="block text-xs font-bold text-slate-300 mb-2">Cargar Master Excel (<span class="text-emerald-400 font-mono">historico.xlsx</span>)</label>
+                <label class="block text-xs font-bold text-slate-300 mb-2">Cargar Master Excel (<span class="text-emerald-400 font-mono">Opcional</span>)</label>
                 <div class="relative">
                     <input type="file" id="fileInput" accept=".xlsx, .xls" class="block w-full text-xs text-slate-400 file:mr-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-cyan-500/20 file:text-cyan-300 hover:file:bg-cyan-500/30 border border-slate-800 rounded-xl cursor-pointer bg-slate-900/60 p-1.5 transition-all"/>
                 </div>
+                <span class="text-[10px] text-slate-500 mt-1 block">Si no adjuntas nada, usará automáticamente <strong class="text-emerald-400">historico.xlsx</strong> de GitHub.</span>
             </div>
 
             <div class="space-y-4 pt-2">
@@ -129,7 +130,7 @@
                     </div>
                     <div class="bg-brand-surface/60 p-3 rounded-xl border border-amber-500/40 focus-within:border-amber-400 transition-colors">
                         <label class="block text-[10px] text-amber-400 font-bold mb-1">Jornada (Hrs)</label>
-                        <input type="number" id="duracionJornada" value="8" step="0.5" min="1" max="12" class="w-full bg-transparent text-sm text-amber-300 font-mono-num font-bold focus:outline-none"/>
+                        <input type="number" id="duracionJornada" value="6.5" step="0.5" min="1" max="12" class="w-full bg-transparent text-sm text-amber-300 font-mono-num font-bold focus:outline-none"/>
                     </div>
                 </div>
 
@@ -143,7 +144,7 @@
                         <label for="chkNocturno" class="text-[11px] text-violet-300 font-bold block">🌙 Turno Nocturno (5x2)</label>
                         <span class="text-[9px] text-slate-400 block">Jornada 22:00 a 07:00 (2 días descanso)</span>
                     </div>
-                    <input type="checkbox" id="chkNocturno" onchange="actualizarModoEspecial()" class="w-4 h-4 rounded bg-slate-900 border-violet-500 text-violet-500 focus:ring-0 cursor-pointer">
+                    <input type="checkbox" id="chkNocturno" checked onchange="actualizarModoEspecial()" class="w-4 h-4 rounded bg-slate-900 border-violet-500 text-violet-500 focus:ring-0 cursor-pointer">
                 </div>
             </div>
 
@@ -231,7 +232,7 @@
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC PLANTILLA ACTUAL</p>
                         <span class="text-xs text-emerald-400">👥</span>
                     </div>
-                    <p id="kpiHcPlantillaActual" class="text-2xl font-black font-mono-num mt-2 text-emerald-300">0 HC</p>
+                    <p id="kpiHcPlantillaActual" class="text-2xl font-black font-mono-num mt-2 text-emerald-300">29 HC</p>
                     <p id="kpiHcPlantillaSub" class="text-[10px] text-slate-500 mt-1">Registrados en la hoja Plantilla</p>
                 </div>
 
@@ -345,19 +346,10 @@
         let renderTimer = null;
 
         window.addEventListener('DOMContentLoaded', async () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const mode = urlParams.get('mode') || urlParams.get('role');
-            if (mode === 'operaciones' || mode === 'ops') {
-                const aside = document.getElementById('panelControl');
-                const main = document.getElementById('dashboardMain');
-                const tag = document.getElementById('tagModoOps');
-                if (aside) aside.style.display = 'none';
-                if (tag) tag.classList.remove('hidden');
-                if (main) {
-                    main.classList.remove('lg:col-span-9');
-                    main.classList.add('lg:col-span-12');
-                }
-            }
+            cargarPronosticoInicial();
+        });
+
+        async function cargarPronosticoInicial() {
             try {
                 const response = await fetch('/api/latest?t=' + new Date().getTime());
                 if (response.ok) {
@@ -368,9 +360,9 @@
                     }
                 }
             } catch (e) {
-                console.log("Error cargando pronóstico automático.");
+                console.log("Error cargando pronóstico de GitHub.");
             }
-        });
+        }
 
         function getProp(row, keys, def = '') {
             for (let k of keys) {
@@ -399,24 +391,28 @@
 
         async function procesarWFM() {
             const file = document.getElementById('fileInput').files[0];
-            if (!file) { alert("Por favor selecciona tu archivo historico.xlsx"); return; }
             const btn = document.getElementById('btnProcesar');
             btn.disabled = true;
             btn.innerText = "⏳ PROCESANDO...";
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('target_sl', document.getElementById('targetSl').value);
-            formData.append('target_time', document.getElementById('targetTime').value);
-            formData.append('merma', document.getElementById('merma').value);
-            formData.append('dias', document.getElementById('dias').value);
+
             try {
-                const response = await fetch('/api/process', { method: 'POST', body: formData });
-                globalData = await response.json();
-                if (response.ok && Array.isArray(globalData)) {
+                if (file) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('target_sl', document.getElementById('targetSl').value);
+                    formData.append('target_time', document.getElementById('targetTime').value);
+                    formData.append('merma', document.getElementById('merma').value);
+                    formData.append('dias', document.getElementById('dias').value);
+
+                    const response = await fetch('/api/process', { method: 'POST', body: formData });
+                    globalData = await response.json();
+                } else {
+                    await cargarPronosticoInicial();
+                }
+
+                if (Array.isArray(globalData)) {
                     inicializarFiltrosMultiples();
                     actualizarGraficaDebounced();
-                } else {
-                    alert("Error procesando los datos: " + (globalData.error || "Formato no válido"));
                 }
             } catch (e) {
                 alert("Error de conexión: " + e.message);
@@ -564,14 +560,14 @@
             if (renderTimer) clearTimeout(renderTimer);
             renderTimer = setTimeout(() => {
                 actualizarGrafica();
-            }, 250);
+            }, 150);
         }
 
         async function actualizarGrafica() {
             const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
             const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
-            const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
+            const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 6.5;
 
             const dfFiltered = globalData.filter(item => {
                 const m = String(getProp(item, ['Mes'], ''));
@@ -617,7 +613,6 @@
             const llamadasMaxVector = todosIntervalos.map(() => 0);
             const ahtMaxVector = todosIntervalos.map(() => 0);
 
-            // OPTIMIZACIÓN LECTURA VECTOR DE INTERVALOS
             todosIntervalos.forEach((inter, idx) => {
                 let dailyReqSum = 0;
                 let dailyCallsSum = 0;
@@ -676,7 +671,7 @@
         async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, esVistaSemanal) {
             if (!intervalos || intervalos.length === 0) return;
 
-            const duracionJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
+            const duracionJornada = parseFloat(document.getElementById('duracionJornada').value) || 6.5;
             const esNocturno = document.getElementById('chkNocturno').checked;
 
             try {
