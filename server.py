@@ -16,15 +16,6 @@ EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 app = Flask(__name__)
 CORS(app)
 
-VENTANAS_SERVICIO = {
-    'coppel servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'coppel': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'telemedic': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'correo': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
-    'suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60}
-}
-
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
@@ -78,28 +69,21 @@ def format_aht_str(seconds):
     secs = int(round(seconds))
     return f"{secs // 3600:02d}:{(secs % 3600) // 60:02d}"
 
+# CÁLCULO DE ERLANG C ULTRA RÁPIDO SQUAREROOT STAFFING
+def calcular_agentes_requeridos_erlang_c_rapido(A, target_sl=80.0):
+    if A <= 0: return 0
+    # z-factor aproximado para SLA 80/20
+    z = 0.84 if target_sl >= 80 else 0.5
+    return int(math.ceil(A + (z * math.sqrt(A)) + 0.5))
+
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
     if N <= A or A <= 0 or N <= 0: return 0.0
     try:
-        sum_terms, current_term = 1.0, 1.0
-        int_N = min(int(N), 1000)
-        for k in range(1, int_N):
-            current_term *= (A / k)
-            sum_terms += current_term
-        last_term = current_term * (A / N) / (1.0 - (A / N))
-        pw = last_term / (sum_terms + last_term)
         intensity = N - A
+        pw = max(0.01, min(1.0, A / N))
         sl = 1.0 - (pw * math.exp(-intensity * (target_time / AHT)))
         return round(max(0.0, min(100.0, sl * 100.0)), 1)
     except: return 0.0
-
-def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
-    if A <= 0 or aht <= 0: return 0
-    n = max(1, int(math.floor(A)) + 1)
-    while n < 1000:
-        if erlang_c_sl_optimizado(A, n, aht, target_time) >= target_sl: return n
-        n += 1
-    return n
 
 def parse_time_str(t_str):
     if not t_str: return None
@@ -212,7 +196,6 @@ def extraer_features_fecha(fecha, volumenes_hist, trend_idx):
     dow_encoded = [1.0 if day_of_week == i else 0.0 for i in range(7)]
     return [lag_1, lag_7, lag_14, float(day_of_month), is_weekend, is_quincena, float(trend_idx)] + dow_encoded
 
-# FUNCION ULTRA RÁPIDA SIN BÚSQUEDA PESADA
 def holt_winters_fit_predict_rapido(series, n_preds=180, season_len=7, alpha=0.2, beta=0.05, gamma=0.2):
     n = len(series)
     if n < season_len * 2:
@@ -382,7 +365,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 aht = info_p['aht'] if (info_p['aht'] > 0 and not pd.isna(info_p['aht'])) else aht_global_campana.get(camp, 180.0)
 
                 a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
-                req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
+                req_ftes = calcular_agentes_requeridos_erlang_c_rapido(a_erlang, target_sl) if calls > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
 
                 data_processed.append({
@@ -428,7 +411,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         c = llamadas_arr[i]
         aht_s = aht_arr[i]
         a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-        req_ftes_i = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico) if c > 0 else 0
+        req_ftes_i = calcular_agentes_requeridos_erlang_c_rapido(a_erl, target_sl_dinamico) if c > 0 else 0
         req_hc_i = math.ceil(req_ftes_i / factor_asistencia) if req_ftes_i > 0 else 0
         req_hc_pooled.append(int(req_hc_i))
         req_hc_base[i] = req_hc_i
