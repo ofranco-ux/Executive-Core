@@ -16,7 +16,6 @@ EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 app = Flask(__name__)
 CORS(app)
 
-# VARIABLE EN MEMORIA PARA PREVENTIVAR LECTURA DE DISCO
 DATA_CACHE_IN_MEMORY = None
 
 @app.route('/')
@@ -103,6 +102,64 @@ def parse_time_str(t_str):
         return hh * 60 + mm
     except: return None
 
+def esta_en_ventana_servicio(campana, intervalo_str):
+    camp_key = str(campana).strip().lower()
+    minutos_inter = parse_time_str(intervalo_str)
+    if minutos_inter is None: return True
+    if 'liverpool' in camp_key or 'suburbia' in camp_key:
+        return (9 * 60) <= minutos_inter < (21 * 60)
+    return True
+
+def get_col_safe(df, keywords, default_idx=0):
+    for kw in keywords:
+        for c in df.columns:
+            if kw.lower() in str(c).strip().lower():
+                return c
+    return df.columns[default_idx] if len(df.columns) > default_idx else df.columns[0]
+
+def extraer_datos_plantilla_rapido(xls_file):
+    try:
+        sheet_plantilla = None
+        for s in xls_file.sheet_names:
+            if 'plat' in s.lower() or 'plan' in s.lower() or 'rost' in s.lower():
+                sheet_plantilla = s
+                break
+        if not sheet_plantilla: return {}, {}
+
+        df_p = pd.read_excel(xls_file, sheet_name=sheet_plantilla, engine='openpyxl')
+        dias_cols = ['lunes', 'martes', 'miércoles', 'miercoles', 'jueves', 'viernes', 'sábado', 'sabado', 'domingo']
+        
+        col_id = get_col_safe(df_p, ['id', 'agente', 'empleado'], 0)
+        col_camp = get_col_safe(df_p, ['campaña', 'campana', 'skill', 'servicio'], 2 if len(df_p.columns) >= 3 else 0)
+
+        df_p['Camp_Clean'] = df_p[col_camp].astype(str).str.strip().str.title()
+        
+        hc_total_campana = df_p.groupby('Camp_Clean')[col_id].nunique().to_dict()
+        hc_total_campana['General'] = int(df_p[col_id].nunique())
+
+        hc_diario_campana = {}
+
+        for _, row in df_p.iterrows():
+            camp_norm = str(row['Camp_Clean'])
+            for col_name in df_p.columns:
+                dia_key = str(col_name).strip().lower()
+                if any(d in dia_key for d in dias_cols):
+                    base_day = next(d for d in dias_cols if d in dia_key)
+                    if base_day == 'miercoles': base_day = 'miércoles'
+                    if base_day == 'sabado': base_day = 'sábado'
+
+                    val_turno = str(row[col_name]).strip().lower()
+                    if val_turno and not any(x in val_turno for x in ['dd', 'descanso', 'falta', 'vacacion', 'baja', 'nan']):
+                        k_dia = (camp_norm, base_day)
+                        k_gen = ('General', base_day)
+                        hc_diario_campana[k_dia] = hc_diario_campana.get(k_dia, 0) + 1
+                        hc_diario_campana[k_gen] = hc_diario_campana.get(k_gen, 0) + 1
+
+        return hc_total_campana, hc_diario_campana
+    except Exception as e:
+        print("Error analizando hoja plantilla:", e)
+        return {}, {}
+
 def holt_winters_fit_predict_rapido(series, n_preds=180, season_len=7, alpha=0.2, beta=0.05, gamma=0.2):
     n = len(series)
     if n < season_len * 2:
@@ -126,11 +183,13 @@ def holt_winters_fit_predict_rapido(series, n_preds=180, season_len=7, alpha=0.2
 def procesar_archivo_excel_rapido(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=180):
     global DATA_CACHE_IN_MEMORY
     
-    if DATA_CACHE_IN_MEMORY is not None:
+    if DATA_CACHE_IN_MEMORY is not None and isinstance(DATA_CACHE_IN_MEMORY, list) and len(DATA_CACHE_IN_MEMORY) > 0:
         return DATA_CACHE_IN_MEMORY
 
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     
+    hc_total_map, hc_diario_map = extraer_datos_plantilla_rapido(xls_file)
+
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
         if 'llam' in s.lower() or 'hist' in s.lower() or 'datos' in s.lower():
@@ -139,11 +198,11 @@ def procesar_archivo_excel_rapido(file_source, target_sl=80.0, target_time=20.0,
 
     df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
 
-    col_calls = [c for c in df_raw.columns if any(x in str(c).lower() for x in ['recibida', 'llamada', 'call', 'volumen'])][0]
-    col_aht = [c for c in df_raw.columns if any(x in str(c).lower() for x in ['aht', 'tmo', 'duracio'])][0]
-    col_camp = [c for c in df_raw.columns if any(x in str(c).lower() for x in ['campa', 'skill', 'servicio', 'ring group'])][0]
-    col_inter = [c for c in df_raw.columns if any(x in str(c).lower() for x in ['intervalo', 'hora', 'time'])][0]
-    col_fecha = [c for c in df_raw.columns if any(x in str(c).lower() for x in ['fecha', 'date'])][0]
+    col_calls = get_col_safe(df_raw, ['recibida', 'llamada', 'call', 'volumen', 'ofrecida'], 5)
+    col_aht = get_col_safe(df_raw, ['aht', 'tmo', 'duracio', 'handle'], 12 if len(df_raw.columns) > 12 else 0)
+    col_camp = get_col_safe(df_raw, ['campaña', 'campana', 'skill', 'servicio', 'ring group'], 3 if len(df_raw.columns) > 3 else 0)
+    col_inter = get_col_safe(df_raw, ['intervalo', 'hora', 'time'], 4 if len(df_raw.columns) > 4 else 0)
+    col_fecha = get_col_safe(df_raw, ['fecha', 'date'], 0)
 
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce')
