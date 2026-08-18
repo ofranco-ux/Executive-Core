@@ -143,8 +143,18 @@
                         <label for="chkNocturno" class="text-[11px] text-violet-300 font-bold block">🌙 Turno Nocturno (5x2)</label>
                         <span class="text-[9px] text-slate-400 block">Jornada 22:00 a 07:00 (2 días descanso)</span>
                     </div>
-                    <input type="checkbox" id="chkNocturno" onchange="actualizarModoEspecial()" class="w-4 h-4 rounded bg-slate-900 border-violet-500 text-violet-500 focus:ring-0 cursor-pointer">
+                    <input type="checkbox" id="chkNocturno" onchange="debouncedActualizarGrafica()" class="w-4 h-4 rounded bg-slate-900 border-violet-500 text-violet-500 focus:ring-0 cursor-pointer">
                 </div>
+                
+                <!-- NUEVO BOTÓN: Staffing por Picos -->
+                <div class="bg-brand-surface/60 p-3 rounded-xl border border-rose-500/40 flex items-center justify-between mt-3">
+                    <div>
+                        <label for="chkPicos" class="text-[11px] text-rose-400 font-bold block">🔥 Staffing por Picos</label>
+                        <span class="text-[9px] text-slate-400 block">Calcula HC para el peor escenario (Max)</span>
+                    </div>
+                    <input type="checkbox" id="chkPicos" onchange="debouncedActualizarGrafica()" class="w-4 h-4 rounded bg-slate-900 border-rose-500 text-rose-500 focus:ring-0 cursor-pointer">
+                </div>
+                
             </div>
 
             <button id="btnProcesar" onclick="procesarWFM()" class="w-full bg-gradient-to-r from-cyan-500 via-blue-600 to-violet-600 hover:from-cyan-400 hover:to-violet-500 text-white font-black py-4 px-4 rounded-xl text-xs transition-all duration-300 shadow-lg shadow-cyan-500/20 uppercase tracking-wider mt-4 hover:shadow-cyan-500/40 active:scale-[0.98]">
@@ -415,10 +425,6 @@
             return parseInt(parts[0]) * 60 + parseInt(parts[1]);
         }
 
-        function actualizarModoEspecial() {
-            debouncedActualizarGrafica();
-        }
-
         async function procesarWFM() {
             const file = document.getElementById('fileInput').files[0];
             if (!file) { alert("Por favor selecciona tu archivo historico.xlsx"); return; }
@@ -449,7 +455,6 @@
         }
 
         function inicializarFiltrosMultiples() {
-            // AQUI SE APLICA EL ORDEN CRONOLOGICO AL INICIAR
             const meses = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).sort(ordenarMesesCronologicamente);
             selectedMeses = new Set(meses);
             renderMenuOptions('Mes', meses, selectedMeses);
@@ -540,7 +545,6 @@
             }
             if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
             
-            // AQUI SE APLICA EL ORDEN CRONOLOGICO AL DAR CLIC A "TODOS / NINGUNO"
             if (type === 'Mes') {
                 allOptions.sort(ordenarMesesCronologicamente);
             } else {
@@ -602,6 +606,9 @@
             const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
             const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
+            
+            // Verificamos si el usuario activó el modo "Peor Escenario"
+            const usarPicos = document.getElementById('chkPicos') ? document.getElementById('chkPicos').checked : false;
 
             const dfFiltered = globalData.filter(item => {
                 const m = String(getProp(item, ['Mes'], ''));
@@ -639,12 +646,10 @@
             
             const esVistaSemanal = fechasFiltradas.length > 1;
 
-            // VECTORES PARA ALMACENAR PROMEDIOS (Día representativo)
             const reqAvgVector = todosIntervalos.map(() => 0);
             const llamadasAvgVector = todosIntervalos.map(() => 0);
             const ahtAvgVector = todosIntervalos.map(() => 0);
 
-            // OPTIMIZACIÓN EXTREMA: Hash Map para no iterar sobre todos los datos en cada intervalo
             const mapIntervaloFecha = {};
             dfFiltered.forEach(r => {
                 const fStr = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
@@ -656,6 +661,7 @@
 
             todosIntervalos.forEach((inter, idx) => {
                 let totalCalls = 0, totalAht = 0, totalReq = 0, diasConData = 0;
+                let maxCalls = 0, maxReq = 0, maxAht = 0; // Variables para el modelo de Picos
                 
                 fechasFiltradas.forEach(fStr => {
                     const subRows = mapIntervaloFecha[`${fStr}_${inter}`] || [];
@@ -665,17 +671,30 @@
                         const sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
                         const avgAht = subRows.reduce((a, b) => a + (Number(getProp(b, ['AHT_Segundos'], 180)) || 180), 0) / subRows.length;
 
+                        // Para el Promedio
                         totalCalls += sumCalls;
                         totalAht += avgAht;
                         totalReq += sumReq;
+
+                        // Para los Picos (Peor escenario)
+                        if (sumReq > maxReq) maxReq = sumReq;
+                        if (sumCalls > maxCalls) maxCalls = sumCalls;
+                        if (avgAht > maxAht) maxAht = avgAht;
                     }
                 });
 
                 if (diasConData > 0) {
-                    // Ahora sacamos un promedio real por intervalo (Curva representativa)
-                    reqAvgVector[idx] = Math.ceil(totalReq / diasConData);
-                    llamadasAvgVector[idx] = totalCalls / diasConData;
-                    ahtAvgVector[idx] = totalAht / diasConData;
+                    if (usarPicos) {
+                        // Aplica la fórmula del Peor Escenario (Máximos)
+                        reqAvgVector[idx] = maxReq;
+                        llamadasAvgVector[idx] = maxCalls;
+                        ahtAvgVector[idx] = maxAht;
+                    } else {
+                        // Aplica la fórmula Realista Promediada
+                        reqAvgVector[idx] = Math.ceil(totalReq / diasConData);
+                        llamadasAvgVector[idx] = totalCalls / diasConData;
+                        ahtAvgVector[idx] = totalAht / diasConData;
+                    }
                 }
             });
 
@@ -704,7 +723,6 @@
                 tbody.appendChild(tr);
             });
 
-            // Enviar los vectores promediados al optimizador
             ejecutarOptimizadorHorarios(todosIntervalos, reqAvgVector, llamadasAvgVector, ahtAvgVector, targetTimeObj, targetSlObj, mermaVal, esVistaSemanal);
         }
 
