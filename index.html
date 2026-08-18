@@ -313,6 +313,7 @@
                 </div>
             </div>
 
+            <!-- MÓDULO 3: MATRIZ GAP Y GRÁFICA DE CAPACIDAD -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-cyan-500">
                 <div class="flex justify-between items-center mb-4">
                     <div>
@@ -322,9 +323,15 @@
                         <span>📥</span> Exportar CSV
                     </button>
                 </div>
+                
+                <!-- NUEVA GRÁFICA DE CAPACIDAD (BARRAS Y LÍNEA) -->
+                <div class="h-64 mb-6 relative border border-slate-800/80 rounded-xl bg-[#0D1322]/50 p-2">
+                    <canvas id="gapChart"></canvas>
+                </div>
+
                 <div class="overflow-x-auto max-h-80 border border-slate-800/80 rounded-xl">
                     <table class="w-full text-left text-xs text-slate-300 cursor-pointer">
-                        <thead class="bg-brand-surface text-slate-400 font-bold uppercase tracking-wider text-[9px] sticky top-0 border-b border-slate-800">
+                        <thead class="bg-brand-surface text-slate-400 font-bold uppercase tracking-wider text-[9px] sticky top-0 border-b border-slate-800 z-10">
                             <tr>
                                 <th class="py-3 px-4">Intervalo</th>
                                 <th class="py-3 px-4">Llamadas (FCST)</th>
@@ -348,6 +355,7 @@
     <script>
         let globalData = [];
         let optChartInstance = null;
+        let gapChartInstance = null; // Instancia para la nueva gráfica
         let globalTurnosOptimos = [];
         let selectedMeses = new Set();
         let selectedCampanas = new Set();
@@ -401,7 +409,6 @@
             let high = agentsNetos * (1800 / aht); // Límite Físico (Teórico)
             let maxCalls = 0;
             
-            // Búsqueda Binaria de la máxima capacidad sin romper SLA
             for (let i=0; i<20; i++) { 
                 let mid = (low + high) / 2;
                 let a_erl = (mid * aht) / 1800;
@@ -786,6 +793,7 @@
 
                 const optData = await res.json() || {};
                 const reqAvgVector = optData.req_hc_pooled || [];
+                const capacidadRosterVector = []; // Arreglo para la gráfica nueva
                 
                 // Actualizar Matriz (Tabla Inferior)
                 const tbody = document.getElementById('intervalTableBody');
@@ -797,10 +805,10 @@
                     const rowReq = reqAvgVector[idx] || 0;
                     const rowRoster = rosterAvgVector[idx] || 0;
                     
-                    // NUEVO CÁLCULO ERLANG C PARA CAPACIDAD DE LLAMADAS (SLA)
                     const mermaDecimal = mermaVal / 100;
                     const agentesConectadosRoster = rowRoster * (1 - mermaDecimal);
                     const capacidadRoster = maxCallsForAgents(agentesConectadosRoster, rowAhtSegs, targetTimeObj, targetSlObj);
+                    capacidadRosterVector.push(capacidadRoster);
                     
                     const gap = rowRoster - rowReq;
                     let gapHtml = '';
@@ -823,6 +831,48 @@
                         <td class="py-2.5 px-4 text-center">${gapHtml}</td>
                     `;
                     tbody.appendChild(tr);
+                });
+
+                // DIBUJAR LA NUEVA GRÁFICA DE CAPACIDAD (BARRAS Y LÍNEAS)
+                if (gapChartInstance) gapChartInstance.destroy();
+                const ctxGap = document.getElementById('gapChart').getContext('2d');
+                
+                gapChartInstance = new Chart(ctxGap, {
+                    type: 'bar',
+                    data: {
+                        labels: intervalos,
+                        datasets: [
+                            { 
+                                label: 'Capacidad Roster (SLA)', 
+                                type: 'line',
+                                data: capacidadRosterVector, 
+                                borderColor: '#F59E0B', // Ámbar
+                                backgroundColor: 'transparent',
+                                borderWidth: 3,
+                                tension: 0.35,
+                                pointRadius: 2
+                            },
+                            { 
+                                label: 'Llamadas (FCST)', 
+                                data: llamadasArr.map(x => Math.round(x)), 
+                                backgroundColor: 'rgba(6, 182, 212, 0.4)', // Cyan semitransparente
+                                borderColor: '#06B6D4',
+                                borderWidth: 1,
+                                borderRadius: 4
+                            }
+                        ]
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } }
+                        }, 
+                        scales: { 
+                            x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
+                            y: { ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
+                        } 
+                    }
                 });
 
                 // CÁLCULO DE LA TARJETA ROSTER TOTAL
@@ -925,7 +975,7 @@
                     });
                 }
 
-                // DIBUJAR GRÁFICA CON LAS 3 LÍNEAS
+                // DIBUJAR GRÁFICA DE OPTIMIZACIÓN (LÍNEAS)
                 if (optChartInstance) optChartInstance.destroy();
                 const ctxOpt = document.getElementById('optChart').getContext('2d');
                 const labelCurvaCob = usarNocturno ? "Malla de Turnos Sugerida (Mixta)" : `Malla de Turnos Sugerida (${durJornada}h)`;
