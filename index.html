@@ -331,7 +331,7 @@
                                 <th class="py-3 px-4">AHT (MM:SS)</th>
                                 <th class="py-3 px-4 text-violet-400">Req. Sugerido (HC)</th>
                                 <th class="py-3 px-4 text-emerald-400">Roster Actual (HC)</th>
-                                <th class="py-3 px-4 text-amber-400">Capacidad Roster (Llamadas)</th>
+                                <th class="py-3 px-4 text-amber-400">Capacidad Roster (SLA)</th>
                                 <th class="py-3 px-4 text-center">Diferencia HC</th>
                             </tr>
                         </thead>
@@ -374,6 +374,46 @@
 
             if (anoA !== anoB) return anoA - anoB;
             return (mesesMap[mesA] || 0) - (mesesMap[mesB] || 0);
+        }
+
+        // ==========================================
+        // ERLANG C INVERSO PARA CAPACIDAD DE ROSTER
+        // ==========================================
+        function erlang_c_sl_optimizado(A, N, AHT, target_time) {
+            if (N <= A || A <= 0 || N <= 0) return 0.0;
+            let sum_terms = 1.0;
+            let current_term = 1.0;
+            let int_N = Math.min(Math.floor(N), 1000);
+            for (let k = 1; k < int_N; k++) {
+                current_term *= (A / k);
+                sum_terms += current_term;
+            }
+            let last_term = current_term * (A / N) / (1.0 - (A / N));
+            let pw = last_term / (sum_terms + last_term);
+            let intensity = N - A;
+            let sl = 1.0 - (pw * Math.exp(-intensity * (target_time / AHT)));
+            return Math.max(0.0, Math.min(100.0, sl * 100.0));
+        }
+
+        function maxCallsForAgents(agentsNetos, aht, targetTime, targetSl) {
+            if (agentsNetos <= 0 || aht <= 0) return 0;
+            let low = 0;
+            let high = agentsNetos * (1800 / aht); // Límite Físico (Teórico)
+            let maxCalls = 0;
+            
+            // Búsqueda Binaria de la máxima capacidad sin romper SLA
+            for (let i=0; i<20; i++) { 
+                let mid = (low + high) / 2;
+                let a_erl = (mid * aht) / 1800;
+                let sl = erlang_c_sl_optimizado(a_erl, agentsNetos, aht, targetTime);
+                if (sl >= targetSl) {
+                    maxCalls = mid;
+                    low = mid; 
+                } else {
+                    high = mid; 
+                }
+            }
+            return Math.floor(maxCalls);
         }
 
         function debouncedActualizarGrafica() {
@@ -757,10 +797,10 @@
                     const rowReq = reqAvgVector[idx] || 0;
                     const rowRoster = rosterAvgVector[idx] || 0;
                     
-                    // Cálculo de la Capacidad Real del Roster (Llamadas que pueden absorber los conectados)
+                    // NUEVO CÁLCULO ERLANG C PARA CAPACIDAD DE LLAMADAS (SLA)
                     const mermaDecimal = mermaVal / 100;
                     const agentesConectadosRoster = rowRoster * (1 - mermaDecimal);
-                    const capacidadRoster = rowAhtSegs > 0 ? Math.floor((agentesConectadosRoster * 1800) / rowAhtSegs) : 0;
+                    const capacidadRoster = maxCallsForAgents(agentesConectadosRoster, rowAhtSegs, targetTimeObj, targetSlObj);
                     
                     const gap = rowRoster - rowReq;
                     let gapHtml = '';
