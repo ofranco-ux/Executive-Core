@@ -327,15 +327,16 @@
                         <thead class="bg-brand-surface text-slate-400 font-bold uppercase tracking-wider text-[9px] sticky top-0 border-b border-slate-800">
                             <tr>
                                 <th class="py-3 px-4">Intervalo</th>
-                                <th class="py-3 px-4">Llamadas</th>
+                                <th class="py-3 px-4">Llamadas (FCST)</th>
                                 <th class="py-3 px-4">AHT (MM:SS)</th>
                                 <th class="py-3 px-4 text-violet-400">Req. Sugerido (HC)</th>
                                 <th class="py-3 px-4 text-emerald-400">Roster Actual (HC)</th>
-                                <th class="py-3 px-4 text-center">Diferencia</th>
+                                <th class="py-3 px-4 text-amber-400">Capacidad Roster (Llamadas)</th>
+                                <th class="py-3 px-4 text-center">Diferencia HC</th>
                             </tr>
                         </thead>
                         <tbody id="intervalTableBody" class="divide-y divide-slate-800/50 font-mono-num text-[11px]">
-                            <tr><td colspan="6" class="text-center py-6 text-slate-500">Cargue datos...</td></tr>
+                            <tr><td colspan="7" class="text-center py-6 text-slate-500">Cargue datos...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -636,7 +637,7 @@
                 document.getElementById('kpiHcRequerido').innerText = "0 HC";
                 document.getElementById('kpiHcRoster').innerText = "0 HC";
                 const tbody = document.getElementById('intervalTableBody');
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-500">Sin datos</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-500">Sin datos</td></tr>';
                 return;
             }
 
@@ -715,14 +716,12 @@
             document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
 
             try {
-                // AHORA SÍ PASAMOS rosterAvgVector A LA FUNCIÓN
                 ejecutarOptimizadorHorarios(todosIntervalos, llamadasAvgVector, ahtAvgVector, rosterAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, dfFiltered);
             } catch (e) {
                 console.log("Error al preparar optimizador:", e);
             }
         }
 
-        // FUNCIÓN CORREGIDA Y ACTUALIZADA
         async function ejecutarOptimizadorHorarios(intervalos, llamadasArr, ahtSegsArr, rosterAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, dfFiltered) {
             if (!intervalos || intervalos.length === 0) return;
 
@@ -758,6 +757,11 @@
                     const rowReq = reqAvgVector[idx] || 0;
                     const rowRoster = rosterAvgVector[idx] || 0;
                     
+                    // Cálculo de la Capacidad Real del Roster (Llamadas que pueden absorber los conectados)
+                    const mermaDecimal = mermaVal / 100;
+                    const agentesConectadosRoster = rowRoster * (1 - mermaDecimal);
+                    const capacidadRoster = rowAhtSegs > 0 ? Math.floor((agentesConectadosRoster * 1800) / rowAhtSegs) : 0;
+                    
                     const gap = rowRoster - rowReq;
                     let gapHtml = '';
                     if (gap > 0) gapHtml = `<span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold">+${gap}</span>`;
@@ -775,6 +779,7 @@
                         <td class="py-2.5 px-4 text-slate-300">${formatAHT(rowAhtSegs)}</td>
                         <td class="py-2.5 px-4 text-violet-400 font-bold text-sm">${rowReq}</td>
                         <td class="py-2.5 px-4 text-emerald-400 font-bold text-sm">${rowRoster}</td>
+                        <td class="py-2.5 px-4 text-amber-400 font-bold text-sm">${capacidadRoster}</td>
                         <td class="py-2.5 px-4 text-center">${gapHtml}</td>
                     `;
                     tbody.appendChild(tr);
