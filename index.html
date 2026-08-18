@@ -342,6 +342,7 @@
         let selectedCampanas = new Set();
         let selectedFechas = new Set();
         let selectedIntervalos = new Set();
+        let renderTimer = null;
 
         window.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
@@ -363,7 +364,7 @@
                     globalData = await response.json();
                     if (Array.isArray(globalData) && globalData.length > 0) {
                         inicializarFiltrosMultiples();
-                        actualizarGrafica();
+                        actualizarGraficaDebounced();
                     }
                 }
             } catch (e) {
@@ -393,7 +394,7 @@
         }
 
         function actualizarModoEspecial() {
-            actualizarGrafica();
+            actualizarGraficaDebounced();
         }
 
         async function procesarWFM() {
@@ -413,7 +414,7 @@
                 globalData = await response.json();
                 if (response.ok && Array.isArray(globalData)) {
                     inicializarFiltrosMultiples();
-                    actualizarGrafica();
+                    actualizarGraficaDebounced();
                 } else {
                     alert("Error procesando los datos: " + (globalData.error || "Formato no válido"));
                 }
@@ -490,7 +491,7 @@
             }
 
             actualizarTextosBotones();
-            actualizarGrafica();
+            actualizarGraficaDebounced();
         }
 
         function selectAllFilter(type, selectAll) {
@@ -508,7 +509,7 @@
             if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
             renderMenuOptions(type, allOptions.sort(), setRef);
             actualizarTextosBotones();
-            actualizarGrafica();
+            actualizarGraficaDebounced();
         }
 
         function toggleDropdown(type) {
@@ -548,7 +549,7 @@
 
         function resetAllFilters() {
             inicializarFiltrosMultiples();
-            actualizarGrafica();
+            actualizarGraficaDebounced();
         }
 
         function toggleTableInterval(inter) {
@@ -556,7 +557,14 @@
             const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
             renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
             actualizarTextosBotones();
-            actualizarGrafica();
+            actualizarGraficaDebounced();
+        }
+
+        function actualizarGraficaDebounced() {
+            if (renderTimer) clearTimeout(renderTimer);
+            renderTimer = setTimeout(() => {
+                actualizarGrafica();
+            }, 250);
         }
 
         async function actualizarGrafica() {
@@ -602,7 +610,6 @@
             
             const esVistaSemanal = fechasFiltradas.length > 1;
 
-            // PLANTILLA ACTUAL FIJA
             document.getElementById('kpiHcPlantillaActual').innerText = '29 HC';
             document.getElementById('kpiHcPlantillaSub').innerText = "Total nómina registrada en plantilla";
 
@@ -610,6 +617,7 @@
             const llamadasMaxVector = todosIntervalos.map(() => 0);
             const ahtMaxVector = todosIntervalos.map(() => 0);
 
+            // OPTIMIZACIÓN LECTURA VECTOR DE INTERVALOS
             todosIntervalos.forEach((inter, idx) => {
                 let dailyReqSum = 0;
                 let dailyCallsSum = 0;
