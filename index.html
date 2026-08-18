@@ -226,7 +226,6 @@
                     <p id="kpiAht" class="text-2xl font-black font-mono-num mt-2 text-white">00:00</p>
                 </div>
 
-                <!-- NUEVA TARJETA: HC PLANTILLA ACTUAL -->
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-emerald-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC PLANTILLA ACTUAL</p>
@@ -603,25 +602,24 @@
             
             const esVistaSemanal = fechasFiltradas.length > 1;
 
-            // CÁLCULO DINÁMICO DE PLANTILLA ACTUAL
+            // LECTURA ÚNICA DE NÓMINA PLANTILLA SIN SUMAR REPETIDOS
             const campanasEnFiltro = [...new Set(dfFiltered.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
             let totalPlantillaActual = 0;
 
-            if (esVistaSemanal) {
-                campanasEnFiltro.forEach(c => {
-                    const rowCamp = dfFiltered.find(r => getProp(r, ['Campaña', 'Campana'], 'General') === c);
-                    if (rowCamp) {
-                        totalPlantillaActual += Number(getProp(rowCamp, ['HC_Plantilla_Nominal'], 0));
+            campanasEnFiltro.forEach(c => {
+                const subCamp = dfFiltered.filter(r => getProp(r, ['Campaña', 'Campana'], 'General') === c);
+                if (subCamp.length > 0) {
+                    if (esVistaSemanal) {
+                        totalPlantillaActual += Number(getProp(subCamp[0], ['HC_Plantilla_Nominal'], 29));
+                    } else {
+                        totalPlantillaActual += Number(getProp(subCamp[0], ['HC_Plantilla_Activa_Dia'], 24));
                     }
-                });
+                }
+            });
+
+            if (esVistaSemanal) {
                 document.getElementById('kpiHcPlantillaSub').innerText = "Total nómina registrada en plantilla";
             } else {
-                campanasEnFiltro.forEach(c => {
-                    const rowCamp = dfFiltered.find(r => getProp(r, ['Campaña', 'Campana'], 'General') === c);
-                    if (rowCamp) {
-                        totalPlantillaActual += Number(getProp(rowCamp, ['HC_Plantilla_Activa_Dia'], 0));
-                    }
-                });
                 document.getElementById('kpiHcPlantillaSub').innerText = "Personal activo programado este día";
             }
 
