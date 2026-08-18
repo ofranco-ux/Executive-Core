@@ -135,7 +135,7 @@
 
                 <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
                     <label class="block text-[10px] text-slate-400 font-medium mb-1">Horizonte Proyección (Días)</label>
-                    <input type="number" id="dias" value="30" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
+                    <input type="number" id="dias" value="180" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
                 </div>
 
                 <div class="bg-brand-surface/60 p-3 rounded-xl border border-violet-500/40 flex items-center justify-between">
@@ -582,7 +582,7 @@
             if (!dfFiltered || dfFiltered.length === 0) {
                 document.getElementById('kpiCalls').innerText = "0";
                 document.getElementById('kpiAht').innerText = "00:00";
-                document.getElementById('kpiHcPlantillaActual').innerText = "0 HC";
+                document.getElementById('kpiHcPlantillaActual').innerText = "29 HC";
                 document.getElementById('kpiHcRequerido').innerText = "0 HC";
                 return;
             }
@@ -602,34 +602,20 @@
             
             const esVistaSemanal = fechasFiltradas.length > 1;
 
-            // FIX PLANTA FIJA: LECTURA ÚNICA SIN MULTIPLICAR POR DIAS
-            const campanasEnFiltro = [...new Set(dfFiltered.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
-            let totalPlantillaActual = 0;
-
-            campanasEnFiltro.forEach(c => {
-                const subCamp = dfFiltered.filter(r => getProp(r, ['Campaña', 'Campana'], 'General') === c);
-                if (subCamp.length > 0) {
-                    if (esVistaSemanal) {
-                        totalPlantillaActual += Number(getProp(subCamp[0], ['HC_Plantilla_Nominal'], 29));
-                    } else {
-                        totalPlantillaActual += Number(getProp(subCamp[0], ['HC_Plantilla_Activa_Dia'], 24));
-                    }
-                }
-            });
-
-            if (esVistaSemanal) {
-                document.getElementById('kpiHcPlantillaSub').innerText = "Total nómina registrada en plantilla";
-            } else {
-                document.getElementById('kpiHcPlantillaSub').innerText = "Personal activo programado este día";
-            }
-
-            document.getElementById('kpiHcPlantillaActual').innerText = totalPlantillaActual + ' HC';
+            // PLANTILLA ACTUAL FIJA
+            document.getElementById('kpiHcPlantillaActual').innerText = '29 HC';
+            document.getElementById('kpiHcPlantillaSub').innerText = "Total nómina registrada en plantilla";
 
             const reqMaxVector = todosIntervalos.map(() => 0);
             const llamadasMaxVector = todosIntervalos.map(() => 0);
             const ahtMaxVector = todosIntervalos.map(() => 0);
 
             todosIntervalos.forEach((inter, idx) => {
+                let dailyReqSum = 0;
+                let dailyCallsSum = 0;
+                let dailyAhtSum = 0;
+                let countDays = 0;
+
                 fechasFiltradas.forEach(fStr => {
                     const subRows = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fStr && String(getProp(r, ['Intervalo'], '00:00')) === inter);
                     if (subRows.length > 0) {
@@ -637,11 +623,18 @@
                         const sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
                         const avgAht = subRows.reduce((a, b) => a + (Number(getProp(b, ['AHT_Segundos'], 180)) || 180), 0) / subRows.length;
 
-                        if (sumReq > reqMaxVector[idx]) reqMaxVector[idx] = sumReq;
-                        if (sumCalls > llamadasMaxVector[idx]) llamadasMaxVector[idx] = sumCalls;
-                        if (avgAht > ahtMaxVector[idx]) ahtMaxVector[idx] = avgAht;
+                        dailyReqSum += sumReq;
+                        dailyCallsSum += sumCalls;
+                        dailyAhtSum += avgAht;
+                        countDays++;
                     }
                 });
+
+                if (countDays > 0) {
+                    reqMaxVector[idx] = Math.ceil(dailyReqSum / countDays);
+                    llamadasMaxVector[idx] = Math.round(dailyCallsSum / countDays);
+                    ahtMaxVector[idx] = Math.round(dailyAhtSum / countDays);
+                }
             });
 
             document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
@@ -679,7 +672,6 @@
             const esNocturno = document.getElementById('chkNocturno').checked;
 
             try {
-                // GARANTIZAR PARSEO NUMÉRICO
                 const llamadasClean = llamadasArr.map(x => Number(x) || 0);
                 const ahtsClean = ahtSegsArr.map(x => Number(x) || 180);
 
