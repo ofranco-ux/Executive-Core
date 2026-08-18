@@ -250,7 +250,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df = df.drop(columns=['Total_Segundos_Handle'])
     df[col_inter] = df['Inter_Clean']
 
-    # TRADUCCIÓN EXPLÍCITA DE DÍAS DE LA SEMANA A ESPAÑOL
     dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
     df['Dia_Semana_Clean'] = df[col_fecha].dt.weekday.apply(lambda w: dias_espanol[w])
 
@@ -505,6 +504,9 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             total_agentes_diarios_hc += int(qty)
             if "Nocturno" not in label_dur:
                 agentes_diurnos_totales_hc += int(qty)
+
+    # ORDENADO CRONOLÓGICO CRÍTICO PARA MANTENER LA TABLA EN SECUENCIA DE TIEMPO
+    turnos_sugeridos = sorted(turnos_sugeridos, key=lambda x: parse_time_str(x['horario_entrada']) or 0)
 
     hc_nocturno = math.ceil(agentes_nocturnos_totales_hc * (7.0 / 5.0))
     hc_diurno = math.ceil(agentes_diurnos_totales_hc * (7.0 / 6.0))
