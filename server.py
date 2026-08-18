@@ -16,6 +16,15 @@ EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 app = Flask(__name__)
 CORS(app)
 
+VENTANAS_SERVICIO = {
+    'coppel servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'coppel': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'telemedic': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'correo': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
+    'suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60}
+}
+
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
@@ -56,7 +65,7 @@ def parse_aht_to_seconds(val):
             parts = val_str.split(':')
             try:
                 if len(parts) == 3: secs = int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
-                elif len(parts) == 2: secs = int(parts[0]) * 60 + float(parts[1])
+                elif len(parts) == 2: secs = int(parts[0]) * 3600 + float(parts[1])
             except: pass
         else:
             try: secs = float(val_str)
@@ -125,7 +134,6 @@ def encontrar_columna(df, posibles_nombres):
                 return col_orig
     return None
 
-# CONTEO EXACTO Y ÚNICO DE AGENTES POR CAMPAÑA Y POR DÍA
 def extraer_datos_plantilla(xls_file):
     try:
         sheet_plantilla = None
@@ -281,7 +289,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         col_aht = 'AHT_Calc'
 
     df_raw['Total_Segundos_Handle'] = df_raw[col_calls] * df_raw[col_aht]
-    df_raw['Inter_Clean'] = df_raw[col_inter].astype(str).str.strip().apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
+    df_raw['Inter_Clean'] = df_raw[col_inter].astype(str).str.strip().apply(lambda x: ':'.join(x.split(':'))[:5] if len(x.split(':')) >= 2 else x)
 
     df = df_raw.groupby([col_fecha, col_camp, 'Inter_Clean']).agg({
         col_calls: 'sum',
@@ -580,8 +588,8 @@ def api_optimize_schedules():
         body = request.get_json(force=True)
         intervalos = body.get('intervalos', [])
         campanas = body.get('campanas', [])
-        llamadas = body.get('llamadas', [])
-        ahts = body.get('ahts', [])
+        llamadas = [clean_num(x) for x in body.get('llamadas', [])]
+        ahts = [clean_num(x, 180.0) for x in body.get('ahts', [])]
         target_sl = float(body.get('target_sl', 80.0))
         target_time = float(body.get('target_time', 20.0))
         merma = float(body.get('merma', 30.0)) / 100.0
