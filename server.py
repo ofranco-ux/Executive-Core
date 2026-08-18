@@ -4,7 +4,7 @@ import gc
 import re
 import json
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, make_response
 from flask_cors import CORS
 import pandas as pd
 import numpy as np
@@ -30,8 +30,13 @@ VENTANAS_SERVICIO = {
 def serve_index():
     rutas_a_buscar = [BASE_DIR, os.getcwd(), os.path.dirname(BASE_DIR)]
     for ruta in rutas_a_buscar:
-        if os.path.exists(os.path.join(ruta, 'index.html')):
-            return send_from_directory(ruta, 'index.html')
+        target_path = os.path.join(ruta, 'index.html')
+        if os.path.exists(target_path):
+            response = make_response(send_from_directory(ruta, 'index.html'))
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+            return response
     return jsonify({"error": "ALERTA CRÍTICA: No se encontró el archivo index.html en el servidor."}), 404
 
 @app.route('/favicon.ico')
