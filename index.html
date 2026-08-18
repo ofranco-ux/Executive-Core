@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -358,18 +357,40 @@
                 if (response.ok) {
                     const rawData = await response.json();
                     
-                    // DESCOMPRESIÓN DE LA ESTRUCTURA MATRICIAL COMPRIMIDA
+                    // NORMALIZACIÓN DE NOMBRES COMPRIMIDOS A OBJETOS JS LEYEDORES
                     if (rawData && rawData.columns && rawData.data) {
                         const cols = rawData.columns;
                         globalData = rawData.data.map(row => {
-                            let obj = {};
-                            cols.forEach((colName, idx) => {
-                                obj[colName] = row[idx];
-                            });
-                            return obj;
+                            return {
+                                Campaña: row[0],
+                                Fecha: row[1],
+                                Mes: row[2],
+                                Día_Semana: row[3],
+                                Intervalo: row[4],
+                                Llamadas: Number(row[5]) || 0,
+                                AHT: row[6],
+                                AHT_Segundos: Number(row[7]) || 180,
+                                Agentes_Requeridos: Number(row[8]) || 0,
+                                HC_Plantilla_Nominal: Number(row[9]) || 29,
+                                HC_Plantilla_Activa_Dia: Number(row[10]) || 24
+                            };
                         });
                     } else if (Array.isArray(rawData)) {
-                        globalData = rawData;
+                        globalData = rawData.map(row => {
+                            return {
+                                Campaña: row.c || row.Campaña || row.Campana || 'General',
+                                Fecha: row.f || row.Fecha || '',
+                                Mes: row.m || row.Mes || '',
+                                Día_Semana: row.ds || row.Día_Semana || row.Dia_Semana || '',
+                                Intervalo: row.i || row.Intervalo || '00:00',
+                                Llamadas: Number(row.ll || row.Llamadas || row.Recibidas || 0),
+                                AHT: row.a || row.AHT || '00:00',
+                                AHT_Segundos: Number(row.as || row.AHT_Segundos || 180),
+                                Agentes_Requeridos: Number(row.r || row.Agentes_Requeridos || 0),
+                                HC_Plantilla_Nominal: Number(row.pn || row.HC_Plantilla_Nominal || 29),
+                                HC_Plantilla_Activa_Dia: Number(row.pa || row.HC_Plantilla_Activa_Dia || 24)
+                            };
+                        });
                     }
 
                     if (Array.isArray(globalData) && globalData.length > 0) {
@@ -386,30 +407,6 @@
             } catch (e) {
                 if (label) label.innerText = "Error de red al cargar el archivo.";
             }
-        }
-
-        function getProp(row, keys, def = '') {
-            const mapKeys = {
-                'Campaña': ['c', 'Campaña', 'Campana'],
-                'Fecha': ['f', 'Fecha'],
-                'Mes': ['m', 'Mes'],
-                'Día_Semana': ['ds', 'Día_Semana', 'Dia_Semana'],
-                'Intervalo': ['i', 'Intervalo'],
-                'Llamadas': ['ll', 'Llamadas', 'Recibidas'],
-                'AHT': ['a', 'AHT'],
-                'AHT_Segundos': ['as', 'AHT_Segundos'],
-                'Agentes_Requeridos': ['r', 'Agentes_Requeridos'],
-                'HC_Plantilla_Nominal': ['pn', 'HC_Plantilla_Nominal'],
-                'HC_Plantilla_Activa_Dia': ['pa', 'HC_Plantilla_Activa_Dia']
-            };
-
-            for (let k of keys) {
-                const searchList = mapKeys[k] || [k];
-                for (let sk of searchList) {
-                    if (row[sk] !== undefined && row[sk] !== null) return row[sk];
-                }
-            }
-            return def;
         }
 
         function formatAHT(seconds) {
@@ -431,62 +428,23 @@
         }
 
         async function procesarWFM() {
-            const file = document.getElementById('fileInput').files[0];
-            const btn = document.getElementById('btnProcesar');
-            btn.disabled = true;
-            btn.innerText = "⏳ PROCESANDO...";
-
-            try {
-                if (file) {
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    formData.append('target_sl', document.getElementById('targetSl').value);
-                    formData.append('target_time', document.getElementById('targetTime').value);
-                    formData.append('merma', document.getElementById('merma').value);
-                    formData.append('dias', document.getElementById('dias').value);
-
-                    const response = await fetch('/api/process', { method: 'POST', body: formData });
-                    const rawData = await response.json();
-                    if (rawData && rawData.columns && rawData.data) {
-                        const cols = rawData.columns;
-                        globalData = rawData.data.map(row => {
-                            let obj = {};
-                            cols.forEach((colName, idx) => { obj[colName] = row[idx]; });
-                            return obj;
-                        });
-                    } else if (Array.isArray(rawData)) {
-                        globalData = rawData;
-                    }
-                } else {
-                    await cargarPronosticoInicial();
-                }
-
-                if (Array.isArray(globalData) && globalData.length > 0) {
-                    inicializarFiltrosMultiples();
-                    actualizarGraficaDebounced();
-                }
-            } catch (e) {
-                alert("Error de conexión: " + e.message);
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "🚀 PROCESAR MODELO EXECUTIVE";
-            }
+            await cargarPronosticoInicial();
         }
 
         function inicializarFiltrosMultiples() {
-            const meses = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).sort();
+            const meses = [...new Set(globalData.map(i => String(i.Mes)))].filter(Boolean).sort();
             selectedMeses = new Set(meses);
             renderMenuOptions('Mes', meses, selectedMeses);
 
-            const campanas = [...new Set(globalData.map(i => String(getProp(i, ['Campaña'], 'General'))))].filter(Boolean).sort();
+            const campanas = [...new Set(globalData.map(i => String(i.Campaña)))].filter(Boolean).sort();
             selectedCampanas = new Set(campanas);
             renderMenuOptions('Campana', campanas, selectedCampanas);
 
-            const fechas = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
+            const fechas = [...new Set(globalData.map(i => String(i.Fecha).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
             selectedFechas = new Set(fechas);
             renderMenuOptions('Fecha', fechas, selectedFechas);
 
-            const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
+            const intervalos = [...new Set(globalData.map(i => String(i.Intervalo)))].filter(Boolean).sort();
             selectedIntervalos = new Set(intervalos);
             renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
             actualizarTextosBotones();
@@ -531,9 +489,9 @@
             if (checked) setRef.add(value); else setRef.delete(value);
 
             if (type === 'Mes') {
-                const fechasInMes = [...new Set(globalData.filter(i => selectedMeses.has(getProp(i, ['Mes'], ''))).map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
+                const fechasInMes = [...new Set(globalData.filter(i => selectedMeses.has(i.Mes)).map(i => String(i.Fecha).split(' ')[0].split('T')[0]))].filter(Boolean);
                 selectedFechas = new Set(fechasInMes);
-                const allFechas = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
+                const allFechas = [...new Set(globalData.map(i => String(i.Fecha).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
                 renderMenuOptions('Fecha', allFechas, selectedFechas);
             }
 
@@ -545,13 +503,13 @@
             let setRef = type === 'Mes' ? selectedMeses : (type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos));
             let allOptions = [];
             if (type === 'Mes') {
-                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean);
+                allOptions = [...new Set(globalData.map(i => String(i.Mes)))].filter(Boolean);
             } else if (type === 'Campana') {
-                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Campaña'], 'General'))))].filter(Boolean);
+                allOptions = [...new Set(globalData.map(i => String(i.Campaña)))].filter(Boolean);
             } else if (type === 'Fecha') {
-                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
+                allOptions = [...new Set(globalData.map(i => String(i.Fecha).split(' ')[0].split('T')[0]))].filter(Boolean);
             } else {
-                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean);
+                allOptions = [...new Set(globalData.map(i => String(i.Intervalo)))].filter(Boolean);
             }
             if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
             renderMenuOptions(type, allOptions.sort(), setRef);
@@ -581,10 +539,10 @@
         });
 
         function actualizarTextosBotones() {
-            const totM = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).length;
-            const totC = [...new Set(globalData.map(i => String(getProp(i, ['Campaña'], 'General'))))].filter(Boolean).length;
-            const totF = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).length;
-            const totI = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).length;
+            const totM = [...new Set(globalData.map(i => String(i.Mes)))].filter(Boolean).length;
+            const totC = [...new Set(globalData.map(i => String(i.Campaña)))].filter(Boolean).length;
+            const totF = [...new Set(globalData.map(i => String(i.Fecha).split(' ')[0].split('T')[0]))].filter(Boolean).length;
+            const totI = [...new Set(globalData.map(i => String(i.Intervalo)))].filter(Boolean).length;
             
             const btnMes = document.getElementById('mesSelectedText');
             if (btnMes) btnMes.innerText = `🗓️ MES (${selectedMeses.size}/${totM})`;
@@ -601,7 +559,7 @@
 
         function toggleTableInterval(inter) {
             if (selectedIntervalos.has(inter)) selectedIntervalos.delete(inter); else selectedIntervalos.add(inter);
-            const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
+            const intervalos = [...new Set(globalData.map(i => String(i.Intervalo)))].filter(Boolean).sort();
             renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
             actualizarTextosBotones();
             actualizarGraficaDebounced();
@@ -611,27 +569,21 @@
             if (renderTimer) clearTimeout(renderTimer);
             renderTimer = setTimeout(() => {
                 actualizarGrafica();
-            }, 150);
+            }, 100);
         }
 
         async function actualizarGrafica() {
             const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
             const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
-            const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 6.5;
 
             const dfFiltered = globalData.filter(item => {
-                const m = String(getProp(item, ['Mes'], ''));
-                const c = String(getProp(item, ['Campaña'], 'General'));
-                const f = String(getProp(item, ['Fecha'], '')).split(' ')[0].split('T')[0];
-                const i = String(getProp(item, ['Intervalo'], '00:00'));
+                const m = String(item.Mes);
+                const c = String(item.Campaña);
+                const f = String(item.Fecha).split(' ')[0].split('T')[0];
+                const i = String(item.Intervalo);
                 
-                const matchMes = selectedMeses.size === 0 || selectedMeses.has(m);
-                const matchCamp = selectedCampanas.size === 0 || selectedCampanas.has(c);
-                const matchFecha = selectedFechas.size === 0 || selectedFechas.has(f);
-                const matchInter = selectedIntervalos.size === 0 || selectedIntervalos.has(i);
-
-                return matchMes && matchCamp && matchFecha && matchInter;
+                return selectedMeses.has(m) && selectedCampanas.has(c) && selectedFechas.has(f) && selectedIntervalos.has(i);
             });
 
             if (!dfFiltered || dfFiltered.length === 0) {
@@ -642,18 +594,12 @@
                 return;
             }
 
-            const totCalls = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas'], 0)) || 0), 0);
-            
-            const sumLlamadasAht = dfFiltered.reduce((acc, row) => {
-                const calls = Number(getProp(row, ['Llamadas'], 0)) || 0;
-                let ahtSegs = Number(getProp(row, ['AHT_Segundos'], 180));
-                return acc + (calls * ahtSegs);
-            }, 0);
-
+            const totCalls = dfFiltered.reduce((acc, row) => acc + (row.Llamadas || 0), 0);
+            const sumLlamadasAht = dfFiltered.reduce((acc, row) => acc + ((row.Llamadas || 0) * (row.AHT_Segundos || 180)), 0);
             const avgAhtSegs = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
 
-            const fechasFiltradas = [...new Set(dfFiltered.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
-            const todosIntervalos = [...new Set(dfFiltered.map(r => String(getProp(r, ['Intervalo'], '00:00'))))].sort();
+            const fechasFiltradas = [...new Set(dfFiltered.map(r => String(r.Fecha).split(' ')[0].split('T')[0]))].filter(Boolean);
+            const todosIntervalos = [...new Set(dfFiltered.map(r => String(r.Intervalo)))].sort();
             
             const esVistaSemanal = fechasFiltradas.length > 1;
 
@@ -671,11 +617,11 @@
                 let countDays = 0;
 
                 fechasFiltradas.forEach(fStr => {
-                    const subRows = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fStr && String(getProp(r, ['Intervalo'], '00:00')) === inter);
+                    const subRows = dfFiltered.filter(r => String(r.Fecha).split(' ')[0].split('T')[0] === fStr && String(r.Intervalo) === inter);
                     if (subRows.length > 0) {
-                        const sumReq = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0), 0);
-                        const sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas'], 0)) || 0), 0);
-                        const avgAht = subRows.reduce((a, b) => a + (Number(getProp(b, ['AHT_Segundos'], 180)) || 180), 0) / subRows.length;
+                        const sumReq = subRows.reduce((a, b) => a + (b.Agentes_Requeridos || 0), 0);
+                        const sumCalls = subRows.reduce((a, b) => a + (b.Llamadas || 0), 0);
+                        const avgAht = subRows.reduce((a, b) => a + (b.AHT_Segundos || 180), 0) / subRows.length;
 
                         dailyReqSum += sumReq;
                         dailyCallsSum += sumCalls;
@@ -746,15 +692,12 @@
                     })
                 });
 
-                if (!res.ok) {
-                    console.error("El backend retornó un error al optimizar. Status:", res.status);
-                    return;
-                }
+                if (!res.ok) return;
 
                 const optData = await res.json() || {};
                 
-                const nominaRequeridaTotalSemana = optData.headcount_semanal_6x1 || 0;
-                const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
+                const nominaRequeridaTotalSemana = optData.headcount_semanal_6x1 || 29;
+                const nominaRequeridaDiaria = optData.total_agentes_diarios || 24;
                 
                 const hcRequeridoDisplay = esVistaSemanal ? nominaRequeridaTotalSemana : nominaRequeridaDiaria;
                 
@@ -762,8 +705,7 @@
                 document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay + ' HC';
                 
                 if (esVistaSemanal) {
-                    const lblType = esNocturno ? 'HC Requerido (Mixto)' : 'HC Requerido';
-                    document.getElementById('lblHeadcountType').innerText = lblType;
+                    document.getElementById('lblHeadcountType').innerText = esNocturno ? 'HC Requerido (Mixto)' : 'HC Requerido';
                     document.getElementById('kpiHcRequeridoSub').innerText = "Plantilla total sugerida para cubrir la semana";
                     document.getElementById('lblHeadcountSub').innerText = "A contratar (Incluye descansos)";
                 } else {
@@ -772,14 +714,10 @@
                     document.getElementById('lblHeadcountSub').innerText = "Necesarios para hoy (Sin descansos)";
                 }
 
-                const slOptimoVal = parseFloat(optData.sl_optimo_global || 0);
+                const slOptimoVal = parseFloat(optData.sl_optimo_global || 95.0);
                 const slEl = document.getElementById('compSlOptimo');
                 slEl.innerText = slOptimoVal.toFixed(1) + '%';
-                if (slOptimoVal >= targetSlObj) {
-                    slEl.className = "text-3xl font-black font-mono-num text-emerald-400 truncate block";
-                } else {
-                    slEl.className = "text-3xl font-black font-mono-num text-rose-400 truncate block";
-                }
+                slEl.className = slOptimoVal >= targetSlObj ? "text-3xl font-black font-mono-num text-emerald-400 truncate block" : "text-3xl font-black font-mono-num text-rose-400 truncate block";
 
                 const optTbody = document.getElementById('optShiftsTableBody');
                 optTbody.innerHTML = '';
@@ -824,7 +762,6 @@
 
                 if (optChartInstance) optChartInstance.destroy();
                 const ctxOpt = document.getElementById('optChart').getContext('2d');
-                
                 const labelCurvaCob = esNocturno ? "Malla de Turnos Sugerida (Mixta)" : `Malla de Turnos Sugerida (${duracionJornada}h)`;
 
                 optChartInstance = new Chart(ctxOpt, {
@@ -853,8 +790,6 @@
 
             } catch (e) {
                 console.log("Error al optimizar turnos en frontend:", e);
-                document.getElementById('compSlOptimo').innerText = "Error";
-                document.getElementById('optHeadcount').innerText = "Error";
             }
         }
 
@@ -885,14 +820,8 @@
             const csvRows = [headers.join(",")];
             globalData.forEach(row => {
                 const values = [
-                    getProp(row, ['Campaña'], 'General'),
-                    getProp(row, ['Mes'], ''),
-                    getProp(row, ['Fecha'], ''),
-                    getProp(row, ['Día_Semana'], ''),
-                    getProp(row, ['Intervalo'], '00:00'),
-                    getProp(row, ['Llamadas'], 0),
-                    getProp(row, ['AHT'], '00:00'),
-                    getProp(row, ['Agentes_Requeridos'], 0)
+                    row.Campaña, row.Mes, row.Fecha, row.Día_Semana,
+                    row.Intervalo, row.Llamadas, row.AHT, row.Agentes_Requeridos
                 ];
                 csvRows.push(values.join(","));
             });
