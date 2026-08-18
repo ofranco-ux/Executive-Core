@@ -602,7 +602,7 @@
             
             const esVistaSemanal = fechasFiltradas.length > 1;
 
-            // LECTURA ÚNICA DE NÓMINA PLANTILLA SIN SUMAR REPETIDOS
+            // FIX PLANTA FIJA: LECTURA ÚNICA SIN MULTIPLICAR POR DIAS
             const campanasEnFiltro = [...new Set(dfFiltered.map(r => getProp(r, ['Campaña', 'Campana'], 'General')))];
             let totalPlantillaActual = 0;
 
@@ -679,6 +679,10 @@
             const esNocturno = document.getElementById('chkNocturno').checked;
 
             try {
+                // GARANTIZAR PARSEO NUMÉRICO
+                const llamadasClean = llamadasArr.map(x => Number(x) || 0);
+                const ahtsClean = ahtSegsArr.map(x => Number(x) || 180);
+
                 const res = await fetch('/api/optimize-schedules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -686,8 +690,8 @@
                         intervalos: intervalos,
                         requeridos: reqArray,
                         campanas: Array.from(selectedCampanas),
-                        llamadas: llamadasArr,
-                        ahts: ahtSegsArr,
+                        llamadas: llamadasClean,
+                        ahts: ahtsClean,
                         target_sl: targetSlObj,
                         target_time: targetTimeObj,
                         merma: mermaVal,
