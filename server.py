@@ -11,6 +11,7 @@ import numpy as np
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_FILE = os.path.join(BASE_DIR, 'forecast_cache.json')
+CONFIG_FILE = os.path.join(BASE_DIR, 'wfm_config.json') # NUEVO ARCHIVO DE CONFIGURACION
 EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 
 app = Flask(__name__)
@@ -43,6 +44,36 @@ def serve_index():
 def favicon():
     return '', 204
 
+# ==========================================
+# NUEVO ENDPOINT PARA SINCRONIZAR PARÁMETROS
+# ==========================================
+@app.route('/api/config', methods=['GET', 'POST'])
+def manage_config():
+    if request.method == 'POST':
+        try:
+            new_config = request.get_json(force=True)
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(new_config, f)
+            return jsonify({'status': 'Configuración guardada exitosamente'}), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    else:
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                    return jsonify(json.load(f)), 200
+            except:
+                pass
+        # Valores por defecto si no hay configuración guardada
+        return jsonify({
+            'targetSl': 80,
+            'targetTime': 20,
+            'merma': 30,
+            'duracionJornada': 8,
+            'chkNocturno': False,
+            'chkPicos': False
+        }), 200
+
 def clean_num(val, default=0.0):
     if pd.isna(val) or val is None: return default
     try:
@@ -73,7 +104,6 @@ def parse_aht_to_seconds(val):
     if 0 < secs <= 15: secs = secs * 60.0
     return secs if secs > 0 else 180.0
 
-# === NUEVO FORMATO DE AHT (HH:MM:SS) ===
 def format_aht_str(seconds):
     if pd.isna(seconds) or seconds is None or seconds <= 0: return "00:00:00"
     secs = int(round(seconds))
