@@ -338,6 +338,26 @@
         let debounceTimer;
         let totalesFiltros = { M: 0, C: 0, F: 0, I: 0 };
 
+        // Diccionario y Función para Ordenar Meses Cronológicamente
+        const mesesMap = {
+            "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
+            "julio": 7, "agosto": 8, "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12
+        };
+
+        function ordenarMesesCronologicamente(a, b) {
+            const partsA = a.toLowerCase().trim().split(' ');
+            const partsB = b.toLowerCase().trim().split(' ');
+            
+            const mesA = partsA[0];
+            const anoA = partsA[1] ? parseInt(partsA[1]) : 0;
+            
+            const mesB = partsB[0];
+            const anoB = partsB[1] ? parseInt(partsB[1]) : 0;
+
+            if (anoA !== anoB) return anoA - anoB;
+            return (mesesMap[mesA] || 0) - (mesesMap[mesB] || 0);
+        }
+
         function debouncedActualizarGrafica() {
             clearTimeout(debounceTimer);
             // Espera 400ms después del último clic para procesar la gráfica
@@ -429,7 +449,8 @@
         }
 
         function inicializarFiltrosMultiples() {
-            const meses = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).sort();
+            // AQUI SE APLICA EL ORDEN CRONOLOGICO AL INICIAR
+            const meses = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).sort(ordenarMesesCronologicamente);
             selectedMeses = new Set(meses);
             renderMenuOptions('Mes', meses, selectedMeses);
 
@@ -518,7 +539,15 @@
                 allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean);
             }
             if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
-            renderMenuOptions(type, allOptions.sort(), setRef);
+            
+            // AQUI SE APLICA EL ORDEN CRONOLOGICO AL DAR CLIC A "TODOS / NINGUNO"
+            if (type === 'Mes') {
+                allOptions.sort(ordenarMesesCronologicamente);
+            } else {
+                allOptions.sort();
+            }
+            
+            renderMenuOptions(type, allOptions, setRef);
             actualizarTextosBotones();
             debouncedActualizarGrafica();
         }
@@ -841,4 +870,3 @@
     </script>
 </body>
 </html>
-
