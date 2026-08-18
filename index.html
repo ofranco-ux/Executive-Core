@@ -169,7 +169,7 @@
             <!-- Cards -->
             <div class="grid grid-cols-4 gap-4">
                 <div class="glass-panel p-4 rounded-2xl">
-                    <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Volumen Tráfico</p>
+                    <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Volumen Tráfico (Periodo)</p>
                     <p id="kpiCalls" class="text-2xl font-black font-mono-num mt-2 text-white">0</p>
                 </div>
                 <div class="glass-panel p-4 rounded-2xl">
@@ -181,7 +181,7 @@
                     <p id="kpiHcPlantillaActual" class="text-2xl font-black font-mono-num mt-2 text-emerald-300">29 HC</p>
                 </div>
                 <div class="glass-panel p-4 rounded-2xl border-l-4 border-l-violet-500">
-                    <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC REQUERIDO TOTAL</p>
+                    <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Nómina Requerida (Malla 6x1)</p>
                     <p id="kpiHcRequerido" class="text-2xl font-black font-mono-num mt-2 text-violet-300">0 HC</p>
                 </div>
             </div>
@@ -194,7 +194,7 @@
                         <span id="compSlOptimo" class="text-3xl font-black font-mono-num text-emerald-400 mt-2 block">--%</span>
                     </div>
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-violet-500/30">
-                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold">HC Requerido A Contratar</p>
+                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold">Nómina Total A Contratar</p>
                         <p id="optHeadcount" class="text-3xl font-black font-mono-num text-white mt-2">--</p>
                     </div>
                 </div>
@@ -225,9 +225,9 @@
                         <thead class="bg-brand-surface text-slate-400 font-bold uppercase text-[9px] border-b border-slate-800">
                             <tr>
                                 <th class="py-3 px-4">Intervalo</th>
-                                <th class="py-3 px-4">Llamadas</th>
+                                <th class="py-3 px-4">Llamadas (Día Promedio)</th>
                                 <th class="py-3 px-4">AHT (MM:SS)</th>
-                                <th class="py-3 px-4 text-violet-400">Agentes Req. (HC)</th>
+                                <th class="py-3 px-4 text-violet-400">Agentes Requeridos en Sitio (FTE)</th>
                             </tr>
                         </thead>
                         <tbody id="intervalTableBody" class="divide-y divide-slate-800/50 font-mono-num text-[11px]"></tbody>
@@ -440,6 +440,7 @@
             const avgAhtSegs = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 180;
 
             const fechasFiltradas = [...new Set(dfFiltered.map(r => r.Fecha))].filter(Boolean);
+            const numDias = Math.max(1, fechasFiltradas.length);
             const todosIntervalos = [...new Set(dfFiltered.map(r => r.Intervalo))].sort();
 
             const reqMaxVector = todosIntervalos.map(() => 0);
@@ -477,7 +478,7 @@
                     <td class="py-2.5 px-4 font-bold text-slate-200">${inter}</td>
                     <td class="py-2.5 px-4 text-slate-300">${llamadasMaxVector[idx].toLocaleString()}</td>
                     <td class="py-2.5 px-4 text-slate-300">${formatAHTStr(ahtMaxVector[idx])}</td>
-                    <td class="py-2.5 px-4 text-violet-400 font-bold">${reqMaxVector[idx]}</td>
+                    <td class="py-2.5 px-4 text-violet-400 font-bold">${reqMaxVector[idx]} FTE</td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -543,8 +544,8 @@
                     data: {
                         labels: intervalos,
                         datasets: [
-                            { label: 'HC Requerido', data: optData.req_hc_pooled || reqArray, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.05)', fill: true, tension: 0.35 },
-                            { label: 'Malla Sugerida', data: optData.cobertura_optima || reqArray, borderColor: '#F59E0B', fill: false, borderDash: [4, 4], tension: 0.35 }
+                            { label: 'Agentes Requeridos en Sitio (FTE Intradía)', data: optData.req_hc_pooled || reqArray, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.05)', fill: true, tension: 0.35 },
+                            { label: 'Malla Cobertura Programada', data: optData.cobertura_optima || reqArray, borderColor: '#F59E0B', fill: false, borderDash: [4, 4], tension: 0.35 }
                         ]
                     },
                     options: { 
@@ -553,7 +554,11 @@
                         plugins: { legend: { labels: { color: '#94A3B8' } } },
                         scales: {
                             x: { ticks: { color: '#64748B' }, grid: { color: 'rgba(255,255,255,0.02)' } },
-                            y: { ticks: { color: '#64748B' }, grid: { color: 'rgba(255,255,255,0.02)' } }
+                            y: { 
+                                beginAtZero: true,
+                                ticks: { color: '#64748B', stepSize: 1 }, 
+                                grid: { color: 'rgba(255,255,255,0.02)' } 
+                            }
                         }
                     }
                 });
