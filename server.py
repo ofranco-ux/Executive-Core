@@ -65,7 +65,7 @@ def parse_aht_to_seconds(val):
             parts = val_str.split(':')
             try:
                 if len(parts) == 3: secs = int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
-                elif len(parts) == 2: secs = int(parts[0]) * 60 + float(parts[1])
+                elif len(parts) == 2: secs = int(parts[0]) * 3600 + float(parts[1])
             except: pass
         else:
             try: secs = float(val_str)
@@ -133,6 +133,47 @@ def encontrar_columna(df, posibles_nombres):
             if pos.strip().lower() == col_clean or pos.strip().lower() in col_clean:
                 return col_orig
     return None
+
+def extraer_datos_plantilla(xls_file):
+    try:
+        sheet_plantilla = None
+        for s in xls_file.sheet_names:
+            if 'plat' in s.lower() or 'plan' in s.lower() or 'rost' in s.lower():
+                sheet_plantilla = s
+                break
+        if not sheet_plantilla: return {}, {}
+
+        df_p = pd.read_excel(xls_file, sheet_name=sheet_plantilla, engine='openpyxl')
+        dias_cols = ['lunes', 'martes', 'miércoles', 'miercoles', 'jueves', 'viernes', 'sábado', 'sabado', 'domingo']
+        
+        hc_total_campana = {}
+        hc_diario_campana = {}
+
+        for _, row in df_p.iterrows():
+            camp_raw = str(row.iloc[2]) if len(df_p.columns) >= 3 else str(row.get('Campaña', row.get('Campana', 'General')))
+            camp_norm = camp_raw.strip().title()
+
+            hc_total_campana[camp_norm] = hc_total_campana.get(camp_norm, 0) + 1
+            hc_total_campana['General'] = hc_total_campana.get('General', 0) + 1
+
+            for col_name in df_p.columns:
+                dia_key = str(col_name).strip().lower()
+                if any(d in dia_key for d in dias_cols):
+                    base_day = next(d for d in dias_cols if d in dia_key)
+                    if base_day == 'miercoles': base_day = 'miércoles'
+                    if base_day == 'sabado': base_day = 'sábado'
+
+                    val_turno = str(row[col_name]).strip().lower()
+                    if val_turno and not any(x in val_turno for x in ['dd', 'descanso', 'falta', 'vacacion', 'baja']):
+                        k_dia = (camp_norm, base_day)
+                        k_gen = ('General', base_day)
+                        hc_diario_campana[k_dia] = hc_diario_campana.get(k_dia, 0) + 1
+                        hc_diario_campana[k_gen] = hc_diario_campana.get(k_gen, 0) + 1
+
+        return hc_total_campana, hc_diario_campana
+    except Exception as e:
+        print("Error analizando hoja plantilla:", e)
+        return {}, {}
 
 def entrenar_ridge_ml(X, y, l2_reg=10.0):
     X_b = np.c_[np.ones((X.shape[0], 1)), X]
@@ -218,6 +259,8 @@ def limpiar_outliers_iqr(series_list):
 def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=30):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     
+    hc_total_map, hc_diario_map = extraer_datos_plantilla(xls_file)
+
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
         if 'llam' in s.lower() or 'hist' in s.lower() or 'datos' in s.lower():
@@ -343,6 +386,9 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
 
+            hc_nominal = hc_total_map.get(camp, hc_total_map.get('General', 0))
+            hc_activo_dia = hc_diario_map.get((camp, nombre_dia), hc_diario_map.get(('General', nombre_dia), hc_nominal))
+
             for inter in intervalos_validos:
                 key_p = (camp, nombre_dia, inter)
                 info_p = mapa_perfil.get(key_p, {'weight': 0.0, 'aht': 0.0})
@@ -362,7 +408,9 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'Llamadas': int(round(calls)),
                     'AHT': format_aht_str(aht),
                     'AHT_Segundos': int(round(aht)),
-                    'Agentes_Requeridos': req_hc
+                    'Agentes_Requeridos': req_hc,
+                    'HC_Plantilla_Nominal': hc_nominal,
+                    'HC_Plantilla_Activa_Dia': hc_activo_dia
                 })
 
     try:
