@@ -212,10 +212,11 @@ def extraer_features_fecha(fecha, volumenes_hist, trend_idx):
     dow_encoded = [1.0 if day_of_week == i else 0.0 for i in range(7)]
     return [lag_1, lag_7, lag_14, float(day_of_month), is_weekend, is_quincena, float(trend_idx)] + dow_encoded
 
-def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=30):
+# FUNCION ULTRA RÁPIDA SIN BÚSQUEDA PESADA
+def holt_winters_fit_predict_rapido(series, n_preds=180, season_len=7, alpha=0.2, beta=0.05, gamma=0.2):
     n = len(series)
     if n < season_len * 2:
-        return [np.mean(series) if len(series) > 0 else 100.0] * n_preds
+        return [float(np.mean(series)) if len(series) > 0 else 100.0] * n_preds
     level = np.mean(series[:season_len])
     trend = (np.mean(series[season_len:2*season_len]) - np.mean(series[:season_len])) / season_len
     seasonals = [series[i] - level for i in range(season_len)]
@@ -231,25 +232,6 @@ def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.
         p = level + m * trend + seasonals[(n + m - 1) % season_len]
         preds.append(max(0.0, float(p)))
     return preds
-
-def grid_search_auto_hw(series, n_preds=30):
-    if len(series) < 21:
-        return holt_winters_fit_predict(series, n_preds=n_preds)
-    train = np.array(series[:-14])
-    val_true = np.array(series[-14:])
-    best_wmape = float('inf')
-    best_params = (0.2, 0.05, 0.2)
-    sum_true = np.sum(val_true) if np.sum(val_true) > 0 else 1.0
-    for a in [0.1, 0.2, 0.3]:
-        for b in [0.01, 0.05, 0.1]:
-            for g in [0.1, 0.2, 0.3, 0.5]:
-                p_val = np.array(holt_winters_fit_predict(train, season_len=7, alpha=a, beta=b, gamma=g, n_preds=14))
-                wmape = (np.sum(np.abs(val_true - p_val)) / sum_true) * 100
-                if wmape < best_wmape:
-                    best_wmape = wmape
-                    best_params = (a, b, g)
-    a_opt, b_opt, g_opt = best_params
-    return holt_winters_fit_predict(series, season_len=7, alpha=a_opt, beta=b_opt, gamma=g_opt, n_preds=n_preds)
 
 def limpiar_outliers_iqr(series_list):
     if len(series_list) < 14:
@@ -321,7 +303,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         fechas_list = sub[col_fecha].tolist()
         volumenes_list = limpiar_outliers_iqr(sub[col_calls].tolist())
         historial_volumenes[camp] = list(volumenes_list)
-        hw_forecasts[camp] = grid_search_auto_hw(volumenes_list, n_preds=dias_futuros)
+        hw_forecasts[camp] = holt_winters_fit_predict_rapido(volumenes_list, n_preds=dias_futuros)
 
         X_data, y_data = [], []
         for i in range(14, len(sub)):
@@ -423,6 +405,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     except Exception as err:
         print("Error guardando cache:", err)
 
+    gc.collect()
     return data_processed
 
 def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht_vec=None, 
