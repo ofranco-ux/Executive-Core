@@ -16,15 +16,6 @@ EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 app = Flask(__name__)
 CORS(app)
 
-VENTANAS_SERVICIO = {
-    'coppel servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'coppel': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'telemedic': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'correo': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
-    'suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60}
-}
-
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
@@ -126,11 +117,13 @@ def esta_en_ventana_servicio(campana, intervalo_str):
         return (9 * 60) <= minutos_inter < (21 * 60)
     return True
 
-def encontrar_columna(df, posibles_nombres):
-    for pos in posibles_nombres:
+def encontrar_columna_estricta(df, nombre_prioritario, alternativas):
+    for col_orig in df.columns:
+        if str(col_orig).strip().lower() == nombre_prioritario.lower():
+            return col_orig
+    for pos in alternativas:
         for col_orig in df.columns:
-            col_clean = str(col_orig).strip().lower()
-            if pos.strip().lower() == col_clean or pos.strip().lower() in col_clean:
+            if pos.strip().lower() in str(col_orig).strip().lower():
                 return col_orig
     return None
 
@@ -146,8 +139,8 @@ def extraer_datos_plantilla(xls_file):
         df_p = pd.read_excel(xls_file, sheet_name=sheet_plantilla, engine='openpyxl')
         dias_cols = ['lunes', 'martes', 'miércoles', 'miercoles', 'jueves', 'viernes', 'sábado', 'sabado', 'domingo']
         
-        col_id = encontrar_columna(df_p, ['id', 'agente', 'empleado']) or df_p.columns[0]
-        col_camp = df_p.columns[2] if len(df_p.columns) >= 3 else (encontrar_columna(df_p, ['campaña', 'campana']) or df_p.columns[0])
+        col_id = encontrar_columna_estricta(df_p, 'ID Agente', ['id', 'agente', 'empleado']) or df_p.columns[0]
+        col_camp = df_p.columns[2] if len(df_p.columns) >= 3 else (encontrar_columna_estricta(df_p, 'Campaña', ['campaña', 'campana']) or df_p.columns[0])
 
         df_p['Camp_Clean'] = df_p[col_camp].astype(str).str.strip().str.title()
         
@@ -258,7 +251,7 @@ def limpiar_outliers_iqr(series_list):
     lower, upper = q25 - 1.5 * iqr, q75 + 1.5 * iqr
     return np.clip(arr, lower, upper).tolist()
 
-def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=30):
+def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=180):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     
     hc_total_map, hc_diario_map = extraer_datos_plantilla(xls_file)
@@ -271,12 +264,12 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
 
-    col_calls = encontrar_columna(df_raw, ['recibidas', 'llamadas', 'calls', 'volumen', 'ofrecidas', 'entrada'])
-    col_aht = encontrar_columna(df_raw, ['aht', 'tmo', 'handle', 'duracion'])
-    col_camp = encontrar_columna(df_raw, ['campaña', 'campana', 'skill', 'servicio', 'ring group'])
-    col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
-    col_dia = encontrar_columna(df_raw, ['día', 'dia', 'semana'])
-    col_fecha = encontrar_columna(df_raw, ['fecha', 'date'])
+    col_calls = encontrar_columna_estricta(df_raw, 'Recibidas', ['recibidas', 'llamadas', 'calls', 'volumen', 'ofrecidas'])
+    col_aht = encontrar_columna_estricta(df_raw, 'AHT', ['aht', 'tmo', 'handle', 'duracion'])
+    col_camp = encontrar_columna_estricta(df_raw, 'Campaña', ['campaña', 'campana', 'skill', 'servicio', 'ring group'])
+    col_inter = encontrar_columna_estricta(df_raw, 'Intervalo', ['intervalo', 'hora', 'time'])
+    col_dia = encontrar_columna_estricta(df_raw, 'Día', ['día', 'dia', 'semana'])
+    col_fecha = encontrar_columna_estricta(df_raw, 'Fecha', ['fecha', 'date'])
 
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce')
@@ -624,7 +617,7 @@ def get_latest_forecast():
         except Exception: pass
     if os.path.exists(EXCEL_DEFAULT):
         try:
-            data = procesar_archivo_excel(EXCEL_DEFAULT)
+            data = procesar_archivo_excel(EXCEL_DEFAULT, dias_futuros=180)
             return jsonify(data), 200
         except Exception as e:
             return jsonify({'error': f'Error procesando historico.xlsx automático: {str(e)}'}), 500
@@ -639,7 +632,7 @@ def process_data():
     target_sl = clean_num(request.form.get('target_sl'), 80.0)
     target_time = clean_num(request.form.get('target_time'), 20.0)
     merma = clean_num(request.form.get('merma'), 20.0) / 100.0
-    dias_futuros = int(clean_num(request.form.get('dias'), 30))
+    dias_futuros = int(clean_num(request.form.get('dias'), 180))
 
     if 'file' in request.files and request.files['file'].filename != '':
         file_source = request.files['file']
