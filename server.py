@@ -249,7 +249,10 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df[col_aht] = df.apply(lambda r: r['Total_Segundos_Handle'] / r[col_calls] if r[col_calls] > 0 else 180.0, axis=1)
     df = df.drop(columns=['Total_Segundos_Handle'])
     df[col_inter] = df['Inter_Clean']
-    df[col_dia] = df[col_fecha].dt.day_name().str.lower()
+
+    # TRADUCCIÓN EXPLÍCITA DE DÍAS DE LA SEMANA A ESPAÑOL
+    dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
+    df['Dia_Semana_Clean'] = df[col_fecha].dt.weekday.apply(lambda w: dias_espanol[w])
 
     fecha_maxima = df[col_fecha].max()
     fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
@@ -281,7 +284,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         else:
             modelos_ml[camp] = None
 
-    df['Dia_Semana_Clean'] = df[col_dia].astype(str).str.strip().str.lower()
     df['En_Ventana'] = df.apply(lambda r: esta_en_ventana_servicio(r[col_camp], r['Inter_Clean']), axis=1)
     df_filtrado = df[df['En_Ventana']].copy()
 
@@ -310,7 +312,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     gc.collect()
 
     factor_asistencia = max(0.01, 1.0 - merma)
-    dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
     data_processed = []
 
     for d in range(dias_futuros):
@@ -559,10 +560,7 @@ def api_optimize_schedules():
 def get_latest_forecast():
     if os.path.exists(CACHE_FILE):
         try:
-            with open(CACHE_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            if data and len(data) > 0:
-                return jsonify(data), 200
+            os.remove(CACHE_FILE)
         except Exception: pass
     if os.path.exists(EXCEL_DEFAULT):
         try:
@@ -601,11 +599,6 @@ def process_data():
 @app.errorhandler(404)
 def not_found(e):
     return jsonify({'error': 'La ruta solicitada no existe'}), 404
-
-if os.path.exists(EXCEL_DEFAULT) and not os.path.exists(CACHE_FILE):
-    try:
-        procesar_archivo_excel(EXCEL_DEFAULT)
-    except Exception as e: pass
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
