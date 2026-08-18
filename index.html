@@ -334,6 +334,18 @@
         let selectedFechas = new Set();
         let selectedIntervalos = new Set();
 
+        // Variables para optimización (Debounce y Totales cacheados)
+        let debounceTimer;
+        let totalesFiltros = { M: 0, C: 0, F: 0, I: 0 };
+
+        function debouncedActualizarGrafica() {
+            clearTimeout(debounceTimer);
+            // Espera 400ms después del último clic para procesar la gráfica
+            debounceTimer = setTimeout(() => {
+                actualizarGrafica();
+            }, 400); 
+        }
+
         window.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const mode = urlParams.get('mode') || urlParams.get('role');
@@ -354,7 +366,7 @@
                     globalData = await response.json();
                     if (Array.isArray(globalData) && globalData.length > 0) {
                         inicializarFiltrosMultiples();
-                        actualizarGrafica();
+                        debouncedActualizarGrafica();
                     }
                 }
             } catch (e) {
@@ -384,7 +396,7 @@
         }
 
         function actualizarModoEspecial() {
-            actualizarGrafica();
+            debouncedActualizarGrafica();
         }
 
         async function procesarWFM() {
@@ -404,7 +416,7 @@
                 globalData = await response.json();
                 if (response.ok && Array.isArray(globalData)) {
                     inicializarFiltrosMultiples();
-                    actualizarGrafica();
+                    debouncedActualizarGrafica();
                 } else {
                     alert("Error procesando los datos: " + (globalData.error || "Formato no válido"));
                 }
@@ -432,7 +444,16 @@
             const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
             selectedIntervalos = new Set(intervalos);
             renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
+            
+            calcularTotalesFiltros();
             actualizarTextosBotones();
+        }
+
+        function calcularTotalesFiltros() {
+            totalesFiltros.M = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).length;
+            totalesFiltros.C = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).length;
+            totalesFiltros.F = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).length;
+            totalesFiltros.I = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).length;
         }
 
         function renderMenuOptions(type, allOptions, setRef) {
@@ -481,7 +502,7 @@
             }
 
             actualizarTextosBotones();
-            actualizarGrafica();
+            debouncedActualizarGrafica();
         }
 
         function selectAllFilter(type, selectAll) {
@@ -499,7 +520,7 @@
             if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
             renderMenuOptions(type, allOptions.sort(), setRef);
             actualizarTextosBotones();
-            actualizarGrafica();
+            debouncedActualizarGrafica();
         }
 
         function toggleDropdown(type) {
@@ -524,22 +545,19 @@
         });
 
         function actualizarTextosBotones() {
-            const totM = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).length;
-            const totC = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).length;
-            const totF = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).length;
-            const totI = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).length;
+            if(totalesFiltros.M === 0) calcularTotalesFiltros();
             
             const btnMes = document.getElementById('mesSelectedText');
-            if (btnMes) btnMes.innerText = `🗓️ MES (${selectedMeses.size}/${totM})`;
+            if (btnMes) btnMes.innerText = `🗓️ MES (${selectedMeses.size}/${totalesFiltros.M})`;
             
-            document.getElementById('campanaSelectedText').innerText = `🎧 SELECC. (${selectedCampanas.size}/${totC})`;
-            document.getElementById('fechaSelectedText').innerText = `📅 SELECC. (${selectedFechas.size}/${totF})`;
-            document.getElementById('intervaloSelectedText').innerText = `⏰ SELECC. (${selectedIntervalos.size}/${totI})`;
+            document.getElementById('campanaSelectedText').innerText = `🎧 SELECC. (${selectedCampanas.size}/${totalesFiltros.C})`;
+            document.getElementById('fechaSelectedText').innerText = `📅 SELECC. (${selectedFechas.size}/${totalesFiltros.F})`;
+            document.getElementById('intervaloSelectedText').innerText = `⏰ SELECC. (${selectedIntervalos.size}/${totalesFiltros.I})`;
         }
 
         function resetAllFilters() {
             inicializarFiltrosMultiples();
-            actualizarGrafica();
+            debouncedActualizarGrafica();
         }
 
         function toggleTableInterval(inter) {
@@ -547,7 +565,7 @@
             const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
             renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
             actualizarTextosBotones();
-            actualizarGrafica();
+            debouncedActualizarGrafica();
         }
 
         async function actualizarGrafica() {
