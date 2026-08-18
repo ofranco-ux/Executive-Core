@@ -75,7 +75,7 @@
 </head>
 <body class="p-6 md:p-8 min-h-screen">
 
-    <header class="flex justify-between items-center bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 border border-indigo-500/30 shadow-[0_0_30px_-10px_rgba(99,102,241,0.3)] backdrop-blur-xl rounded-2xl p-6 mb-8 relative overflow-hidden">
+    <header class="flex justify-between items-center bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 border border-indigo-500/30 shadow-[0_0_30px_-10px_rgba(99,102,241,0.3)] backdrop-blur-xl rounded-2xl p-6 mb-8 relative overflow-hidden flex-wrap gap-4">
         <div class="absolute -left-10 -top-10 w-40 h-40 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none"></div>
         <div class="absolute right-0 bottom-0 w-64 h-64 bg-violet-600/10 rounded-full blur-3xl pointer-events-none"></div>
         
@@ -88,6 +88,12 @@
                 </div>
                 <p class="text-xs text-indigo-200 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer</p>
             </div>
+        </div>
+
+        <!-- TOGGLE WFM / OPS -->
+        <div class="z-10 flex items-center bg-[#0D1322] p-1.5 rounded-xl border border-slate-700/50 shadow-inner">
+            <button onclick="switchMode('wfm')" id="btnModeWFM" class="px-4 py-2 text-[11px] font-bold rounded-lg bg-violet-500/20 text-violet-400 transition-all shadow-[0_0_10px_rgba(139,92,246,0.2)]">⚙️ Modo WFM</button>
+            <button onclick="switchMode('ops')" id="btnModeOps" class="px-4 py-2 text-[11px] font-bold rounded-lg text-slate-400 hover:text-white transition-all">📺 Modo Operaciones</button>
         </div>
     </header>
 
@@ -239,7 +245,6 @@
                     <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1">Plantilla sugerida para la demanda</p>
                 </div>
 
-                <!-- TARJETA 4: HC Roster -->
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-emerald-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
                         <p id="kpiHcRosterTitle" class="text-[10px] uppercase tracking-widest text-slate-400 font-black">PLANTILLA TOTAL ACTUAL</p>
@@ -253,8 +258,8 @@
                 </div>
             </div>
 
-            <!-- MÓDULO: RECOMENDACIÓN DE HORARIOS ÓPTIMOS & COMPARATIVA -->
-            <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-amber-500 relative overflow-hidden">
+            <!-- MÓDULO 2: OPTIMIZACIÓN DE HORARIOS (OCULTO EN MODO OPS) -->
+            <div id="modOptimizacion" class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-amber-500 relative overflow-hidden transition-all duration-300">
                 <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
                     <div>
                         <div class="flex items-center gap-2">
@@ -269,7 +274,6 @@
                 </div>
 
                 <div class="grid grid-cols-2 gap-4 mb-6">
-                    
                     <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold leading-tight">SL Proyectado con Malla Sugerida</p>
                         <div class="my-2">
@@ -286,7 +290,6 @@
                         </div>
                         <p id="lblHeadcountSub" class="text-[9px] text-violet-300/70 relative z-10 leading-tight">A contratar (Incluye mermas y descansos)</p>
                     </div>
-
                 </div>
 
                 <div class="h-64 mb-6 relative">
@@ -324,7 +327,6 @@
                     </button>
                 </div>
                 
-                <!-- GRÁFICA DE CAPACIDAD (BARRAS Y LÍNEAS) -->
                 <div class="h-64 mb-6 relative border border-slate-800/80 rounded-xl bg-[#0D1322]/50 p-2">
                     <canvas id="gapChart"></canvas>
                 </div>
@@ -385,6 +387,49 @@
         }
 
         // ==========================================
+        // SWITCH DE VISTAS (WFM / OPERACIONES)
+        // ==========================================
+        function switchMode(mode) {
+            const aside = document.getElementById('panelControl');
+            const main = document.getElementById('dashboardMain');
+            const tag = document.getElementById('tagModoOps');
+            const modOpt = document.getElementById('modOptimizacion');
+            const btnWFM = document.getElementById('btnModeWFM');
+            const btnOps = document.getElementById('btnModeOps');
+
+            if (mode === 'ops' || mode === 'operaciones') {
+                if (aside) aside.style.display = 'none';
+                if (modOpt) modOpt.style.display = 'none';
+                if (main) {
+                    main.classList.remove('lg:col-span-9');
+                    main.classList.add('lg:col-span-12');
+                }
+                if (tag) tag.classList.remove('hidden');
+                
+                if (btnOps) btnOps.className = "px-4 py-2 text-[11px] font-bold rounded-lg bg-cyan-500/20 text-cyan-400 transition-all shadow-[0_0_10px_rgba(6,182,212,0.2)]";
+                if (btnWFM) btnWFM.className = "px-4 py-2 text-[11px] font-bold rounded-lg text-slate-400 hover:text-white transition-all";
+                
+                setTimeout(() => { if (gapChartInstance) gapChartInstance.resize(); }, 100);
+            } else {
+                if (aside) aside.style.display = 'block';
+                if (modOpt) modOpt.style.display = 'block';
+                if (main) {
+                    main.classList.remove('lg:col-span-12');
+                    main.classList.add('lg:col-span-9');
+                }
+                if (tag) tag.classList.add('hidden');
+                
+                if (btnWFM) btnWFM.className = "px-4 py-2 text-[11px] font-bold rounded-lg bg-violet-500/20 text-violet-400 transition-all shadow-[0_0_10px_rgba(139,92,246,0.2)]";
+                if (btnOps) btnOps.className = "px-4 py-2 text-[11px] font-bold rounded-lg text-slate-400 hover:text-white transition-all";
+                
+                setTimeout(() => { 
+                    if (optChartInstance) optChartInstance.resize(); 
+                    if (gapChartInstance) gapChartInstance.resize(); 
+                }, 100);
+            }
+        }
+
+        // ==========================================
         // ERLANG C INVERSO PARA CAPACIDAD DE ROSTER
         // ==========================================
         function erlang_c_sl_optimizado(A, N, AHT, target_time) {
@@ -432,18 +477,9 @@
 
         window.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
-            const mode = urlParams.get('mode') || urlParams.get('role');
-            if (mode === 'operaciones' || mode === 'ops') {
-                const aside = document.getElementById('panelControl');
-                const main = document.getElementById('dashboardMain');
-                const tag = document.getElementById('tagModoOps');
-                if (aside) aside.style.display = 'none';
-                if (tag) tag.classList.remove('hidden');
-                if (main) {
-                    main.classList.remove('lg:col-span-9');
-                    main.classList.add('lg:col-span-12');
-                }
-            }
+            const mode = urlParams.get('mode') || urlParams.get('role') || 'wfm';
+            switchMode(mode);
+
             try {
                 const response = await fetch('/api/latest?t=' + new Date().getTime());
                 if (response.ok) {
@@ -465,7 +501,6 @@
             return def;
         }
 
-        // === NUEVO FORMATO AHT: HH:MM:SS ===
         function formatAHT(seconds) {
             if (!seconds || seconds <= 0) return "00:00:00";
             const secs = Math.round(seconds);
@@ -1057,7 +1092,7 @@
                     getProp(row, ['Día_Semana', 'Dia_Semana'], ''),
                     getProp(row, ['Intervalo'], '00:00'),
                     getProp(row, ['Llamadas', 'Recibidas'], 0),
-                    getProp(row, ['AHT'], '00:00:00'),
+                    formatAHT(getProp(row, ['AHT_Segundos'], 180)),
                     getProp(row, ['Agentes_Requeridos'], 0),
                     getProp(row, ['HC_Actual_Roster'], 0)
                 ];
