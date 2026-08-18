@@ -19,11 +19,9 @@
                         brand: {
                             bg: '#070A11',
                             card: '#0D1322',
-                            cardBorder: 'rgba(255, 255, 255, 0.07)',
                             accentCian: '#06B6D4',
                             accentViolet: '#8B5CF6',
                             accentEmerald: '#10B981',
-                            accentRose: '#F43F5E',
                             accentAmber: '#F59E0B',
                             surface: '#141C2E'
                         }
@@ -38,24 +36,14 @@
             font-family: 'Plus Jakarta Sans', sans-serif; 
             background-color: #070A11; 
             color: #F1F5F9; 
-            background-image: radial-gradient(circle at 50% 0%, rgba(14, 165, 233, 0.08) 0%, transparent 50%),
-                              radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.05) 0%, transparent 40%);
+            background-image: radial-gradient(circle at 50% 0%, rgba(14, 165, 233, 0.08) 0%, transparent 50%);
             background-attachment: fixed;
         }
         .glass-panel { 
             background: rgba(13, 19, 34, 0.75); 
             backdrop-filter: blur(20px); 
-            -webkit-backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.07); 
             box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
-        }
-        .glass-panel-hover {
-            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .glass-panel-hover:hover {
-            border-color: rgba(6, 182, 212, 0.3);
-            transform: translateY(-3px);
-            box-shadow: 0 25px 50px -12px rgba(6, 182, 212, 0.15);
         }
         .font-mono-num { font-family: 'JetBrains Mono', monospace; }
         ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -66,7 +54,7 @@
 </head>
 <body class="p-6 md:p-8 min-h-screen">
 
-    <header class="flex justify-between items-center bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 border border-indigo-500/30 shadow-[0_0_30px_-10px_rgba(99,102,241,0.3)] backdrop-blur-xl rounded-2xl p-6 mb-8 relative overflow-hidden">
+    <header class="flex justify-between items-center bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 border border-indigo-500/30 backdrop-blur-xl rounded-2xl p-6 mb-8 relative overflow-hidden">
         <div class="flex items-center gap-5 z-10">
             <div class="w-2.5 h-10 bg-gradient-to-b from-cyan-400 via-indigo-500 to-violet-600 rounded-full glow-cyan"></div>
             <div>
@@ -95,23 +83,28 @@
                 <div class="grid grid-cols-2 gap-3">
                     <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
                         <label class="block text-[10px] text-slate-400 font-medium mb-1">Target SL (%)</label>
-                        <input type="number" id="targetSl" value="80" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
+                        <input type="number" id="targetSl" value="80" onchange="actualizarGraficaDebounced()" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
                     </div>
                     <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
                         <label class="block text-[10px] text-slate-400 font-medium mb-1">Target ASA (s)</label>
-                        <input type="number" id="targetTime" value="20" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
+                        <input type="number" id="targetTime" value="20" onchange="actualizarGraficaDebounced()" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
                     <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
                         <label class="block text-[10px] text-slate-400 font-medium mb-1">Shrinkage Total (%)</label>
-                        <input type="number" id="merma" value="30" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
+                        <input type="number" id="merma" value="30" onchange="actualizarGraficaDebounced()" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
                     </div>
                     <div class="bg-brand-surface/60 p-3 rounded-xl border border-amber-500/40">
                         <label class="block text-[10px] text-amber-400 font-bold mb-1">Jornada (Hrs)</label>
-                        <input type="number" id="duracionJornada" value="6.5" step="0.5" min="1" max="12" class="w-full bg-transparent text-sm text-amber-300 font-mono-num font-bold focus:outline-none"/>
+                        <input type="number" id="duracionJornada" value="6.5" step="0.5" min="1" max="12" onchange="actualizarGraficaDebounced()" class="w-full bg-transparent text-sm text-amber-300 font-mono-num font-bold focus:outline-none"/>
                     </div>
+                </div>
+
+                <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
+                    <label class="block text-[10px] text-slate-400 font-medium mb-1">Horizonte Proyección (Días)</label>
+                    <input type="number" id="dias" value="180" min="1" max="180" onchange="actualizarHorizonteDias()" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
                 </div>
 
                 <div class="bg-brand-surface/60 p-3 rounded-xl border border-violet-500/40 flex items-center justify-between">
@@ -266,21 +259,36 @@
                 if (response.ok) {
                     const raw = await response.json();
                     
-                    globalData = raw.map(i => ({
-                        Campaña: String(i.Campaña || i.c || 'General'),
-                        Fecha: String(i.Fecha || i.f || ''),
-                        Mes: String(i.Mes || i.m || ''),
-                        Día_Semana: String(i.Día_Semana || i.ds || ''),
-                        Intervalo: String(i.Intervalo || i.i || '00:00'),
-                        Llamadas: Number(i.Llamadas !== undefined ? i.Llamadas : (i.ll || 0)),
-                        AHT: String(i.AHT || i.a || '03:00'),
-                        AHT_Segundos: Number(i.AHT_Segundos !== undefined ? i.AHT_Segundos : (i.as || 180)),
-                        Agentes_Requeridos: Number(i.Agentes_Requeridos !== undefined ? i.Agentes_Requeridos : (i.r || 0))
-                    }));
+                    if (raw.c_map && raw.data) {
+                        const cMap = raw.c_map;
+                        globalData = raw.data.map(row => ({
+                            Campaña: String(cMap[row[0]] || 'General'),
+                            Fecha: String(row[1] || ''),
+                            Mes: String(row[2] || ''),
+                            Día_Semana: String(row[3] || ''),
+                            Intervalo: String(row[4] || '00:00'),
+                            Llamadas: Number(row[5]) || 0,
+                            AHT: String(row[6] || '03:00'),
+                            AHT_Segundos: Number(row[7]) || 180,
+                            Agentes_Requeridos: Number(row[8]) || 0
+                        }));
+                    } else if (Array.isArray(raw)) {
+                        globalData = raw.map(i => ({
+                            Campaña: String(i.Campaña || i.c || 'General'),
+                            Fecha: String(i.Fecha || i.f || ''),
+                            Mes: String(i.Mes || i.m || ''),
+                            Día_Semana: String(i.Día_Semana || i.ds || ''),
+                            Intervalo: String(i.Intervalo || i.i || '00:00'),
+                            Llamadas: Number(i.Llamadas !== undefined ? i.Llamadas : (i.ll || 0)),
+                            AHT: String(i.AHT || i.a || '03:00'),
+                            AHT_Segundos: Number(i.AHT_Segundos !== undefined ? i.AHT_Segundos : (i.as || 180)),
+                            Agentes_Requeridos: Number(i.Agentes_Requeridos !== undefined ? i.Agentes_Requeridos : (i.r || 0))
+                        }));
+                    }
 
                     if (globalData.length > 0) {
                         inicializarFiltrosMultiples();
-                        actualizarGrafica();
+                        actualizarHorizonteDias();
                         if (label) label.innerText = "Pronóstico cargado correctamente.";
                     } else {
                         if (label) label.innerText = "Error: JSON vacío.";
@@ -291,6 +299,20 @@
             } catch (e) {
                 if (label) label.innerText = "Error de red.";
             }
+        }
+
+        function actualizarHorizonteDias() {
+            const numDiasInput = parseInt(document.getElementById('dias').value) || 180;
+            const todasFechasUnicas = [...new Set(globalData.map(i => i.Fecha.split(' ')[0]))].filter(Boolean).sort();
+            
+            // FILTRAR EXACTAMENTE LOS N DÍAS SELECCIONADOS
+            const fechasLimitadas = todasFechasUnicas.slice(0, numDiasInput);
+            selectedFechas = new Set(fechasLimitadas);
+
+            // REFRESCAR DROPDOWN Y VISTA
+            renderMenuOptions('Fecha', todasFechasUnicas, selectedFechas);
+            actualizarTextosBotones();
+            actualizarGraficaDebounced();
         }
 
         function formatAHT(seconds) {
@@ -308,7 +330,7 @@
         }
 
         async function procesarWFM() {
-            await cargarPronosticoInicial();
+            actualizarHorizonteDias();
         }
 
         function inicializarFiltrosMultiples() {
@@ -320,14 +342,9 @@
             selectedCampanas = new Set(campanas);
             renderMenuOptions('Campana', campanas, selectedCampanas);
 
-            const fechas = [...new Set(globalData.map(i => i.Fecha.split(' ')[0]))].filter(Boolean).sort();
-            selectedFechas = new Set(fechas);
-            renderMenuOptions('Fecha', fechas, selectedFechas);
-
             const intervalos = [...new Set(globalData.map(i => i.Intervalo))].filter(Boolean).sort();
             selectedIntervalos = new Set(intervalos);
             renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
-            actualizarTextosBotones();
         }
 
         function renderMenuOptions(type, allOptions, setRef) {
@@ -409,7 +426,7 @@
 
         function resetAllFilters() {
             inicializarFiltrosMultiples();
-            actualizarGraficaDebounced();
+            actualizarHorizonteDias();
         }
 
         function actualizarGraficaDebounced() {
@@ -484,6 +501,12 @@
         }
 
         async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr) {
+            const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
+            const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
+            const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
+            const duracionJornada = parseFloat(document.getElementById('duracionJornada').value) || 6.5;
+            const esNocturno = document.getElementById('chkNocturno').checked;
+
             const res = await fetch('/api/optimize-schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -491,7 +514,12 @@
                     intervalos: intervalos,
                     requeridos: reqArray,
                     llamadas: llamadasArr,
-                    ahts: ahtSegsArr
+                    ahts: ahtSegsArr,
+                    target_sl: targetSlObj,
+                    target_time: targetTimeObj,
+                    merma: mermaVal,
+                    duracion_jornada: duracionJornada,
+                    es_nocturno: esNocturno
                 })
             });
 
