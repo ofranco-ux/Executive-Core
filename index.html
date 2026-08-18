@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -76,7 +77,7 @@
             <div>
                 <label class="block text-xs font-bold text-slate-300 mb-2">Cargar Master Excel (<span class="text-emerald-400 font-mono">Opcional</span>)</label>
                 <input type="file" id="fileInput" accept=".xlsx, .xls" class="block w-full text-xs text-slate-400 file:mr-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-cyan-500/20 file:text-cyan-300 border border-slate-800 rounded-xl cursor-pointer bg-slate-900/60 p-1.5"/>
-                <span class="text-[10px] text-slate-500 mt-1 block">Cargado automáticamente desde <strong class="text-emerald-400">GitHub</strong>.</span>
+                <span class="text-[10px] text-slate-500 mt-1 block">Cargado desde <strong class="text-emerald-400">GitHub</strong>.</span>
             </div>
 
             <div class="space-y-4 pt-2">
@@ -251,6 +252,14 @@
             cargarPronosticoInicial();
         });
 
+        function formatAHTStr(sec) {
+            if (!sec || sec <= 0) return "03:00";
+            const s = Math.round(sec);
+            const m = Math.floor(s / 60);
+            const r = s % 60;
+            return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+        }
+
         async function cargarPronosticoInicial() {
             const label = document.getElementById('tableSelectionLabel');
             try {
@@ -259,40 +268,25 @@
                 if (response.ok) {
                     const raw = await response.json();
                     
-                    if (raw.c_map && raw.data) {
-                        const cMap = raw.c_map;
-                        globalData = raw.data.map(row => ({
-                            Campaña: String(cMap[row[0]] || 'General'),
-                            Fecha: String(row[1] || ''),
-                            Mes: String(row[2] || ''),
-                            Día_Semana: String(row[3] || ''),
-                            Intervalo: String(row[4] || '00:00'),
-                            Llamadas: Number(row[5]) || 0,
-                            AHT: String(row[6] || '03:00'),
-                            AHT_Segundos: Number(row[7]) || 180,
-                            Agentes_Requeridos: Number(row[8]) || 0
-                        }));
-                    } else if (Array.isArray(raw)) {
+                    if (Array.isArray(raw)) {
                         globalData = raw.map(i => ({
-                            Campaña: String(i.Campaña || i.c || 'General'),
-                            Fecha: String(i.Fecha || i.f || ''),
-                            Mes: String(i.Mes || i.m || ''),
-                            Día_Semana: String(i.Día_Semana || i.ds || ''),
-                            Intervalo: String(i.Intervalo || i.i || '00:00'),
-                            Llamadas: Number(i.Llamadas !== undefined ? i.Llamadas : (i.ll || 0)),
-                            AHT: String(i.AHT || i.a || '03:00'),
-                            AHT_Segundos: Number(i.AHT_Segundos !== undefined ? i.AHT_Segundos : (i.as || 180)),
-                            Agentes_Requeridos: Number(i.Agentes_Requeridos !== undefined ? i.Agentes_Requeridos : (i.r || 0))
+                            Campaña: String(i.c || i.Campaña || 'General'),
+                            Fecha: String(i.f || i.Fecha || ''),
+                            Mes: String(i.m || i.Mes || ''),
+                            Intervalo: String(i.i || i.Intervalo || '00:00'),
+                            Llamadas: Number(i.ll !== undefined ? i.ll : (i.Llamadas || 0)),
+                            AHT_Segundos: Number(i.as !== undefined ? i.as : (i.AHT_Segundos || 180)),
+                            Agentes_Requeridos: Number(i.r !== undefined ? i.r : (i.Agentes_Requeridos || 0))
                         }));
-                    }
 
-                    if (globalData.length > 0) {
-                        inicializarFiltrosMultiples();
-                        actualizarHorizonteDias();
-                        if (label) label.innerText = "Pronóstico cargado correctamente.";
-                    } else {
-                        if (label) label.innerText = "Error: JSON vacío.";
+                        if (globalData.length > 0) {
+                            inicializarFiltrosMultiples();
+                            actualizarHorizonteDias();
+                            if (label) label.innerText = "Pronóstico cargado correctamente.";
+                            return;
+                        }
                     }
+                    if (label) label.innerText = "Error: JSON vacío.";
                 } else {
                     if (label) label.innerText = "Error leyendo API.";
                 }
@@ -305,28 +299,12 @@
             const numDiasInput = parseInt(document.getElementById('dias').value) || 180;
             const todasFechasUnicas = [...new Set(globalData.map(i => i.Fecha.split(' ')[0]))].filter(Boolean).sort();
             
-            // FILTRAR EXACTAMENTE LOS N DÍAS SELECCIONADOS
             const fechasLimitadas = todasFechasUnicas.slice(0, numDiasInput);
             selectedFechas = new Set(fechasLimitadas);
 
-            // REFRESCAR DROPDOWN Y VISTA
             renderMenuOptions('Fecha', todasFechasUnicas, selectedFechas);
             actualizarTextosBotones();
             actualizarGraficaDebounced();
-        }
-
-        function formatAHT(seconds) {
-            if (!seconds || seconds <= 0) return "00:00";
-            const secs = Math.round(seconds);
-            const hrs = Math.floor(secs / 3600);
-            const mins = Math.floor((secs % 3600) / 60);
-            return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
-        }
-
-        function parseMinStr(t_str) {
-            if (!t_str) return 0;
-            const parts = t_str.split(':');
-            return parseInt(parts[0]) * 60 + parseInt(parts[1]);
         }
 
         async function procesarWFM() {
@@ -481,7 +459,7 @@
             });
 
             document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
-            document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
+            document.getElementById('kpiAht').innerText = formatAHTStr(avgAhtSegs);
 
             const tbody = document.getElementById('intervalTableBody');
             tbody.innerHTML = '';
@@ -491,7 +469,7 @@
                 tr.innerHTML = `
                     <td class="py-2.5 px-4 font-bold text-slate-200">${inter}</td>
                     <td class="py-2.5 px-4 text-slate-300">${llamadasMaxVector[idx].toLocaleString()}</td>
-                    <td class="py-2.5 px-4 text-slate-300">${formatAHT(ahtMaxVector[idx])}</td>
+                    <td class="py-2.5 px-4 text-slate-300">${formatAHTStr(ahtMaxVector[idx])}</td>
                     <td class="py-2.5 px-4 text-violet-400 font-bold">${reqMaxVector[idx]}</td>
                 `;
                 tbody.appendChild(tr);
@@ -501,12 +479,6 @@
         }
 
         async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr) {
-            const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
-            const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
-            const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
-            const duracionJornada = parseFloat(document.getElementById('duracionJornada').value) || 6.5;
-            const esNocturno = document.getElementById('chkNocturno').checked;
-
             const res = await fetch('/api/optimize-schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -514,12 +486,7 @@
                     intervalos: intervalos,
                     requeridos: reqArray,
                     llamadas: llamadasArr,
-                    ahts: ahtSegsArr,
-                    target_sl: targetSlObj,
-                    target_time: targetTimeObj,
-                    merma: mermaVal,
-                    duracion_jornada: duracionJornada,
-                    es_nocturno: esNocturno
+                    ahts: ahtSegsArr
                 })
             });
 
