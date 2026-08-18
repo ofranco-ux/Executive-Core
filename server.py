@@ -534,7 +534,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 
 
 # -------------------------------------------------------------
-# LA RUTA /api/latest AHORA LEE LA CACHÉ CORRECTAMENTE
+# LA RUTA /api/latest LEE LA CACHÉ CORRECTAMENTE
 # -------------------------------------------------------------
 @app.route('/api/latest', methods=['GET'])
 def get_latest_forecast():
