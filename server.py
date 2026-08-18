@@ -215,7 +215,6 @@ def limpiar_outliers_iqr(series_list):
     lower, upper = q25 - 1.5 * iqr, q75 + 1.5 * iqr
     return np.clip(arr, lower, upper).tolist()
 
-# === NUEVA LÓGICA: PROCESAR EL ROSTER ===
 def generar_intervalos_cobertura(start_min, end_min):
     intervals = []
     if start_min < end_min:
@@ -225,7 +224,7 @@ def generar_intervalos_cobertura(start_min, end_min):
             mm = curr % 60
             intervals.append(f"{int(hh):02d}:{int(mm):02d}")
             curr += 30
-    else: # Turnos nocturnos que cruzan la medianoche
+    else: 
         curr = start_min
         while curr < 24 * 60:
             hh = curr // 60
@@ -244,15 +243,20 @@ def procesar_hoja_roster(df_roster):
     dias_map = {'lunes': 'Lunes', 'martes': 'Martes', 'miércoles': 'Miércoles', 'miercoles': 'Miércoles', 
                 'jueves': 'Jueves', 'viernes': 'Viernes', 'sábado': 'Sábado', 'sabado': 'Sábado', 'domingo': 'Domingo'}
     
-    roster_cov = {} # Key: (Campaña, Dia_Semana, Intervalo) -> Value: Conteo HC
-    col_camp = encontrar_columna(df_roster, ['campaña', 'campana', 'skill'])
+    roster_cov = {} 
+    roster_total_camp = {} # Total HC en nomina por campaña
+    roster_total_dia_camp = {} # Total HC programado por campaña y dia (descuenta descansos)
     
+    col_camp = encontrar_columna(df_roster, ['campaña', 'campana', 'skill'])
     if not col_camp:
-        return roster_cov
+        return roster_cov, roster_total_camp, roster_total_dia_camp
         
     for idx, row in df_roster.iterrows():
         camp = str(row[col_camp]).strip().title()
         if camp == 'Nan' or camp == '': continue
+        
+        # Sumamos 1 al total de nómina de esta campaña por cada empleado
+        roster_total_camp[camp] = roster_total_camp.get(camp, 0) + 1
         
         for col in df_roster.columns:
             col_lower = str(col).lower().strip()
@@ -260,33 +264,33 @@ def procesar_hoja_roster(df_roster):
                 dia_real = dias_map[col_lower]
                 horario = str(row[col]).strip().upper()
                 
-                # Omitir descansos o vacios
-                if horario == 'DD-DD' or 'NAN' in horario or horario == '' or '-' not in horario:
-                    continue
+                if horario != 'DD-DD' and 'NAN' not in horario and horario != '' and '-' in horario:
+                    # El agente sí trabaja hoy (No es DD-DD)
+                    key_dia = (camp, dia_real)
+                    roster_total_dia_camp[key_dia] = roster_total_dia_camp.get(key_dia, 0) + 1
                     
-                parts = horario.split('-')
-                if len(parts) == 2:
-                    start_min = parse_time_str(parts[0].strip())
-                    end_min = parse_time_str(parts[1].strip())
-                    
-                    if start_min is not None and end_min is not None:
-                        intervals = generar_intervalos_cobertura(start_min, end_min)
-                        for inv in intervals:
-                            key = (camp, dia_real, inv)
-                            roster_cov[key] = roster_cov.get(key, 0) + 1
-    return roster_cov
+                    parts = horario.split('-')
+                    if len(parts) == 2:
+                        start_min = parse_time_str(parts[0].strip())
+                        end_min = parse_time_str(parts[1].strip())
+                        
+                        if start_min is not None and end_min is not None:
+                            intervals = generar_intervalos_cobertura(start_min, end_min)
+                            for inv in intervals:
+                                key = (camp, dia_real, inv)
+                                roster_cov[key] = roster_cov.get(key, 0) + 1
+                                
+    return roster_cov, roster_total_camp, roster_total_dia_camp
 
 def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=30):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     
-    # 1. Buscar Hoja de Llamadas
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
         if 'llam' in s.lower() or 'hist' in s.lower() or 'datos' in s.lower():
             sheet_calls = s
             break
             
-    # 2. Buscar Hoja de Roster (NUEVO)
     sheet_roster = None
     for s in xls_file.sheet_names:
         if 'roster' in s.lower() or 'plantilla' in s.lower() or 'horario' in s.lower():
@@ -294,9 +298,12 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             break
 
     roster_coverage = {}
+    roster_total_camp = {}
+    roster_total_dia_camp = {}
+    
     if sheet_roster:
         df_roster = pd.read_excel(xls_file, sheet_name=sheet_roster, engine='openpyxl')
-        roster_coverage = procesar_hoja_roster(df_roster)
+        roster_coverage, roster_total_camp, roster_total_dia_camp = procesar_hoja_roster(df_roster)
 
     df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
 
@@ -427,8 +434,9 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
                 
-                # === AGREGAR LA COBERTURA DEL ROSTER ===
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
+                tot_camp = roster_total_camp.get(str(camp), 0)
+                tot_camp_dia = roster_total_dia_camp.get((str(camp), nombre_dia.capitalize()), 0)
 
                 data_processed.append({
                     'Campaña': str(camp),
@@ -440,7 +448,9 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'AHT': format_aht_str(aht),
                     'AHT_Segundos': int(round(aht)),
                     'Agentes_Requeridos': req_hc,
-                    'HC_Actual_Roster': hc_roster
+                    'HC_Actual_Roster': hc_roster,
+                    'Total_Roster_Campana': tot_camp,
+                    'Total_Roster_Dia': tot_camp_dia
                 })
 
     try:
