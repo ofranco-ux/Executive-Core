@@ -282,6 +282,7 @@
                         <div class="absolute -right-4 -top-4 w-16 h-16 bg-violet-500/20 rounded-full blur-xl pointer-events-none"></div>
                         <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold relative z-10 leading-tight">HC Requerido A Contratar</p>
                         <div class="my-2 relative z-10">
+                            <!-- AQUÍ ESTÁ EL FIX PARA MOSTRAR EL NUMERO EN LUGAR DE "--" -->
                             <p id="optHeadcount" class="text-3xl font-black font-mono-num text-white truncate">--</p>
                         </div>
                         <p id="lblHeadcountSub" class="text-[9px] text-violet-300/70 relative z-10 leading-tight">A contratar (Incluye mermas y descansos)</p>
@@ -736,18 +737,15 @@
                 const optData = await res.json() || {};
                 const reqAvgVector = optData.req_hc_pooled || [];
                 
-                // --- CÁLCULO DE LA TARJETA ROSTER TOTAL (Peras con Peras) ---
                 const uniqueCampaigns = [...new Set(dfFiltered.map(r => r.Campaña))];
                 let totalRosterHC = 0;
                 
                 if (esVistaSemanal) {
-                    // Si se seleccionan varios días o mes completo, suma el tamaño TOTAL de la nómina
                     uniqueCampaigns.forEach(c => {
                         const row = dfFiltered.find(r => r.Campaña === c);
                         if (row) totalRosterHC += (row.Total_Roster_Campana || 0);
                     });
                 } else {
-                    // Si es un solo día, suma únicamente los agentes programados para HOY (descontando descansos)
                     uniqueCampaigns.forEach(c => {
                         const row = dfFiltered.find(r => r.Campaña === c);
                         if (row) totalRosterHC += (row.Total_Roster_Dia || 0);
@@ -758,10 +756,11 @@
                 const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
                 const hcRequeridoDisplay = esVistaSemanal ? nominaRequeridaTotalSemana : nominaRequeridaDiaria;
                 
-                // Actualización Tarjeta 3 (Requerido)
                 document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay.toLocaleString() + ' HC';
                 
-                // Actualización Tarjeta 4 (Roster y Brecha)
+                // --- LINEA RECUPERADA ---
+                document.getElementById('optHeadcount').innerText = hcRequeridoDisplay.toLocaleString();
+                
                 document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "PLANTILLA TOTAL ACTUAL" : "PLANTILLA PROGRAMADA HOY";
                 document.getElementById('kpiHcRosterSub').innerText = esVistaSemanal ? "Total de agentes contratados en Roster" : "Descuenta descansos (DD-DD) del día";
                 document.getElementById('kpiHcRoster').innerText = totalRosterHC.toLocaleString() + ' HC';
@@ -789,7 +788,6 @@
                     document.getElementById('lblHeadcountSub').innerText = "Necesarios para hoy (Sin descansos)";
                 }
 
-                // ACTUALIZAR MATRIZ GAP
                 const tbody = document.getElementById('intervalTableBody');
                 tbody.innerHTML = '';
 
