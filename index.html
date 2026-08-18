@@ -89,12 +89,7 @@
                 <p class="text-xs text-indigo-200 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer</p>
             </div>
         </div>
-
-        <!-- TOGGLE WFM / OPS -->
-        <div class="z-10 flex items-center bg-[#0D1322] p-1.5 rounded-xl border border-slate-700/50 shadow-inner">
-            <button onclick="switchMode('wfm')" id="btnModeWFM" class="px-4 py-2 text-[11px] font-bold rounded-lg bg-violet-500/20 text-violet-400 transition-all shadow-[0_0_10px_rgba(139,92,246,0.2)]">⚙️ Modo WFM</button>
-            <button onclick="switchMode('ops')" id="btnModeOps" class="px-4 py-2 text-[11px] font-bold rounded-lg text-slate-400 hover:text-white transition-all">📺 Modo Operaciones</button>
-        </div>
+        <!-- BOTONES ELIMINADOS, SÓLO LÓGICA DE URL -->
     </header>
 
     <div class="grid grid-cols-12 gap-8">
@@ -387,15 +382,13 @@
         }
 
         // ==========================================
-        // SWITCH DE VISTAS (WFM / OPERACIONES)
+        // SWITCH DE VISTAS (MODO OPS URL DETECTOR)
         // ==========================================
         function switchMode(mode) {
             const aside = document.getElementById('panelControl');
             const main = document.getElementById('dashboardMain');
             const tag = document.getElementById('tagModoOps');
             const modOpt = document.getElementById('modOptimizacion');
-            const btnWFM = document.getElementById('btnModeWFM');
-            const btnOps = document.getElementById('btnModeOps');
 
             if (mode === 'ops' || mode === 'operaciones') {
                 if (aside) aside.style.display = 'none';
@@ -406,9 +399,6 @@
                 }
                 if (tag) tag.classList.remove('hidden');
                 
-                if (btnOps) btnOps.className = "px-4 py-2 text-[11px] font-bold rounded-lg bg-cyan-500/20 text-cyan-400 transition-all shadow-[0_0_10px_rgba(6,182,212,0.2)]";
-                if (btnWFM) btnWFM.className = "px-4 py-2 text-[11px] font-bold rounded-lg text-slate-400 hover:text-white transition-all";
-                
                 setTimeout(() => { if (gapChartInstance) gapChartInstance.resize(); }, 100);
             } else {
                 if (aside) aside.style.display = 'block';
@@ -418,9 +408,6 @@
                     main.classList.add('lg:col-span-9');
                 }
                 if (tag) tag.classList.add('hidden');
-                
-                if (btnWFM) btnWFM.className = "px-4 py-2 text-[11px] font-bold rounded-lg bg-violet-500/20 text-violet-400 transition-all shadow-[0_0_10px_rgba(139,92,246,0.2)]";
-                if (btnOps) btnOps.className = "px-4 py-2 text-[11px] font-bold rounded-lg text-slate-400 hover:text-white transition-all";
                 
                 setTimeout(() => { 
                     if (optChartInstance) optChartInstance.resize(); 
