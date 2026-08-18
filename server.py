@@ -251,6 +251,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df[col_inter] = df['Inter_Clean']
 
     dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
+    meses_espanol = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
     df['Dia_Semana_Clean'] = df[col_fecha].dt.weekday.apply(lambda w: dias_espanol[w])
 
     fecha_maxima = df[col_fecha].max()
@@ -316,6 +318,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     for d in range(dias_futuros):
         fecha_actual = fecha_inicio_forecast + timedelta(days=d)
         str_fecha = fecha_actual.strftime('%Y-%m-%d')
+        str_mes = f"{meses_espanol[fecha_actual.month]} {fecha_actual.year}"
         nombre_dia = dias_espanol[fecha_actual.weekday()]
 
         for camp in campanas_unicas:
@@ -348,6 +351,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 data_processed.append({
                     'Campaña': str(camp),
                     'Fecha': str_fecha,
+                    'Mes': str_mes,
                     'Día_Semana': nombre_dia.capitalize(),
                     'Intervalo': inter,
                     'Llamadas': int(round(calls)),
@@ -505,7 +509,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             if "Nocturno" not in label_dur:
                 agentes_diurnos_totales_hc += int(qty)
 
-    # ORDENADO CRONOLÓGICO CRÍTICO PARA MANTENER LA TABLA EN SECUENCIA DE TIEMPO
     turnos_sugeridos = sorted(turnos_sugeridos, key=lambda x: parse_time_str(x['horario_entrada']) or 0)
 
     hc_nocturno = math.ceil(agentes_nocturnos_totales_hc * (7.0 / 5.0))
