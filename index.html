@@ -239,7 +239,7 @@
                     <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1">Plantilla sugerida para la demanda</p>
                 </div>
 
-                <!-- NUEVA TARJETA 4: HC Roster -->
+                <!-- TARJETA 4: HC Roster -->
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-emerald-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
                         <p id="kpiHcRosterTitle" class="text-[10px] uppercase tracking-widest text-slate-400 font-black">PLANTILLA TOTAL ACTUAL</p>
@@ -282,7 +282,6 @@
                         <div class="absolute -right-4 -top-4 w-16 h-16 bg-violet-500/20 rounded-full blur-xl pointer-events-none"></div>
                         <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold relative z-10 leading-tight">HC Requerido A Contratar</p>
                         <div class="my-2 relative z-10">
-                            <!-- AQUÍ ESTÁ EL FIX PARA MOSTRAR EL NUMERO EN LUGAR DE "--" -->
                             <p id="optHeadcount" class="text-3xl font-black font-mono-num text-white truncate">--</p>
                         </div>
                         <p id="lblHeadcountSub" class="text-[9px] text-violet-300/70 relative z-10 leading-tight">A contratar (Incluye mermas y descansos)</p>
@@ -716,14 +715,26 @@
             document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
 
             try {
+                // AHORA SÍ PASAMOS rosterAvgVector A LA FUNCIÓN
+                ejecutarOptimizadorHorarios(todosIntervalos, llamadasAvgVector, ahtAvgVector, rosterAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, dfFiltered);
+            } catch (e) {
+                console.log("Error al preparar optimizador:", e);
+            }
+        }
+
+        // FUNCIÓN CORREGIDA Y ACTUALIZADA
+        async function ejecutarOptimizadorHorarios(intervalos, llamadasArr, ahtSegsArr, rosterAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, dfFiltered) {
+            if (!intervalos || intervalos.length === 0) return;
+
+            try {
                 const res = await fetch('/api/optimize-schedules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        intervalos: todosIntervalos,
+                        intervalos: intervalos,
                         campanas: Array.from(selectedCampanas),
-                        llamadas: llamadasAvgVector,
-                        ahts: ahtAvgVector,
+                        llamadas: llamadasArr,
+                        ahts: ahtSegsArr,
                         target_sl: targetSlObj,
                         target_time: targetTimeObj,
                         merma: mermaVal,
@@ -732,11 +743,44 @@
                     })
                 });
 
-                if (!res.ok) throw new Error("Error procesando optimizador");
+                if (!res.ok) throw new Error("Error procesando optimizador en backend");
 
                 const optData = await res.json() || {};
                 const reqAvgVector = optData.req_hc_pooled || [];
                 
+                // Actualizar Matriz (Tabla Inferior)
+                const tbody = document.getElementById('intervalTableBody');
+                tbody.innerHTML = '';
+
+                intervalos.forEach((inter, idx) => {
+                    const rowLlamadas = Math.round(llamadasArr[idx]);
+                    const rowAhtSegs = ahtSegsArr[idx];
+                    const rowReq = reqAvgVector[idx] || 0;
+                    const rowRoster = rosterAvgVector[idx] || 0;
+                    
+                    const gap = rowRoster - rowReq;
+                    let gapHtml = '';
+                    if (gap > 0) gapHtml = `<span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold">+${gap}</span>`;
+                    else if (gap < 0) gapHtml = `<span class="bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded font-bold">${gap}</span>`;
+                    else gapHtml = `<span class="text-slate-500 font-bold">0</span>`;
+
+                    const tr = document.createElement('tr');
+                    tr.onclick = () => toggleTableInterval(inter);
+                    tr.className = `transition-all duration-200 hover:bg-slate-800/40`;
+                    tr.innerHTML = `
+                        <td class="py-2.5 px-4 font-bold text-slate-200 flex items-center gap-2">
+                            <span class="text-[10px] text-cyan-400">●</span> ${inter}
+                        </td>
+                        <td class="py-2.5 px-4 text-slate-300">${rowLlamadas.toLocaleString()}</td>
+                        <td class="py-2.5 px-4 text-slate-300">${formatAHT(rowAhtSegs)}</td>
+                        <td class="py-2.5 px-4 text-violet-400 font-bold text-sm">${rowReq}</td>
+                        <td class="py-2.5 px-4 text-emerald-400 font-bold text-sm">${rowRoster}</td>
+                        <td class="py-2.5 px-4 text-center">${gapHtml}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                // CÁLCULO DE LA TARJETA ROSTER TOTAL
                 const uniqueCampaigns = [...new Set(dfFiltered.map(r => r.Campaña))];
                 let totalRosterHC = 0;
                 
@@ -756,11 +800,11 @@
                 const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
                 const hcRequeridoDisplay = esVistaSemanal ? nominaRequeridaTotalSemana : nominaRequeridaDiaria;
                 
+                // Actualizar KPI Requerido
                 document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay.toLocaleString() + ' HC';
-                
-                // --- LINEA RECUPERADA ---
                 document.getElementById('optHeadcount').innerText = hcRequeridoDisplay.toLocaleString();
                 
+                // Actualizar KPI Roster
                 document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "PLANTILLA TOTAL ACTUAL" : "PLANTILLA PROGRAMADA HOY";
                 document.getElementById('kpiHcRosterSub').innerText = esVistaSemanal ? "Total de agentes contratados en Roster" : "Descuenta descansos (DD-DD) del día";
                 document.getElementById('kpiHcRoster').innerText = totalRosterHC.toLocaleString() + ' HC';
@@ -788,46 +832,17 @@
                     document.getElementById('lblHeadcountSub').innerText = "Necesarios para hoy (Sin descansos)";
                 }
 
-                const tbody = document.getElementById('intervalTableBody');
-                tbody.innerHTML = '';
-
-                todosIntervalos.forEach((inter, idx) => {
-                    const rowLlamadas = Math.round(llamadasAvgVector[idx]);
-                    const rowAhtSegs = ahtAvgVector[idx];
-                    const rowReq = reqAvgVector[idx] || 0;
-                    const rowRoster = rosterAvgVector[idx] || 0;
-                    
-                    const gap = rowRoster - rowReq;
-                    let gapHtml = '';
-                    if (gap > 0) gapHtml = `<span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold">+${gap}</span>`;
-                    else if (gap < 0) gapHtml = `<span class="bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded font-bold">${gap}</span>`;
-                    else gapHtml = `<span class="text-slate-500 font-bold">0</span>`;
-
-                    const tr = document.createElement('tr');
-                    tr.onclick = () => toggleTableInterval(inter);
-                    tr.className = `transition-all duration-200 hover:bg-slate-800/40`;
-                    tr.innerHTML = `
-                        <td class="py-2.5 px-4 font-bold text-slate-200 flex items-center gap-2">
-                            <span class="text-[10px] text-cyan-400">●</span> ${inter}
-                        </td>
-                        <td class="py-2.5 px-4 text-slate-300">${rowLlamadas.toLocaleString()}</td>
-                        <td class="py-2.5 px-4 text-slate-300">${formatAHT(rowAhtSegs)}</td>
-                        <td class="py-2.5 px-4 text-violet-400 font-bold text-sm">${rowReq}</td>
-                        <td class="py-2.5 px-4 text-emerald-400 font-bold text-sm">${rowRoster}</td>
-                        <td class="py-2.5 px-4 text-center">${gapHtml}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-
                 const slOptimoVal = parseFloat(optData.sl_optimo_global || 0);
                 const slEl = document.getElementById('compSlOptimo');
                 slEl.innerText = slOptimoVal.toFixed(1) + '%';
                 if (slOptimoVal >= targetSlObj) slEl.className = "text-3xl font-black font-mono-num text-emerald-400 truncate block";
                 else slEl.className = "text-3xl font-black font-mono-num text-rose-400 truncate block";
 
+                // Actualizar Tabla de Malla (Turnos Óptimos)
                 const optTbody = document.getElementById('optShiftsTableBody');
                 optTbody.innerHTML = '';
                 
+                const totalDiarioMalla = optData.total_agentes_diarios || 1;
                 let turnosBase = optData.turnos || [];
                 let accumulatedNomina = 0;
                 
@@ -865,6 +880,7 @@
                     });
                 }
 
+                // DIBUJAR GRÁFICA CON LAS 3 LÍNEAS
                 if (optChartInstance) optChartInstance.destroy();
                 const ctxOpt = document.getElementById('optChart').getContext('2d');
                 const labelCurvaCob = usarNocturno ? "Malla de Turnos Sugerida (Mixta)" : `Malla de Turnos Sugerida (${durJornada}h)`;
@@ -872,7 +888,7 @@
                 optChartInstance = new Chart(ctxOpt, {
                     type: 'line',
                     data: {
-                        labels: todosIntervalos,
+                        labels: intervalos,
                         datasets: [
                             { label: 'HC Requerido (Motor)', data: reqAvgVector, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.05)', fill: true, tension: 0.35, borderWidth: 2.5 },
                             { label: 'Plantilla Actual (Roster)', data: rosterAvgVector, borderColor: '#10B981', backgroundColor: 'transparent', fill: false, tension: 0.35, borderWidth: 2.5, borderDash: [2, 2] },
@@ -896,6 +912,8 @@
 
             } catch (e) {
                 console.log("Error al optimizar turnos en frontend:", e);
+                document.getElementById('compSlOptimo').innerText = "Error";
+                document.getElementById('optHeadcount').innerText = "Error";
             }
         }
 
