@@ -7,8 +7,11 @@
     <meta http-equiv="Pragma" content="no-cache"/>
     <meta http-equiv="Expires" content="0"/>
     <title>Executive Core — C-Suite Analytics & Scheduling Optimizer</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <script>
@@ -19,9 +22,11 @@
                         brand: {
                             bg: '#070A11',
                             card: '#0D1322',
+                            cardBorder: 'rgba(255, 255, 255, 0.07)',
                             accentCian: '#06B6D4',
                             accentViolet: '#8B5CF6',
                             accentEmerald: '#10B981',
+                            accentRose: '#F43F5E',
                             accentAmber: '#F59E0B',
                             surface: '#141C2E'
                         }
@@ -36,29 +41,51 @@
             font-family: 'Plus Jakarta Sans', sans-serif; 
             background-color: #070A11; 
             color: #F1F5F9; 
-            background-image: radial-gradient(circle at 50% 0%, rgba(14, 165, 233, 0.08) 0%, transparent 50%);
+            background-image: radial-gradient(circle at 50% 0%, rgba(14, 165, 233, 0.08) 0%, transparent 50%),
+                              radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.05) 0%, transparent 40%);
             background-attachment: fixed;
         }
         .glass-panel { 
             background: rgba(13, 19, 34, 0.75); 
             backdrop-filter: blur(20px); 
+            -webkit-backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.07); 
             box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
         }
-        .font-mono-num { font-family: 'JetBrains Mono', monospace; }
+        .glass-panel-hover {
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .glass-panel-hover:hover {
+            border-color: rgba(6, 182, 212, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 25px 50px -12px rgba(6, 182, 212, 0.15);
+        }
+        .font-mono-num {
+            font-family: 'JetBrains Mono', monospace;
+        }
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: #070A11; }
         ::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 99px; }
-        .glow-cyan { box-shadow: 0 0 25px -5px rgba(6, 182, 212, 0.4); }
+        ::-webkit-scrollbar-thumb:hover { background: #06B6D4; }
+        
+        .glow-cyan {
+            box-shadow: 0 0 25px -5px rgba(6, 182, 212, 0.4);
+        }
     </style>
 </head>
 <body class="p-6 md:p-8 min-h-screen">
 
-    <header class="flex justify-between items-center bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 border border-indigo-500/30 backdrop-blur-xl rounded-2xl p-6 mb-8 relative overflow-hidden">
+    <header class="flex justify-between items-center bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 border border-indigo-500/30 shadow-[0_0_30px_-10px_rgba(99,102,241,0.3)] backdrop-blur-xl rounded-2xl p-6 mb-8 relative overflow-hidden">
+        <div class="absolute -left-10 -top-10 w-40 h-40 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute right-0 bottom-0 w-64 h-64 bg-violet-600/10 rounded-full blur-3xl pointer-events-none"></div>
+        
         <div class="flex items-center gap-5 z-10">
             <div class="w-2.5 h-10 bg-gradient-to-b from-cyan-400 via-indigo-500 to-violet-600 rounded-full glow-cyan"></div>
             <div>
-                <h1 class="text-2xl font-black text-white tracking-tight">Executive Core</h1>
+                <div class="flex items-center gap-3">
+                    <h1 class="text-2xl font-black text-white tracking-tight">Executive Core</h1>
+                    <span id="tagModoOps" class="hidden text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider">Vista Operaciones</span>
+                </div>
                 <p class="text-xs text-indigo-200 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer</p>
             </div>
         </div>
@@ -71,132 +98,178 @@
                 <h2 class="text-xs font-black text-slate-200 uppercase tracking-widest flex items-center gap-2">
                     <span class="text-cyan-400">⚡</span> Parámetros de Control
                 </h2>
+                <span class="text-[10px] text-slate-500 font-mono">SETTINGS</span>
             </div>
             
             <div>
-                <label class="block text-xs font-bold text-slate-300 mb-2">Cargar Master Excel (<span class="text-emerald-400 font-mono">Opcional</span>)</label>
-                <input type="file" id="fileInput" accept=".xlsx, .xls" class="block w-full text-xs text-slate-400 file:mr-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-cyan-500/20 file:text-cyan-300 border border-slate-800 rounded-xl cursor-pointer bg-slate-900/60 p-1.5"/>
-                <span class="text-[10px] text-slate-500 mt-1 block">Cargado desde <strong class="text-emerald-400">GitHub</strong>.</span>
+                <label class="block text-xs font-bold text-slate-300 mb-2">Cargar Master Excel (<span class="text-emerald-400 font-mono">historico.xlsx</span>)</label>
+                <div class="relative">
+                    <input type="file" id="fileInput" accept=".xlsx, .xls" class="block w-full text-xs text-slate-400 file:mr-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-cyan-500/20 file:text-cyan-300 hover:file:bg-cyan-500/30 border border-slate-800 rounded-xl cursor-pointer bg-slate-900/60 p-1.5 transition-all"/>
+                </div>
             </div>
 
             <div class="space-y-4 pt-2">
+                <p class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Restricciones SLA & Malla</p>
+                
                 <div class="grid grid-cols-2 gap-3">
-                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
+                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80 focus-within:border-cyan-500/50 transition-colors">
                         <label class="block text-[10px] text-slate-400 font-medium mb-1">Target SL (%)</label>
-                        <input type="number" id="targetSl" value="80" onchange="actualizarGraficaDebounced()" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
+                        <input type="number" id="targetSl" value="80" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
                     </div>
-                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
+                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80 focus-within:border-cyan-500/50 transition-colors">
                         <label class="block text-[10px] text-slate-400 font-medium mb-1">Target ASA (s)</label>
-                        <input type="number" id="targetTime" value="20" onchange="actualizarGraficaDebounced()" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
+                        <input type="number" id="targetTime" value="20" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
-                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
+                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80 focus-within:border-cyan-500/50 transition-colors">
                         <label class="block text-[10px] text-slate-400 font-medium mb-1">Shrinkage Total (%)</label>
-                        <input type="number" id="merma" value="30" onchange="actualizarGraficaDebounced()" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
+                        <input type="number" id="merma" value="30" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
                     </div>
-                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-amber-500/40">
+                    <div class="bg-brand-surface/60 p-3 rounded-xl border border-amber-500/40 focus-within:border-amber-400 transition-colors">
                         <label class="block text-[10px] text-amber-400 font-bold mb-1">Jornada (Hrs)</label>
-                        <input type="number" id="duracionJornada" value="6.5" step="0.5" min="1" max="12" onchange="actualizarGraficaDebounced()" class="w-full bg-transparent text-sm text-amber-300 font-mono-num font-bold focus:outline-none"/>
+                        <input type="number" id="duracionJornada" value="8" step="0.5" min="1" max="12" class="w-full bg-transparent text-sm text-amber-300 font-mono-num font-bold focus:outline-none"/>
                     </div>
                 </div>
 
                 <div class="bg-brand-surface/60 p-3 rounded-xl border border-slate-800/80">
                     <label class="block text-[10px] text-slate-400 font-medium mb-1">Horizonte Proyección (Días)</label>
-                    <input type="number" id="dias" value="180" min="1" max="180" onchange="actualizarHorizonteDias()" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
+                    <input type="number" id="dias" value="30" class="w-full bg-transparent text-sm text-white font-mono-num font-bold focus:outline-none"/>
                 </div>
 
                 <div class="bg-brand-surface/60 p-3 rounded-xl border border-violet-500/40 flex items-center justify-between">
                     <div>
                         <label for="chkNocturno" class="text-[11px] text-violet-300 font-bold block">🌙 Turno Nocturno (5x2)</label>
+                        <span class="text-[9px] text-slate-400 block">Jornada 22:00 a 07:00 (2 días descanso)</span>
                     </div>
-                    <input type="checkbox" id="chkNocturno" checked onchange="actualizarGraficaDebounced()" class="w-4 h-4 rounded bg-slate-900 border-violet-500 text-violet-500 cursor-pointer">
+                    <input type="checkbox" id="chkNocturno" onchange="actualizarModoEspecial()" class="w-4 h-4 rounded bg-slate-900 border-violet-500 text-violet-500 focus:ring-0 cursor-pointer">
                 </div>
             </div>
 
-            <button id="btnProcesar" onclick="procesarWFM()" class="w-full bg-gradient-to-r from-cyan-500 via-blue-600 to-violet-600 text-white font-black py-4 px-4 rounded-xl text-xs uppercase tracking-wider">
+            <button id="btnProcesar" onclick="procesarWFM()" class="w-full bg-gradient-to-r from-cyan-500 via-blue-600 to-violet-600 hover:from-cyan-400 hover:to-violet-500 text-white font-black py-4 px-4 rounded-xl text-xs transition-all duration-300 shadow-lg shadow-cyan-500/20 uppercase tracking-wider mt-4 hover:shadow-cyan-500/40 active:scale-[0.98]">
                 🚀 PROCESAR MODELO EXECUTIVE
             </button>
         </aside>
 
         <main id="dashboardMain" class="col-span-12 lg:col-span-9 space-y-6">
 
-            <div class="glass-panel p-4 rounded-2xl flex justify-between items-center border border-slate-800/80 flex-wrap gap-4 relative z-50">
+            <div class="glass-panel p-4 rounded-2xl flex justify-between items-center border border-slate-800/80 flex-wrap gap-4 relative z-50 overflow-visible">
                 <div class="flex items-center gap-3">
                     <div class="p-2.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-xl text-sm">🎯</div>
                     <div>
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Filtros Operativos Intradía</p>
-                        <p id="tableSelectionLabel" class="text-xs text-slate-200 font-medium">Cargando datos...</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Filtros Operativos Intradía (Multiselección)</p>
+                        <p id="tableSelectionLabel" class="text-xs text-slate-200 font-medium">Selecciona una o más campañas, meses, fechas e intervalos</p>
                     </div>
                 </div>
                 
                 <div class="flex items-center gap-3 flex-wrap">
-                    <button onclick="resetAllFilters()" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold py-2 px-3 rounded-xl font-mono">
+                    <button id="btnResetTableFilter" onclick="resetAllFilters()" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold py-2 px-3 rounded-xl transition duration-200 font-mono">
                         🔄 Resetear
                     </button>
 
+                    <!-- FILTRO POR MES -->
                     <div class="flex flex-col relative">
-                        <button id="btnDropdownMes" onclick="toggleDropdown('Mes')" class="bg-brand-surface border border-amber-500/30 text-xs rounded-xl px-3 py-2 text-amber-300 font-mono-num font-bold min-w-[140px] flex justify-between items-center">
-                            <span id="mesSelectedText">🗓️ MES (0)</span> <span>▼</span>
+                        <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Mes(es)</label>
+                        <button id="btnDropdownMes" onclick="toggleDropdown('Mes')" class="bg-brand-surface border border-amber-500/30 text-xs rounded-xl px-3 py-2 text-amber-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[140px] h-[36px] flex items-center justify-between gap-2">
+                            <span id="mesSelectedText">🗓️ MES (0)</span>
+                            <span class="text-[10px] text-amber-400">▼</span>
                         </button>
-                        <div id="dropdownMesMenu" class="hidden absolute top-full left-0 mt-2 w-56 max-h-60 bg-[#0D1322] border border-amber-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs"></div>
+                        <div id="dropdownMesMenu" class="hidden absolute top-full left-0 mt-2 w-56 max-h-60 bg-[#0D1322] border border-amber-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200">
+                        </div>
                     </div>
 
+                    <!-- FILTRO POR CAMPAÑA -->
                     <div class="flex flex-col relative">
-                        <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-brand-surface border border-violet-500/30 text-xs rounded-xl px-3 py-2 text-violet-300 font-mono-num font-bold min-w-[150px] flex justify-between items-center">
-                            <span id="campanaSelectedText">🎧 SELECC. (0)</span> <span>▼</span>
+                        <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Campaña(s)</label>
+                        <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-brand-surface border border-violet-500/30 text-xs rounded-xl px-3 py-2 text-violet-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[150px] h-[36px] flex items-center justify-between gap-2">
+                            <span id="campanaSelectedText">🎧 SELECC. (0)</span>
+                            <span class="text-[10px] text-violet-400">▼</span>
                         </button>
-                        <div id="dropdownCampanaMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#0D1322] border border-violet-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs"></div>
+                        <div id="dropdownCampanaMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#0D1322] border border-violet-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200">
+                        </div>
                     </div>
 
-                    <div class="flex flex-col relative">
-                        <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-brand-surface border border-cyan-500/30 text-xs rounded-xl px-3 py-2 text-cyan-300 font-mono-num font-bold min-w-[150px] flex justify-between items-center">
-                            <span id="fechaSelectedText">📅 SELECC. (0)</span> <span>▼</span>
+                    <!-- FILTRO POR FECHA -->
+                    <div id="containerFiltroFecha" class="flex flex-col relative">
+                        <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Fecha(s)</label>
+                        <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-brand-surface border border-cyan-500/30 text-xs rounded-xl px-3 py-2 text-cyan-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[150px] h-[36px] flex items-center justify-between gap-2">
+                            <span id="fechaSelectedText">📅 SELECC. (0)</span>
+                            <span class="text-[10px] text-cyan-400">▼</span>
                         </button>
-                        <div id="dropdownFechaMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#0D1322] border border-cyan-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs"></div>
+                        <div id="dropdownFechaMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#0D1322] border border-cyan-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200">
+                        </div>
                     </div>
 
+                    <!-- FILTRO POR INTERVALO -->
                     <div class="flex flex-col relative">
-                        <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-brand-surface border border-emerald-500/30 text-xs rounded-xl px-3 py-2 text-emerald-300 font-mono-num font-bold min-w-[150px] flex justify-between items-center">
-                            <span id="intervaloSelectedText">⏰ SELECC. (0)</span> <span>▼</span>
+                        <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Intervalo(s)</label>
+                        <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-brand-surface border border-emerald-500/30 text-xs rounded-xl px-3 py-2 text-emerald-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[150px] h-[36px] flex items-center justify-between gap-2">
+                            <span id="intervaloSelectedText">⏰ SELECC. (0)</span>
+                            <span class="text-[10px] text-emerald-400">▼</span>
                         </button>
-                        <div id="dropdownIntervaloMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#0D1322] border border-emerald-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs"></div>
+                        <div id="dropdownIntervaloMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#0D1322] border border-emerald-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200">
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Cards -->
-            <div class="grid grid-cols-4 gap-4">
-                <div class="glass-panel p-4 rounded-2xl">
-                    <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Volumen Tráfico (Periodo)</p>
+            <!-- Cards Principales -->
+            <div class="grid grid-cols-3 gap-4">
+                <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
+                    <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Volumen Tráfico</p>
                     <p id="kpiCalls" class="text-2xl font-black font-mono-num mt-2 text-white">0</p>
                 </div>
-                <div class="glass-panel p-4 rounded-2xl">
+
+                <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">AHT Promedio</p>
                     <p id="kpiAht" class="text-2xl font-black font-mono-num mt-2 text-white">00:00</p>
                 </div>
-                <div class="glass-panel p-4 rounded-2xl border-l-4 border-l-emerald-500">
-                    <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC PLANTILLA ACTUAL</p>
-                    <p id="kpiHcPlantillaActual" class="text-2xl font-black font-mono-num mt-2 text-emerald-300">29 HC</p>
-                </div>
-                <div class="glass-panel p-4 rounded-2xl border-l-4 border-l-violet-500">
-                    <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Nómina Requerida (Malla 6x1)</p>
+
+                <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-violet-500 relative overflow-hidden">
+                    <div class="flex justify-between items-center">
+                        <p id="kpiHcRequeridoTitle" class="text-[10px] uppercase tracking-widest text-slate-400 font-black">HC REQUERIDO TOTAL</p>
+                        <span class="text-xs text-violet-400">📊</span>
+                    </div>
                     <p id="kpiHcRequerido" class="text-2xl font-black font-mono-num mt-2 text-violet-300">0 HC</p>
+                    <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1">Plantilla sugerida para cubrir la demanda</p>
                 </div>
             </div>
 
-            <!-- Gráfica & Turnos -->
-            <div class="glass-panel p-6 rounded-2xl border-t-2 border-t-amber-500">
+            <!-- MÓDULO: RECOMENDACIÓN DE HORARIOS ÓPTIMOS & COMPARATIVA -->
+            <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-amber-500 relative overflow-hidden">
+                <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-amber-400 text-base">🧠</span>
+                            <h3 id="optModuleTitle" class="text-xs font-black text-slate-200 uppercase tracking-widest">Optimización de Horarios (Sugerencia)</h3>
+                        </div>
+                        <p id="subtHeadcountMod" class="text-xs text-slate-400 font-medium mt-0.5">Malla de turnos requerida para cubrir la curva de demanda</p>
+                    </div>
+                    <button onclick="exportarTurnosCSV()" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold py-2 px-4 rounded-xl transition duration-200 flex items-center gap-2 font-mono">
+                        <span>📥</span> Exportar Malla Sugerida
+                    </button>
+                </div>
+
                 <div class="grid grid-cols-2 gap-4 mb-6">
-                    <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800">
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">SL Proyectado con Malla Sugerida</p>
-                        <span id="compSlOptimo" class="text-3xl font-black font-mono-num text-emerald-400 mt-2 block">--%</span>
+                    
+                    <div class="bg-brand-surface/80 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold leading-tight">SL Proyectado con Malla Sugerida</p>
+                        <div class="my-2">
+                            <span id="compSlOptimo" class="text-3xl font-black font-mono-num text-emerald-400 truncate block">--%</span>
+                        </div>
+                        <p class="text-[9px] text-slate-500 leading-tight">Nivel de Servicio estimado</p>
                     </div>
-                    <div class="bg-brand-surface/80 p-4 rounded-xl border border-violet-500/30">
-                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold">Nómina Total A Contratar</p>
-                        <p id="optHeadcount" class="text-3xl font-black font-mono-num text-white mt-2">--</p>
+
+                    <div class="bg-brand-surface/80 p-4 rounded-xl border border-violet-500/30 shadow-[0_0_15px_rgba(139,92,246,0.1)] relative overflow-hidden flex flex-col justify-between">
+                        <div class="absolute -right-4 -top-4 w-16 h-16 bg-violet-500/20 rounded-full blur-xl pointer-events-none"></div>
+                        <p id="lblHeadcountType" class="text-[10px] uppercase tracking-widest text-violet-400 font-bold relative z-10 leading-tight">HC Requerido A Contratar</p>
+                        <div class="my-2 relative z-10">
+                            <p id="optHeadcount" class="text-3xl font-black font-mono-num text-white truncate">--</p>
+                        </div>
+                        <p id="lblHeadcountSub" class="text-[9px] text-violet-300/70 relative z-10 leading-tight">A contratar (Incluye mermas y descansos)</p>
                     </div>
+
                 </div>
 
                 <div class="h-64 mb-6 relative">
@@ -205,7 +278,7 @@
 
                 <div class="overflow-x-auto border border-slate-800/80 rounded-xl">
                     <table class="w-full text-left text-xs text-slate-300">
-                        <thead class="bg-brand-surface text-slate-400 font-bold uppercase text-[9px] border-b border-slate-800">
+                        <thead class="bg-brand-surface text-slate-400 font-bold uppercase tracking-wider text-[9px] sticky top-0 border-b border-slate-800">
                             <tr>
                                 <th class="py-3 px-4">Horario de Entrada</th>
                                 <th class="py-3 px-4">Horario de Salida</th>
@@ -214,23 +287,37 @@
                                 <th class="py-3 px-4">% de la Plantilla</th>
                             </tr>
                         </thead>
-                        <tbody id="optShiftsTableBody" class="divide-y divide-slate-800/50 font-mono-num text-[11px]"></tbody>
+                        <tbody id="optShiftsTableBody" class="divide-y divide-slate-800/50 font-mono-num text-[11px]">
+                            <tr>
+                                <td colspan="5" class="text-center py-6 text-slate-500 font-sans">Selecciona filtros...</td>
+                            </tr>
+                        </tbody>
                     </table>
                 </div>
             </div>
 
-            <div class="glass-panel p-6 rounded-2xl border-t-2 border-t-cyan-500">
+            <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-cyan-500">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="text-xs font-black text-slate-200 uppercase tracking-widest">📊 Matriz de Requerimientos Intradía</h3>
+                    </div>
+                    <button onclick="exportarCSV()" class="bg-brand-surface hover:bg-slate-800 text-cyan-400 border border-cyan-500/30 text-xs font-bold py-2 px-4 rounded-xl transition duration-200 font-mono">
+                        <span>📥</span> Exportar CSV
+                    </button>
+                </div>
                 <div class="overflow-x-auto max-h-80 border border-slate-800/80 rounded-xl">
-                    <table class="w-full text-left text-xs text-slate-300">
-                        <thead class="bg-brand-surface text-slate-400 font-bold uppercase text-[9px] border-b border-slate-800">
+                    <table class="w-full text-left text-xs text-slate-300 cursor-pointer">
+                        <thead class="bg-brand-surface text-slate-400 font-bold uppercase tracking-wider text-[9px] sticky top-0 border-b border-slate-800">
                             <tr>
                                 <th class="py-3 px-4">Intervalo</th>
-                                <th class="py-3 px-4">Llamadas (Día Promedio)</th>
+                                <th class="py-3 px-4">Llamadas</th>
                                 <th class="py-3 px-4">AHT (MM:SS)</th>
-                                <th class="py-3 px-4 text-violet-400">Agentes Requeridos en Sitio (FTE)</th>
+                                <th class="py-3 px-4 text-violet-400">Agentes Req. (HC)</th>
                             </tr>
                         </thead>
-                        <tbody id="intervalTableBody" class="divide-y divide-slate-800/50 font-mono-num text-[11px]"></tbody>
+                        <tbody id="intervalTableBody" class="divide-y divide-slate-800/50 font-mono-num text-[11px]">
+                            <tr><td colspan="4" class="text-center py-6 text-slate-500">Cargue datos...</td></tr>
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -241,96 +328,111 @@
     <script>
         let globalData = [];
         let optChartInstance = null;
+        let globalTurnosOptimos = [];
         let selectedMeses = new Set();
         let selectedCampanas = new Set();
         let selectedFechas = new Set();
         let selectedIntervalos = new Set();
-        let renderTimer = null;
 
         window.addEventListener('DOMContentLoaded', async () => {
-            cargarPronosticoInicial();
-        });
-
-        function formatAHTStr(sec) {
-            if (!sec || sec <= 0) return "03:00";
-            const s = Math.round(sec);
-            const m = Math.floor(s / 60);
-            const r = s % 60;
-            return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
-        }
-
-        async function cargarPronosticoInicial() {
-            const label = document.getElementById('tableSelectionLabel');
+            const urlParams = new URLSearchParams(window.location.search);
+            const mode = urlParams.get('mode') || urlParams.get('role');
+            if (mode === 'operaciones' || mode === 'ops') {
+                const aside = document.getElementById('panelControl');
+                const main = document.getElementById('dashboardMain');
+                const tag = document.getElementById('tagModoOps');
+                if (aside) aside.style.display = 'none';
+                if (tag) tag.classList.remove('hidden');
+                if (main) {
+                    main.classList.remove('lg:col-span-9');
+                    main.classList.add('lg:col-span-12');
+                }
+            }
             try {
-                if (label) label.innerText = "⏳ Cargando pronóstico desde GitHub...";
                 const response = await fetch('/api/latest?t=' + new Date().getTime());
                 if (response.ok) {
-                    const raw = await response.json();
-                    let items = Array.isArray(raw) ? raw : (raw.data || []);
-                    
-                    globalData = items.map(i => {
-                        const camp = String(i.c !== undefined ? i.c : (i.Campaña || 'General')).trim();
-                        const fech = String(i.f !== undefined ? i.f : (i.Fecha || '')).trim().split(' ')[0];
-                        const mes = String(i.m !== undefined ? i.m : (i.Mes || '')).trim();
-                        const inter = String(i.i !== undefined ? i.i : (i.Intervalo || '00:00')).trim();
-                        const calls = Number(i.ll !== undefined ? i.ll : (i.Llamadas || 0));
-                        const ahtSecs = Number(i.as !== undefined ? i.as : (i.AHT_Segundos || 180));
-                        const reqHC = Number(i.r !== undefined ? i.r : (i.Agentes_Requeridos || 0));
-
-                        return {
-                            Campaña: camp,
-                            Fecha: fech,
-                            Mes: mes,
-                            Intervalo: inter,
-                            Llamadas: isNaN(calls) ? 0 : calls,
-                            AHT_Segundos: isNaN(ahtSecs) ? 180 : ahtSecs,
-                            Agentes_Requeridos: isNaN(reqHC) ? 0 : reqHC
-                        };
-                    });
-
-                    if (globalData.length > 0) {
+                    globalData = await response.json();
+                    if (Array.isArray(globalData) && globalData.length > 0) {
                         inicializarFiltrosMultiples();
-                        actualizarHorizonteDias();
-                        if (label) label.innerText = "Pronóstico cargado correctamente.";
-                        return;
+                        actualizarGrafica();
                     }
-                    if (label) label.innerText = "Error: Arreglo de datos vacío.";
-                } else {
-                    if (label) label.innerText = "Error leyendo API.";
                 }
             } catch (e) {
-                if (label) label.innerText = "Error de red.";
+                console.log("Error cargando pronóstico automático.");
             }
+        });
+
+        function getProp(row, keys, def = '') {
+            for (let k of keys) {
+                if (row[k] !== undefined && row[k] !== null) return row[k];
+            }
+            return def;
         }
 
-        function actualizarHorizonteDias() {
-            const numDiasInput = parseInt(document.getElementById('dias').value) || 180;
-            const todasFechasUnicas = [...new Set(globalData.map(i => i.Fecha))].filter(Boolean).sort();
-            
-            const fechasLimitadas = todasFechasUnicas.slice(0, numDiasInput);
-            selectedFechas = new Set(fechasLimitadas);
+        function formatAHT(seconds) {
+            if (!seconds || seconds <= 0) return "00:00";
+            const secs = Math.round(seconds);
+            const hrs = Math.floor(secs / 3600);
+            const mins = Math.floor((secs % 3600) / 60);
+            return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+        }
 
-            renderMenuOptions('Fecha', todasFechasUnicas, selectedFechas);
-            actualizarTextosBotones();
+        function parseMinStr(t_str) {
+            if (!t_str) return 0;
+            const parts = t_str.split(':');
+            return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        }
+
+        function actualizarModoEspecial() {
             actualizarGrafica();
         }
 
         async function procesarWFM() {
-            actualizarHorizonteDias();
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) { alert("Por favor selecciona tu archivo historico.xlsx"); return; }
+            const btn = document.getElementById('btnProcesar');
+            btn.disabled = true;
+            btn.innerText = "⏳ PROCESANDO...";
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('target_sl', document.getElementById('targetSl').value);
+            formData.append('target_time', document.getElementById('targetTime').value);
+            formData.append('merma', document.getElementById('merma').value);
+            formData.append('dias', document.getElementById('dias').value);
+            try {
+                const response = await fetch('/api/process', { method: 'POST', body: formData });
+                globalData = await response.json();
+                if (response.ok && Array.isArray(globalData)) {
+                    inicializarFiltrosMultiples();
+                    actualizarGrafica();
+                } else {
+                    alert("Error procesando los datos: " + (globalData.error || "Formato no válido"));
+                }
+            } catch (e) {
+                alert("Error de conexión: " + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "🚀 PROCESAR MODELO EXECUTIVE";
+            }
         }
 
         function inicializarFiltrosMultiples() {
-            const meses = [...new Set(globalData.map(i => i.Mes))].filter(Boolean).sort();
+            const meses = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).sort();
             selectedMeses = new Set(meses);
             renderMenuOptions('Mes', meses, selectedMeses);
 
-            const campanas = [...new Set(globalData.map(i => i.Campaña))].filter(Boolean).sort();
+            const campanas = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).sort();
             selectedCampanas = new Set(campanas);
             renderMenuOptions('Campana', campanas, selectedCampanas);
 
-            const intervalos = [...new Set(globalData.map(i => i.Intervalo))].filter(Boolean).sort();
+            const fechas = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
+            selectedFechas = new Set(fechas);
+            renderMenuOptions('Fecha', fechas, selectedFechas);
+
+            const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
             selectedIntervalos = new Set(intervalos);
             renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
+            actualizarTextosBotones();
         }
 
         function renderMenuOptions(type, allOptions, setRef) {
@@ -346,17 +448,21 @@
             menu.appendChild(headerDiv);
             allOptions.forEach(opt => {
                 const label = document.createElement('label');
-                label.className = 'flex items-center gap-2 p-1.5 hover:bg-slate-800/60 rounded cursor-pointer';
+                label.className = 'flex items-center gap-2 p-1.5 hover:bg-slate-800/60 rounded cursor-pointer transition-colors';
+                const isChecked = setRef.has(opt);
+                
                 const input = document.createElement('input');
                 input.type = 'checkbox';
-                input.checked = setRef.has(opt);
+                input.checked = isChecked;
                 input.className = 'rounded bg-slate-900 border-slate-700 text-cyan-500 focus:ring-0';
                 input.addEventListener('change', (e) => {
                     onCheckboxChange(type, opt, e.target.checked);
                 });
+
                 const span = document.createElement('span');
                 span.className = 'truncate';
                 span.innerText = opt;
+
                 label.appendChild(input);
                 label.appendChild(span);
                 menu.appendChild(label);
@@ -368,43 +474,64 @@
             if (checked) setRef.add(value); else setRef.delete(value);
 
             if (type === 'Mes') {
-                const fechasInMes = [...new Set(globalData.filter(i => selectedMeses.has(i.Mes)).map(i => i.Fecha))].filter(Boolean);
+                const fechasInMes = [...new Set(globalData.filter(i => selectedMeses.has(getProp(i, ['Mes'], ''))).map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
                 selectedFechas = new Set(fechasInMes);
-                renderMenuOptions('Fecha', [...new Set(globalData.map(i => i.Fecha))].filter(Boolean).sort(), selectedFechas);
+                const allFechas = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
+                renderMenuOptions('Fecha', allFechas, selectedFechas);
             }
 
             actualizarTextosBotones();
-            actualizarGraficaDebounced();
+            actualizarGrafica();
         }
 
         function selectAllFilter(type, selectAll) {
             let setRef = type === 'Mes' ? selectedMeses : (type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos));
             let allOptions = [];
-            if (type === 'Mes') allOptions = [...new Set(globalData.map(i => i.Mes))].filter(Boolean);
-            else if (type === 'Campana') allOptions = [...new Set(globalData.map(i => i.Campaña))].filter(Boolean);
-            else if (type === 'Fecha') allOptions = [...new Set(globalData.map(i => i.Fecha))].filter(Boolean);
-            else allOptions = [...new Set(globalData.map(i => i.Intervalo))].filter(Boolean);
-
+            if (type === 'Mes') {
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean);
+            } else if (type === 'Campana') {
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean);
+            } else if (type === 'Fecha') {
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
+            } else {
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean);
+            }
             if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
             renderMenuOptions(type, allOptions.sort(), setRef);
             actualizarTextosBotones();
-            actualizarGraficaDebounced();
+            actualizarGrafica();
         }
 
         function toggleDropdown(type) {
             ['Mes', 'Campana', 'Fecha', 'Intervalo'].forEach(t => {
-                if (t !== type) document.getElementById(`dropdown${t}Menu`)?.classList.add('hidden');
+                if (t !== type) {
+                    const menu = document.getElementById(`dropdown${t}Menu`);
+                    if (menu) menu.classList.add('hidden');
+                }
             });
-            document.getElementById(`dropdown${type}Menu`)?.classList.toggle('hidden');
+            const selectedMenu = document.getElementById(`dropdown${type}Menu`);
+            if (selectedMenu) selectedMenu.classList.toggle('hidden');
         }
 
+        window.addEventListener('click', function(e) {
+            ['Mes', 'Campana', 'Fecha', 'Intervalo'].forEach(type => {
+                const btn = document.getElementById(`btnDropdown${type}`);
+                const menu = document.getElementById(`dropdown${type}Menu`);
+                if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) {
+                    menu.classList.add('hidden');
+                }
+            });
+        });
+
         function actualizarTextosBotones() {
-            const totM = [...new Set(globalData.map(i => i.Mes))].filter(Boolean).length;
-            const totC = [...new Set(globalData.map(i => i.Campaña))].filter(Boolean).length;
-            const totF = [...new Set(globalData.map(i => i.Fecha))].filter(Boolean).length;
-            const totI = [...new Set(globalData.map(i => i.Intervalo))].filter(Boolean).length;
+            const totM = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).length;
+            const totC = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).length;
+            const totF = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).length;
+            const totI = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).length;
             
-            document.getElementById('mesSelectedText').innerText = `🗓️ MES (${selectedMeses.size}/${totM})`;
+            const btnMes = document.getElementById('mesSelectedText');
+            if (btnMes) btnMes.innerText = `🗓️ MES (${selectedMeses.size}/${totM})`;
+            
             document.getElementById('campanaSelectedText').innerText = `🎧 SELECC. (${selectedCampanas.size}/${totC})`;
             document.getElementById('fechaSelectedText').innerText = `📅 SELECC. (${selectedFechas.size}/${totF})`;
             document.getElementById('intervaloSelectedText').innerText = `⏰ SELECC. (${selectedIntervalos.size}/${totI})`;
@@ -412,20 +539,35 @@
 
         function resetAllFilters() {
             inicializarFiltrosMultiples();
-            actualizarHorizonteDias();
+            actualizarGrafica();
         }
 
-        function actualizarGraficaDebounced() {
-            if (renderTimer) clearTimeout(renderTimer);
-            renderTimer = setTimeout(() => { actualizarGrafica(); }, 50);
+        function toggleTableInterval(inter) {
+            if (selectedIntervalos.has(inter)) selectedIntervalos.delete(inter); else selectedIntervalos.add(inter);
+            const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
+            renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
+            actualizarTextosBotones();
+            actualizarGrafica();
         }
 
         async function actualizarGrafica() {
+            const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
+            const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
+            const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
+            const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
+
             const dfFiltered = globalData.filter(item => {
-                return selectedMeses.has(item.Mes) && 
-                       selectedCampanas.has(item.Campaña) && 
-                       selectedFechas.has(item.Fecha) && 
-                       selectedIntervalos.has(item.Intervalo);
+                const m = String(getProp(item, ['Mes'], ''));
+                const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
+                const f = String(getProp(item, ['Fecha'], '')).split(' ')[0].split('T')[0];
+                const i = String(getProp(item, ['Intervalo'], '00:00'));
+                
+                const matchMes = selectedMeses.size === 0 || selectedMeses.has(m);
+                const matchCamp = selectedCampanas.size === 0 || selectedCampanas.has(c);
+                const matchFecha = selectedFechas.size === 0 || selectedFechas.has(f);
+                const matchInter = selectedIntervalos.size === 0 || selectedIntervalos.has(i);
+
+                return matchMes && matchCamp && matchFecha && matchInter;
             });
 
             if (!dfFiltered || dfFiltered.length === 0) {
@@ -435,62 +577,72 @@
                 return;
             }
 
-            const totCalls = dfFiltered.reduce((acc, row) => acc + row.Llamadas, 0);
-            const sumLlamadasAht = dfFiltered.reduce((acc, row) => acc + (row.Llamadas * row.AHT_Segundos), 0);
-            const avgAhtSegs = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 180;
+            const totCalls = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
+            
+            const sumLlamadasAht = dfFiltered.reduce((acc, row) => {
+                const calls = Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0;
+                let ahtSegs = Number(getProp(row, ['AHT_Segundos'], 180));
+                return acc + (calls * ahtSegs);
+            }, 0);
 
-            const fechasFiltradas = [...new Set(dfFiltered.map(r => r.Fecha))].filter(Boolean);
-            const numDias = Math.max(1, fechasFiltradas.length);
-            const todosIntervalos = [...new Set(dfFiltered.map(r => r.Intervalo))].sort();
+            const avgAhtSegs = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
+
+            const fechasFiltradas = [...new Set(dfFiltered.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
+            const todosIntervalos = [...new Set(dfFiltered.map(r => String(getProp(r, ['Intervalo'], '00:00'))))].sort();
+            
+            const esVistaSemanal = fechasFiltradas.length > 1;
 
             const reqMaxVector = todosIntervalos.map(() => 0);
             const llamadasMaxVector = todosIntervalos.map(() => 0);
             const ahtMaxVector = todosIntervalos.map(() => 0);
 
             todosIntervalos.forEach((inter, idx) => {
-                let dailyReqSum = 0, dailyCallsSum = 0, dailyAhtSum = 0, countDays = 0;
                 fechasFiltradas.forEach(fStr => {
-                    const subRows = dfFiltered.filter(r => r.Fecha === fStr && r.Intervalo === inter);
+                    const subRows = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fStr && String(getProp(r, ['Intervalo'], '00:00')) === inter);
                     if (subRows.length > 0) {
-                        dailyReqSum += subRows.reduce((a, b) => a + b.Agentes_Requeridos, 0);
-                        dailyCallsSum += subRows.reduce((a, b) => a + b.Llamadas, 0);
-                        dailyAhtSum += subRows.reduce((a, b) => a + b.AHT_Segundos, 0) / subRows.length;
-                        countDays++;
+                        const sumReq = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0), 0);
+                        const sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
+                        const avgAht = subRows.reduce((a, b) => a + (Number(getProp(b, ['AHT_Segundos'], 180)) || 180), 0) / subRows.length;
+
+                        if (sumReq > reqMaxVector[idx]) reqMaxVector[idx] = sumReq;
+                        if (sumCalls > llamadasMaxVector[idx]) llamadasMaxVector[idx] = sumCalls;
+                        if (avgAht > ahtMaxVector[idx]) ahtMaxVector[idx] = avgAht;
                     }
                 });
-
-                if (countDays > 0) {
-                    reqMaxVector[idx] = Math.ceil(dailyReqSum / countDays);
-                    llamadasMaxVector[idx] = Math.round(dailyCallsSum / countDays);
-                    ahtMaxVector[idx] = Math.round(dailyAhtSum / countDays);
-                }
             });
 
             document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
-            document.getElementById('kpiAht').innerText = formatAHTStr(avgAhtSegs);
+            document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
 
             const tbody = document.getElementById('intervalTableBody');
             tbody.innerHTML = '';
+
             todosIntervalos.forEach((inter, idx) => {
+                const rowLlamadas = llamadasMaxVector[idx];
+                const rowAhtSegs = ahtMaxVector[idx];
+                const rowReq = reqMaxVector[idx];
+
                 const tr = document.createElement('tr');
-                tr.className = 'hover:bg-slate-800/40 transition-colors';
+                tr.onclick = () => toggleTableInterval(inter);
+                tr.className = `transition-all duration-200 hover:bg-slate-800/40`;
                 tr.innerHTML = `
-                    <td class="py-2.5 px-4 font-bold text-slate-200">${inter}</td>
-                    <td class="py-2.5 px-4 text-slate-300">${llamadasMaxVector[idx].toLocaleString()}</td>
-                    <td class="py-2.5 px-4 text-slate-300">${formatAHTStr(ahtMaxVector[idx])}</td>
-                    <td class="py-2.5 px-4 text-violet-400 font-bold">${reqMaxVector[idx]} FTE</td>
+                    <td class="py-2.5 px-4 font-bold text-slate-200 flex items-center gap-2">
+                        <span class="text-[10px] text-cyan-400">●</span> ${inter}
+                    </td>
+                    <td class="py-2.5 px-4 text-slate-300">${rowLlamadas.toLocaleString()}</td>
+                    <td class="py-2.5 px-4 text-slate-300">${formatAHT(rowAhtSegs)}</td>
+                    <td class="py-2.5 px-4 text-violet-400 font-bold">${rowReq}</td>
                 `;
                 tbody.appendChild(tr);
             });
 
-            ejecutarOptimizadorHorarios(todosIntervalos, reqMaxVector, llamadasMaxVector, ahtMaxVector);
+            ejecutarOptimizadorHorarios(todosIntervalos, reqMaxVector, llamadasMaxVector, ahtMaxVector, targetTimeObj, targetSlObj, mermaVal, esVistaSemanal);
         }
 
-        async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr) {
-            const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
-            const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
-            const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
-            const duracionJornada = parseFloat(document.getElementById('duracionJornada').value) || 6.5;
+        async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr, targetTimeObj, targetSlObj, mermaVal, esVistaSemanal) {
+            if (!intervalos || intervalos.length === 0) return;
+
+            const duracionJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
             const esNocturno = document.getElementById('chkNocturno').checked;
 
             try {
@@ -499,8 +651,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         intervalos: intervalos,
-                        campanas: Array.from(selectedCampanas),
                         requeridos: reqArray,
+                        campanas: Array.from(selectedCampanas),
                         llamadas: llamadasArr,
                         ahts: ahtSegsArr,
                         target_sl: targetSlObj,
@@ -511,61 +663,164 @@
                     })
                 });
 
-                if (!res.ok) return;
-                const optData = await res.json();
+                if (!res.ok) {
+                    console.error("El backend retornó un error al optimizar. Status:", res.status);
+                    return;
+                }
+
+                const optData = await res.json() || {};
                 
-                const totalHC = optData.headcount_semanal_6x1 || Math.max(...reqArray);
-                document.getElementById('optHeadcount').innerText = totalHC;
-                document.getElementById('kpiHcRequerido').innerText = totalHC + ' HC';
-                document.getElementById('compSlOptimo').innerText = (optData.sl_optimo_global || 95.0).toFixed(1) + '%';
+                const nominaRequeridaTotalSemana = optData.headcount_semanal_6x1 || 0;
+                const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
+                
+                const hcRequeridoDisplay = esVistaSemanal ? nominaRequeridaTotalSemana : nominaRequeridaDiaria;
+                
+                document.getElementById('optHeadcount').innerText = hcRequeridoDisplay.toLocaleString();
+                document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay + ' HC';
+                
+                if (esVistaSemanal) {
+                    const lblType = esNocturno ? 'HC Requerido (Mixto)' : 'HC Requerido';
+                    document.getElementById('lblHeadcountType').innerText = lblType;
+                    document.getElementById('kpiHcRequeridoSub').innerText = "Plantilla total sugerida para cubrir la semana";
+                    document.getElementById('lblHeadcountSub').innerText = "A contratar (Incluye descansos)";
+                } else {
+                    document.getElementById('lblHeadcountType').innerText = 'HC Requerido (Diario)';
+                    document.getElementById('kpiHcRequeridoSub').innerText = "Plantilla sugerida activa solo para hoy";
+                    document.getElementById('lblHeadcountSub').innerText = "Necesarios para hoy (Sin descansos)";
+                }
+
+                const slOptimoVal = parseFloat(optData.sl_optimo_global || 0);
+                const slEl = document.getElementById('compSlOptimo');
+                slEl.innerText = slOptimoVal.toFixed(1) + '%';
+                if (slOptimoVal >= targetSlObj) {
+                    slEl.className = "text-3xl font-black font-mono-num text-emerald-400 truncate block";
+                } else {
+                    slEl.className = "text-3xl font-black font-mono-num text-rose-400 truncate block";
+                }
 
                 const optTbody = document.getElementById('optShiftsTableBody');
                 optTbody.innerHTML = '';
-                const totalAgentesMalla = optData.total_agentes_diarios || 1;
-
-                (optData.turnos || []).forEach(t => {
-                    const pct = ((t.agentes_a_programar / totalAgentesMalla) * 100).toFixed(1);
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-slate-800/40 transition-colors';
-                    tr.innerHTML = `
-                        <td class="py-2.5 px-4 font-bold text-amber-400">${t.horario_entrada}</td>
-                        <td class="py-2.5 px-4 text-slate-300 font-bold">${t.horario_salida}</td>
-                        <td class="py-2.5 px-4 text-slate-400">${t.duracion}</td>
-                        <td class="py-2.5 px-4 text-amber-300 font-black">${t.agentes_a_programar}</td>
-                        <td class="py-2.5 px-4 text-cyan-400 font-bold">${pct}%</td>
-                    `;
-                    optTbody.appendChild(tr);
+                
+                const totalDiarioMalla = optData.total_agentes_diarios || 1;
+                let turnosBase = optData.turnos || [];
+                let accumulatedNomina = 0;
+                
+                globalTurnosOptimos = turnosBase.map((t, index) => {
+                    let nominaTurno;
+                    if (index === turnosBase.length - 1) {
+                        nominaTurno = hcRequeridoDisplay - accumulatedNomina;
+                    } else {
+                        nominaTurno = Math.round((t.agentes_a_programar / totalDiarioMalla) * hcRequeridoDisplay);
+                        accumulatedNomina += nominaTurno;
+                    }
+                    nominaTurno = Math.max(0, nominaTurno);
+                    return { ...t, nomina_a_contratar: nominaTurno };
                 });
+
+                globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
+
+                if (globalTurnosOptimos.length === 0) {
+                    optTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-500">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
+                } else {
+                    globalTurnosOptimos.forEach(t => {
+                        const pct = hcRequeridoDisplay > 0 ? ((t.nomina_a_contratar / hcRequeridoDisplay) * 100).toFixed(1) : 0;
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-slate-800/40 transition-colors';
+                        tr.innerHTML = `
+                            <td class="py-2.5 px-4 font-bold text-amber-400 flex items-center gap-2">
+                                <span>🕒</span> ${t.horario_entrada}
+                            </td>
+                            <td class="py-2.5 px-4 text-slate-300 font-bold">${t.horario_salida}</td>
+                            <td class="py-2.5 px-4 text-slate-400">${t.duracion}</td>
+                            <td class="py-2.5 px-4 text-amber-300 font-black text-sm">${t.nomina_a_contratar}</td>
+                            <td class="py-2.5 px-4 text-cyan-400 font-bold">${pct}%</td>
+                        `;
+                        optTbody.appendChild(tr);
+                    });
+                }
 
                 if (optChartInstance) optChartInstance.destroy();
                 const ctxOpt = document.getElementById('optChart').getContext('2d');
+                
+                const labelCurvaCob = esNocturno ? "Malla de Turnos Sugerida (Mixta)" : `Malla de Turnos Sugerida (${duracionJornada}h)`;
+
                 optChartInstance = new Chart(ctxOpt, {
                     type: 'line',
                     data: {
                         labels: intervalos,
                         datasets: [
-                            { label: 'Agentes Requeridos en Sitio (FTE Intradía)', data: optData.req_hc_pooled || reqArray, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.05)', fill: true, tension: 0.35 },
-                            { label: 'Malla Cobertura Programada', data: optData.cobertura_optima || reqArray, borderColor: '#F59E0B', fill: false, borderDash: [4, 4], tension: 0.35 }
+                            { label: 'HC Total Requerido por Intervalo', data: (optData.req_hc_pooled || reqArray), borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.05)', fill: true, tension: 0.35, borderWidth: 2.5 },
+                            { label: labelCurvaCob, data: (optData.cobertura_optima || []), borderColor: '#F59E0B', backgroundColor: 'transparent', fill: false, tension: 0.35, borderWidth: 2.5, borderDash: [4, 4] }
                         ]
                     },
                     options: { 
                         responsive: true, 
-                        maintainAspectRatio: false,
-                        plugins: { legend: { labels: { color: '#94A3B8' } } },
-                        scales: {
-                            x: { ticks: { color: '#64748B' }, grid: { color: 'rgba(255,255,255,0.02)' } },
-                            y: { 
-                                beginAtZero: true,
-                                ticks: { color: '#64748B', stepSize: 1 }, 
-                                grid: { color: 'rgba(255,255,255,0.02)' } 
+                        maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { 
+                                labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } 
                             }
-                        }
+                        }, 
+                        scales: { 
+                            x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
+                            y: { ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
+                        } 
                     }
                 });
-            } catch (err) {
-                console.error("Error optimizando turnos:", err);
+
+            } catch (e) {
+                console.log("Error al optimizar turnos en frontend:", e);
+                document.getElementById('compSlOptimo').innerText = "Error";
+                document.getElementById('optHeadcount').innerText = "Error";
             }
+        }
+
+        function exportarTurnosCSV() {
+            if (!globalTurnosOptimos || globalTurnosOptimos.length === 0) {
+                alert("No hay turnos optimizados para exportar.");
+                return;
+            }
+            const headers = ["Horario_Entrada", "Horario_Salida", "Duracion", "Agentes_Nomina_A_Contratar"];
+            const csvRows = [headers.join(",")];
+            globalTurnosOptimos.forEach(t => {
+                csvRows.push([t.horario_entrada, t.horario_salida, t.duracion, t.nomina_a_contratar].join(","));
+            });
+            const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', `Malla_Turnos_Optimos_HC_${new Date().toISOString().slice(0,10)}.csv`);
+            a.click();
+        }
+
+        function exportarCSV() {
+            if (!globalData || globalData.length === 0) {
+                alert("No hay datos cargados para exportar.");
+                return;
+            }
+            const headers = ["Campana", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT", "Agentes_Requeridos_HC"];
+            const csvRows = [headers.join(",")];
+            globalData.forEach(row => {
+                const values = [
+                    getProp(row, ['Campaña', 'Campana'], 'General'),
+                    getProp(row, ['Mes'], ''),
+                    getProp(row, ['Fecha'], ''),
+                    getProp(row, ['Día_Semana', 'Dia_Semana'], ''),
+                    getProp(row, ['Intervalo'], '00:00'),
+                    getProp(row, ['Llamadas', 'Recibidas'], 0),
+                    getProp(row, ['AHT'], '00:00'),
+                    getProp(row, ['Agentes_Requeridos'], 0)
+                ];
+                csvRows.push(values.join(","));
+            });
+            const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', `WFM_Reporte_Ejecutivo_HC_${new Date().toISOString().slice(0,10)}.csv`);
+            a.click();
         }
     </script>
 </body>
 </html>
+
