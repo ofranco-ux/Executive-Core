@@ -532,6 +532,31 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 
     return turnos_sugeridos, cobertura_hc_entera, total_agentes_diarios_hc, headcount_semanal_requerido, eficiencia, sl_optimo_vector, sl_optimo_global, staffing_level_optimo, req_hc_pooled
 
+
+# -------------------------------------------------------------
+# LA RUTA /api/latest AHORA LEE LA CACHÉ CORRECTAMENTE
+# -------------------------------------------------------------
+@app.route('/api/latest', methods=['GET'])
+def get_latest_forecast():
+    # 1. Intentar leer la caché primero (Carga en milisegundos)
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return jsonify(data), 200
+        except Exception as e:
+            print(f"Error leyendo cache, se regenerará: {e}")
+            
+    # 2. Si no hay caché (primera vez o se borró), procesar el Excel
+    if os.path.exists(EXCEL_DEFAULT):
+        try:
+            data = procesar_archivo_excel(EXCEL_DEFAULT) # Esto crea el CACHE_FILE internamente
+            return jsonify(data), 200
+        except Exception as e:
+            return jsonify({'error': f'Error procesando historico.xlsx automático: {str(e)}'}), 500
+            
+    return jsonify({'error': 'No se encontró historico.xlsx en el servidor.'}), 404
+
 @app.route('/api/optimize-schedules', methods=['POST'])
 def api_optimize_schedules():
     try:
@@ -565,20 +590,6 @@ def api_optimize_schedules():
     except Exception as e:
         print("Error en backend optimizador:", str(e))
         return jsonify({'error': f'Error optimizando turnos: {str(e)}'}), 500
-
-@app.route('/api/latest', methods=['GET'])
-def get_latest_forecast():
-    if os.path.exists(CACHE_FILE):
-        try:
-            os.remove(CACHE_FILE)
-        except Exception: pass
-    if os.path.exists(EXCEL_DEFAULT):
-        try:
-            data = procesar_archivo_excel(EXCEL_DEFAULT)
-            return jsonify(data), 200
-        except Exception as e:
-            return jsonify({'error': f'Error procesando historico.xlsx automático: {str(e)}'}), 500
-    return jsonify({'error': 'No se encontró historico.xlsx en GitHub.'}), 404
 
 @app.route('/api/process', methods=['POST', 'GET'])
 @app.route('/api/process/', methods=['POST', 'GET'])
