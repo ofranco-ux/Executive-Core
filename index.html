@@ -106,7 +106,7 @@
                 <div class="relative">
                     <input type="file" id="fileInput" accept=".xlsx, .xls" class="block w-full text-xs text-slate-400 file:mr-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-cyan-500/20 file:text-cyan-300 hover:file:bg-cyan-500/30 border border-slate-800 rounded-xl cursor-pointer bg-slate-900/60 p-1.5 transition-all"/>
                 </div>
-                <span class="text-[10px] text-slate-500 mt-1 block">Si no adjuntas nada, usará automáticamente <strong class="text-emerald-400">historico.xlsx</strong> de GitHub.</span>
+                <span class="text-[10px] text-slate-500 mt-1 block">Usa por defecto <strong class="text-emerald-400">historico.xlsx</strong> de GitHub.</span>
             </div>
 
             <div class="space-y-4 pt-2">
@@ -350,17 +350,25 @@
         });
 
         async function cargarPronosticoInicial() {
+            const label = document.getElementById('tableSelectionLabel');
             try {
+                if (label) label.innerText = "⏳ Cargando pronóstico desde GitHub...";
                 const response = await fetch('/api/latest?t=' + new Date().getTime());
                 if (response.ok) {
                     globalData = await response.json();
                     if (Array.isArray(globalData) && globalData.length > 0) {
                         inicializarFiltrosMultiples();
                         actualizarGraficaDebounced();
+                        if (label) label.innerText = "Pronóstico cargado correctamente.";
+                    } else {
+                        if (label) label.innerText = "Error: Respuesta de datos vacía.";
                     }
+                } else {
+                    const err = await response.json();
+                    if (label) label.innerText = err.error || "Error al conectar con la API.";
                 }
             } catch (e) {
-                console.log("Error cargando pronóstico de GitHub.");
+                if (label) label.innerText = "Error de red al cargar el archivo.";
             }
         }
 
@@ -410,7 +418,7 @@
                     await cargarPronosticoInicial();
                 }
 
-                if (Array.isArray(globalData)) {
+                if (Array.isArray(globalData) && globalData.length > 0) {
                     inicializarFiltrosMultiples();
                     actualizarGraficaDebounced();
                 }
