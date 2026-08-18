@@ -266,7 +266,6 @@
                 const response = await fetch('/api/latest?t=' + new Date().getTime());
                 if (response.ok) {
                     const raw = await response.json();
-                    
                     let items = Array.isArray(raw) ? raw : (raw.data || []);
                     
                     globalData = items.map(i => {
@@ -487,52 +486,80 @@
         }
 
         async function ejecutarOptimizadorHorarios(intervalos, reqArray, llamadasArr, ahtSegsArr) {
-            const res = await fetch('/api/optimize-schedules', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    intervalos: intervalos,
-                    requeridos: reqArray,
-                    llamadas: llamadasArr,
-                    ahts: ahtSegsArr
-                })
-            });
+            const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
+            const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
+            const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
+            const duracionJornada = parseFloat(document.getElementById('duracionJornada').value) || 6.5;
+            const esNocturno = document.getElementById('chkNocturno').checked;
 
-            if (!res.ok) return;
-            const optData = await res.json();
-            
-            const totalHC = optData.headcount_semanal_6x1 || 29;
-            document.getElementById('optHeadcount').innerText = totalHC;
-            document.getElementById('kpiHcRequerido').innerText = totalHC + ' HC';
-            document.getElementById('compSlOptimo').innerText = (optData.sl_optimo_global || 95.0) + '%';
+            try {
+                const res = await fetch('/api/optimize-schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        intervalos: intervalos,
+                        campanas: Array.from(selectedCampanas),
+                        requeridos: reqArray,
+                        llamadas: llamadasArr,
+                        ahts: ahtSegsArr,
+                        target_sl: targetSlObj,
+                        target_time: targetTimeObj,
+                        merma: mermaVal,
+                        duracion_jornada: duracionJornada,
+                        es_nocturno: esNocturno
+                    })
+                });
 
-            const optTbody = document.getElementById('optShiftsTableBody');
-            optTbody.innerHTML = '';
-            (optData.turnos || []).forEach(t => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="py-2.5 px-4 font-bold text-amber-400">${t.horario_entrada}</td>
-                    <td class="py-2.5 px-4 text-slate-300 font-bold">${t.horario_salida}</td>
-                    <td class="py-2.5 px-4 text-slate-400">${t.duracion}</td>
-                    <td class="py-2.5 px-4 text-amber-300 font-black">${t.agentes_a_programar}</td>
-                    <td class="py-2.5 px-4 text-cyan-400 font-bold">20.7%</td>
-                `;
-                optTbody.appendChild(tr);
-            });
+                if (!res.ok) return;
+                const optData = await res.json();
+                
+                const totalHC = optData.headcount_semanal_6x1 || Math.max(...reqArray);
+                document.getElementById('optHeadcount').innerText = totalHC;
+                document.getElementById('kpiHcRequerido').innerText = totalHC + ' HC';
+                document.getElementById('compSlOptimo').innerText = (optData.sl_optimo_global || 95.0).toFixed(1) + '%';
 
-            if (optChartInstance) optChartInstance.destroy();
-            const ctxOpt = document.getElementById('optChart').getContext('2d');
-            optChartInstance = new Chart(ctxOpt, {
-                type: 'line',
-                data: {
-                    labels: intervalos,
-                    datasets: [
-                        { label: 'HC Requerido', data: reqArray, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.05)', fill: true },
-                        { label: 'Malla Sugerida', data: optData.cobertura_optima || reqArray, borderColor: '#F59E0B', fill: false, borderDash: [4, 4] }
-                    ]
-                },
-                options: { responsive: true, maintainAspectRatio: false }
-            });
+                const optTbody = document.getElementById('optShiftsTableBody');
+                optTbody.innerHTML = '';
+                const totalAgentesMalla = optData.total_agentes_diarios || 1;
+
+                (optData.turnos || []).forEach(t => {
+                    const pct = ((t.agentes_a_programar / totalAgentesMalla) * 100).toFixed(1);
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-800/40 transition-colors';
+                    tr.innerHTML = `
+                        <td class="py-2.5 px-4 font-bold text-amber-400">${t.horario_entrada}</td>
+                        <td class="py-2.5 px-4 text-slate-300 font-bold">${t.horario_salida}</td>
+                        <td class="py-2.5 px-4 text-slate-400">${t.duracion}</td>
+                        <td class="py-2.5 px-4 text-amber-300 font-black">${t.agentes_a_programar}</td>
+                        <td class="py-2.5 px-4 text-cyan-400 font-bold">${pct}%</td>
+                    `;
+                    optTbody.appendChild(tr);
+                });
+
+                if (optChartInstance) optChartInstance.destroy();
+                const ctxOpt = document.getElementById('optChart').getContext('2d');
+                optChartInstance = new Chart(ctxOpt, {
+                    type: 'line',
+                    data: {
+                        labels: intervalos,
+                        datasets: [
+                            { label: 'HC Requerido', data: optData.req_hc_pooled || reqArray, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.05)', fill: true, tension: 0.35 },
+                            { label: 'Malla Sugerida', data: optData.cobertura_optima || reqArray, borderColor: '#F59E0B', fill: false, borderDash: [4, 4], tension: 0.35 }
+                        ]
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false,
+                        plugins: { legend: { labels: { color: '#94A3B8' } } },
+                        scales: {
+                            x: { ticks: { color: '#64748B' }, grid: { color: 'rgba(255,255,255,0.02)' } },
+                            y: { ticks: { color: '#64748B' }, grid: { color: 'rgba(255,255,255,0.02)' } }
+                        }
+                    }
+                });
+            } catch (err) {
+                console.error("Error optimizando turnos:", err);
+            }
         }
     </script>
 </body>
