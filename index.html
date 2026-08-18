@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -106,7 +107,7 @@
                 <div class="relative">
                     <input type="file" id="fileInput" accept=".xlsx, .xls" class="block w-full text-xs text-slate-400 file:mr-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-cyan-500/20 file:text-cyan-300 hover:file:bg-cyan-500/30 border border-slate-800 rounded-xl cursor-pointer bg-slate-900/60 p-1.5 transition-all"/>
                 </div>
-                <span class="text-[10px] text-slate-500 mt-1 block">Usa por defecto <strong class="text-emerald-400">historico.xlsx</strong> de GitHub.</span>
+                <span class="text-[10px] text-slate-500 mt-1 block">Cargado automáticamente desde <strong class="text-emerald-400">GitHub</strong>.</span>
             </div>
 
             <div class="space-y-4 pt-2">
@@ -355,7 +356,22 @@
                 if (label) label.innerText = "⏳ Cargando pronóstico desde GitHub...";
                 const response = await fetch('/api/latest?t=' + new Date().getTime());
                 if (response.ok) {
-                    globalData = await response.json();
+                    const rawData = await response.json();
+                    
+                    // DESCOMPRESIÓN DE LA ESTRUCTURA MATRICIAL COMPRIMIDA
+                    if (rawData && rawData.columns && rawData.data) {
+                        const cols = rawData.columns;
+                        globalData = rawData.data.map(row => {
+                            let obj = {};
+                            cols.forEach((colName, idx) => {
+                                obj[colName] = row[idx];
+                            });
+                            return obj;
+                        });
+                    } else if (Array.isArray(rawData)) {
+                        globalData = rawData;
+                    }
+
                     if (Array.isArray(globalData) && globalData.length > 0) {
                         inicializarFiltrosMultiples();
                         actualizarGraficaDebounced();
@@ -373,8 +389,25 @@
         }
 
         function getProp(row, keys, def = '') {
+            const mapKeys = {
+                'Campaña': ['c', 'Campaña', 'Campana'],
+                'Fecha': ['f', 'Fecha'],
+                'Mes': ['m', 'Mes'],
+                'Día_Semana': ['ds', 'Día_Semana', 'Dia_Semana'],
+                'Intervalo': ['i', 'Intervalo'],
+                'Llamadas': ['ll', 'Llamadas', 'Recibidas'],
+                'AHT': ['a', 'AHT'],
+                'AHT_Segundos': ['as', 'AHT_Segundos'],
+                'Agentes_Requeridos': ['r', 'Agentes_Requeridos'],
+                'HC_Plantilla_Nominal': ['pn', 'HC_Plantilla_Nominal'],
+                'HC_Plantilla_Activa_Dia': ['pa', 'HC_Plantilla_Activa_Dia']
+            };
+
             for (let k of keys) {
-                if (row[k] !== undefined && row[k] !== null) return row[k];
+                const searchList = mapKeys[k] || [k];
+                for (let sk of searchList) {
+                    if (row[sk] !== undefined && row[sk] !== null) return row[sk];
+                }
             }
             return def;
         }
@@ -413,7 +446,17 @@
                     formData.append('dias', document.getElementById('dias').value);
 
                     const response = await fetch('/api/process', { method: 'POST', body: formData });
-                    globalData = await response.json();
+                    const rawData = await response.json();
+                    if (rawData && rawData.columns && rawData.data) {
+                        const cols = rawData.columns;
+                        globalData = rawData.data.map(row => {
+                            let obj = {};
+                            cols.forEach((colName, idx) => { obj[colName] = row[idx]; });
+                            return obj;
+                        });
+                    } else if (Array.isArray(rawData)) {
+                        globalData = rawData;
+                    }
                 } else {
                     await cargarPronosticoInicial();
                 }
@@ -435,7 +478,7 @@
             selectedMeses = new Set(meses);
             renderMenuOptions('Mes', meses, selectedMeses);
 
-            const campanas = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).sort();
+            const campanas = [...new Set(globalData.map(i => String(getProp(i, ['Campaña'], 'General'))))].filter(Boolean).sort();
             selectedCampanas = new Set(campanas);
             renderMenuOptions('Campana', campanas, selectedCampanas);
 
@@ -504,7 +547,7 @@
             if (type === 'Mes') {
                 allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean);
             } else if (type === 'Campana') {
-                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean);
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Campaña'], 'General'))))].filter(Boolean);
             } else if (type === 'Fecha') {
                 allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
             } else {
@@ -539,7 +582,7 @@
 
         function actualizarTextosBotones() {
             const totM = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).length;
-            const totC = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).length;
+            const totC = [...new Set(globalData.map(i => String(getProp(i, ['Campaña'], 'General'))))].filter(Boolean).length;
             const totF = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).length;
             const totI = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).length;
             
@@ -579,7 +622,7 @@
 
             const dfFiltered = globalData.filter(item => {
                 const m = String(getProp(item, ['Mes'], ''));
-                const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
+                const c = String(getProp(item, ['Campaña'], 'General'));
                 const f = String(getProp(item, ['Fecha'], '')).split(' ')[0].split('T')[0];
                 const i = String(getProp(item, ['Intervalo'], '00:00'));
                 
@@ -599,10 +642,10 @@
                 return;
             }
 
-            const totCalls = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
+            const totCalls = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas'], 0)) || 0), 0);
             
             const sumLlamadasAht = dfFiltered.reduce((acc, row) => {
-                const calls = Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0;
+                const calls = Number(getProp(row, ['Llamadas'], 0)) || 0;
                 let ahtSegs = Number(getProp(row, ['AHT_Segundos'], 180));
                 return acc + (calls * ahtSegs);
             }, 0);
@@ -631,7 +674,7 @@
                     const subRows = dfFiltered.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0] === fStr && String(getProp(r, ['Intervalo'], '00:00')) === inter);
                     if (subRows.length > 0) {
                         const sumReq = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0), 0);
-                        const sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
+                        const sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas'], 0)) || 0), 0);
                         const avgAht = subRows.reduce((a, b) => a + (Number(getProp(b, ['AHT_Segundos'], 180)) || 180), 0) / subRows.length;
 
                         dailyReqSum += sumReq;
@@ -842,12 +885,12 @@
             const csvRows = [headers.join(",")];
             globalData.forEach(row => {
                 const values = [
-                    getProp(row, ['Campaña', 'Campana'], 'General'),
+                    getProp(row, ['Campaña'], 'General'),
                     getProp(row, ['Mes'], ''),
                     getProp(row, ['Fecha'], ''),
-                    getProp(row, ['Día_Semana', 'Dia_Semana'], ''),
+                    getProp(row, ['Día_Semana'], ''),
                     getProp(row, ['Intervalo'], '00:00'),
-                    getProp(row, ['Llamadas', 'Recibidas'], 0),
+                    getProp(row, ['Llamadas'], 0),
                     getProp(row, ['AHT'], '00:00'),
                     getProp(row, ['Agentes_Requeridos'], 0)
                 ];
