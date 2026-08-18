@@ -233,7 +233,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             sheet_calls = s
             break
 
-    # LECTURA ULTRA RÁPIDA: SOLO COLUMNAS REQUERIDAS
     df_preview = pd.read_excel(xls_file, sheet_name=sheet_calls, nrows=5, engine='openpyxl')
     cols_to_use = []
     for c in df_preview.columns:
