@@ -218,7 +218,7 @@
                 </div>
             </div>
 
-            <!-- 4 CARDS PRINCIPALES AHORA (Incluye el Gap del Roster) -->
+            <!-- 4 CARDS PRINCIPALES -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Volumen Tráfico</p>
@@ -239,16 +239,17 @@
                     <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1">Plantilla sugerida para la demanda</p>
                 </div>
 
+                <!-- NUEVA TARJETA 4: HC Roster -->
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-emerald-500 relative overflow-hidden">
                     <div class="flex justify-between items-center">
-                        <p id="kpiHcRosterTitle" class="text-[10px] uppercase tracking-widest text-slate-400 font-black">PICO PLANTILLA ACTUAL</p>
+                        <p id="kpiHcRosterTitle" class="text-[10px] uppercase tracking-widest text-slate-400 font-black">PLANTILLA TOTAL ACTUAL</p>
                         <span class="text-xs text-emerald-400">👥</span>
                     </div>
                     <div class="flex items-end gap-3 mt-2">
                         <p id="kpiHcRoster" class="text-2xl font-black font-mono-num text-emerald-300">0 HC</p>
                         <p id="kpiHcGap" class="text-xs font-bold mb-1 px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono-num">0</p>
                     </div>
-                    <p class="text-[10px] text-slate-500 mt-1">Conectados simultáneos en Roster</p>
+                    <p id="kpiHcRosterSub" class="text-[10px] text-slate-500 mt-1">Total de agentes contratados en Roster</p>
                 </div>
             </div>
 
@@ -432,7 +433,7 @@
 
         async function procesarWFM() {
             const file = document.getElementById('fileInput').files[0];
-            if (!file) { alert("Por favor selecciona tu archivo historico.xlsx (Asegurate de incluir la hoja 'Roster')"); return; }
+            if (!file) { alert("Por favor selecciona tu archivo historico.xlsx (Asegúrate de incluir la hoja 'Plantilla')"); return; }
             const btn = document.getElementById('btnProcesar');
             btn.disabled = true;
             btn.innerText = "⏳ PROCESANDO...";
@@ -656,7 +657,7 @@
 
             const llamadasAvgVector = todosIntervalos.map(() => 0);
             const ahtAvgVector = todosIntervalos.map(() => 0);
-            const rosterAvgVector = todosIntervalos.map(() => 0); // Vaciamos contenedor para el Roster
+            const rosterAvgVector = todosIntervalos.map(() => 0); 
 
             const mapIntervaloFecha = {};
             dfFiltered.forEach(r => {
@@ -698,7 +699,6 @@
                 const diasTotales = fechasFiltradas.length; 
                 
                 if (diasTotales > 0) {
-                    // El roster no es variable como las llamadas, representa cuanta gente asistes en la semana, asi que se promedia exacto
                     rosterAvgVector[idx] = Math.round(totalRoster / diasTotales); 
                     
                     if (usarPicos) {
@@ -736,7 +736,60 @@
                 const optData = await res.json() || {};
                 const reqAvgVector = optData.req_hc_pooled || [];
                 
-                // ACTUALIZA LA TABLA BASADO EN LO QUE RESPONDIÓ EL BACKEND Y EL ROSTER
+                // --- CÁLCULO DE LA TARJETA ROSTER TOTAL (Peras con Peras) ---
+                const uniqueCampaigns = [...new Set(dfFiltered.map(r => r.Campaña))];
+                let totalRosterHC = 0;
+                
+                if (esVistaSemanal) {
+                    // Si se seleccionan varios días o mes completo, suma el tamaño TOTAL de la nómina
+                    uniqueCampaigns.forEach(c => {
+                        const row = dfFiltered.find(r => r.Campaña === c);
+                        if (row) totalRosterHC += (row.Total_Roster_Campana || 0);
+                    });
+                } else {
+                    // Si es un solo día, suma únicamente los agentes programados para HOY (descontando descansos)
+                    uniqueCampaigns.forEach(c => {
+                        const row = dfFiltered.find(r => r.Campaña === c);
+                        if (row) totalRosterHC += (row.Total_Roster_Dia || 0);
+                    });
+                }
+
+                const nominaRequeridaTotalSemana = optData.headcount_semanal_6x1 || 0;
+                const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
+                const hcRequeridoDisplay = esVistaSemanal ? nominaRequeridaTotalSemana : nominaRequeridaDiaria;
+                
+                // Actualización Tarjeta 3 (Requerido)
+                document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay.toLocaleString() + ' HC';
+                
+                // Actualización Tarjeta 4 (Roster y Brecha)
+                document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "PLANTILLA TOTAL ACTUAL" : "PLANTILLA PROGRAMADA HOY";
+                document.getElementById('kpiHcRosterSub').innerText = esVistaSemanal ? "Total de agentes contratados en Roster" : "Descuenta descansos (DD-DD) del día";
+                document.getElementById('kpiHcRoster').innerText = totalRosterHC.toLocaleString() + ' HC';
+                
+                const gapTotal = totalRosterHC - hcRequeridoDisplay;
+                const gapEl = document.getElementById('kpiHcGap');
+                if (gapTotal > 0) {
+                    gapEl.innerText = `+${gapTotal} Sobran`;
+                    gapEl.className = 'text-xs font-bold mb-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-mono-num';
+                } else if (gapTotal < 0) {
+                    gapEl.innerText = `${gapTotal} Faltan`;
+                    gapEl.className = 'text-xs font-bold mb-1 px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 font-mono-num';
+                } else {
+                    gapEl.innerText = `✓ Balanceado`;
+                    gapEl.className = 'text-xs font-bold mb-1 px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono-num';
+                }
+
+                if (esVistaSemanal) {
+                    document.getElementById('lblHeadcountType').innerText = usarNocturno ? 'HC Requerido (Mixto)' : 'HC Requerido';
+                    document.getElementById('kpiHcRequeridoSub').innerText = "Plantilla total sugerida para cubrir la semana";
+                    document.getElementById('lblHeadcountSub').innerText = "A contratar (Incluye descansos)";
+                } else {
+                    document.getElementById('lblHeadcountType').innerText = 'HC Requerido (Diario)';
+                    document.getElementById('kpiHcRequeridoSub').innerText = "Plantilla sugerida activa solo para hoy";
+                    document.getElementById('lblHeadcountSub').innerText = "Necesarios para hoy (Sin descansos)";
+                }
+
+                // ACTUALIZAR MATRIZ GAP
                 const tbody = document.getElementById('intervalTableBody');
                 tbody.innerHTML = '';
 
@@ -746,7 +799,6 @@
                     const rowReq = reqAvgVector[idx] || 0;
                     const rowRoster = rosterAvgVector[idx] || 0;
                     
-                    // Cálculo de la Brecha (Gap)
                     const gap = rowRoster - rowReq;
                     let gapHtml = '';
                     if (gap > 0) gapHtml = `<span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold">+${gap}</span>`;
@@ -769,29 +821,6 @@
                     tbody.appendChild(tr);
                 });
 
-                // Tarjeta 3: HC Requerido Sugerido
-                const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
-                document.getElementById('kpiHcRequerido').innerText = nominaRequeridaDiaria + ' HC';
-                
-                // Tarjeta 4: HC Roster y Diferencia Peak (Máximos concurrentes)
-                const maxRosterPeak = Math.max(...rosterAvgVector, 0);
-                const maxReqPeak = Math.max(...reqAvgVector, 0);
-                const maxGap = maxRosterPeak - maxReqPeak;
-                
-                document.getElementById('kpiHcRoster').innerText = maxRosterPeak + ' HC';
-                const gapEl = document.getElementById('kpiHcGap');
-                if (maxGap > 0) {
-                    gapEl.innerText = `+${maxGap} Sobran (Pico)`;
-                    gapEl.className = 'text-xs font-bold mb-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-mono-num';
-                } else if (maxGap < 0) {
-                    gapEl.innerText = `${maxGap} Faltan (Pico)`;
-                    gapEl.className = 'text-xs font-bold mb-1 px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 font-mono-num';
-                } else {
-                    gapEl.innerText = `✓ Balanceado (Pico)`;
-                    gapEl.className = 'text-xs font-bold mb-1 px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono-num';
-                }
-
-                // Otros KPIs
                 const slOptimoVal = parseFloat(optData.sl_optimo_global || 0);
                 const slEl = document.getElementById('compSlOptimo');
                 slEl.innerText = slOptimoVal.toFixed(1) + '%';
@@ -801,16 +830,15 @@
                 const optTbody = document.getElementById('optShiftsTableBody');
                 optTbody.innerHTML = '';
                 
-                const totalDiarioMalla = optData.total_agentes_diarios || 1;
                 let turnosBase = optData.turnos || [];
                 let accumulatedNomina = 0;
                 
                 globalTurnosOptimos = turnosBase.map((t, index) => {
                     let nominaTurno;
                     if (index === turnosBase.length - 1) {
-                        nominaTurno = nominaRequeridaDiaria - accumulatedNomina;
+                        nominaTurno = hcRequeridoDisplay - accumulatedNomina;
                     } else {
-                        nominaTurno = Math.round((t.agentes_a_programar / totalDiarioMalla) * nominaRequeridaDiaria);
+                        nominaTurno = Math.round((t.agentes_a_programar / totalDiarioMalla) * hcRequeridoDisplay);
                         accumulatedNomina += nominaTurno;
                     }
                     nominaTurno = Math.max(0, nominaTurno);
@@ -823,7 +851,7 @@
                     optTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-500">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
                 } else {
                     globalTurnosOptimos.forEach(t => {
-                        const pct = nominaRequeridaDiaria > 0 ? ((t.nomina_a_contratar / nominaRequeridaDiaria) * 100).toFixed(1) : 0;
+                        const pct = hcRequeridoDisplay > 0 ? ((t.nomina_a_contratar / hcRequeridoDisplay) * 100).toFixed(1) : 0;
                         const tr = document.createElement('tr');
                         tr.className = 'hover:bg-slate-800/40 transition-colors';
                         tr.innerHTML = `
