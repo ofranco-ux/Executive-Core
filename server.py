@@ -73,10 +73,14 @@ def parse_aht_to_seconds(val):
     if 0 < secs <= 15: secs = secs * 60.0
     return secs if secs > 0 else 180.0
 
+# === NUEVO FORMATO DE AHT (HH:MM:SS) ===
 def format_aht_str(seconds):
-    if pd.isna(seconds) or seconds is None or seconds <= 0: return "00:00"
+    if pd.isna(seconds) or seconds is None or seconds <= 0: return "00:00:00"
     secs = int(round(seconds))
-    return f"{secs // 3600:02d}:{(secs % 3600) // 60:02d}"
+    hrs = secs // 3600
+    mins = (secs % 3600) // 60
+    s = secs % 60
+    return f"{hrs:02d}:{mins:02d}:{s:02d}"
 
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
     if N <= A or A <= 0 or N <= 0: return 0.0
@@ -244,8 +248,8 @@ def procesar_hoja_roster(df_roster):
                 'jueves': 'Jueves', 'viernes': 'Viernes', 'sábado': 'Sábado', 'sabado': 'Sábado', 'domingo': 'Domingo'}
     
     roster_cov = {} 
-    roster_total_camp = {} # Total HC en nomina por campaña
-    roster_total_dia_camp = {} # Total HC programado por campaña y dia (descuenta descansos)
+    roster_total_camp = {}
+    roster_total_dia_camp = {} 
     
     col_camp = encontrar_columna(df_roster, ['campaña', 'campana', 'skill'])
     if not col_camp:
@@ -255,7 +259,6 @@ def procesar_hoja_roster(df_roster):
         camp = str(row[col_camp]).strip().title()
         if camp == 'Nan' or camp == '': continue
         
-        # Sumamos 1 al total de nómina de esta campaña por cada empleado
         roster_total_camp[camp] = roster_total_camp.get(camp, 0) + 1
         
         for col in df_roster.columns:
@@ -265,7 +268,6 @@ def procesar_hoja_roster(df_roster):
                 horario = str(row[col]).strip().upper()
                 
                 if horario != 'DD-DD' and 'NAN' not in horario and horario != '' and '-' in horario:
-                    # El agente sí trabaja hoy (No es DD-DD)
                     key_dia = (camp, dia_real)
                     roster_total_dia_camp[key_dia] = roster_total_dia_camp.get(key_dia, 0) + 1
                     
