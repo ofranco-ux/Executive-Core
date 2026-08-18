@@ -402,7 +402,7 @@
         }
 
         async function saveWFMConfig() {
-            if(currentMode === 'ops') return; // Ops no puede sobreescribir la config
+            if(currentMode === 'ops') return; 
             
             const config = {
                 targetSl: document.getElementById('targetSl').value,
@@ -511,7 +511,6 @@
             const mode = urlParams.get('mode') || urlParams.get('role') || 'wfm';
             switchMode(mode);
 
-            // 1. Ops baja los parametros seteados por WFM (si existen)
             if(mode === 'ops') {
                 await fetchWFMConfig();
             }
@@ -556,7 +555,6 @@
             const file = document.getElementById('fileInput').files[0];
             if (!file) { alert("Por favor selecciona tu archivo historico.xlsx (Asegúrate de incluir la hoja 'Plantilla')"); return; }
             
-            // WFM Guarda su configuracion globalmente
             await saveWFMConfig();
 
             const btn = document.getElementById('btnProcesar');
@@ -783,6 +781,7 @@
             const llamadasAvgVector = todosIntervalos.map(() => 0);
             const ahtAvgVector = todosIntervalos.map(() => 0);
             const rosterAvgVector = todosIntervalos.map(() => 0); 
+            const reqAvgVector = todosIntervalos.map(() => 0); // NUEVO: Para enviar al backend
 
             const mapIntervaloFecha = {};
             dfFiltered.forEach(r => {
@@ -794,16 +793,17 @@
             });
 
             todosIntervalos.forEach((inter, idx) => {
-                let totalCalls = 0, totalHandleTime = 0, totalRoster = 0;
-                let maxCalls = 0, maxAht = 0, maxRoster = 0; 
+                let totalCalls = 0, totalHandleTime = 0, totalRoster = 0, totalReq = 0;
+                let maxCalls = 0, maxAht = 0, maxRoster = 0, maxReq = 0; 
                 
                 fechasFiltradas.forEach(fStr => {
                     const subRows = mapIntervaloFecha[`${fStr}_${inter}`] || [];
-                    let sumCalls = 0, sumHT = 0, avgAht = 180, sumRoster = 0;
+                    let sumCalls = 0, sumHT = 0, avgAht = 180, sumRoster = 0, sumReq = 0;
                     
                     if (subRows.length > 0) {
                         sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
                         sumRoster = subRows.reduce((a, b) => a + (Number(getProp(b, ['HC_Actual_Roster'], 0)) || 0), 0);
+                        sumReq = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0), 0); // SUMAMOS REQUERIDOS POR CAMPAÑA
                         sumHT = subRows.reduce((a, b) => {
                             const c = Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0;
                             const ht = Number(getProp(b, ['AHT_Segundos'], 180)) || 180;
@@ -815,10 +815,12 @@
                     totalCalls += sumCalls;
                     totalHandleTime += sumHT;
                     totalRoster += sumRoster;
+                    totalReq += sumReq;
 
                     if (sumCalls > maxCalls) maxCalls = sumCalls;
                     if (avgAht > maxAht) maxAht = avgAht;
                     if (sumRoster > maxRoster) maxRoster = sumRoster;
+                    if (sumReq > maxReq) maxReq = sumReq;
                 });
 
                 const diasTotales = fechasFiltradas.length; 
@@ -829,9 +831,11 @@
                     if (usarPicos) {
                         llamadasAvgVector[idx] = maxCalls;
                         ahtAvgVector[idx] = maxAht;
+                        reqAvgVector[idx] = maxReq;
                     } else {
                         llamadasAvgVector[idx] = totalCalls / diasTotales;
                         ahtAvgVector[idx] = totalCalls > 0 ? totalHandleTime / totalCalls : 180;
+                        reqAvgVector[idx] = Math.ceil(totalReq / diasTotales); // PROMEDIO DE REQUERIDOS AGREGADOS
                     }
                 }
             });
@@ -840,13 +844,14 @@
             document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
 
             try {
-                ejecutarOptimizadorHorarios(todosIntervalos, llamadasAvgVector, ahtAvgVector, rosterAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, dfFiltered);
+                // LE PASAMOS EL ARRAY DE REQUERIDOS EXACTO AL BACKEND
+                ejecutarOptimizadorHorarios(todosIntervalos, llamadasAvgVector, ahtAvgVector, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, dfFiltered);
             } catch (e) {
                 console.log("Error al preparar optimizador:", e);
             }
         }
 
-        async function ejecutarOptimizadorHorarios(intervalos, llamadasArr, ahtSegsArr, rosterAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, dfFiltered) {
+        async function ejecutarOptimizadorHorarios(intervalos, llamadasArr, ahtSegsArr, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, dfFiltered) {
             if (!intervalos || intervalos.length === 0) return;
 
             try {
@@ -858,6 +863,7 @@
                         campanas: Array.from(selectedCampanas),
                         llamadas: llamadasArr,
                         ahts: ahtSegsArr,
+                        requeridos: reqAvgVector, // <--- ENVIAMOS LOS REQUERIDOS PRE-SUMADOS
                         target_sl: targetSlObj,
                         target_time: targetTimeObj,
                         merma: mermaVal,
@@ -869,7 +875,7 @@
                 if (!res.ok) throw new Error("Error procesando optimizador en backend");
 
                 const optData = await res.json() || {};
-                const reqAvgVector = optData.req_hc_pooled || [];
+                
                 const capacidadRosterVector = []; 
                 const capacidadSugeridaVector = []; 
                 
@@ -879,7 +885,7 @@
                 intervalos.forEach((inter, idx) => {
                     const rowLlamadas = Math.round(llamadasArr[idx]);
                     const rowAhtSegs = ahtSegsArr[idx];
-                    const rowReq = reqAvgVector[idx] || 0;
+                    const rowReq = reqAvgVector[idx] || 0; // USAMOS EL QUE ACABAMOS DE CALCULAR
                     const rowRoster = rosterAvgVector[idx] || 0;
                     
                     const mermaDecimal = mermaVal / 100;
