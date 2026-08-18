@@ -349,6 +349,13 @@
             cargarPronosticoInicial();
         });
 
+        function extractVal(item, keys) {
+            for (let k of keys) {
+                if (item[k] !== undefined && item[k] !== null) return item[k];
+            }
+            return null;
+        }
+
         async function cargarPronosticoInicial() {
             const label = document.getElementById('tableSelectionLabel');
             try {
@@ -357,55 +364,53 @@
                 if (response.ok) {
                     const rawData = await response.json();
                     
-                    // NORMALIZACIÓN DE NOMBRES COMPRIMIDOS A OBJETOS JS LEYEDORES
-                    if (rawData && rawData.columns && rawData.data) {
-                        const cols = rawData.columns;
-                        globalData = rawData.data.map(row => {
-                            return {
-                                Campaña: row[0],
-                                Fecha: row[1],
-                                Mes: row[2],
-                                Día_Semana: row[3],
-                                Intervalo: row[4],
-                                Llamadas: Number(row[5]) || 0,
-                                AHT: row[6],
-                                AHT_Segundos: Number(row[7]) || 180,
-                                Agentes_Requeridos: Number(row[8]) || 0,
-                                HC_Plantilla_Nominal: Number(row[9]) || 29,
-                                HC_Plantilla_Activa_Dia: Number(row[10]) || 24
-                            };
-                        });
+                    let itemsArray = [];
+                    if (rawData && rawData.data && Array.isArray(rawData.data)) {
+                        itemsArray = rawData.data.map(row => ({
+                            c: row[0], f: row[1], m: row[2], ds: row[3], i: row[4],
+                            ll: row[5], a: row[6], as: row[7], r: row[8], pn: row[9], pa: row[10]
+                        }));
                     } else if (Array.isArray(rawData)) {
-                        globalData = rawData.map(row => {
-                            return {
-                                Campaña: row.c || row.Campaña || row.Campana || 'General',
-                                Fecha: row.f || row.Fecha || '',
-                                Mes: row.m || row.Mes || '',
-                                Día_Semana: row.ds || row.Día_Semana || row.Dia_Semana || '',
-                                Intervalo: row.i || row.Intervalo || '00:00',
-                                Llamadas: Number(row.ll || row.Llamadas || row.Recibidas || 0),
-                                AHT: row.a || row.AHT || '00:00',
-                                AHT_Segundos: Number(row.as || row.AHT_Segundos || 180),
-                                Agentes_Requeridos: Number(row.r || row.Agentes_Requeridos || 0),
-                                HC_Plantilla_Nominal: Number(row.pn || row.HC_Plantilla_Nominal || 29),
-                                HC_Plantilla_Activa_Dia: Number(row.pa || row.HC_Plantilla_Activa_Dia || 24)
-                            };
-                        });
+                        itemsArray = rawData;
                     }
 
-                    if (Array.isArray(globalData) && globalData.length > 0) {
+                    globalData = itemsArray.map(item => {
+                        const camp = String(extractVal(item, ['c', 'Campaña', 'Campana']) || 'General');
+                        const fech = String(extractVal(item, ['f', 'Fecha']) || '');
+                        const mes = String(extractVal(item, ['m', 'Mes']) || '');
+                        const diaS = String(extractVal(item, ['ds', 'Día_Semana', 'Dia_Semana']) || '');
+                        const inter = String(extractVal(item, ['i', 'Intervalo']) || '00:00');
+                        const calls = Number(extractVal(item, ['ll', 'Llamadas', 'Recibidas']) || 0);
+                        const ahtS = String(extractVal(item, ['a', 'AHT']) || '00:00');
+                        const ahtSegs = Number(extractVal(item, ['as', 'AHT_Segundos']) || 180);
+                        const reqAgentes = Number(extractVal(item, ['r', 'Agentes_Requeridos']) || 0);
+
+                        return {
+                            Campaña: camp,
+                            Fecha: fech,
+                            Mes: mes,
+                            Día_Semana: diaS,
+                            Intervalo: inter,
+                            Llamadas: calls,
+                            AHT: ahtS,
+                            AHT_Segundos: ahtSegs,
+                            Agentes_Requeridos: reqAgentes
+                        };
+                    });
+
+                    if (globalData.length > 0) {
                         inicializarFiltrosMultiples();
                         actualizarGraficaDebounced();
                         if (label) label.innerText = "Pronóstico cargado correctamente.";
                     } else {
-                        if (label) label.innerText = "Error: Respuesta de datos vacía.";
+                        if (label) label.innerText = "Error: Datos vacíos.";
                     }
                 } else {
                     const err = await response.json();
                     if (label) label.innerText = err.error || "Error al conectar con la API.";
                 }
             } catch (e) {
-                if (label) label.innerText = "Error de red al cargar el archivo.";
+                if (label) label.innerText = "Error de red al cargar datos.";
             }
         }
 
@@ -432,19 +437,19 @@
         }
 
         function inicializarFiltrosMultiples() {
-            const meses = [...new Set(globalData.map(i => String(i.Mes)))].filter(Boolean).sort();
+            const meses = [...new Set(globalData.map(i => i.Mes))].filter(Boolean).sort();
             selectedMeses = new Set(meses);
             renderMenuOptions('Mes', meses, selectedMeses);
 
-            const campanas = [...new Set(globalData.map(i => String(i.Campaña)))].filter(Boolean).sort();
+            const campanas = [...new Set(globalData.map(i => i.Campaña))].filter(Boolean).sort();
             selectedCampanas = new Set(campanas);
             renderMenuOptions('Campana', campanas, selectedCampanas);
 
-            const fechas = [...new Set(globalData.map(i => String(i.Fecha).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
+            const fechas = [...new Set(globalData.map(i => String(i.Fecha).split(' ')[0]))].filter(Boolean).sort();
             selectedFechas = new Set(fechas);
             renderMenuOptions('Fecha', fechas, selectedFechas);
 
-            const intervalos = [...new Set(globalData.map(i => String(i.Intervalo)))].filter(Boolean).sort();
+            const intervalos = [...new Set(globalData.map(i => i.Intervalo))].filter(Boolean).sort();
             selectedIntervalos = new Set(intervalos);
             renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
             actualizarTextosBotones();
@@ -464,11 +469,10 @@
             allOptions.forEach(opt => {
                 const label = document.createElement('label');
                 label.className = 'flex items-center gap-2 p-1.5 hover:bg-slate-800/60 rounded cursor-pointer transition-colors';
-                const isChecked = setRef.has(opt);
                 
                 const input = document.createElement('input');
                 input.type = 'checkbox';
-                input.checked = isChecked;
+                input.checked = setRef.has(opt);
                 input.className = 'rounded bg-slate-900 border-slate-700 text-cyan-500 focus:ring-0';
                 input.addEventListener('change', (e) => {
                     onCheckboxChange(type, opt, e.target.checked);
@@ -489,9 +493,9 @@
             if (checked) setRef.add(value); else setRef.delete(value);
 
             if (type === 'Mes') {
-                const fechasInMes = [...new Set(globalData.filter(i => selectedMeses.has(i.Mes)).map(i => String(i.Fecha).split(' ')[0].split('T')[0]))].filter(Boolean);
+                const fechasInMes = [...new Set(globalData.filter(i => selectedMeses.has(i.Mes)).map(i => String(i.Fecha).split(' ')[0]))].filter(Boolean);
                 selectedFechas = new Set(fechasInMes);
-                const allFechas = [...new Set(globalData.map(i => String(i.Fecha).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
+                const allFechas = [...new Set(globalData.map(i => String(i.Fecha).split(' ')[0]))].filter(Boolean).sort();
                 renderMenuOptions('Fecha', allFechas, selectedFechas);
             }
 
@@ -503,13 +507,13 @@
             let setRef = type === 'Mes' ? selectedMeses : (type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos));
             let allOptions = [];
             if (type === 'Mes') {
-                allOptions = [...new Set(globalData.map(i => String(i.Mes)))].filter(Boolean);
+                allOptions = [...new Set(globalData.map(i => i.Mes))].filter(Boolean);
             } else if (type === 'Campana') {
-                allOptions = [...new Set(globalData.map(i => String(i.Campaña)))].filter(Boolean);
+                allOptions = [...new Set(globalData.map(i => i.Campaña))].filter(Boolean);
             } else if (type === 'Fecha') {
-                allOptions = [...new Set(globalData.map(i => String(i.Fecha).split(' ')[0].split('T')[0]))].filter(Boolean);
+                allOptions = [...new Set(globalData.map(i => String(i.Fecha).split(' ')[0]))].filter(Boolean);
             } else {
-                allOptions = [...new Set(globalData.map(i => String(i.Intervalo)))].filter(Boolean);
+                allOptions = [...new Set(globalData.map(i => i.Intervalo))].filter(Boolean);
             }
             if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
             renderMenuOptions(type, allOptions.sort(), setRef);
@@ -539,10 +543,10 @@
         });
 
         function actualizarTextosBotones() {
-            const totM = [...new Set(globalData.map(i => String(i.Mes)))].filter(Boolean).length;
-            const totC = [...new Set(globalData.map(i => String(i.Campaña)))].filter(Boolean).length;
-            const totF = [...new Set(globalData.map(i => String(i.Fecha).split(' ')[0].split('T')[0]))].filter(Boolean).length;
-            const totI = [...new Set(globalData.map(i => String(i.Intervalo)))].filter(Boolean).length;
+            const totM = [...new Set(globalData.map(i => i.Mes))].filter(Boolean).length;
+            const totC = [...new Set(globalData.map(i => i.Campaña))].filter(Boolean).length;
+            const totF = [...new Set(globalData.map(i => String(i.Fecha).split(' ')[0]))].filter(Boolean).length;
+            const totI = [...new Set(globalData.map(i => i.Intervalo))].filter(Boolean).length;
             
             const btnMes = document.getElementById('mesSelectedText');
             if (btnMes) btnMes.innerText = `🗓️ MES (${selectedMeses.size}/${totM})`;
@@ -559,7 +563,7 @@
 
         function toggleTableInterval(inter) {
             if (selectedIntervalos.has(inter)) selectedIntervalos.delete(inter); else selectedIntervalos.add(inter);
-            const intervalos = [...new Set(globalData.map(i => String(i.Intervalo)))].filter(Boolean).sort();
+            const intervalos = [...new Set(globalData.map(i => i.Intervalo))].filter(Boolean).sort();
             renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
             actualizarTextosBotones();
             actualizarGraficaDebounced();
@@ -569,7 +573,7 @@
             if (renderTimer) clearTimeout(renderTimer);
             renderTimer = setTimeout(() => {
                 actualizarGrafica();
-            }, 100);
+            }, 50);
         }
 
         async function actualizarGrafica() {
@@ -578,12 +582,11 @@
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
 
             const dfFiltered = globalData.filter(item => {
-                const m = String(item.Mes);
-                const c = String(item.Campaña);
-                const f = String(item.Fecha).split(' ')[0].split('T')[0];
-                const i = String(item.Intervalo);
-                
-                return selectedMeses.has(m) && selectedCampanas.has(c) && selectedFechas.has(f) && selectedIntervalos.has(i);
+                const fClean = String(item.Fecha).split(' ')[0];
+                return selectedMeses.has(item.Mes) && 
+                       selectedCampanas.has(item.Campaña) && 
+                       selectedFechas.has(fClean) && 
+                       selectedIntervalos.has(item.Intervalo);
             });
 
             if (!dfFiltered || dfFiltered.length === 0) {
@@ -594,13 +597,12 @@
                 return;
             }
 
-            const totCalls = dfFiltered.reduce((acc, row) => acc + (row.Llamadas || 0), 0);
-            const sumLlamadasAht = dfFiltered.reduce((acc, row) => acc + ((row.Llamadas || 0) * (row.AHT_Segundos || 180)), 0);
+            const totCalls = dfFiltered.reduce((acc, row) => acc + row.Llamadas, 0);
+            const sumLlamadasAht = dfFiltered.reduce((acc, row) => acc + (row.Llamadas * row.AHT_Segundos), 0);
             const avgAhtSegs = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
 
-            const fechasFiltradas = [...new Set(dfFiltered.map(r => String(r.Fecha).split(' ')[0].split('T')[0]))].filter(Boolean);
-            const todosIntervalos = [...new Set(dfFiltered.map(r => String(r.Intervalo)))].sort();
-            
+            const fechasFiltradas = [...new Set(dfFiltered.map(r => String(r.Fecha).split(' ')[0]))].filter(Boolean);
+            const todosIntervalos = [...new Set(dfFiltered.map(r => r.Intervalo))].sort();
             const esVistaSemanal = fechasFiltradas.length > 1;
 
             document.getElementById('kpiHcPlantillaActual').innerText = '29 HC';
@@ -617,11 +619,11 @@
                 let countDays = 0;
 
                 fechasFiltradas.forEach(fStr => {
-                    const subRows = dfFiltered.filter(r => String(r.Fecha).split(' ')[0].split('T')[0] === fStr && String(r.Intervalo) === inter);
+                    const subRows = dfFiltered.filter(r => String(r.Fecha).split(' ')[0] === fStr && r.Intervalo === inter);
                     if (subRows.length > 0) {
-                        const sumReq = subRows.reduce((a, b) => a + (b.Agentes_Requeridos || 0), 0);
-                        const sumCalls = subRows.reduce((a, b) => a + (b.Llamadas || 0), 0);
-                        const avgAht = subRows.reduce((a, b) => a + (b.AHT_Segundos || 180), 0) / subRows.length;
+                        const sumReq = subRows.reduce((a, b) => a + b.Agentes_Requeridos, 0);
+                        const sumCalls = subRows.reduce((a, b) => a + b.Llamadas, 0);
+                        const avgAht = subRows.reduce((a, b) => a + b.AHT_Segundos, 0) / subRows.length;
 
                         dailyReqSum += sumReq;
                         dailyCallsSum += sumCalls;
