@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+    <meta http-equiv="Pragma" content="no-cache"/>
+    <meta http-equiv="Expires" content="0"/>
     <title>Executive Core — C-Suite Analytics & Scheduling Optimizer</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -156,18 +159,30 @@
                     <div class="p-2.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-xl text-sm">🎯</div>
                     <div>
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Filtros Operativos Intradía (Multiselección)</p>
-                        <p id="tableSelectionLabel" class="text-xs text-slate-200 font-medium">Selecciona una o más campañas, fechas e intervalos</p>
+                        <p id="tableSelectionLabel" class="text-xs text-slate-200 font-medium">Selecciona una o más campañas, meses, fechas e intervalos</p>
                     </div>
                 </div>
                 
                 <div class="flex items-center gap-3 flex-wrap">
                     <button id="btnResetTableFilter" onclick="resetAllFilters()" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold py-2 px-3 rounded-xl transition duration-200 font-mono">
-                        🔄 Resetear Filtros
+                        🔄 Resetear
                     </button>
 
+                    <!-- FILTRO POR MES -->
+                    <div class="flex flex-col relative">
+                        <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Mes(es)</label>
+                        <button id="btnDropdownMes" onclick="toggleDropdown('Mes')" class="bg-brand-surface border border-amber-500/30 text-xs rounded-xl px-3 py-2 text-amber-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[140px] h-[36px] flex items-center justify-between gap-2">
+                            <span id="mesSelectedText">🗓️ MES (0)</span>
+                            <span class="text-[10px] text-amber-400">▼</span>
+                        </button>
+                        <div id="dropdownMesMenu" class="hidden absolute top-full left-0 mt-2 w-56 max-h-60 bg-[#0D1322] border border-amber-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200">
+                        </div>
+                    </div>
+
+                    <!-- FILTRO POR CAMPAÑA -->
                     <div class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Campaña(s)</label>
-                        <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-brand-surface border border-violet-500/30 text-xs rounded-xl px-3 py-2 text-violet-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
+                        <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-brand-surface border border-violet-500/30 text-xs rounded-xl px-3 py-2 text-violet-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[150px] h-[36px] flex items-center justify-between gap-2">
                             <span id="campanaSelectedText">🎧 SELECC. (0)</span>
                             <span class="text-[10px] text-violet-400">▼</span>
                         </button>
@@ -175,9 +190,10 @@
                         </div>
                     </div>
 
+                    <!-- FILTRO POR FECHA -->
                     <div id="containerFiltroFecha" class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Fecha(s)</label>
-                        <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-brand-surface border border-cyan-500/30 text-xs rounded-xl px-3 py-2 text-cyan-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
+                        <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-brand-surface border border-cyan-500/30 text-xs rounded-xl px-3 py-2 text-cyan-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[150px] h-[36px] flex items-center justify-between gap-2">
                             <span id="fechaSelectedText">📅 SELECC. (0)</span>
                             <span class="text-[10px] text-cyan-400">▼</span>
                         </button>
@@ -185,9 +201,10 @@
                         </div>
                     </div>
 
+                    <!-- FILTRO POR INTERVALO -->
                     <div class="flex flex-col relative">
                         <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Intervalo(s)</label>
-                        <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-brand-surface border border-emerald-500/30 text-xs rounded-xl px-3 py-2 text-emerald-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
+                        <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-brand-surface border border-emerald-500/30 text-xs rounded-xl px-3 py-2 text-emerald-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[150px] h-[36px] flex items-center justify-between gap-2">
                             <span id="intervaloSelectedText">⏰ SELECC. (0)</span>
                             <span class="text-[10px] text-emerald-400">▼</span>
                         </button>
@@ -312,6 +329,7 @@
         let globalData = [];
         let optChartInstance = null;
         let globalTurnosOptimos = [];
+        let selectedMeses = new Set();
         let selectedCampanas = new Set();
         let selectedFechas = new Set();
         let selectedIntervalos = new Set();
@@ -329,21 +347,18 @@
                     main.classList.remove('lg:col-span-9');
                     main.classList.add('lg:col-span-12');
                 }
-                try {
-                    const response = await fetch('/api/latest');
-                    if (response.ok) {
-                        globalData = await response.json();
-                        if (Array.isArray(globalData) && globalData.length > 0) {
-                            inicializarFiltrosMultiples();
-                            actualizarGrafica();
-                        }
-                    } else {
-                        const err = await response.json();
-                        document.getElementById('tableSelectionLabel').innerText = err.error || "Sin pronóstico disponible.";
+            }
+            try {
+                const response = await fetch('/api/latest?t=' + new Date().getTime());
+                if (response.ok) {
+                    globalData = await response.json();
+                    if (Array.isArray(globalData) && globalData.length > 0) {
+                        inicializarFiltrosMultiples();
+                        actualizarGrafica();
                     }
-                } catch (e) {
-                    console.log("Error cargando pronóstico automático.");
                 }
+            } catch (e) {
+                console.log("Error cargando pronóstico automático.");
             }
         });
 
@@ -360,6 +375,12 @@
             const hrs = Math.floor(secs / 3600);
             const mins = Math.floor((secs % 3600) / 60);
             return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+        }
+
+        function parseMinStr(t_str) {
+            if (!t_str) return 0;
+            const parts = t_str.split(':');
+            return parseInt(parts[0]) * 60 + parseInt(parts[1]);
         }
 
         function actualizarModoEspecial() {
@@ -396,6 +417,10 @@
         }
 
         function inicializarFiltrosMultiples() {
+            const meses = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).sort();
+            selectedMeses = new Set(meses);
+            renderMenuOptions('Mes', meses, selectedMeses);
+
             const campanas = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).sort();
             selectedCampanas = new Set(campanas);
             renderMenuOptions('Campana', campanas, selectedCampanas);
@@ -412,6 +437,7 @@
 
         function renderMenuOptions(type, allOptions, setRef) {
             const menu = document.getElementById(`dropdown${type}Menu`);
+            if (!menu) return;
             menu.innerHTML = '';
             const headerDiv = document.createElement('div');
             headerDiv.className = 'flex items-center justify-between p-2 pb-2 mb-1 border-b border-slate-800 text-[11px] font-bold';
@@ -424,25 +450,46 @@
                 const label = document.createElement('label');
                 label.className = 'flex items-center gap-2 p-1.5 hover:bg-slate-800/60 rounded cursor-pointer transition-colors';
                 const isChecked = setRef.has(opt);
-                label.innerHTML = `
-                    <input type="checkbox" value="${opt}" ${isChecked ? 'checked' : ''} onchange="onCheckboxChange('${type}', '${opt}', this.checked)" class="rounded bg-slate-900 border-slate-700 text-cyan-500 focus:ring-0">
-                    <span class="truncate">${opt}</span>
-                `;
+                
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.checked = isChecked;
+                input.className = 'rounded bg-slate-900 border-slate-700 text-cyan-500 focus:ring-0';
+                input.addEventListener('change', (e) => {
+                    onCheckboxChange(type, opt, e.target.checked);
+                });
+
+                const span = document.createElement('span');
+                span.className = 'truncate';
+                span.innerText = opt;
+
+                label.appendChild(input);
+                label.appendChild(span);
                 menu.appendChild(label);
             });
         }
 
         function onCheckboxChange(type, value, checked) {
-            let setRef = type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos);
+            let setRef = type === 'Mes' ? selectedMeses : (type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos));
             if (checked) setRef.add(value); else setRef.delete(value);
+
+            if (type === 'Mes') {
+                const fechasInMes = [...new Set(globalData.filter(i => selectedMeses.has(getProp(i, ['Mes'], ''))).map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
+                selectedFechas = new Set(fechasInMes);
+                const allFechas = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
+                renderMenuOptions('Fecha', allFechas, selectedFechas);
+            }
+
             actualizarTextosBotones();
             actualizarGrafica();
         }
 
         function selectAllFilter(type, selectAll) {
-            let setRef = type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos);
+            let setRef = type === 'Mes' ? selectedMeses : (type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos));
             let allOptions = [];
-            if (type === 'Campana') {
+            if (type === 'Mes') {
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean);
+            } else if (type === 'Campana') {
                 allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean);
             } else if (type === 'Fecha') {
                 allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
@@ -456,7 +503,7 @@
         }
 
         function toggleDropdown(type) {
-            ['Campana', 'Fecha', 'Intervalo'].forEach(t => {
+            ['Mes', 'Campana', 'Fecha', 'Intervalo'].forEach(t => {
                 if (t !== type) {
                     const menu = document.getElementById(`dropdown${t}Menu`);
                     if (menu) menu.classList.add('hidden');
@@ -467,7 +514,7 @@
         }
 
         window.addEventListener('click', function(e) {
-            ['Campana', 'Fecha', 'Intervalo'].forEach(type => {
+            ['Mes', 'Campana', 'Fecha', 'Intervalo'].forEach(type => {
                 const btn = document.getElementById(`btnDropdown${type}`);
                 const menu = document.getElementById(`dropdown${type}Menu`);
                 if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) {
@@ -477,9 +524,14 @@
         });
 
         function actualizarTextosBotones() {
+            const totM = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).length;
             const totC = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).length;
             const totF = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).length;
             const totI = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).length;
+            
+            const btnMes = document.getElementById('mesSelectedText');
+            if (btnMes) btnMes.innerText = `🗓️ MES (${selectedMeses.size}/${totM})`;
+            
             document.getElementById('campanaSelectedText').innerText = `🎧 SELECC. (${selectedCampanas.size}/${totC})`;
             document.getElementById('fechaSelectedText').innerText = `📅 SELECC. (${selectedFechas.size}/${totF})`;
             document.getElementById('intervaloSelectedText').innerText = `⏰ SELECC. (${selectedIntervalos.size}/${totI})`;
@@ -505,10 +557,17 @@
             const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
 
             const dfFiltered = globalData.filter(item => {
+                const m = String(getProp(item, ['Mes'], ''));
                 const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
                 const f = String(getProp(item, ['Fecha'], '')).split(' ')[0].split('T')[0];
                 const i = String(getProp(item, ['Intervalo'], '00:00'));
-                return selectedCampanas.has(c) && selectedFechas.has(f) && selectedIntervalos.has(i);
+                
+                const matchMes = selectedMeses.size === 0 || selectedMeses.has(m);
+                const matchCamp = selectedCampanas.size === 0 || selectedCampanas.has(c);
+                const matchFecha = selectedFechas.size === 0 || selectedFechas.has(f);
+                const matchInter = selectedIntervalos.size === 0 || selectedIntervalos.has(i);
+
+                return matchMes && matchCamp && matchFecha && matchInter;
             });
 
             if (!dfFiltered || dfFiltered.length === 0) {
@@ -658,6 +717,8 @@
                     return { ...t, nomina_a_contratar: nominaTurno };
                 });
 
+                globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
+
                 if (globalTurnosOptimos.length === 0) {
                     optTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-500">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
                 } else {
@@ -737,11 +798,12 @@
                 alert("No hay datos cargados para exportar.");
                 return;
             }
-            const headers = ["Campana", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT", "Agentes_Requeridos_HC"];
+            const headers = ["Campana", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT", "Agentes_Requeridos_HC"];
             const csvRows = [headers.join(",")];
             globalData.forEach(row => {
                 const values = [
                     getProp(row, ['Campaña', 'Campana'], 'General'),
+                    getProp(row, ['Mes'], ''),
                     getProp(row, ['Fecha'], ''),
                     getProp(row, ['Día_Semana', 'Dia_Semana'], ''),
                     getProp(row, ['Intervalo'], '00:00'),
