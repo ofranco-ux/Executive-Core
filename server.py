@@ -16,15 +16,6 @@ EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 app = Flask(__name__)
 CORS(app)
 
-VENTANAS_SERVICIO = {
-    'coppel servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'coppel': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'telemedic': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'correo': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
-    'suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60}
-}
-
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
@@ -65,7 +56,7 @@ def parse_aht_to_seconds(val):
             parts = val_str.split(':')
             try:
                 if len(parts) == 3: secs = int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
-                elif len(parts) == 2: secs = int(parts[0]) * 3600 + float(parts[1])
+                elif len(parts) == 2: secs = int(parts[0]) * 60 + float(parts[1])
             except: pass
         else:
             try: secs = float(val_str)
@@ -134,6 +125,7 @@ def encontrar_columna(df, posibles_nombres):
                 return col_orig
     return None
 
+# CONTEO EXACTO Y ÚNICO DE AGENTES POR CAMPAÑA Y POR DÍA
 def extraer_datos_plantilla(xls_file):
     try:
         sheet_plantilla = None
@@ -146,16 +138,18 @@ def extraer_datos_plantilla(xls_file):
         df_p = pd.read_excel(xls_file, sheet_name=sheet_plantilla, engine='openpyxl')
         dias_cols = ['lunes', 'martes', 'miércoles', 'miercoles', 'jueves', 'viernes', 'sábado', 'sabado', 'domingo']
         
-        hc_total_campana = {}
+        col_id = encontrar_columna(df_p, ['id', 'agente', 'empleado']) or df_p.columns[0]
+        col_camp = df_p.columns[2] if len(df_p.columns) >= 3 else (encontrar_columna(df_p, ['campaña', 'campana']) or df_p.columns[0])
+
+        df_p['Camp_Clean'] = df_p[col_camp].astype(str).str.strip().str.title()
+        
+        hc_total_campana = df_p.groupby('Camp_Clean')[col_id].nunique().to_dict()
+        hc_total_campana['General'] = int(df_p[col_id].nunique())
+
         hc_diario_campana = {}
 
         for _, row in df_p.iterrows():
-            camp_raw = str(row.iloc[2]) if len(df_p.columns) >= 3 else str(row.get('Campaña', row.get('Campana', 'General')))
-            camp_norm = camp_raw.strip().title()
-
-            hc_total_campana[camp_norm] = hc_total_campana.get(camp_norm, 0) + 1
-            hc_total_campana['General'] = hc_total_campana.get('General', 0) + 1
-
+            camp_norm = str(row['Camp_Clean'])
             for col_name in df_p.columns:
                 dia_key = str(col_name).strip().lower()
                 if any(d in dia_key for d in dias_cols):
@@ -164,7 +158,7 @@ def extraer_datos_plantilla(xls_file):
                     if base_day == 'sabado': base_day = 'sábado'
 
                     val_turno = str(row[col_name]).strip().lower()
-                    if val_turno and not any(x in val_turno for x in ['dd', 'descanso', 'falta', 'vacacion', 'baja']):
+                    if val_turno and not any(x in val_turno for x in ['dd', 'descanso', 'falta', 'vacacion', 'baja', 'nan']):
                         k_dia = (camp_norm, base_day)
                         k_gen = ('General', base_day)
                         hc_diario_campana[k_dia] = hc_diario_campana.get(k_dia, 0) + 1
@@ -386,7 +380,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
 
-            hc_nominal = hc_total_map.get(camp, hc_total_map.get('General', 0))
+            hc_nominal = hc_total_map.get(camp, hc_total_map.get('General', 29))
             hc_activo_dia = hc_diario_map.get((camp, nombre_dia), hc_diario_map.get(('General', nombre_dia), hc_nominal))
 
             for inter in intervalos_validos:
@@ -409,8 +403,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'AHT': format_aht_str(aht),
                     'AHT_Segundos': int(round(aht)),
                     'Agentes_Requeridos': req_hc,
-                    'HC_Plantilla_Nominal': hc_nominal,
-                    'HC_Plantilla_Activa_Dia': hc_activo_dia
+                    'HC_Plantilla_Nominal': int(hc_nominal),
+                    'HC_Plantilla_Activa_Dia': int(hc_activo_dia)
                 })
 
     try:
