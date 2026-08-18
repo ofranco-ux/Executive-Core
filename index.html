@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -268,25 +267,35 @@
                 if (response.ok) {
                     const raw = await response.json();
                     
-                    if (Array.isArray(raw)) {
-                        globalData = raw.map(i => ({
-                            Campaña: String(i.c || i.Campaña || 'General'),
-                            Fecha: String(i.f || i.Fecha || ''),
-                            Mes: String(i.m || i.Mes || ''),
-                            Intervalo: String(i.i || i.Intervalo || '00:00'),
-                            Llamadas: Number(i.ll !== undefined ? i.ll : (i.Llamadas || 0)),
-                            AHT_Segundos: Number(i.as !== undefined ? i.as : (i.AHT_Segundos || 180)),
-                            Agentes_Requeridos: Number(i.r !== undefined ? i.r : (i.Agentes_Requeridos || 0))
-                        }));
+                    let items = Array.isArray(raw) ? raw : (raw.data || []);
+                    
+                    globalData = items.map(i => {
+                        const camp = String(i.c !== undefined ? i.c : (i.Campaña || 'General')).trim();
+                        const fech = String(i.f !== undefined ? i.f : (i.Fecha || '')).trim().split(' ')[0];
+                        const mes = String(i.m !== undefined ? i.m : (i.Mes || '')).trim();
+                        const inter = String(i.i !== undefined ? i.i : (i.Intervalo || '00:00')).trim();
+                        const calls = Number(i.ll !== undefined ? i.ll : (i.Llamadas || 0));
+                        const ahtSecs = Number(i.as !== undefined ? i.as : (i.AHT_Segundos || 180));
+                        const reqHC = Number(i.r !== undefined ? i.r : (i.Agentes_Requeridos || 0));
 
-                        if (globalData.length > 0) {
-                            inicializarFiltrosMultiples();
-                            actualizarHorizonteDias();
-                            if (label) label.innerText = "Pronóstico cargado correctamente.";
-                            return;
-                        }
+                        return {
+                            Campaña: camp,
+                            Fecha: fech,
+                            Mes: mes,
+                            Intervalo: inter,
+                            Llamadas: isNaN(calls) ? 0 : calls,
+                            AHT_Segundos: isNaN(ahtSecs) ? 180 : ahtSecs,
+                            Agentes_Requeridos: isNaN(reqHC) ? 0 : reqHC
+                        };
+                    });
+
+                    if (globalData.length > 0) {
+                        inicializarFiltrosMultiples();
+                        actualizarHorizonteDias();
+                        if (label) label.innerText = "Pronóstico cargado correctamente.";
+                        return;
                     }
-                    if (label) label.innerText = "Error: JSON vacío.";
+                    if (label) label.innerText = "Error: Arreglo de datos vacío.";
                 } else {
                     if (label) label.innerText = "Error leyendo API.";
                 }
@@ -297,14 +306,14 @@
 
         function actualizarHorizonteDias() {
             const numDiasInput = parseInt(document.getElementById('dias').value) || 180;
-            const todasFechasUnicas = [...new Set(globalData.map(i => i.Fecha.split(' ')[0]))].filter(Boolean).sort();
+            const todasFechasUnicas = [...new Set(globalData.map(i => i.Fecha))].filter(Boolean).sort();
             
             const fechasLimitadas = todasFechasUnicas.slice(0, numDiasInput);
             selectedFechas = new Set(fechasLimitadas);
 
             renderMenuOptions('Fecha', todasFechasUnicas, selectedFechas);
             actualizarTextosBotones();
-            actualizarGraficaDebounced();
+            actualizarGrafica();
         }
 
         async function procesarWFM() {
@@ -360,9 +369,9 @@
             if (checked) setRef.add(value); else setRef.delete(value);
 
             if (type === 'Mes') {
-                const fechasInMes = [...new Set(globalData.filter(i => selectedMeses.has(i.Mes)).map(i => i.Fecha.split(' ')[0]))].filter(Boolean);
+                const fechasInMes = [...new Set(globalData.filter(i => selectedMeses.has(i.Mes)).map(i => i.Fecha))].filter(Boolean);
                 selectedFechas = new Set(fechasInMes);
-                renderMenuOptions('Fecha', [...new Set(globalData.map(i => i.Fecha.split(' ')[0]))].filter(Boolean).sort(), selectedFechas);
+                renderMenuOptions('Fecha', [...new Set(globalData.map(i => i.Fecha))].filter(Boolean).sort(), selectedFechas);
             }
 
             actualizarTextosBotones();
@@ -374,7 +383,7 @@
             let allOptions = [];
             if (type === 'Mes') allOptions = [...new Set(globalData.map(i => i.Mes))].filter(Boolean);
             else if (type === 'Campana') allOptions = [...new Set(globalData.map(i => i.Campaña))].filter(Boolean);
-            else if (type === 'Fecha') allOptions = [...new Set(globalData.map(i => i.Fecha.split(' ')[0]))].filter(Boolean);
+            else if (type === 'Fecha') allOptions = [...new Set(globalData.map(i => i.Fecha))].filter(Boolean);
             else allOptions = [...new Set(globalData.map(i => i.Intervalo))].filter(Boolean);
 
             if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
@@ -393,7 +402,7 @@
         function actualizarTextosBotones() {
             const totM = [...new Set(globalData.map(i => i.Mes))].filter(Boolean).length;
             const totC = [...new Set(globalData.map(i => i.Campaña))].filter(Boolean).length;
-            const totF = [...new Set(globalData.map(i => i.Fecha.split(' ')[0]))].filter(Boolean).length;
+            const totF = [...new Set(globalData.map(i => i.Fecha))].filter(Boolean).length;
             const totI = [...new Set(globalData.map(i => i.Intervalo))].filter(Boolean).length;
             
             document.getElementById('mesSelectedText').innerText = `🗓️ MES (${selectedMeses.size}/${totM})`;
@@ -414,10 +423,9 @@
 
         async function actualizarGrafica() {
             const dfFiltered = globalData.filter(item => {
-                const fClean = item.Fecha.split(' ')[0];
                 return selectedMeses.has(item.Mes) && 
                        selectedCampanas.has(item.Campaña) && 
-                       selectedFechas.has(fClean) && 
+                       selectedFechas.has(item.Fecha) && 
                        selectedIntervalos.has(item.Intervalo);
             });
 
@@ -432,7 +440,7 @@
             const sumLlamadasAht = dfFiltered.reduce((acc, row) => acc + (row.Llamadas * row.AHT_Segundos), 0);
             const avgAhtSegs = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 180;
 
-            const fechasFiltradas = [...new Set(dfFiltered.map(r => r.Fecha.split(' ')[0]))].filter(Boolean);
+            const fechasFiltradas = [...new Set(dfFiltered.map(r => r.Fecha))].filter(Boolean);
             const todosIntervalos = [...new Set(dfFiltered.map(r => r.Intervalo))].sort();
 
             const reqMaxVector = todosIntervalos.map(() => 0);
@@ -442,7 +450,7 @@
             todosIntervalos.forEach((inter, idx) => {
                 let dailyReqSum = 0, dailyCallsSum = 0, dailyAhtSum = 0, countDays = 0;
                 fechasFiltradas.forEach(fStr => {
-                    const subRows = dfFiltered.filter(r => r.Fecha.split(' ')[0] === fStr && r.Intervalo === inter);
+                    const subRows = dfFiltered.filter(r => r.Fecha === fStr && r.Intervalo === inter);
                     if (subRows.length > 0) {
                         dailyReqSum += subRows.reduce((a, b) => a + b.Agentes_Requeridos, 0);
                         dailyCallsSum += subRows.reduce((a, b) => a + b.Llamadas, 0);
