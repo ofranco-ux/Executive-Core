@@ -215,14 +215,88 @@ def limpiar_outliers_iqr(series_list):
     lower, upper = q25 - 1.5 * iqr, q75 + 1.5 * iqr
     return np.clip(arr, lower, upper).tolist()
 
+# === NUEVA LÓGICA: PROCESAR EL ROSTER ===
+def generar_intervalos_cobertura(start_min, end_min):
+    intervals = []
+    if start_min < end_min:
+        curr = start_min
+        while curr < end_min:
+            hh = curr // 60
+            mm = curr % 60
+            intervals.append(f"{int(hh):02d}:{int(mm):02d}")
+            curr += 30
+    else: # Turnos nocturnos que cruzan la medianoche
+        curr = start_min
+        while curr < 24 * 60:
+            hh = curr // 60
+            mm = curr % 60
+            intervals.append(f"{int(hh):02d}:{int(mm):02d}")
+            curr += 30
+        curr = 0
+        while curr < end_min:
+            hh = curr // 60
+            mm = curr % 60
+            intervals.append(f"{int(hh):02d}:{int(mm):02d}")
+            curr += 30
+    return intervals
+
+def procesar_hoja_roster(df_roster):
+    dias_map = {'lunes': 'Lunes', 'martes': 'Martes', 'miércoles': 'Miércoles', 'miercoles': 'Miércoles', 
+                'jueves': 'Jueves', 'viernes': 'Viernes', 'sábado': 'Sábado', 'sabado': 'Sábado', 'domingo': 'Domingo'}
+    
+    roster_cov = {} # Key: (Campaña, Dia_Semana, Intervalo) -> Value: Conteo HC
+    col_camp = encontrar_columna(df_roster, ['campaña', 'campana', 'skill'])
+    
+    if not col_camp:
+        return roster_cov
+        
+    for idx, row in df_roster.iterrows():
+        camp = str(row[col_camp]).strip().title()
+        if camp == 'Nan' or camp == '': continue
+        
+        for col in df_roster.columns:
+            col_lower = str(col).lower().strip()
+            if col_lower in dias_map:
+                dia_real = dias_map[col_lower]
+                horario = str(row[col]).strip().upper()
+                
+                # Omitir descansos o vacios
+                if horario == 'DD-DD' or 'NAN' in horario or horario == '' or '-' not in horario:
+                    continue
+                    
+                parts = horario.split('-')
+                if len(parts) == 2:
+                    start_min = parse_time_str(parts[0].strip())
+                    end_min = parse_time_str(parts[1].strip())
+                    
+                    if start_min is not None and end_min is not None:
+                        intervals = generar_intervalos_cobertura(start_min, end_min)
+                        for inv in intervals:
+                            key = (camp, dia_real, inv)
+                            roster_cov[key] = roster_cov.get(key, 0) + 1
+    return roster_cov
+
 def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=30):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     
+    # 1. Buscar Hoja de Llamadas
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
         if 'llam' in s.lower() or 'hist' in s.lower() or 'datos' in s.lower():
             sheet_calls = s
             break
+            
+    # 2. Buscar Hoja de Roster (NUEVO)
+    sheet_roster = None
+    for s in xls_file.sheet_names:
+        if 'roster' in s.lower() or 'plantilla' in s.lower() or 'horario' in s.lower():
+            sheet_roster = s
+            break
+
+    roster_coverage = {}
+    if sheet_roster:
+        df_roster = pd.read_excel(xls_file, sheet_name=sheet_roster, engine='openpyxl')
+        roster_coverage = procesar_hoja_roster(df_roster)
 
     df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
 
@@ -352,6 +426,9 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
+                
+                # === AGREGAR LA COBERTURA DEL ROSTER ===
+                hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
 
                 data_processed.append({
                     'Campaña': str(camp),
@@ -362,7 +439,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'Llamadas': int(round(calls)),
                     'AHT': format_aht_str(aht),
                     'AHT_Segundos': int(round(aht)),
-                    'Agentes_Requeridos': req_hc
+                    'Agentes_Requeridos': req_hc,
+                    'HC_Actual_Roster': hc_roster
                 })
 
     try:
@@ -373,9 +451,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht_vec=None, 
-                            target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, 
-                            es_nocturno=False):
+def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht_vec=None, req_vec=None, target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, es_nocturno=False):
     m = len(intervalos)
     if m == 0:
         return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0, [0]*m
@@ -389,12 +465,17 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     
     req_hc_pooled = []
     req_hc_base = np.zeros(m)
+    
     for i in range(m):
-        c = llamadas_arr[i]
-        aht_s = aht_arr[i]
-        a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-        req_ftes_i = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico) if c > 0 else 0
-        req_hc_i = math.ceil(req_ftes_i / factor_asistencia) if req_ftes_i > 0 else 0
+        if req_vec is not None and i < len(req_vec) and req_vec[i] > 0:
+            req_hc_i = int(req_vec[i])
+        else:
+            c = llamadas_arr[i]
+            aht_s = aht_arr[i]
+            a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
+            req_ftes_i = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico) if c > 0 else 0
+            req_hc_i = math.ceil(req_ftes_i / factor_asistencia) if req_ftes_i > 0 else 0
+            
         req_hc_pooled.append(int(req_hc_i))
         req_hc_base[i] = req_hc_i
 
@@ -532,13 +613,8 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 
     return turnos_sugeridos, cobertura_hc_entera, total_agentes_diarios_hc, headcount_semanal_requerido, eficiencia, sl_optimo_vector, sl_optimo_global, staffing_level_optimo, req_hc_pooled
 
-
-# -------------------------------------------------------------
-# LA RUTA /api/latest LEE LA CACHÉ CORRECTAMENTE
-# -------------------------------------------------------------
 @app.route('/api/latest', methods=['GET'])
 def get_latest_forecast():
-    # 1. Intentar leer la caché primero (Carga en milisegundos)
     if os.path.exists(CACHE_FILE):
         try:
             with open(CACHE_FILE, 'r', encoding='utf-8') as f:
@@ -547,10 +623,9 @@ def get_latest_forecast():
         except Exception as e:
             print(f"Error leyendo cache, se regenerará: {e}")
             
-    # 2. Si no hay caché (primera vez o se borró), procesar el Excel
     if os.path.exists(EXCEL_DEFAULT):
         try:
-            data = procesar_archivo_excel(EXCEL_DEFAULT) # Esto crea el CACHE_FILE internamente
+            data = procesar_archivo_excel(EXCEL_DEFAULT)
             return jsonify(data), 200
         except Exception as e:
             return jsonify({'error': f'Error procesando historico.xlsx automático: {str(e)}'}), 500
@@ -565,6 +640,7 @@ def api_optimize_schedules():
         campanas = body.get('campanas', [])
         llamadas = body.get('llamadas', [])
         ahts = body.get('ahts', [])
+        requeridos = body.get('requeridos', [])
         target_sl = float(body.get('target_sl', 80.0))
         target_time = float(body.get('target_time', 20.0))
         merma = float(body.get('merma', 30.0)) / 100.0
@@ -572,7 +648,7 @@ def api_optimize_schedules():
         es_nocturno = bool(body.get('es_nocturno', False))
 
         turnos, cob_optima, total_diario, total_hc, eficiencia, sl_vec, sl_global, staff_level, req_hc_pooled = resolver_turnos_optimos(
-            intervalos, campanas, llamadas_vec=llamadas, aht_vec=ahts, 
+            intervalos, campanas, llamadas_vec=llamadas, aht_vec=ahts, req_vec=requeridos,
             target_sl=target_sl, target_time=target_time, merma=merma, 
             duracion_jornada=duracion_jornada, es_nocturno=es_nocturno
         )
