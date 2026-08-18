@@ -89,7 +89,6 @@
                 <p class="text-xs text-indigo-200 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer</p>
             </div>
         </div>
-        <!-- BOTONES ELIMINADOS, SÓLO LÓGICA DE URL -->
     </header>
 
     <div class="grid grid-cols-12 gap-8">
@@ -361,6 +360,7 @@
 
         let debounceTimer;
         let totalesFiltros = { M: 0, C: 0, F: 0, I: 0 };
+        let currentMode = 'wfm';
 
         const mesesMap = {
             "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
@@ -382,9 +382,53 @@
         }
 
         // ==========================================
-        // SWITCH DE VISTAS (MODO OPS URL DETECTOR)
+        // CONFIGURACIÓN EN LA NUBE PARA MODO OPS
+        // ==========================================
+        async function fetchWFMConfig() {
+            try {
+                const response = await fetch('/api/config');
+                if (response.ok) {
+                    const config = await response.json();
+                    if(config.targetSl) document.getElementById('targetSl').value = config.targetSl;
+                    if(config.targetTime) document.getElementById('targetTime').value = config.targetTime;
+                    if(config.merma) document.getElementById('merma').value = config.merma;
+                    if(config.duracionJornada) document.getElementById('duracionJornada').value = config.duracionJornada;
+                    if(config.chkNocturno !== undefined) document.getElementById('chkNocturno').checked = config.chkNocturno;
+                    if(config.chkPicos !== undefined) document.getElementById('chkPicos').checked = config.chkPicos;
+                }
+            } catch (e) {
+                console.log("No hay config WFM previa, usando valores default.");
+            }
+        }
+
+        async function saveWFMConfig() {
+            if(currentMode === 'ops') return; // Ops no puede sobreescribir la config
+            
+            const config = {
+                targetSl: document.getElementById('targetSl').value,
+                targetTime: document.getElementById('targetTime').value,
+                merma: document.getElementById('merma').value,
+                duracionJornada: document.getElementById('duracionJornada').value,
+                chkNocturno: document.getElementById('chkNocturno').checked,
+                chkPicos: document.getElementById('chkPicos').checked
+            };
+
+            try {
+                await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+            } catch (e) {
+                console.log("No se pudo guardar la config de WFM.");
+            }
+        }
+
+        // ==========================================
+        // SWITCH DE VISTAS 
         // ==========================================
         function switchMode(mode) {
+            currentMode = mode;
             const aside = document.getElementById('panelControl');
             const main = document.getElementById('dashboardMain');
             const tag = document.getElementById('tagModoOps');
@@ -467,6 +511,11 @@
             const mode = urlParams.get('mode') || urlParams.get('role') || 'wfm';
             switchMode(mode);
 
+            // 1. Ops baja los parametros seteados por WFM (si existen)
+            if(mode === 'ops') {
+                await fetchWFMConfig();
+            }
+
             try {
                 const response = await fetch('/api/latest?t=' + new Date().getTime());
                 if (response.ok) {
@@ -506,6 +555,10 @@
         async function procesarWFM() {
             const file = document.getElementById('fileInput').files[0];
             if (!file) { alert("Por favor selecciona tu archivo historico.xlsx (Asegúrate de incluir la hoja 'Plantilla')"); return; }
+            
+            // WFM Guarda su configuracion globalmente
+            await saveWFMConfig();
+
             const btn = document.getElementById('btnProcesar');
             btn.disabled = true;
             btn.innerText = "⏳ PROCESANDO...";
