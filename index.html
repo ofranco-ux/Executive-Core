@@ -227,7 +227,7 @@
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">AHT Promedio</p>
-                    <p id="kpiAht" class="text-2xl font-black font-mono-num mt-2 text-white">00:00</p>
+                    <p id="kpiAht" class="text-2xl font-black font-mono-num mt-2 text-white">00:00:00</p>
                 </div>
 
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl border-l-4 border-l-violet-500 relative overflow-hidden">
@@ -335,7 +335,7 @@
                             <tr>
                                 <th class="py-3 px-4">Intervalo</th>
                                 <th class="py-3 px-4">Llamadas (FCST)</th>
-                                <th class="py-3 px-4">AHT (MM:SS)</th>
+                                <th class="py-3 px-4">AHT (HH:MM:SS)</th>
                                 <th class="py-3 px-4 text-violet-400">Req. Sugerido (HC)</th>
                                 <th class="py-3 px-4 text-emerald-400">Roster Actual (HC)</th>
                                 <th class="py-3 px-4 text-amber-400">Capacidad Roster (SLA)</th>
@@ -355,7 +355,7 @@
     <script>
         let globalData = [];
         let optChartInstance = null;
-        let gapChartInstance = null;
+        let gapChartInstance = null; 
         let globalTurnosOptimos = [];
         let selectedMeses = new Set();
         let selectedCampanas = new Set();
@@ -465,12 +465,14 @@
             return def;
         }
 
+        // === NUEVO FORMATO AHT: HH:MM:SS ===
         function formatAHT(seconds) {
-            if (!seconds || seconds <= 0) return "00:00";
+            if (!seconds || seconds <= 0) return "00:00:00";
             const secs = Math.round(seconds);
             const hrs = Math.floor(secs / 3600);
             const mins = Math.floor((secs % 3600) / 60);
-            return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+            const remainderSecs = secs % 60;
+            return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(remainderSecs).padStart(2, '0')}`;
         }
 
         function parseMinStr(t_str) {
@@ -680,7 +682,7 @@
 
             if (!dfFiltered || dfFiltered.length === 0) {
                 document.getElementById('kpiCalls').innerText = "0";
-                document.getElementById('kpiAht').innerText = "00:00";
+                document.getElementById('kpiAht').innerText = "00:00:00";
                 document.getElementById('kpiHcRequerido').innerText = "0 HC";
                 document.getElementById('kpiHcRoster').innerText = "0 HC";
                 const tbody = document.getElementById('intervalTableBody');
@@ -794,7 +796,7 @@
                 const optData = await res.json() || {};
                 const reqAvgVector = optData.req_hc_pooled || [];
                 const capacidadRosterVector = []; 
-                const capacidadSugeridaVector = []; // NUEVO VECTOR: Capacidad de Malla Sugerida
+                const capacidadSugeridaVector = []; 
                 
                 const tbody = document.getElementById('intervalTableBody');
                 tbody.innerHTML = '';
@@ -806,12 +808,10 @@
                     const rowRoster = rosterAvgVector[idx] || 0;
                     
                     const mermaDecimal = mermaVal / 100;
-                    // Capacidad del Roster Actual
                     const agentesConectadosRoster = rowRoster * (1 - mermaDecimal);
                     const capacidadRoster = maxCallsForAgents(agentesConectadosRoster, rowAhtSegs, targetTimeObj, targetSlObj);
                     capacidadRosterVector.push(capacidadRoster);
 
-                    // Capacidad de Malla Sugerida (Optimizador)
                     const rowMallaSugerida = optData.cobertura_optima ? optData.cobertura_optima[idx] : 0;
                     const agentesConectadosSugeridos = rowMallaSugerida * (1 - mermaDecimal);
                     const capacidadSugerida = maxCallsForAgents(agentesConectadosSugeridos, rowAhtSegs, targetTimeObj, targetSlObj);
@@ -840,7 +840,6 @@
                     tbody.appendChild(tr);
                 });
 
-                // DIBUJAR LA NUEVA GRÁFICA DE CAPACIDAD (BARRAS Y 2 LÍNEAS)
                 if (gapChartInstance) gapChartInstance.destroy();
                 const ctxGap = document.getElementById('gapChart').getContext('2d');
                 
@@ -853,18 +852,18 @@
                                 label: 'Capacidad Malla Sugerida', 
                                 type: 'line',
                                 data: capacidadSugeridaVector, 
-                                borderColor: '#8B5CF6', // Violeta 
+                                borderColor: '#8B5CF6', 
                                 backgroundColor: 'transparent',
                                 borderWidth: 3,
                                 tension: 0.35,
                                 pointRadius: 2,
-                                borderDash: [4, 4] // Punteada para representar proyección
+                                borderDash: [4, 4] 
                             },
                             { 
                                 label: 'Capacidad Roster Actual (SLA)', 
                                 type: 'line',
                                 data: capacidadRosterVector, 
-                                borderColor: '#F59E0B', // Ámbar
+                                borderColor: '#F59E0B', 
                                 backgroundColor: 'transparent',
                                 borderWidth: 3,
                                 tension: 0.35,
@@ -873,7 +872,7 @@
                             { 
                                 label: 'Llamadas (FCST)', 
                                 data: llamadasArr.map(x => Math.round(x)), 
-                                backgroundColor: 'rgba(6, 182, 212, 0.4)', // Cyan semitransparente
+                                backgroundColor: 'rgba(6, 182, 212, 0.4)', 
                                 borderColor: '#06B6D4',
                                 borderWidth: 1,
                                 borderRadius: 4
@@ -893,7 +892,6 @@
                     }
                 });
 
-                // CÁLCULO DE LA TARJETA ROSTER TOTAL
                 const uniqueCampaigns = [...new Set(dfFiltered.map(r => r.Campaña))];
                 let totalRosterHC = 0;
                 
@@ -1049,7 +1047,7 @@
                 alert("No hay datos cargados para exportar.");
                 return;
             }
-            const headers = ["Campana", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT", "Agentes_Requeridos_HC", "HC_Actual_Roster"];
+            const headers = ["Campana", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT_HH_MM_SS", "Agentes_Requeridos_HC", "HC_Actual_Roster"];
             const csvRows = [headers.join(",")];
             globalData.forEach(row => {
                 const values = [
@@ -1059,7 +1057,7 @@
                     getProp(row, ['Día_Semana', 'Dia_Semana'], ''),
                     getProp(row, ['Intervalo'], '00:00'),
                     getProp(row, ['Llamadas', 'Recibidas'], 0),
-                    getProp(row, ['AHT'], '00:00'),
+                    getProp(row, ['AHT'], '00:00:00'),
                     getProp(row, ['Agentes_Requeridos'], 0),
                     getProp(row, ['HC_Actual_Roster'], 0)
                 ];
