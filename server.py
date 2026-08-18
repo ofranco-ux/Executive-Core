@@ -16,15 +16,6 @@ EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 app = Flask(__name__)
 CORS(app)
 
-VENTANAS_SERVICIO = {
-    'coppel servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'coppel': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'telemedic': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'correo': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
-    'suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60}
-}
-
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
@@ -233,17 +224,11 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             sheet_calls = s
             break
 
-    df_preview = pd.read_excel(xls_file, sheet_name=sheet_calls, nrows=5, engine='openpyxl')
-    cols_to_use = []
-    for c in df_preview.columns:
-        c_str = str(c).strip().lower()
-        if any(x in c_str for x in ['fecha', 'date', 'campa', 'skill', 'servicio', 'ring group', 'intervalo', 'hora', 'recibida', 'llamada', 'call', 'aht', 'tmo', 'duracio']):
-            cols_to_use.append(c)
+    df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
 
-    df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, usecols=cols_to_use, engine='openpyxl')
-
-    col_calls = [c for c in df_raw.columns if any(x in str(c).lower() for x in ['recibida', 'llamada', 'call', 'volumen'])][0]
-    col_aht = [c for c in df_raw.columns if any(x in str(c).lower() for x in ['aht', 'tmo', 'duracio'])][0]
+    # BÚSQUEDA DIRECTA DE COLUMNAS ROBUSTA
+    col_calls = [c for c in df_raw.columns if any(x in str(c).lower() for x in ['recibida', 'llamada', 'call', 'volumen', 'ofrecida'])][0]
+    col_aht = [c for c in df_raw.columns if any(x in str(c).lower() for x in ['aht', 'tmo', 'duracio', 'handle'])][0]
     col_camp = [c for c in df_raw.columns if any(x in str(c).lower() for x in ['campa', 'skill', 'servicio', 'ring group'])][0]
     col_inter = [c for c in df_raw.columns if any(x in str(c).lower() for x in ['intervalo', 'hora', 'time'])][0]
     col_fecha = [c for c in df_raw.columns if any(x in str(c).lower() for x in ['fecha', 'date'])][0]
@@ -586,8 +571,12 @@ def api_optimize_schedules():
 def get_latest_forecast():
     if os.path.exists(CACHE_FILE):
         try:
-            os.remove(CACHE_FILE)
+            with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if data and len(data) > 0:
+                    return jsonify(data), 200
         except Exception: pass
+
     if os.path.exists(EXCEL_DEFAULT):
         try:
             data = procesar_archivo_excel(EXCEL_DEFAULT, dias_futuros=180)
