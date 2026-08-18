@@ -16,6 +16,15 @@ EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 app = Flask(__name__)
 CORS(app)
 
+VENTANAS_SERVICIO = {
+    'coppel servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'coppel': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'telemedic': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'correo': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
+    'suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60}
+}
+
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
