@@ -76,11 +76,17 @@
 <body class="p-6 md:p-8 min-h-screen">
 
     <header class="flex justify-between items-center bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 border border-indigo-500/30 shadow-[0_0_30px_-10px_rgba(99,102,241,0.3)] backdrop-blur-xl rounded-2xl p-6 mb-8 relative overflow-hidden flex-wrap gap-4">
+        <!-- Efectos de luz de fondo -->
         <div class="absolute -left-10 -top-10 w-40 h-40 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none"></div>
         <div class="absolute right-0 bottom-0 w-64 h-64 bg-violet-600/10 rounded-full blur-3xl pointer-events-none"></div>
         
         <div class="flex items-center gap-5 z-10">
-            <div class="w-2.5 h-10 bg-gradient-to-b from-cyan-400 via-indigo-500 to-violet-600 rounded-full glow-cyan"></div>
+            
+            <!-- CONTENEDOR DEL LOGO -->
+            <div class="bg-slate-200/90 p-1.5 rounded-xl border border-white/20 shadow-[0_0_20px_rgba(6,182,212,0.3)] flex-shrink-0 backdrop-blur-sm transition-transform hover:scale-105 duration-300">
+                <img src="logo.png" alt="WFM Logo" class="h-14 w-auto object-contain">
+            </div>
+
             <div>
                 <div class="flex items-center gap-3">
                     <h1 class="text-2xl font-black text-white tracking-tight">Workforce Capacity Forecast</h1>
