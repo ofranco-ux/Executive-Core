@@ -84,17 +84,11 @@ def manage_config():
             'chkPicos': False
         }), 200
 
-# ===================================================
-# FUNCIÓN CORREGIDA: LIMPIEZA DE NÚMEROS
-# ===================================================
 def clean_num(val, default=0.0):
     if pd.isna(val) or val is None: return default
-    if isinstance(val, (int, float)): return float(val)
     try:
-        # Quitamos comas separadoras de miles de forma segura (ej. 1,500 -> 1500)
-        val_str = str(val).strip().replace(',', '')
-        # Extraemos solo caracteres numéricos y el punto decimal
-        val_str = re.sub(r'[^\d.]', '', val_str)
+        val_str = str(val).strip().replace(',', '.')
+        val_str = re.sub(r'[^0-9.]', '', val_str)
         return float(val_str) if val_str else default
     except Exception:
         return default
@@ -145,11 +139,19 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         last_term = current_term * (A / N) / (1.0 - (A / N))
         pw = last_term / (sum_terms + last_term)
         intensity = N - A
-        sl = 1.0 - (pw * Math.exp(-intensity * (target_time / AHT)))
+        sl = 1.0 - (pw * math.exp(-intensity * (target_time / AHT)))
         resultado = round(max(0.0, min(100.0, sl * 100.0)), 1)
         ERLANG_CACHE[key] = resultado
         return resultado
     except: return 0.0
+
+def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
+    if A <= 0 or aht <= 0: return 0
+    n = max(1, int(math.floor(A)) + 1)
+    while n < 1000:
+        if erlang_c_sl_optimizado(A, n, aht, target_time) >= target_sl: return n
+        n += 1
+    return n
 
 def parse_time_str(t_str):
     if not t_str: return None
@@ -342,16 +344,18 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         try:
             df_roster = pd.read_excel(xls_file, sheet_name=sheet_roster, engine='openpyxl')
             roster_coverage, roster_total_camp, roster_total_dia_camp = procesar_hoja_roster(df_roster)
-        except Exception: pass
+        except Exception as e:
+            print("Aviso: No se pudo procesar la hoja de Roster:", e)
 
     df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
 
-    col_calls = encontrar_columna(df_raw, ['recibidas', 'llamadas', 'calls', 'volumen', 'ofrecidas', 'entrada', 'contactos'])
+    col_calls = encontrar_columna(df_raw, ['recibidas', 'llamadas', 'calls', 'volumen', 'ofrecidas', 'entrada'])
     col_aht = encontrar_columna(df_raw, ['aht', 'tmo', 'handle', 'duracion'])
     col_camp = encontrar_columna(df_raw, ['campaña', 'campana', 'skill', 'servicio', 'ring group'])
     col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
     col_fecha = encontrar_columna(df_raw, ['fecha', 'date'])
 
+    # Búsqueda defensiva si fallan los nombres predeterminados
     if not col_camp: col_camp = df_raw.columns[0]
     if not col_fecha: col_fecha = df_raw.columns[1]
     if not col_inter: col_inter = df_raw.columns[2]
@@ -361,17 +365,13 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce')
     df_raw = df_raw.dropna(subset=[col_fecha])
 
-    # Aplicamos la limpieza segura a TODA la columna de llamadas
+    # Limpieza robusta de valores numéricos de llamadas
     df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
 
-    # ==============================================================
-    # CORTE INTELIGENTE ROBUSTO
-    # ==============================================================
-    suma_diaria = df_raw.groupby(col_fecha)[col_calls].sum()
-    dias_reales = suma_diaria[suma_diaria > 0].index
-    
-    if not dias_reales.empty:
-        max_fecha_real = dias_reales.max()
+    # CORTE INTELIGENTE ROBUSTO: Se queda con la historia donde sí hubo actividad real
+    df_valido = df_raw[df_raw[col_calls] > 0]
+    if not df_valido.empty:
+        max_fecha_real = df_valido[col_fecha].max()
         df_raw = df_raw[df_raw[col_fecha] <= max_fecha_real]
 
     if col_aht:
@@ -727,7 +727,7 @@ def get_latest_forecast():
             data = procesar_archivo_excel(EXCEL_DEFAULT)
             return jsonify(data), 200
         except Exception as e:
-            return jsonify({'error': f'Error procesando historico.xlsx automático: {str(e)}'}), 500
+            return jsonify({'error': f'Error procesando historico.xlsx: {str(e)}'}), 500
             
     return jsonify({'error': 'No se encontró historico.xlsx en el servidor.'}), 404
 
