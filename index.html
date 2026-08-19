@@ -82,10 +82,36 @@
         
         <div class="flex items-center gap-5 z-10">
             
-            <!-- CONTENEDOR DEL LOGO -->
-            <div class="bg-slate-200/90 p-1.5 rounded-xl border border-white/20 shadow-[0_0_20px_rgba(6,182,212,0.3)] flex-shrink-0 backdrop-blur-sm transition-transform hover:scale-105 duration-300">
-                <img src="logo.png" alt="WFM Logo" class="h-14 w-auto object-contain">
-            </div>
+            <!-- LOGO SVG GENERADO POR CÓDIGO (NO REQUIERE IMÁGENES EXTERNAS) -->
+            <svg class="h-14 w-14 flex-shrink-0 drop-shadow-[0_0_15px_rgba(6,182,212,0.4)] transition-transform hover:scale-105 duration-300" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#06B6D4"/>
+                        <stop offset="100%" stop-color="#3B82F6"/>
+                    </linearGradient>
+                    <linearGradient id="grad2" x1="0%" y1="100%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#8B5CF6"/>
+                        <stop offset="100%" stop-color="#06B6D4"/>
+                    </linearGradient>
+                </defs>
+                <!-- Anillos dinámicos -->
+                <circle cx="100" cy="100" r="85" stroke="url(#grad1)" stroke-width="12" stroke-linecap="round" stroke-dasharray="350 150" transform="rotate(-45 100 100)"/>
+                <circle cx="100" cy="100" r="65" stroke="url(#grad2)" stroke-width="8" stroke-linecap="round" stroke-dasharray="150 250" transform="rotate(135 100 100)"/>
+                
+                <!-- Siluetas de Agentes (Workforce) -->
+                <!-- Agente Central -->
+                <circle cx="100" cy="75" r="16" fill="url(#grad1)"/>
+                <path d="M75 130 C75 110 125 110 125 130 L125 140 L75 140 Z" fill="url(#grad1)"/>
+                <!-- Agente Izquierdo -->
+                <circle cx="60" cy="95" r="12" fill="url(#grad2)"/>
+                <path d="M40 140 C40 125 80 125 80 140 Z" fill="url(#grad2)"/>
+                <!-- Agente Derecho -->
+                <circle cx="140" cy="95" r="12" fill="url(#grad2)"/>
+                <path d="M120 140 C120 125 160 125 160 140 Z" fill="url(#grad2)"/>
+                
+                <!-- Línea de Pronóstico (Forecast) -->
+                <path d="M40 110 L90 70 L130 90 L170 50" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none" style="filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.5));"/>
+            </svg>
 
             <div>
                 <div class="flex items-center gap-3">
