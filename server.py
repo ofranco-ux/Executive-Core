@@ -45,6 +45,13 @@ def favicon():
     return '', 204
 
 # ==========================================
+# RUTA PARA MOSTRAR EL LOGO
+# ==========================================
+@app.route('/logo.png')
+def serve_logo():
+    return send_from_directory(BASE_DIR, 'logo.png')
+
+# ==========================================
 # NUEVO ENDPOINT PARA SINCRONIZAR PARÁMETROS
 # ==========================================
 @app.route('/api/config', methods=['GET', 'POST'])
