@@ -11,19 +11,27 @@ import numpy as np
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_FILE = os.path.join(BASE_DIR, 'forecast_cache.json')
-CONFIG_FILE = os.path.join(BASE_DIR, 'wfm_config.json') # NUEVO ARCHIVO DE CONFIGURACION
+CONFIG_FILE = os.path.join(BASE_DIR, 'wfm_config.json') 
 EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 
 app = Flask(__name__)
 CORS(app)
 
 VENTANAS_SERVICIO = {
+    'experiencias liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
+    'experiencias suburbia': {'inicio': 9 * 60, 'fin': 21 * 60},
+    'retenciones liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
+    'retenciones suburbia': {'inicio': 9 * 60, 'fin': 21 * 60},
+    'ambulancia servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
     'coppel servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'coppel': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'telemedic': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'correo': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
-    'suburbia':  {'inicio': 9 * 60, 'fin': 21 * 60}
+    'liverpool servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'multicampañas': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'seg y asig hogar': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'seg y asig vial': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'suburbia servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'hexalud': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'liverpool mascotas': {'inicio': 0 * 60, 'fin': 24 * 60},
+    'suburbia mascotas': {'inicio': 0 * 60, 'fin': 24 * 60}
 }
 
 @app.route('/')
@@ -44,16 +52,10 @@ def serve_index():
 def favicon():
     return '', 204
 
-# ==========================================
-# RUTA PARA MOSTRAR EL LOGO
-# ==========================================
 @app.route('/logo.png')
 def serve_logo():
     return send_from_directory(BASE_DIR, 'logo.png')
 
-# ==========================================
-# NUEVO ENDPOINT PARA SINCRONIZAR PARÁMETROS
-# ==========================================
 @app.route('/api/config', methods=['GET', 'POST'])
 def manage_config():
     if request.method == 'POST':
@@ -71,7 +73,6 @@ def manage_config():
                     return jsonify(json.load(f)), 200
             except:
                 pass
-        # Valores por defecto si no hay configuración guardada
         return jsonify({
             'targetSl': 80,
             'targetTime': 20,
@@ -162,9 +163,14 @@ def parse_time_str(t_str):
 def esta_en_ventana_servicio(campana, intervalo_str):
     camp_key = str(campana).strip().lower()
     minutos_inter = parse_time_str(intervalo_str)
-    if minutos_inter is None: return True
-    if 'liverpool' in camp_key or 'suburbia' in camp_key:
-        return (9 * 60) <= minutos_inter < (21 * 60)
+    
+    if minutos_inter is None: 
+        return True
+        
+    for key, ventana in VENTANAS_SERVICIO.items():
+        if key in camp_key or camp_key in key:
+            return ventana['inicio'] <= minutos_inter < ventana['fin']
+            
     return True
 
 def encontrar_columna(df, posibles_nombres):
@@ -570,21 +576,51 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     duracion_minutos = int(round(duracion_jornada * 60))
     label_jornada_diurna = f"{duracion_jornada:.1f} hrs".replace('.0', '')
 
-    min_diurno_inicio = 7 * 60    
-    min_diurno_limite = 22 * 60   
+    min_in_array = [parse_time_str(x) for x in intervalos if parse_time_str(x) is not None]
+    if len(min_in_array) > 0:
+        min_diurno_inicio = min(min_in_array)
+        min_diurno_limite = max(min_in_array) + 30
+    else:
+        min_diurno_inicio = 7 * 60    
+        min_diurno_limite = 22 * 60   
+    
     min_entrada_maxima = min_diurno_limite - duracion_minutos
 
     valid_starts = []
+    is_24_7 = (m >= 47) 
+    
     for j in range(m):
-        min_in = parse_time_str(intervalos[j])
-        if min_in is not None and min_diurno_inicio <= min_in <= min_entrada_maxima:
+        if is_24_7:
             valid_starts.append(j)
+        else:
+            if j + SHIFT_BLOCKS <= m:
+                valid_starts.append(j)
+
+    # ==========================================
+    # CÁLCULO DE SERVICE LEVEL EN TIEMPO REAL
+    # ==========================================
+    def calc_current_global_sl(current_cob):
+        if tot_llamadas <= 0: return 100.0
+        sl_acum = 0.0
+        for i in range(m):
+            c = llamadas_arr[i]
+            if c > 0:
+                a_erl = (c * aht_arr[i]) / 1800.0
+                n_opt = current_cob[i] * factor_asistencia
+                sl_v = erlang_c_sl_optimizado(a_erl, n_opt, aht_arr[i], target_time)
+                sl_acum += c * sl_v
+        return sl_acum / tot_llamadas
 
     if len(valid_starts) > 0:
-        max_iterations = 200
+        max_iterations = 5000
         iteration = 0
         while iteration < max_iterations:
             iteration += 1
+            
+            # NUEVO: SE DETIENE EXACTAMENTE AL LLEGAR AL TARGET PARA AHORRAR NÓMINA
+            if calc_current_global_sl(cob_hc) >= target_sl_dinamico:
+                break
+
             deficit = req_hc_base - cob_hc
             if np.max(deficit) <= 0:
                 break 
@@ -593,28 +629,35 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             best_score = -999999
 
             for s_idx in valid_starts:
-                e_idx = min(s_idx + SHIFT_BLOCKS, m)
-                sub_deficit = deficit[s_idx:e_idx]
-                score = np.sum(np.maximum(0, sub_deficit)) - np.sum(np.maximum(0, -sub_deficit)) * 0.5
+                if s_idx + SHIFT_BLOCKS <= m:
+                    sub_deficit = deficit[s_idx : s_idx + SHIFT_BLOCKS]
+                else:
+                    sub_deficit = np.concatenate((deficit[s_idx:], deficit[:(s_idx + SHIFT_BLOCKS) - m]))
+                
+                score = np.sum(np.maximum(0, sub_deficit)) - np.sum(np.maximum(0, -sub_deficit)) * 0.001
                 
                 if score > best_score:
                     best_score = score
                     best_start_idx = s_idx
 
-            if best_start_idx == -1 or best_score <= 0:
+            if best_start_idx == -1 or best_score <= 0.0001:
                 break
                 
             min_in_val = parse_time_str(intervalos[best_start_idx])
             min_out_val = min_in_val + duracion_minutos
+            min_out_val = min_out_val % (24 * 60) 
+            
             h_in_str = f"{(int(min_in_val // 60)):02d}:{(int(min_in_val % 60)):02d}"
             h_out_str = f"{(int(min_out_val // 60)):02d}:{(int(min_out_val % 60)):02d}"
             
             key_turno = (h_in_str, h_out_str, label_jornada_diurna)
             x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + 1
             
-            e_idx = min(best_start_idx + SHIFT_BLOCKS, m)
-            for t in range(best_start_idx, e_idx):
-                cob_hc[t] += 1
+            if best_start_idx + SHIFT_BLOCKS <= m:
+                cob_hc[best_start_idx : best_start_idx + SHIFT_BLOCKS] += 1
+            else:
+                cob_hc[best_start_idx:] += 1
+                cob_hc[:(best_start_idx + SHIFT_BLOCKS) - m] += 1
 
     sl_optimo_vector = []
     for i in range(m):
@@ -741,10 +784,6 @@ def process_data():
     except Exception as e:
         gc.collect()
         return jsonify({'error': f"Error: {str(e)}"}), 500
-
-@app.errorhandler(404)
-def not_found(e):
-    return jsonify({'error': 'La ruta solicitada no existe'}), 404
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
