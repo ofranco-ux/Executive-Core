@@ -84,15 +84,6 @@ def manage_config():
             'chkPicos': False
         }), 200
 
-def clean_num(val, default=0.0):
-    if pd.isna(val) or val is None: return default
-    try:
-        val_str = str(val).strip().replace(',', '.')
-        val_str = re.sub(r'[^0-9.]', '', val_str)
-        return float(val_str) if val_str else default
-    except Exception:
-        return default
-
 def parse_aht_to_seconds(val):
     if pd.isna(val) or val is None: return 180.0
     secs = 180.0
@@ -340,13 +331,13 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
 
+    # Búsqueda dinámica de columnas
     col_calls = encontrar_columna(df_raw, ['recibidas', 'llamadas', 'calls', 'volumen', 'ofrecidas', 'entrada', 'contactos'])
     col_aht = encontrar_columna(df_raw, ['aht', 'tmo', 'handle', 'duracion'])
     col_camp = encontrar_columna(df_raw, ['campaña', 'campana', 'skill', 'servicio', 'ring group'])
     col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
     col_fecha = encontrar_columna(df_raw, ['fecha', 'date'])
 
-    # Fallback seguro para columnas
     if not col_camp: col_camp = df_raw.columns[0]
     if not col_fecha: col_fecha = df_raw.columns[1]
     if not col_inter: col_inter = df_raw.columns[2]
@@ -357,19 +348,18 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_raw = df_raw.dropna(subset=[col_fecha])
 
     # ==============================================================
-    # CORTE INTELIGENTE EXTREMO: Suma total diaria real
-    # Garantiza que el pronóstico inicie exactamente donde mueren los datos
+    # LIMPIEZA NATIVA DE PANDAS (Súper rápida, evita borrar la data)
     # ==============================================================
-    df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
+    if df_raw[col_calls].dtype == object:
+        df_raw[col_calls] = df_raw[col_calls].astype(str).str.replace(',', '', regex=False)
     
-    # Agrupamos por fecha y sumamos TODAS las llamadas de ese día
+    df_raw[col_calls] = pd.to_numeric(df_raw[col_calls], errors='coerce').fillna(0)
+    
+    # === CORTE INTELIGENTE ===
     suma_diaria = df_raw.groupby(col_fecha)[col_calls].sum()
-    
-    # Si un día tiene 5 llamadas o menos, es ruido o plantilla vacía, ¡lo descartamos!
-    dias_reales = suma_diaria[suma_diaria > 5].index
-    
+    dias_reales = suma_diaria[suma_diaria > 0].index
     if not dias_reales.empty:
-        max_fecha_real = dias_reales.max()  # Aquí identificará el 16 de Agosto
+        max_fecha_real = dias_reales.max()
         df_raw = df_raw[df_raw[col_fecha] <= max_fecha_real]
 
     if col_aht:
@@ -514,25 +504,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         pass
 
     return data_processed
-
-@app.route('/api/latest', methods=['GET'])
-def get_latest_forecast():
-    if os.path.exists(CACHE_FILE):
-        try:
-            with open(CACHE_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            return jsonify(data), 200
-        except Exception as e:
-            pass
-            
-    if os.path.exists(EXCEL_DEFAULT):
-        try:
-            data = procesar_archivo_excel(EXCEL_DEFAULT)
-            return jsonify(data), 200
-        except Exception as e:
-            return jsonify({'error': f'Error procesando historico.xlsx automático: {str(e)}'}), 500
-            
-    return jsonify({'error': 'No se encontró historico.xlsx en el servidor.'}), 404
 
 def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht_vec=None, req_vec=None, target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, es_nocturno=False):
     m = len(intervalos)
@@ -728,6 +699,25 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         eficiencia = 100.0
 
     return turnos_sugeridos, cobertura_hc_entera, total_agentes_diarios_hc, headcount_semanal_requerido, eficiencia, sl_optimo_vector, sl_optimo_global, staffing_level_optimo, req_hc_pooled
+
+@app.route('/api/latest', methods=['GET'])
+def get_latest_forecast():
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return jsonify(data), 200
+        except Exception as e:
+            pass
+            
+    if os.path.exists(EXCEL_DEFAULT):
+        try:
+            data = procesar_archivo_excel(EXCEL_DEFAULT)
+            return jsonify(data), 200
+        except Exception as e:
+            return jsonify({'error': f'Error procesando historico.xlsx automático: {str(e)}'}), 500
+            
+    return jsonify({'error': 'No se encontró historico.xlsx en el servidor.'}), 404
 
 @app.route('/api/optimize-schedules', methods=['POST'])
 def api_optimize_schedules():
