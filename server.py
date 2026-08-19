@@ -331,7 +331,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
 
-    # Búsqueda dinámica de columnas
     col_calls = encontrar_columna(df_raw, ['recibidas', 'llamadas', 'calls', 'volumen', 'ofrecidas', 'entrada', 'contactos'])
     col_aht = encontrar_columna(df_raw, ['aht', 'tmo', 'handle', 'duracion'])
     col_camp = encontrar_columna(df_raw, ['campaña', 'campana', 'skill', 'servicio', 'ring group'])
@@ -348,18 +347,16 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_raw = df_raw.dropna(subset=[col_fecha])
 
     # ==============================================================
-    # LIMPIEZA NATIVA DE PANDAS (Súper rápida, evita borrar la data)
+    # SOLUCIÓN DEFINITIVA: Limpieza Segura de Comas y Corte Inteligente
     # ==============================================================
-    if df_raw[col_calls].dtype == object:
-        df_raw[col_calls] = df_raw[col_calls].astype(str).str.replace(',', '', regex=False)
+    # 1. Remover comas y espacios, convertir a número
+    df_raw[col_calls] = pd.to_numeric(df_raw[col_calls].astype(str).str.replace(',', '').str.replace(' ', ''), errors='coerce').fillna(0)
     
-    df_raw[col_calls] = pd.to_numeric(df_raw[col_calls], errors='coerce').fillna(0)
-    
-    # === CORTE INTELIGENTE ===
-    suma_diaria = df_raw.groupby(col_fecha)[col_calls].sum()
-    dias_reales = suma_diaria[suma_diaria > 0].index
-    if not dias_reales.empty:
-        max_fecha_real = dias_reales.max()
+    # 2. Encontrar la fecha MÁXIMA donde hubo llamadas REALES (> 0)
+    dias_con_llamadas = df_raw[df_raw[col_calls] > 0][col_fecha]
+    if not dias_con_llamadas.empty:
+        max_fecha_real = dias_con_llamadas.max()
+        # 3. Eliminar todo lo que esté después de esa fecha (la "plantilla vacía")
         df_raw = df_raw[df_raw[col_fecha] <= max_fecha_real]
 
     if col_aht:
@@ -776,7 +773,7 @@ def process_data():
         return jsonify(data_processed)
     except Exception as e:
         gc.collect()
-        return jsonify({'error': f"Error en procesamiento: {str(e)}"}), 500
+        return jsonify({'error': f"Error en procesamiento de datos: {str(e)}"}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
