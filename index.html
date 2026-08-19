@@ -81,8 +81,7 @@
         <div class="absolute right-0 bottom-0 w-64 h-64 bg-violet-600/10 rounded-full blur-3xl pointer-events-none"></div>
         
         <div class="flex items-center gap-5 z-10">
-            
-            <!-- LOGO SVG GENERADO POR CÓDIGO (NO REQUIERE IMÁGENES EXTERNAS) -->
+            <!-- LOGO SVG -->
             <svg class="h-14 w-14 flex-shrink-0 drop-shadow-[0_0_15px_rgba(6,182,212,0.4)] transition-transform hover:scale-105 duration-300" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                     <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -94,22 +93,14 @@
                         <stop offset="100%" stop-color="#06B6D4"/>
                     </linearGradient>
                 </defs>
-                <!-- Anillos dinámicos -->
                 <circle cx="100" cy="100" r="85" stroke="url(#grad1)" stroke-width="12" stroke-linecap="round" stroke-dasharray="350 150" transform="rotate(-45 100 100)"/>
                 <circle cx="100" cy="100" r="65" stroke="url(#grad2)" stroke-width="8" stroke-linecap="round" stroke-dasharray="150 250" transform="rotate(135 100 100)"/>
-                
-                <!-- Siluetas de Agentes (Workforce) -->
-                <!-- Agente Central -->
                 <circle cx="100" cy="75" r="16" fill="url(#grad1)"/>
                 <path d="M75 130 C75 110 125 110 125 130 L125 140 L75 140 Z" fill="url(#grad1)"/>
-                <!-- Agente Izquierdo -->
                 <circle cx="60" cy="95" r="12" fill="url(#grad2)"/>
                 <path d="M40 140 C40 125 80 125 80 140 Z" fill="url(#grad2)"/>
-                <!-- Agente Derecho -->
                 <circle cx="140" cy="95" r="12" fill="url(#grad2)"/>
                 <path d="M120 140 C120 125 160 125 160 140 Z" fill="url(#grad2)"/>
-                
-                <!-- Línea de Pronóstico (Forecast) -->
                 <path d="M40 110 L90 70 L130 90 L170 50" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none" style="filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.5));"/>
             </svg>
 
@@ -413,9 +404,6 @@
             return (mesesMap[mesA] || 0) - (mesesMap[mesB] || 0);
         }
 
-        // ==========================================
-        // CONFIGURACIÓN EN LA NUBE PARA MODO OPS
-        // ==========================================
         async function fetchWFMConfig() {
             try {
                 const response = await fetch('/api/config');
@@ -456,9 +444,6 @@
             }
         }
 
-        // ==========================================
-        // SWITCH DE VISTAS 
-        // ==========================================
         function switchMode(mode) {
             currentMode = mode;
             const aside = document.getElementById('panelControl');
@@ -492,9 +477,6 @@
             }
         }
 
-        // ==========================================
-        // ERLANG C INVERSO PARA CAPACIDAD DE ROSTER
-        // ==========================================
         function erlang_c_sl_optimizado(A, N, AHT, target_time) {
             if (N <= A || A <= 0 || N <= 0) return 0.0;
             let sum_terms = 1.0;
@@ -952,9 +934,16 @@
                     tbody.appendChild(tr);
                 });
 
+                // ==========================================
+                // GRÁFICA MEJORADA DE GAP
+                // ==========================================
                 if (gapChartInstance) gapChartInstance.destroy();
                 const ctxGap = document.getElementById('gapChart').getContext('2d');
                 
+                let gradientBar = ctxGap.createLinearGradient(0, 0, 0, 400);
+                gradientBar.addColorStop(0, 'rgba(6, 182, 212, 0.6)');
+                gradientBar.addColorStop(1, 'rgba(6, 182, 212, 0.05)');
+
                 gapChartInstance = new Chart(ctxGap, {
                     type: 'bar',
                     data: {
@@ -965,41 +954,67 @@
                                 type: 'line',
                                 data: capacidadSugeridaVector, 
                                 borderColor: '#8B5CF6', 
-                                backgroundColor: 'transparent',
+                                backgroundColor: '#8B5CF6',
                                 borderWidth: 3,
-                                tension: 0.35,
-                                pointRadius: 2,
+                                tension: 0.4,
+                                pointRadius: 0,
+                                pointHoverRadius: 6,
                                 borderDash: [4, 4] 
                             },
                             { 
-                                label: 'Capacidad Roster Actual (SLA)', 
+                                label: 'Capacidad Roster Actual', 
                                 type: 'line',
                                 data: capacidadRosterVector, 
                                 borderColor: '#F59E0B', 
-                                backgroundColor: 'transparent',
+                                backgroundColor: '#F59E0B',
                                 borderWidth: 3,
-                                tension: 0.35,
-                                pointRadius: 2
+                                tension: 0.4,
+                                pointRadius: 0,
+                                pointHoverRadius: 6
                             },
                             { 
                                 label: 'Llamadas (FCST)', 
                                 data: llamadasArr.map(x => Math.round(x)), 
-                                backgroundColor: 'rgba(6, 182, 212, 0.4)', 
-                                borderColor: '#06B6D4',
-                                borderWidth: 1,
-                                borderRadius: 4
+                                backgroundColor: gradientBar, 
+                                borderColor: 'transparent',
+                                borderWidth: 0,
+                                borderRadius: 4,
+                                barPercentage: 0.7
                             }
                         ]
                     },
                     options: { 
                         responsive: true, 
                         maintainAspectRatio: false, 
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
                         plugins: { 
-                            legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } }
+                            legend: { 
+                                labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 }, usePointStyle: true, boxWidth: 8 } 
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(13, 19, 34, 0.95)',
+                                titleColor: '#F1F5F9',
+                                bodyColor: '#cbd5e1',
+                                borderColor: 'rgba(255, 255, 255, 0.1)',
+                                borderWidth: 1,
+                                padding: 12,
+                                boxPadding: 6,
+                                usePointStyle: true
+                            }
                         }, 
                         scales: { 
-                            x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
-                            y: { ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
+                            x: { 
+                                grid: { display: false }, 
+                                ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 12 } 
+                            }, 
+                            y: { 
+                                grid: { color: 'rgba(255,255,255,0.05)', borderDash: [4, 4] }, 
+                                ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } },
+                                beginAtZero: true
+                            } 
                         } 
                     }
                 });
@@ -1100,31 +1115,91 @@
                     });
                 }
 
+                // ==========================================
+                // GRÁFICA MEJORADA DE OPTIMIZACIÓN
+                // ==========================================
                 if (optChartInstance) optChartInstance.destroy();
                 const ctxOpt = document.getElementById('optChart').getContext('2d');
-                const labelCurvaCob = usarNocturno ? "Malla de Turnos Sugerida (Mixta)" : `Malla de Turnos Sugerida (${durJornada}h)`;
+                const labelCurvaCob = usarNocturno ? "Malla Sugerida (Mixta)" : `Malla Sugerida (${durJornada}h)`;
+
+                let gradientArea = ctxOpt.createLinearGradient(0, 0, 0, 300);
+                gradientArea.addColorStop(0, 'rgba(6, 182, 212, 0.4)');
+                gradientArea.addColorStop(1, 'rgba(6, 182, 212, 0.01)');
 
                 optChartInstance = new Chart(ctxOpt, {
                     type: 'line',
                     data: {
                         labels: intervalos,
                         datasets: [
-                            { label: 'HC Requerido (Motor)', data: reqAvgVector, borderColor: '#06B6D4', backgroundColor: 'rgba(6, 182, 212, 0.05)', fill: true, tension: 0.35, borderWidth: 2.5 },
-                            { label: 'Plantilla Actual (Roster)', data: rosterAvgVector, borderColor: '#10B981', backgroundColor: 'transparent', fill: false, tension: 0.35, borderWidth: 2.5, borderDash: [2, 2] },
-                            { label: labelCurvaCob, data: (optData.cobertura_optima || []), borderColor: '#F59E0B', backgroundColor: 'transparent', fill: false, tension: 0.35, borderWidth: 2.5, borderDash: [4, 4] }
+                            { 
+                                label: 'HC Requerido (Motor)', 
+                                data: reqAvgVector, 
+                                borderColor: '#06B6D4', 
+                                backgroundColor: gradientArea, 
+                                fill: true, 
+                                tension: 0.4, 
+                                borderWidth: 3,
+                                pointRadius: 0,
+                                pointHoverRadius: 6
+                            },
+                            { 
+                                label: 'Plantilla Actual (Roster)', 
+                                data: rosterAvgVector, 
+                                borderColor: '#10B981', 
+                                backgroundColor: '#10B981', 
+                                fill: false, 
+                                tension: 0.4, 
+                                borderWidth: 2, 
+                                borderDash: [5, 5],
+                                pointRadius: 0,
+                                pointHoverRadius: 6
+                            },
+                            { 
+                                label: labelCurvaCob, 
+                                data: (optData.cobertura_optima || []), 
+                                borderColor: '#F59E0B', 
+                                backgroundColor: '#F59E0B', 
+                                fill: false, 
+                                tension: 0.4, 
+                                borderWidth: 3, 
+                                borderDash: [4, 4],
+                                pointRadius: 0,
+                                pointHoverRadius: 6
+                            }
                         ]
                     },
                     options: { 
                         responsive: true, 
                         maintainAspectRatio: false, 
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
                         plugins: { 
                             legend: { 
-                                labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } 
+                                labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 }, usePointStyle: true, boxWidth: 8 } 
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(13, 19, 34, 0.95)',
+                                titleColor: '#F1F5F9',
+                                bodyColor: '#cbd5e1',
+                                borderColor: 'rgba(255, 255, 255, 0.1)',
+                                borderWidth: 1,
+                                padding: 12,
+                                boxPadding: 6,
+                                usePointStyle: true
                             }
                         }, 
                         scales: { 
-                            x: { ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } }, 
-                            y: { ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(255,255,255,0.02)' } } 
+                            x: { 
+                                grid: { display: false }, 
+                                ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 12 } 
+                            }, 
+                            y: { 
+                                grid: { color: 'rgba(255,255,255,0.05)', borderDash: [4, 4] }, 
+                                ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } },
+                                beginAtZero: true
+                            } 
                         } 
                     }
                 });
