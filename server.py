@@ -237,6 +237,7 @@ def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.
     return preds
 
 def grid_search_auto_hw(series, n_preds=30):
+    # Optimizado para evitar timeouts en Render
     return holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=n_preds)
 
 def limpiar_outliers_iqr(series_list):
@@ -339,40 +340,56 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
 
     col_calls = encontrar_columna(df_raw, ['recibidas', 'llamadas', 'calls', 'volumen', 'ofrecidas', 'entrada'])
+    if not col_calls:
+        df_raw['Llamadas_Calculadas'] = 0.0
+        col_calls = 'Llamadas_Calculadas'
+        
     col_aht = encontrar_columna(df_raw, ['aht', 'tmo', 'handle', 'duracion'])
     col_camp = encontrar_columna(df_raw, ['campaña', 'campana', 'skill', 'servicio', 'ring group'])
     col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
     col_dia = encontrar_columna(df_raw, ['día', 'dia', 'semana'])
     col_fecha = encontrar_columna(df_raw, ['fecha', 'date'])
+    
+    if not col_fecha or not col_camp or not col_inter:
+        raise ValueError("El Excel no tiene las columnas obligatorias (Fecha, Campaña, Intervalo).")
 
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce')
     df_raw = df_raw.dropna(subset=[col_fecha])
 
     # ==============================================================
-    # CORTE INTELIGENTE: Eliminar filas "vacías" de plantillas futuras
+    # LIMPIEZA EXTREMA Y CORTE INTELIGENTE
+    # Garantiza leer "1,500" sin borrarlos ni colapsar.
     # ==============================================================
+    if df_raw[col_calls].dtype == object:
+        df_raw[col_calls] = df_raw[col_calls].astype(str).str.replace(',', '', regex=False)
+        
     df_raw[col_calls] = pd.to_numeric(df_raw[col_calls], errors='coerce').fillna(0)
+    
     valid_dates = df_raw[df_raw[col_calls] > 0][col_fecha]
     if not valid_dates.empty:
         real_max_date = valid_dates.max()
         df_raw = df_raw[df_raw[col_fecha] <= real_max_date]
 
     if col_aht:
-        df_raw[col_aht] = df_raw[col_aht].apply(parse_aht_to_seconds)
+        # VECTORIZADO: Evita timeouts por ciclos lentos
+        df_raw[col_aht] = [parse_aht_to_seconds(x) for x in df_raw[col_aht]]
     else:
         df_raw['AHT_Calc'] = 180.0
         col_aht = 'AHT_Calc'
 
     df_raw['Total_Segundos_Handle'] = df_raw[col_calls] * df_raw[col_aht]
-    df_raw['Inter_Clean'] = df_raw[col_inter].astype(str).str.strip().apply(lambda x: ':'.join(x.split(':')[:2]) if len(x.split(':')) == 3 else x)
+    
+    # VECTORIZADO: Limpieza de intervalos al instante
+    df_raw['Inter_Clean'] = [':'.join(str(x).strip().split(':')[:2]) if len(str(x).strip().split(':')) == 3 else str(x).strip() for x in df_raw[col_inter]]
 
     df = df_raw.groupby([col_fecha, col_camp, 'Inter_Clean']).agg({
         col_calls: 'sum',
         'Total_Segundos_Handle': 'sum'
     }).reset_index()
 
-    df[col_aht] = df.apply(lambda r: r['Total_Segundos_Handle'] / r[col_calls] if r[col_calls] > 0 else 180.0, axis=1)
+    # VECTORIZADO: Cálculo final de AHT
+    df[col_aht] = np.where(df[col_calls] > 0, df['Total_Segundos_Handle'] / df[col_calls], 180.0)
     df = df.drop(columns=['Total_Segundos_Handle'])
     df[col_inter] = df['Inter_Clean']
 
@@ -411,7 +428,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         else:
             modelos_ml[camp] = None
 
-    df['En_Ventana'] = df.apply(lambda r: esta_en_ventana_servicio(r[col_camp], r['Inter_Clean']), axis=1)
+    # VECTORIZADO: Validación de ventana súper rápida
+    df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
     df_filtrado = df[df['En_Ventana']].copy()
 
     max_date_hist = df_filtrado[col_fecha].max()
@@ -516,7 +534,7 @@ def get_latest_forecast():
             data = procesar_archivo_excel(EXCEL_DEFAULT)
             return jsonify(data), 200
         except Exception as e:
-            return jsonify({'error': f'Error procesando historico.xlsx automático: {str(e)}'}), 500
+            return jsonify({'error': f'Error procesando historico.xlsx: {str(e)}'}), 500
             
     return jsonify({'error': 'No se encontró historico.xlsx en el servidor.'}), 404
 
@@ -525,9 +543,9 @@ def process_data():
     if request.method == 'GET':
         return jsonify({'status': 'API predictiva activa'}), 200
 
-    target_sl = clean_num(request.form.get('target_sl'), 80.0)
-    target_time = clean_num(request.form.get('target_time'), 20.0)
-    merma = clean_num(request.form.get('merma'), 20.0) / 100.0
+    target_sl = float(clean_num(request.form.get('target_sl'), 80.0))
+    target_time = float(clean_num(request.form.get('target_time'), 20.0))
+    merma = float(clean_num(request.form.get('merma'), 20.0)) / 100.0
     dias_futuros = int(clean_num(request.form.get('dias'), 30))
 
     if 'file' in request.files and request.files['file'].filename != '':
@@ -543,7 +561,7 @@ def process_data():
         return jsonify(data_processed)
     except Exception as e:
         gc.collect()
-        return jsonify({'error': f"Error en procesamiento de datos: {str(e)}"}), 500
+        return jsonify({'error': f"Error en procesamiento: {str(e)}"}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
