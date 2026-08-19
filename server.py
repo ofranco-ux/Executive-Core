@@ -84,6 +84,21 @@ def manage_config():
             'chkPicos': False
         }), 200
 
+# ===================================================
+# FUNCIÓN CORREGIDA: LIMPIEZA DE NÚMEROS
+# ===================================================
+def clean_num(val, default=0.0):
+    if pd.isna(val) or val is None: return default
+    if isinstance(val, (int, float)): return float(val)
+    try:
+        # Quitamos comas separadoras de miles de forma segura (ej. 1,500 -> 1500)
+        val_str = str(val).strip().replace(',', '')
+        # Extraemos solo caracteres numéricos y el punto decimal
+        val_str = re.sub(r'[^\d.]', '', val_str)
+        return float(val_str) if val_str else default
+    except Exception:
+        return default
+
 def parse_aht_to_seconds(val):
     if pd.isna(val) or val is None: return 180.0
     secs = 180.0
@@ -130,7 +145,7 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         last_term = current_term * (A / N) / (1.0 - (A / N))
         pw = last_term / (sum_terms + last_term)
         intensity = N - A
-        sl = 1.0 - (pw * math.exp(-intensity * (target_time / AHT)))
+        sl = 1.0 - (pw * Math.exp(-intensity * (target_time / AHT)))
         resultado = round(max(0.0, min(100.0, sl * 100.0)), 1)
         ERLANG_CACHE[key] = resultado
         return resultado
@@ -346,17 +361,17 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce')
     df_raw = df_raw.dropna(subset=[col_fecha])
 
+    # Aplicamos la limpieza segura a TODA la columna de llamadas
+    df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
+
     # ==============================================================
-    # SOLUCIÓN DEFINITIVA: Limpieza Segura de Comas y Corte Inteligente
+    # CORTE INTELIGENTE ROBUSTO
     # ==============================================================
-    # 1. Remover comas y espacios, convertir a número
-    df_raw[col_calls] = pd.to_numeric(df_raw[col_calls].astype(str).str.replace(',', '').str.replace(' ', ''), errors='coerce').fillna(0)
+    suma_diaria = df_raw.groupby(col_fecha)[col_calls].sum()
+    dias_reales = suma_diaria[suma_diaria > 0].index
     
-    # 2. Encontrar la fecha MÁXIMA donde hubo llamadas REALES (> 0)
-    dias_con_llamadas = df_raw[df_raw[col_calls] > 0][col_fecha]
-    if not dias_con_llamadas.empty:
-        max_fecha_real = dias_con_llamadas.max()
-        # 3. Eliminar todo lo que esté después de esa fecha (la "plantilla vacía")
+    if not dias_reales.empty:
+        max_fecha_real = dias_reales.max()
         df_raw = df_raw[df_raw[col_fecha] <= max_fecha_real]
 
     if col_aht:
@@ -773,7 +788,7 @@ def process_data():
         return jsonify(data_processed)
     except Exception as e:
         gc.collect()
-        return jsonify({'error': f"Error en procesamiento de datos: {str(e)}"}), 500
+        return jsonify({'error': f"Error en procesamiento: {str(e)}"}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
