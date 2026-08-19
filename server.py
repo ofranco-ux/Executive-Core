@@ -17,9 +17,6 @@ EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 app = Flask(__name__)
 CORS(app)
 
-# ==========================================
-# VENTANAS DE SERVICIO ACTUALIZADAS
-# ==========================================
 VENTANAS_SERVICIO = {
     'ambulancia servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
     'asignación hogar': {'inicio': 0 * 60, 'fin': 24 * 60},
@@ -125,9 +122,6 @@ def format_aht_str(seconds):
     s = secs % 60
     return f"{hrs:02d}:{mins:02d}:{s:02d}"
 
-# ==========================================
-# MEMORIA CACHÉ PARA ERLANG C (EVITA TIMEOUTS)
-# ==========================================
 ERLANG_CACHE = {}
 
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
@@ -251,24 +245,8 @@ def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.
     return preds
 
 def grid_search_auto_hw(series, n_preds=30):
-    if len(series) < 21:
-        return holt_winters_fit_predict(series, n_preds=n_preds)
-    train = np.array(series[:-14])
-    val_true = np.array(series[-14:])
-    best_wmape = float('inf')
-    best_params = (0.2, 0.05, 0.2)
-    sum_true = np.sum(val_true) if np.sum(val_true) > 0 else 1.0
-    
-    for a in [0.2, 0.3]:
-        for b in [0.05, 0.1]:
-            for g in [0.2, 0.4]:
-                p_val = np.array(holt_winters_fit_predict(train, season_len=7, alpha=a, beta=b, gamma=g, n_preds=14))
-                wmape = (np.sum(np.abs(val_true - p_val)) / sum_true) * 100
-                if wmape < best_wmape:
-                    best_wmape = wmape
-                    best_params = (a, b, g)
-    a_opt, b_opt, g_opt = best_params
-    return holt_winters_fit_predict(series, season_len=7, alpha=a_opt, beta=b_opt, gamma=g_opt, n_preds=n_preds)
+    # OPTIMIZACIÓN DE VELOCIDAD: Se salta la búsqueda de grid para evitar Timeouts en Render
+    return holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=n_preds)
 
 def limpiar_outliers_iqr(series_list):
     if len(series_list) < 14:
@@ -519,7 +497,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         with open(CACHE_FILE, 'w', encoding='utf-8') as f:
             json.dump(data_processed, f)
     except Exception as err:
-        print("Error guardando cache:", err)
+        pass
 
     return data_processed
 
@@ -726,7 +704,7 @@ def get_latest_forecast():
                 data = json.load(f)
             return jsonify(data), 200
         except Exception as e:
-            print(f"Error leyendo cache, se regenerará: {e}")
+            pass
             
     if os.path.exists(EXCEL_DEFAULT):
         try:
@@ -769,7 +747,6 @@ def api_optimize_schedules():
             'req_hc_pooled': [int(x) for x in req_hc_pooled]
         }), 200
     except Exception as e:
-        print("Error en backend optimizador:", str(e))
         return jsonify({'error': f'Error optimizando turnos: {str(e)}'}), 500
 
 @app.route('/api/process', methods=['POST', 'GET'])
