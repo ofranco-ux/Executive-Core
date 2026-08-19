@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
     <meta http-equiv="Pragma" content="no-cache"/>
     <meta http-equiv="Expires" content="0"/>
-    <title>Executive Core — C-Suite Analytics & Scheduling Optimizer</title>
+    <title>Workforce Capacity Forecast — C-Suite Analytics & Scheduling Optimizer</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Chart.js -->
@@ -83,7 +83,7 @@
             <div class="w-2.5 h-10 bg-gradient-to-b from-cyan-400 via-indigo-500 to-violet-600 rounded-full glow-cyan"></div>
             <div>
                 <div class="flex items-center gap-3">
-                    <h1 class="text-2xl font-black text-white tracking-tight">Executive Core</h1>
+                    <h1 class="text-2xl font-black text-white tracking-tight">Workforce Capacity Forecast</h1>
                     <span id="tagModoOps" class="hidden text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider">Vista Operaciones</span>
                 </div>
                 <p class="text-xs text-indigo-200 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer</p>
@@ -156,7 +156,7 @@
             </div>
 
             <button id="btnProcesar" onclick="procesarWFM()" class="w-full bg-gradient-to-r from-cyan-500 via-blue-600 to-violet-600 hover:from-cyan-400 hover:to-violet-500 text-white font-black py-4 px-4 rounded-xl text-xs transition-all duration-300 shadow-lg shadow-cyan-500/20 uppercase tracking-wider mt-4 hover:shadow-cyan-500/40 active:scale-[0.98]">
-                🚀 PROCESAR MODELO EXECUTIVE
+                🚀 PROCESAR FORECAST
             </button>
         </aside>
 
@@ -579,7 +579,7 @@
                 alert("Error de conexión: " + e.message);
             } finally {
                 btn.disabled = false;
-                btn.innerText = "🚀 PROCESAR MODELO EXECUTIVE";
+                btn.innerText = "🚀 PROCESAR FORECAST";
             }
         }
 
@@ -781,7 +781,7 @@
             const llamadasAvgVector = todosIntervalos.map(() => 0);
             const ahtAvgVector = todosIntervalos.map(() => 0);
             const rosterAvgVector = todosIntervalos.map(() => 0); 
-            const reqAvgVector = todosIntervalos.map(() => 0); // NUEVO: Para enviar al backend
+            const reqAvgVector = todosIntervalos.map(() => 0); 
 
             const mapIntervaloFecha = {};
             dfFiltered.forEach(r => {
@@ -803,7 +803,7 @@
                     if (subRows.length > 0) {
                         sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
                         sumRoster = subRows.reduce((a, b) => a + (Number(getProp(b, ['HC_Actual_Roster'], 0)) || 0), 0);
-                        sumReq = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0), 0); // SUMAMOS REQUERIDOS POR CAMPAÑA
+                        sumReq = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0), 0);
                         sumHT = subRows.reduce((a, b) => {
                             const c = Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0;
                             const ht = Number(getProp(b, ['AHT_Segundos'], 180)) || 180;
@@ -835,7 +835,7 @@
                     } else {
                         llamadasAvgVector[idx] = totalCalls / diasTotales;
                         ahtAvgVector[idx] = totalCalls > 0 ? totalHandleTime / totalCalls : 180;
-                        reqAvgVector[idx] = Math.ceil(totalReq / diasTotales); // PROMEDIO DE REQUERIDOS AGREGADOS
+                        reqAvgVector[idx] = Math.ceil(totalReq / diasTotales); 
                     }
                 }
             });
@@ -844,7 +844,6 @@
             document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
 
             try {
-                // LE PASAMOS EL ARRAY DE REQUERIDOS EXACTO AL BACKEND
                 ejecutarOptimizadorHorarios(todosIntervalos, llamadasAvgVector, ahtAvgVector, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, dfFiltered);
             } catch (e) {
                 console.log("Error al preparar optimizador:", e);
@@ -863,7 +862,7 @@
                         campanas: Array.from(selectedCampanas),
                         llamadas: llamadasArr,
                         ahts: ahtSegsArr,
-                        requeridos: reqAvgVector, // <--- ENVIAMOS LOS REQUERIDOS PRE-SUMADOS
+                        requeridos: reqAvgVector, 
                         target_sl: targetSlObj,
                         target_time: targetTimeObj,
                         merma: mermaVal,
@@ -885,7 +884,7 @@
                 intervalos.forEach((inter, idx) => {
                     const rowLlamadas = Math.round(llamadasArr[idx]);
                     const rowAhtSegs = ahtSegsArr[idx];
-                    const rowReq = reqAvgVector[idx] || 0; // USAMOS EL QUE ACABAMOS DE CALCULAR
+                    const rowReq = reqAvgVector[idx] || 0; 
                     const rowRoster = rosterAvgVector[idx] || 0;
                     
                     const mermaDecimal = mermaVal / 100;
