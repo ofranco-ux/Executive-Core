@@ -145,6 +145,14 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         return resultado
     except: return 0.0
 
+def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
+    if A <= 0 or aht <= 0: return 0
+    n = max(1, int(math.floor(A)) + 1)
+    while n < 1000:
+        if erlang_c_sl_optimizado(A, n, aht, target_time) >= target_sl: return n
+        n += 1
+    return n
+
 def parse_time_str(t_str):
     if not t_str: return None
     t = str(t_str).lower().replace('hrs', '').replace(' ', '')
@@ -237,7 +245,6 @@ def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.
     return preds
 
 def grid_search_auto_hw(series, n_preds=30):
-    # Optimizado para evitar timeouts en Render
     return holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=n_preds)
 
 def limpiar_outliers_iqr(series_list):
@@ -281,7 +288,7 @@ def procesar_hoja_roster(df_roster):
     roster_total_camp = {}
     roster_total_dia_camp = {} 
     
-    col_camp = encontrar_columna(df_roster, ['campaña', 'campana', 'skill'])
+    col_camp = encontrar_columna(df_roster, ['campaña', 'campana', 'skill', 'servicio'])
     if not col_camp:
         return roster_cov, roster_total_camp, roster_total_dia_camp
         
@@ -334,53 +341,46 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     roster_total_dia_camp = {}
     
     if sheet_roster:
-        df_roster = pd.read_excel(xls_file, sheet_name=sheet_roster, engine='openpyxl')
-        roster_coverage, roster_total_camp, roster_total_dia_camp = procesar_hoja_roster(df_roster)
+        try:
+            df_roster = pd.read_excel(xls_file, sheet_name=sheet_roster, engine='openpyxl')
+            roster_coverage, roster_total_camp, roster_total_dia_camp = procesar_hoja_roster(df_roster)
+        except Exception as e:
+            print("Aviso: No se pudo procesar la hoja de Roster:", e)
 
     df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
 
     col_calls = encontrar_columna(df_raw, ['recibidas', 'llamadas', 'calls', 'volumen', 'ofrecidas', 'entrada'])
-    if not col_calls:
-        df_raw['Llamadas_Calculadas'] = 0.0
-        col_calls = 'Llamadas_Calculadas'
-        
     col_aht = encontrar_columna(df_raw, ['aht', 'tmo', 'handle', 'duracion'])
     col_camp = encontrar_columna(df_raw, ['campaña', 'campana', 'skill', 'servicio', 'ring group'])
     col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
-    col_dia = encontrar_columna(df_raw, ['día', 'dia', 'semana'])
     col_fecha = encontrar_columna(df_raw, ['fecha', 'date'])
-    
-    if not col_fecha or not col_camp or not col_inter:
-        raise ValueError("El Excel no tiene las columnas obligatorias (Fecha, Campaña, Intervalo).")
+
+    # Búsqueda defensiva si fallan los nombres predeterminados
+    if not col_camp: col_camp = df_raw.columns[0]
+    if not col_fecha: col_fecha = df_raw.columns[1]
+    if not col_inter: col_inter = df_raw.columns[2]
+    if not col_calls: col_calls = df_raw.columns[3]
 
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce')
     df_raw = df_raw.dropna(subset=[col_fecha])
 
-    # ==============================================================
-    # LIMPIEZA EXTREMA Y CORTE INTELIGENTE
-    # Garantiza leer "1,500" sin borrarlos ni colapsar.
-    # ==============================================================
-    if df_raw[col_calls].dtype == object:
-        df_raw[col_calls] = df_raw[col_calls].astype(str).str.replace(',', '', regex=False)
-        
-    df_raw[col_calls] = pd.to_numeric(df_raw[col_calls], errors='coerce').fillna(0)
-    
-    valid_dates = df_raw[df_raw[col_calls] > 0][col_fecha]
-    if not valid_dates.empty:
-        real_max_date = valid_dates.max()
-        df_raw = df_raw[df_raw[col_fecha] <= real_max_date]
+    # Limpieza robusta de valores numéricos de llamadas
+    df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
+
+    # CORTE INTELIGENTE ROBUSTO: Se queda con la historia donde sí hubo actividad real
+    df_valido = df_raw[df_raw[col_calls] > 0]
+    if not df_valido.empty:
+        max_fecha_real = df_valido[col_fecha].max()
+        df_raw = df_raw[df_raw[col_fecha] <= max_fecha_real]
 
     if col_aht:
-        # VECTORIZADO: Evita timeouts por ciclos lentos
         df_raw[col_aht] = [parse_aht_to_seconds(x) for x in df_raw[col_aht]]
     else:
         df_raw['AHT_Calc'] = 180.0
         col_aht = 'AHT_Calc'
 
     df_raw['Total_Segundos_Handle'] = df_raw[col_calls] * df_raw[col_aht]
-    
-    # VECTORIZADO: Limpieza de intervalos al instante
     df_raw['Inter_Clean'] = [':'.join(str(x).strip().split(':')[:2]) if len(str(x).strip().split(':')) == 3 else str(x).strip() for x in df_raw[col_inter]]
 
     df = df_raw.groupby([col_fecha, col_camp, 'Inter_Clean']).agg({
@@ -388,7 +388,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         'Total_Segundos_Handle': 'sum'
     }).reset_index()
 
-    # VECTORIZADO: Cálculo final de AHT
     df[col_aht] = np.where(df[col_calls] > 0, df['Total_Segundos_Handle'] / df[col_calls], 180.0)
     df = df.drop(columns=['Total_Segundos_Handle'])
     df[col_inter] = df['Inter_Clean']
@@ -428,7 +427,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         else:
             modelos_ml[camp] = None
 
-    # VECTORIZADO: Validación de ventana súper rápida
     df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
     df_filtrado = df[df['En_Ventana']].copy()
 
@@ -519,6 +517,201 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
+def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht_vec=None, req_vec=None, target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, es_nocturno=False):
+    m = len(intervalos)
+    if m == 0:
+        return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0, [0]*m
+
+    llamadas_arr = np.nan_to_num(np.array(llamadas_vec, dtype=float), nan=0.0) if llamadas_vec is not None else np.zeros(m)
+    aht_arr = np.nan_to_num(np.array(aht_vec, dtype=float), nan=180.0) if aht_vec is not None else np.full(m, 180.0)
+    
+    tot_llamadas = float(np.sum(llamadas_arr))
+    factor_asistencia = max(0.01, 1.0 - merma)
+    target_sl_dinamico = float(target_sl)
+    
+    req_hc_pooled = []
+    req_hc_base = np.zeros(m)
+    
+    for i in range(m):
+        if req_vec is not None and i < len(req_vec) and req_vec[i] > 0:
+            req_hc_i = int(req_vec[i])
+        else:
+            c = llamadas_arr[i]
+            aht_s = aht_arr[i]
+            a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
+            req_ftes_i = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico) if c > 0 else 0
+            req_hc_i = math.ceil(req_ftes_i / factor_asistencia) if req_ftes_i > 0 else 0
+            
+        req_hc_pooled.append(int(req_hc_i))
+        req_hc_base[i] = req_hc_i
+
+    cob_hc = np.zeros(m, dtype=float)
+    x_turnos_dict = {}
+
+    agentes_nocturnos_totales_hc = 0
+    agentes_diurnos_totales_hc = 0
+
+    if es_nocturno:
+        label_jornada_noc = "9.0 hrs (Nocturno 5x2)"
+        indices_nocturnos = []
+        for j in range(m):
+            min_in = parse_time_str(intervalos[j])
+            if min_in is not None:
+                if min_in >= (22 * 60) or min_in < (7 * 60):
+                    indices_nocturnos.append(j)
+
+        if len(indices_nocturnos) > 0:
+            agentes_noc_hc = 1
+            while agentes_noc_hc <= 200:
+                cob_temp_ftes = agentes_noc_hc * factor_asistencia
+                sl_acum, llamadas_noc = 0.0, 0.0
+                for idx in indices_nocturnos:
+                    c = llamadas_arr[idx]
+                    aht_s = aht_arr[idx]
+                    a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
+                    sl_v = erlang_c_sl_optimizado(a_erl, cob_temp_ftes, aht_s, target_time) if c > 0 else 100.0
+                    sl_acum += (c * sl_v)
+                    llamadas_noc += c
+                sl_prom_noc = (sl_acum / llamadas_noc) if llamadas_noc > 0 else 100.0
+                if sl_prom_noc >= target_sl_dinamico:
+                    break
+                agentes_noc_hc += 1
+            key_turno_noc = ("22:00", "07:00", label_jornada_noc)
+            x_turnos_dict[key_turno_noc] = agentes_noc_hc
+            agentes_nocturnos_totales_hc = agentes_noc_hc
+            for idx in indices_nocturnos:
+                cob_hc[idx] += agentes_noc_hc
+
+    duracion_jornada = float(duracion_jornada)
+    SHIFT_BLOCKS = int(round(duracion_jornada * 2))
+    duracion_minutos = int(round(duracion_jornada * 60))
+    label_jornada_diurna = f"{duracion_jornada:.1f} hrs".replace('.0', '')
+
+    min_in_array = [parse_time_str(x) for x in intervalos if parse_time_str(x) is not None]
+    if len(min_in_array) > 0:
+        min_diurno_inicio = min(min_in_array)
+        min_diurno_limite = max(min_in_array) + 30
+    else:
+        min_diurno_inicio = 7 * 60    
+        min_diurno_limite = 22 * 60   
+    
+    min_entrada_maxima = min_diurno_limite - duracion_minutos
+
+    valid_starts = []
+    is_24_7 = (m >= 47) 
+    
+    for j in range(m):
+        if is_24_7:
+            valid_starts.append(j)
+        else:
+            if j + SHIFT_BLOCKS <= m:
+                valid_starts.append(j)
+
+    def calc_current_global_sl(current_cob):
+        if tot_llamadas <= 0: return 100.0
+        sl_acum = 0.0
+        for i in range(m):
+            c = llamadas_arr[i]
+            if c > 0:
+                a_erl = (c * aht_arr[i]) / 1800.0
+                n_opt = current_cob[i] * factor_asistencia
+                sl_v = erlang_c_sl_optimizado(a_erl, n_opt, aht_arr[i], target_time)
+                sl_acum += c * sl_v
+        return sl_acum / tot_llamadas
+
+    if len(valid_starts) > 0:
+        max_iterations = 5000
+        iteration = 0
+        while iteration < max_iterations:
+            iteration += 1
+            
+            if calc_current_global_sl(cob_hc) >= target_sl_dinamico:
+                break
+
+            deficit = req_hc_base - cob_hc
+            if np.max(deficit) <= 0:
+                break 
+
+            best_start_idx = -1
+            best_score = -999999
+
+            for s_idx in valid_starts:
+                if s_idx + SHIFT_BLOCKS <= m:
+                    sub_deficit = deficit[s_idx : s_idx + SHIFT_BLOCKS]
+                else:
+                    sub_deficit = np.concatenate((deficit[s_idx:], deficit[:(s_idx + SHIFT_BLOCKS) - m]))
+                
+                score = np.sum(np.maximum(0, sub_deficit)) - np.sum(np.maximum(0, -sub_deficit)) * 0.001
+                
+                if score > best_score:
+                    best_score = score
+                    best_start_idx = s_idx
+
+            if best_start_idx == -1 or best_score <= 0.0001:
+                break
+                
+            min_in_val = parse_time_str(intervalos[best_start_idx])
+            min_out_val = min_in_val + duracion_minutos
+            min_out_val = min_out_val % (24 * 60) 
+            
+            h_in_str = f"{(int(min_in_val // 60)):02d}:{(int(min_in_val % 60)):02d}"
+            h_out_str = f"{(int(min_out_val // 60)):02d}:{(int(min_out_val % 60)):02d}"
+            
+            key_turno = (h_in_str, h_out_str, label_jornada_diurna)
+            x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + 1
+            
+            if best_start_idx + SHIFT_BLOCKS <= m:
+                cob_hc[best_start_idx : best_start_idx + SHIFT_BLOCKS] += 1
+            else:
+                cob_hc[best_start_idx:] += 1
+                cob_hc[:(best_start_idx + SHIFT_BLOCKS) - m] += 1
+
+    sl_optimo_vector = []
+    for i in range(m):
+        c = llamadas_arr[i]
+        aht_s = aht_arr[i]
+        n_opt_ftes = cob_hc[i] * factor_asistencia
+        a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
+        sl_val = erlang_c_sl_optimizado(a_erl, n_opt_ftes, aht_s, target_time) if c > 0 else 100.0
+        sl_optimo_vector.append(float(sl_val))
+
+    sl_arr = np.array(sl_optimo_vector)
+    sl_optimo_global = float(np.sum(llamadas_arr * sl_arr) / tot_llamadas) if tot_llamadas > 0 else 100.0
+
+    cobertura_hc_entera = [int(x) for x in np.round(cob_hc)]
+    turnos_sugeridos = []
+    total_agentes_diarios_hc = 0
+
+    for (h_in, h_out, label_dur), qty in x_turnos_dict.items():
+        if qty > 0:
+            turnos_sugeridos.append({
+                'horario_entrada': h_in,
+                'horario_salida': h_out,
+                'agentes_a_programar': int(qty),
+                'duracion': label_dur
+            })
+            total_agentes_diarios_hc += int(qty)
+            if "Nocturno" not in label_dur:
+                agentes_diurnos_totales_hc += int(qty)
+
+    turnos_sugeridos = sorted(turnos_sugeridos, key=lambda x: parse_time_str(x['horario_entrada']) or 0)
+
+    hc_nocturno = math.ceil(agentes_nocturnos_totales_hc * (7.0 / 5.0))
+    hc_diurno = math.ceil(agentes_diurnos_totales_hc * (7.0 / 6.0))
+    headcount_semanal_requerido = int(hc_nocturno + hc_diurno)
+
+    total_req_hc_pooled = float(np.sum(req_hc_pooled))
+    total_prog_hc = float(np.sum(cob_hc))
+    
+    if total_req_hc_pooled > 0:
+        staffing_level_optimo = float((total_prog_hc / total_req_hc_pooled) * 100.0)
+        eficiencia = float(min(100.0, (total_req_hc_pooled / total_prog_hc) * 100.0)) if total_prog_hc > 0 else 100.0
+    else:
+        staffing_level_optimo = 100.0
+        eficiencia = 100.0
+
+    return turnos_sugeridos, cobertura_hc_entera, total_agentes_diarios_hc, headcount_semanal_requerido, eficiencia, sl_optimo_vector, sl_optimo_global, staffing_level_optimo, req_hc_pooled
+
 @app.route('/api/latest', methods=['GET'])
 def get_latest_forecast():
     if os.path.exists(CACHE_FILE):
@@ -537,6 +730,40 @@ def get_latest_forecast():
             return jsonify({'error': f'Error procesando historico.xlsx: {str(e)}'}), 500
             
     return jsonify({'error': 'No se encontró historico.xlsx en el servidor.'}), 404
+
+@app.route('/api/optimize-schedules', methods=['POST'])
+def api_optimize_schedules():
+    try:
+        body = request.get_json(force=True)
+        intervalos = body.get('intervalos', [])
+        campanas = body.get('campanas', [])
+        llamadas = body.get('llamadas', [])
+        ahts = body.get('ahts', [])
+        requeridos = body.get('requeridos', [])
+        target_sl = float(body.get('target_sl', 80.0))
+        target_time = float(body.get('target_time', 20.0))
+        merma = float(body.get('merma', 30.0)) / 100.0
+        duracion_jornada = float(body.get('duracion_jornada', 8.0))
+        es_nocturno = bool(body.get('es_nocturno', False))
+
+        turnos, cob_optima, total_diario, total_hc, eficiencia, sl_vec, sl_global, staff_level, req_hc_pooled = resolver_turnos_optimos(
+            intervalos, campanas, llamadas_vec=llamadas, aht_vec=ahts, req_vec=requeridos,
+            target_sl=target_sl, target_time=target_time, merma=merma, 
+            duracion_jornada=duracion_jornada, es_nocturno=es_nocturno
+        )
+        return jsonify({
+            'turnos': turnos,
+            'cobertura_optima': [int(x) for x in cob_optima],
+            'total_agentes_diarios': int(total_diario),
+            'headcount_semanal_6x1': int(total_hc),
+            'eficiencia_cobertura': float(eficiencia),
+            'sl_optimo_vector': [float(x) for x in sl_vec],
+            'sl_optimo_global': float(sl_global),
+            'staffing_level_optimo': float(staff_level),
+            'req_hc_pooled': [int(x) for x in req_hc_pooled]
+        }), 200
+    except Exception as e:
+        return jsonify({'error': f'Error optimizando turnos: {str(e)}'}), 500
 
 @app.route('/api/process', methods=['POST', 'GET'])
 def process_data():
