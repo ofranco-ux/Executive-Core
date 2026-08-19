@@ -297,7 +297,7 @@
                                 <th class="py-3 px-4">Horario de Entrada</th>
                                 <th class="py-3 px-4">Horario de Salida</th>
                                 <th class="py-3 px-4">Duración</th>
-                                <th class="py-3 px-4 text-amber-400">Nómina a Contratar (HC)</th>
+                                <th class="py-3 px-4 text-amber-400">HC Requerido</th>
                                 <th class="py-3 px-4">% de la Plantilla</th>
                             </tr>
                         </thead>
@@ -1109,7 +1109,7 @@
                 alert("No hay turnos optimizados para exportar.");
                 return;
             }
-            const headers = ["Horario_Entrada", "Horario_Salida", "Duracion", "Agentes_Nomina_A_Contratar"];
+            const headers = ["Horario_Entrada", "Horario_Salida", "Duracion", "HC_Requerido"];
             const csvRows = [headers.join(",")];
             globalTurnosOptimos.forEach(t => {
                 csvRows.push([t.horario_entrada, t.horario_salida, t.duracion, t.nomina_a_contratar].join(","));
