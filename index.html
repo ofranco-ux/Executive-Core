@@ -76,12 +76,10 @@
 <body class="p-6 md:p-8 min-h-screen">
 
     <header class="flex justify-between items-center bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 border border-indigo-500/30 shadow-[0_0_30px_-10px_rgba(99,102,241,0.3)] backdrop-blur-xl rounded-2xl p-6 mb-8 relative overflow-hidden flex-wrap gap-4">
-        <!-- Efectos de luz de fondo -->
         <div class="absolute -left-10 -top-10 w-40 h-40 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none"></div>
         <div class="absolute right-0 bottom-0 w-64 h-64 bg-violet-600/10 rounded-full blur-3xl pointer-events-none"></div>
         
         <div class="flex items-center gap-5 z-10">
-            <!-- LOGO SVG -->
             <svg class="h-14 w-14 flex-shrink-0 drop-shadow-[0_0_15px_rgba(6,182,212,0.4)] transition-transform hover:scale-105 duration-300" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                     <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -238,6 +236,16 @@
                         <div id="dropdownIntervaloMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#0D1322] border border-emerald-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200">
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- ALERTA REFORECAST -->
+            <div id="reforecastAlert" class="hidden glass-panel border-l-4 border-l-amber-500 p-4 rounded-2xl mb-4 relative overflow-hidden flex items-center gap-4">
+                <div class="absolute -left-4 -top-4 w-16 h-16 bg-amber-500/20 rounded-full blur-xl pointer-events-none"></div>
+                <div class="text-3xl relative z-10">⚠️</div>
+                <div class="relative z-10">
+                    <h4 class="text-[10px] uppercase tracking-widest text-amber-400 font-black">Reforecast Dinámico Activado</h4>
+                    <p id="reforecastMsg" class="text-xs text-slate-300 font-medium mt-1">El algoritmo detectó un quiebre de tendencia y ajustó la proyección.</p>
                 </div>
             </div>
 
@@ -767,6 +775,31 @@
                 return matchMes && matchCamp && matchFecha && matchInter;
             });
 
+            // LÓGICA DE ALERTA DE REFORECAST
+            const reforecastAlert = document.getElementById('reforecastAlert');
+            const reforecastMsg = document.getElementById('reforecastMsg');
+            let campanasModificadas = {};
+            
+            dfFiltered.forEach(r => {
+                const f = parseFloat(getProp(r, ['Factor_Correccion'], 1.0));
+                if (f !== 1.0 && !isNaN(f)) {
+                    const c = String(getProp(r, ['Campaña', 'Campana'], 'General'));
+                    campanasModificadas[c] = f;
+                }
+            });
+
+            if (Object.keys(campanasModificadas).length > 0 && reforecastAlert) {
+                reforecastAlert.classList.remove('hidden');
+                let detalles = Object.entries(campanasModificadas).map(([camp, factor]) => {
+                    let pct = Math.round((factor - 1) * 100);
+                    let signo = pct > 0 ? '+' : '';
+                    return `<span class="text-amber-300 font-bold">${camp} (${signo}${pct}%)</span>`;
+                }).join(', ');
+                reforecastMsg.innerHTML = `El algoritmo detectó un quiebre de tendencia reciente. Ajuste aplicado a: ${detalles}.`;
+            } else if (reforecastAlert) {
+                reforecastAlert.classList.add('hidden');
+            }
+
             if (!dfFiltered || dfFiltered.length === 0) {
                 document.getElementById('kpiCalls').innerText = "0";
                 document.getElementById('kpiAht').innerText = "00:00:00";
@@ -934,9 +967,6 @@
                     tbody.appendChild(tr);
                 });
 
-                // ==========================================
-                // GRÁFICA MEJORADA DE GAP
-                // ==========================================
                 if (gapChartInstance) gapChartInstance.destroy();
                 const ctxGap = document.getElementById('gapChart').getContext('2d');
                 
@@ -986,35 +1016,14 @@
                     options: { 
                         responsive: true, 
                         maintainAspectRatio: false, 
-                        interaction: {
-                            mode: 'index',
-                            intersect: false,
-                        },
+                        interaction: { mode: 'index', intersect: false },
                         plugins: { 
-                            legend: { 
-                                labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 }, usePointStyle: true, boxWidth: 8 } 
-                            },
-                            tooltip: {
-                                backgroundColor: 'rgba(13, 19, 34, 0.95)',
-                                titleColor: '#F1F5F9',
-                                bodyColor: '#cbd5e1',
-                                borderColor: 'rgba(255, 255, 255, 0.1)',
-                                borderWidth: 1,
-                                padding: 12,
-                                boxPadding: 6,
-                                usePointStyle: true
-                            }
+                            legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 }, usePointStyle: true, boxWidth: 8 } },
+                            tooltip: { backgroundColor: 'rgba(13, 19, 34, 0.95)', titleColor: '#F1F5F9', bodyColor: '#cbd5e1', borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1, padding: 12, boxPadding: 6, usePointStyle: true }
                         }, 
                         scales: { 
-                            x: { 
-                                grid: { display: false }, 
-                                ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 12 } 
-                            }, 
-                            y: { 
-                                grid: { color: 'rgba(255,255,255,0.05)', borderDash: [4, 4] }, 
-                                ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } },
-                                beginAtZero: true
-                            } 
+                            x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 12 } }, 
+                            y: { grid: { color: 'rgba(255,255,255,0.05)', borderDash: [4, 4] }, ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true } 
                         } 
                     }
                 });
@@ -1115,9 +1124,6 @@
                     });
                 }
 
-                // ==========================================
-                // GRÁFICA MEJORADA DE OPTIMIZACIÓN
-                // ==========================================
                 if (optChartInstance) optChartInstance.destroy();
                 const ctxOpt = document.getElementById('optChart').getContext('2d');
                 const labelCurvaCob = usarNocturno ? "Malla Sugerida (Mixta)" : `Malla Sugerida (${durJornada}h)`;
@@ -1171,35 +1177,14 @@
                     options: { 
                         responsive: true, 
                         maintainAspectRatio: false, 
-                        interaction: {
-                            mode: 'index',
-                            intersect: false,
-                        },
+                        interaction: { mode: 'index', intersect: false },
                         plugins: { 
-                            legend: { 
-                                labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 }, usePointStyle: true, boxWidth: 8 } 
-                            },
-                            tooltip: {
-                                backgroundColor: 'rgba(13, 19, 34, 0.95)',
-                                titleColor: '#F1F5F9',
-                                bodyColor: '#cbd5e1',
-                                borderColor: 'rgba(255, 255, 255, 0.1)',
-                                borderWidth: 1,
-                                padding: 12,
-                                boxPadding: 6,
-                                usePointStyle: true
-                            }
+                            legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 }, usePointStyle: true, boxWidth: 8 } },
+                            tooltip: { backgroundColor: 'rgba(13, 19, 34, 0.95)', titleColor: '#F1F5F9', bodyColor: '#cbd5e1', borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1, padding: 12, boxPadding: 6, usePointStyle: true }
                         }, 
                         scales: { 
-                            x: { 
-                                grid: { display: false }, 
-                                ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 12 } 
-                            }, 
-                            y: { 
-                                grid: { color: 'rgba(255,255,255,0.05)', borderDash: [4, 4] }, 
-                                ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } },
-                                beginAtZero: true
-                            } 
+                            x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 12 } }, 
+                            y: { grid: { color: 'rgba(255,255,255,0.05)', borderDash: [4, 4] }, ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true } 
                         } 
                     }
                 });
@@ -1234,7 +1219,7 @@
                 alert("No hay datos cargados para exportar.");
                 return;
             }
-            const headers = ["Campana", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT_HH_MM_SS", "Agentes_Requeridos_HC", "HC_Actual_Roster"];
+            const headers = ["Campana", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT_HH_MM_SS", "Agentes_Requeridos_HC", "HC_Actual_Roster", "Factor_Reforecast"];
             const csvRows = [headers.join(",")];
             globalData.forEach(row => {
                 const values = [
@@ -1246,7 +1231,8 @@
                     getProp(row, ['Llamadas', 'Recibidas'], 0),
                     formatAHT(getProp(row, ['AHT_Segundos'], 180)),
                     getProp(row, ['Agentes_Requeridos'], 0),
-                    getProp(row, ['HC_Actual_Roster'], 0)
+                    getProp(row, ['HC_Actual_Roster'], 0),
+                    getProp(row, ['Factor_Correccion'], 1.0)
                 ];
                 csvRows.push(values.join(","));
             });
