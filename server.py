@@ -362,6 +362,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     
+    # NORMALIZACIÓN ESTRICTA Y FORMATO LATINO
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce', dayfirst=True).dt.normalize()
     df_raw = df_raw.dropna(subset=[col_fecha])
     
@@ -460,23 +461,28 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     factor_asistencia = max(0.01, 1.0 - merma)
     data_processed = []
 
+    # --- INICIO DE MOTOR DE REFORECAST DINÁMICO ---
     factores_correccion = {}
     for camp in campanas_unicas:
         vols = historial_volumenes[camp]
+        # Necesitamos al menos 21 días de historia para comparar con seguridad
         if len(vols) >= 21:
             promedio_reciente_7d = np.mean(vols[-7:])
             promedio_previo_14d = np.mean(vols[-21:-7])
             
             if promedio_previo_14d > 0:
                 ratio = promedio_reciente_7d / promedio_previo_14d
+                # Si el volumen reciente cayó más de un 15% o subió más de un 15%, activamos el freno
                 if ratio < 0.85 or ratio > 1.15:
-                    factores_correccion[camp] = max(0.5, min(1.5, ratio))
+                    # Límite de seguridad ajustado: Máximo 20% de castigo o premio para proteger la malla operativa (0.8 a 1.2)
+                    factores_correccion[camp] = max(0.80, min(1.20, ratio))
                 else:
                     factores_correccion[camp] = 1.0
             else:
                 factores_correccion[camp] = 1.0
         else:
             factores_correccion[camp] = 1.0
+    # --- FIN DE MOTOR DE REFORECAST DINÁMICO ---
 
     for d in range(dias_futuros):
         fecha_actual = fecha_inicio_forecast + timedelta(days=d)
@@ -497,6 +503,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
             vol_hw = hw_forecasts[camp][d] if d < len(hw_forecasts[camp]) else vol_ridge
             
+            # Aplicamos el castigo o premio del Reforecast
             factor = factores_correccion.get(camp, 1.0)
             volumen_predicho_diario = ((0.65 * vol_hw) + (0.35 * vol_ridge)) * factor
             
