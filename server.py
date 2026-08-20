@@ -191,6 +191,9 @@ def encontrar_columna(df, posibles_nombres):
                 return col_orig
     return None
 
+def calc_mae(y_true, y_pred):
+    return float(np.mean(np.abs(np.array(y_true) - np.array(y_pred))))
+
 def entrenar_ridge_ml(X, y, l2_reg=10.0):
     X_b = np.c_[np.ones((X.shape[0], 1)), X]
     mean = np.mean(X_b[:, 1:], axis=0)
@@ -362,7 +365,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     
-    # NORMALIZACIÓN ESTRICTA Y FORMATO LATINO
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce', dayfirst=True).dt.normalize()
     df_raw = df_raw.dropna(subset=[col_fecha])
     
@@ -408,21 +410,78 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
     campanas_unicas = df[col_camp].unique()
 
-    modelos_ml, historial_volumenes, hw_forecasts = {}, {}, {}
+    modelos_ml, historial_volumenes, hw_forecasts, pesos_campana = {}, {}, {}, {}
 
     for camp in campanas_unicas:
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         fechas_list = sub[col_fecha].tolist()
         volumenes_list = limpiar_outliers_iqr(sub[col_calls].tolist())
         historial_volumenes[camp] = list(volumenes_list)
-        hw_forecasts[camp] = grid_search_auto_hw(volumenes_list, n_preds=dias_futuros)
+        
+        vols = list(volumenes_list)
+        n = len(vols)
+        
+        peso_hw = 0.65
+        peso_ridge = 0.35
+        factor_ajuste = 1.0
+
+        # --- MOTOR DE BACKTESTING Y APRENDIZAJE AUTÓNOMO ---
+        if n >= 21:
+            train_vols = vols[:-7]
+            val_vols = vols[-7:]
+            
+            # Evaluar Holt-Winters
+            hw_val_preds = grid_search_auto_hw(train_vols, n_preds=7)
+            
+            # Evaluar Ridge ML
+            X_train_bt, y_train_bt = [], []
+            for i in range(14, len(train_vols)):
+                feat = extraer_features_fecha(fechas_list[i], train_vols[:i], trend_idx=i)
+                X_train_bt.append(feat)
+                y_train_bt.append(train_vols[i])
+            
+            if len(X_train_bt) > 5:
+                w_bt, m_bt, s_bt = entrenar_ridge_ml(np.array(X_train_bt), np.array(y_train_bt), l2_reg=10.0)
+                ridge_val_preds = []
+                for i in range(7):
+                    f_idx = len(train_vols) + i
+                    feat = extraer_features_fecha(fechas_list[f_idx], train_vols + val_vols[:i], trend_idx=f_idx)
+                    pred_r = predecir_ridge_ml(w_bt, m_bt, s_bt, np.array([feat]))
+                    ridge_val_preds.append(max(0, pred_r))
+                
+                # Asignar Pesos Dinámicos por Precisión
+                error_hw = calc_mae(val_vols, hw_val_preds) + 1e-5
+                error_ridge = calc_mae(val_vols, ridge_val_preds) + 1e-5
+                
+                total_inv_error = (1.0 / error_hw) + (1.0 / error_ridge)
+                peso_hw = (1.0 / error_hw) / total_inv_error
+                peso_ridge = (1.0 / error_ridge) / total_inv_error
+                
+                # Corrección de Drift Automático (El Freno Inteligente)
+                ensemble_val_preds = [(peso_hw * hw_val_preds[i] + peso_ridge * ridge_val_preds[i]) for i in range(7)]
+                sum_actual = sum(val_vols)
+                sum_pred = sum(ensemble_val_preds)
+                
+                if sum_pred > 0:
+                    drift = sum_actual / sum_pred
+                    factor_ajuste = max(0.5, min(1.5, drift))
+                    
+        pesos_campana[camp] = {
+            'w_hw': peso_hw,
+            'w_ridge': peso_ridge,
+            'factor_ajuste': factor_ajuste
+        }
+        # --- FIN DE BACKTESTING ---
+
+        # ENTRENAMIENTO FINAL (Para proyectar al futuro con toda la data)
+        hw_forecasts[camp] = grid_search_auto_hw(vols, n_preds=dias_futuros)
 
         X_data, y_data = [], []
-        for i in range(14, len(sub)):
+        for i in range(14, len(vols)):
             f = fechas_list[i]
-            feat = extraer_features_fecha(f, volumenes_list[:i], trend_idx=i)
+            feat = extraer_features_fecha(f, vols[:i], trend_idx=i)
             X_data.append(feat)
-            y_data.append(volumenes_list[i])
+            y_data.append(vols[i])
 
         if len(X_data) > 10:
             X_arr, y_arr = np.array(X_data), np.array(y_data)
@@ -461,29 +520,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     factor_asistencia = max(0.01, 1.0 - merma)
     data_processed = []
 
-    # --- INICIO DE MOTOR DE REFORECAST DINÁMICO ---
-    factores_correccion = {}
-    for camp in campanas_unicas:
-        vols = historial_volumenes[camp]
-        # Necesitamos al menos 21 días de historia para comparar con seguridad
-        if len(vols) >= 21:
-            promedio_reciente_7d = np.mean(vols[-7:])
-            promedio_previo_14d = np.mean(vols[-21:-7])
-            
-            if promedio_previo_14d > 0:
-                ratio = promedio_reciente_7d / promedio_previo_14d
-                # Si el volumen reciente cayó más de un 15% o subió más de un 15%, activamos el freno
-                if ratio < 0.85 or ratio > 1.15:
-                    # Límite de seguridad ajustado: Máximo 20% de castigo o premio para proteger la malla operativa (0.8 a 1.2)
-                    factores_correccion[camp] = max(0.80, min(1.20, ratio))
-                else:
-                    factores_correccion[camp] = 1.0
-            else:
-                factores_correccion[camp] = 1.0
-        else:
-            factores_correccion[camp] = 1.0
-    # --- FIN DE MOTOR DE REFORECAST DINÁMICO ---
-
     for d in range(dias_futuros):
         fecha_actual = fecha_inicio_forecast + timedelta(days=d)
         str_fecha = fecha_actual.strftime('%Y-%m-%d')
@@ -501,11 +537,11 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             else:
                 vol_ridge = np.mean(hist_vol[-7:]) if hist_vol else 100.0
 
+            w_info = pesos_campana.get(camp, {'w_hw': 0.65, 'w_ridge': 0.35, 'factor_ajuste': 1.0})
             vol_hw = hw_forecasts[camp][d] if d < len(hw_forecasts[camp]) else vol_ridge
             
-            # Aplicamos el castigo o premio del Reforecast
-            factor = factores_correccion.get(camp, 1.0)
-            volumen_predicho_diario = ((0.65 * vol_hw) + (0.35 * vol_ridge)) * factor
+            # EL ALGORITMO AUTÓNOMO DECIDE EL PESO Y EL AJUSTE
+            volumen_predicho_diario = (w_info['w_hw'] * vol_hw + w_info['w_ridge'] * vol_ridge) * w_info['factor_ajuste']
             
             historial_volumenes[camp].append(volumen_predicho_diario)
 
@@ -538,7 +574,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'HC_Actual_Roster': hc_roster,
                     'Total_Roster_Campana': tot_camp,
                     'Total_Roster_Dia': tot_camp_dia,
-                    'Factor_Correccion': round(float(factor), 2)
+                    'Factor_Correccion': round(float(w_info['factor_ajuste']), 2)
                 })
 
     try:
