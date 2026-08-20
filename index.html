@@ -276,7 +276,7 @@
                 </div>
             </div>
 
-            <!-- MÓDULO 2: OPTIMIZACIÓN DE HORARIOS (OCULTO EN MODO OPS) -->
+            <!-- MÓDULO 2: OPTIMIZACIÓN DE HORARIOS -->
             <div id="modOptimizacion" class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-amber-500 relative overflow-hidden transition-all duration-300">
                 <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
                     <div>
@@ -588,7 +588,7 @@
                     inicializarFiltrosMultiples();
                     debouncedActualizarGrafica();
                 } else {
-                    alert("Error: " + (globalData.error || "Asegúrate de tener tu historico.xlsx base en el servidor."));
+                    alert("Error: " + (globalData.error || "Asegúrate de que 'historico.xlsx' esté cargado en tu GitHub."));
                 }
             } catch (e) {
                 alert("Error de conexión: " + e.message);
@@ -984,16 +984,258 @@
                                 pointHoverRadius: 6,
                                 borderDash: [4, 4] 
                             },
-                            ¡Totalmente de acuerdo contigo, carnal! 
+                            { 
+                                label: 'Capacidad Roster Actual', 
+                                type: 'line',
+                                data: capacidadRosterVector, 
+                                borderColor: '#F59E0B', 
+                                backgroundColor: '#F59E0B',
+                                borderWidth: 3,
+                                tension: 0.4,
+                                pointRadius: 0,
+                                pointHoverRadius: 6
+                            },
+                            { 
+                                label: 'Llamadas (FCST)', 
+                                data: llamadasArr.map(x => Math.round(x)), 
+                                backgroundColor: gradientBar, 
+                                borderColor: 'transparent',
+                                borderWidth: 0,
+                                borderRadius: 4,
+                                barPercentage: 0.7
+                            }
+                        ]
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: { 
+                            legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 }, usePointStyle: true, boxWidth: 8 } },
+                            tooltip: { backgroundColor: 'rgba(13, 19, 34, 0.95)', titleColor: '#F1F5F9', bodyColor: '#cbd5e1', borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1, padding: 12, boxPadding: 6, usePointStyle: true }
+                        }, 
+                        scales: { 
+                            x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 12 } }, 
+                            y: { grid: { color: 'rgba(255,255,255,0.05)', borderDash: [4, 4] }, ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true } 
+                        } 
+                    }
+                });
 
-Si ya no se va a requerir la carga manual de información desde el dashboard, lo más lógico y recomendable es eliminar por completo ese componente que me muestras en **`image_dcf00a.png`**. 
+                const uniqueCampaigns = [...new Set(dfFiltered.map(r => r.Campaña))];
+                let totalRosterHC = 0;
+                
+                if (esVistaSemanal) {
+                    uniqueCampaigns.forEach(c => {
+                        const row = dfFiltered.find(r => r.Campaña === c);
+                        if (row) totalRosterHC += (row.Total_Roster_Campana || 0);
+                    });
+                } else {
+                    uniqueCampaigns.forEach(c => {
+                        const row = dfFiltered.find(r => r.Campaña === c);
+                        if (row) totalRosterHC += (row.Total_Roster_Dia || 0);
+                    });
+                }
 
-Dejar ese botón de "Cargar Master Excel" ahí cuando ya no tiene utilidad solo trae desventajas:
+                const nominaRequeridaTotalSemana = optData.headcount_semanal_6x1 || 0;
+                const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
+                const hcRequeridoDisplay = esVistaSemanal ? nominaRequeridaTotalSemana : nominaRequeridaDiaria;
+                
+                document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay.toLocaleString() + ' HC';
+                document.getElementById('optHeadcount').innerText = hcRequeridoDisplay.toLocaleString();
+                
+                document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "PLANTILLA TOTAL ACTUAL" : "PLANTILLA PROGRAMADA HOY";
+                document.getElementById('kpiHcRosterSub').innerText = esVistaSemanal ? "Total de agentes contratados en Roster" : "Descuenta descansos (DD-DD) del día";
+                document.getElementById('kpiHcRoster').innerText = totalRosterHC.toLocaleString() + ' HC';
+                
+                const gapTotal = totalRosterHC - hcRequeridoDisplay;
+                const gapEl = document.getElementById('kpiHcGap');
+                if (gapTotal > 0) {
+                    gapEl.innerText = `+${gapTotal} Sobran`;
+                    gapEl.className = 'text-xs font-bold mb-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-mono-num';
+                } else if (gapTotal < 0) {
+                    gapEl.innerText = `${gapTotal} Faltan`;
+                    gapEl.className = 'text-xs font-bold mb-1 px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 font-mono-num';
+                } else {
+                    gapEl.innerText = `✓ Balanceado`;
+                    gapEl.className = 'text-xs font-bold mb-1 px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono-num';
+                }
 
-*   **Confusión para el usuario:** Alguien podría pensar que todavía es necesario subir el archivo `historico.xlsx` y frustrarse si no pasa nada o si el sistema hace un doble registro.
-*   **Ruido visual en la interfaz:** Quitar elementos obsoletos ayuda a mantener el diseño de tu dashboard limpio, moderno y fácil de navegar.
-*   **Deuda técnica:** Código o componentes en la interfaz que ya no se usan es código que estorba y que a la larga dificulta el mantenimiento.
+                if (esVistaSemanal) {
+                    document.getElementById('lblHeadcountType').innerText = usarNocturno ? 'HC Requerido (Mixto)' : 'HC Requerido';
+                    document.getElementById('kpiHcRequeridoSub').innerText = "Plantilla total sugerida para cubrir la semana";
+                    document.getElementById('lblHeadcountSub').innerText = "A contratar (Incluye descansos)";
+                } else {
+                    document.getElementById('lblHeadcountType').innerText = 'HC Requerido (Diario)';
+                    document.getElementById('kpiHcRequeridoSub').innerText = "Plantilla sugerida activa solo para hoy";
+                    document.getElementById('lblHeadcountSub').innerText = "Necesarios para hoy (Sin descansos)";
+                }
 
-Si esa funcionalidad ya se automatizó por detrás o simplemente se descartó del flujo, ¡dale cran sin miedo y quítalo para que quede al cien!
+                const slOptimoVal = parseFloat(optData.sl_optimo_global || 0);
+                const slEl = document.getElementById('compSlOptimo');
+                slEl.innerText = slOptimoVal.toFixed(1) + '%';
+                if (slOptimoVal >= targetSlObj) slEl.className = "text-3xl font-black font-mono-num text-emerald-400 truncate block";
+                else slEl.className = "text-3xl font-black font-mono-num text-rose-400 truncate block";
 
-¿Quieres que te ayude a revisar la parte del código de la interfaz para ver cómo limpiarlo, o prefieres que simplemente lo dejemos comentado unos días por si las moscas?
+                const optTbody = document.getElementById('optShiftsTableBody');
+                optTbody.innerHTML = '';
+                
+                const totalDiarioMalla = optData.total_agentes_diarios || 1;
+                let turnosBase = optData.turnos || [];
+                let accumulatedNomina = 0;
+                
+                globalTurnosOptimos = turnosBase.map((t, index) => {
+                    let nominaTurno;
+                    if (index === turnosBase.length - 1) {
+                        nominaTurno = hcRequeridoDisplay - accumulatedNomina;
+                    } else {
+                        nominaTurno = Math.round((t.agentes_a_programar / totalDiarioMalla) * hcRequeridoDisplay);
+                        accumulatedNomina += nominaTurno;
+                    }
+                    nominaTurno = Math.max(0, nominaTurno);
+                    return { ...t, nomina_a_contratar: nominaTurno };
+                });
+
+                globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
+
+                if (globalTurnosOptimos.length === 0) {
+                    optTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-slate-500">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
+                } else {
+                    globalTurnosOptimos.forEach(t => {
+                        const pct = hcRequeridoDisplay > 0 ? ((t.nomina_a_contratar / hcRequeridoDisplay) * 100).toFixed(1) : 0;
+                        const tr = document.createElement('tr');
+                        tr.className = 'hover:bg-slate-800/40 transition-colors';
+                        tr.innerHTML = `
+                            <td class="py-2.5 px-4 font-bold text-amber-400 flex items-center gap-2">
+                                <span>🕒</span> ${t.horario_entrada}
+                            </td>
+                            <td class="py-2.5 px-4 text-slate-300 font-bold">${t.horario_salida}</td>
+                            <td class="py-2.5 px-4 text-slate-400">${t.duracion}</td>
+                            <td class="py-2.5 px-4 text-amber-300 font-black text-sm">${t.nomina_a_contratar}</td>
+                            <td class="py-2.5 px-4 text-cyan-400 font-bold">${pct}%</td>
+                        `;
+                        optTbody.appendChild(tr);
+                    });
+                }
+
+                if (optChartInstance) optChartInstance.destroy();
+                const ctxOpt = document.getElementById('optChart').getContext('2d');
+                const labelCurvaCob = usarNocturno ? "Malla Sugerida (Mixta)" : `Malla Sugerida (${durJornada}h)`;
+
+                let gradientArea = ctxOpt.createLinearGradient(0, 0, 0, 300);
+                gradientArea.addColorStop(0, 'rgba(6, 182, 212, 0.4)');
+                gradientArea.addColorStop(1, 'rgba(6, 182, 212, 0.01)');
+
+                optChartInstance = new Chart(ctxOpt, {
+                    type: 'line',
+                    data: {
+                        labels: intervalos,
+                        datasets: [
+                            { 
+                                label: 'HC Requerido (Motor)', 
+                                data: reqAvgVector, 
+                                borderColor: '#06B6D4', 
+                                backgroundColor: gradientArea, 
+                                fill: true, 
+                                tension: 0.4, 
+                                borderWidth: 3,
+                                pointRadius: 0,
+                                pointHoverRadius: 6
+                            },
+                            { 
+                                label: 'Plantilla Actual (Roster)', 
+                                data: rosterAvgVector, 
+                                borderColor: '#10B981', 
+                                backgroundColor: '#10B981', 
+                                fill: false, 
+                                tension: 0.4, 
+                                borderWidth: 2, 
+                                borderDash: [5, 5],
+                                pointRadius: 0,
+                                pointHoverRadius: 6
+                            },
+                            { 
+                                label: labelCurvaCob, 
+                                data: (optData.cobertura_optima || []), 
+                                borderColor: '#F59E0B', 
+                                backgroundColor: '#F59E0B', 
+                                fill: false, 
+                                tension: 0.4, 
+                                borderWidth: 3, 
+                                borderDash: [4, 4],
+                                pointRadius: 0,
+                                pointHoverRadius: 6
+                            }
+                        ]
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: { 
+                            legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 }, usePointStyle: true, boxWidth: 8 } },
+                            tooltip: { backgroundColor: 'rgba(13, 19, 34, 0.95)', titleColor: '#F1F5F9', bodyColor: '#cbd5e1', borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1, padding: 12, boxPadding: 6, usePointStyle: true }
+                        }, 
+                        scales: { 
+                            x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 12 } }, 
+                            y: { grid: { color: 'rgba(255,255,255,0.05)', borderDash: [4, 4] }, ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true } 
+                        } 
+                    }
+                });
+
+            } catch (e) {
+                console.log("Error al optimizar turnos en frontend:", e);
+                document.getElementById('compSlOptimo').innerText = "Error";
+                document.getElementById('optHeadcount').innerText = "Error";
+            }
+        }
+
+        function exportarTurnosCSV() {
+            if (!globalTurnosOptimos || globalTurnosOptimos.length === 0) {
+                alert("No hay turnos optimizados para exportar.");
+                return;
+            }
+            const headers = ["Horario_Entrada", "Horario_Salida", "Duracion", "HC_Requerido"];
+            const csvRows = [headers.join(",")];
+            globalTurnosOptimos.forEach(t => {
+                csvRows.push([t.horario_entrada, t.horario_salida, t.duracion, t.nomina_a_contratar].join(","));
+            });
+            const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', `Malla_Turnos_Optimos_HC_${new Date().toISOString().slice(0,10)}.csv`);
+            a.click();
+        }
+
+        function exportarCSV() {
+            if (!globalData || globalData.length === 0) {
+                alert("No hay datos cargados para exportar.");
+                return;
+            }
+            const headers = ["Campana", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT_HH_MM_SS", "Agentes_Requeridos_HC", "HC_Actual_Roster", "Factor_Reforecast"];
+            const csvRows = [headers.join(",")];
+            globalData.forEach(row => {
+                const values = [
+                    getProp(row, ['Campaña', 'Campana'], 'General'),
+                    getProp(row, ['Mes'], ''),
+                    getProp(row, ['Fecha'], ''),
+                    getProp(row, ['Día_Semana', 'Dia_Semana'], ''),
+                    getProp(row, ['Intervalo'], '00:00'),
+                    getProp(row, ['Llamadas', 'Recibidas'], 0),
+                    formatAHT(getProp(row, ['AHT_Segundos'], 180)),
+                    getProp(row, ['Agentes_Requeridos'], 0),
+                    getProp(row, ['HC_Actual_Roster'], 0),
+                    getProp(row, ['Factor_Correccion'], 1.0)
+                ];
+                csvRows.push(values.join(","));
+            });
+            const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', `WFM_Reporte_Ejecutivo_HC_${new Date().toISOString().slice(0,10)}.csv`);
+            a.click();
+        }
+    </script>
+</body>
+</html>
