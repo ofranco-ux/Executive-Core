@@ -177,7 +177,7 @@
             </div>
 
             <button id="btnProcesar" onclick="procesarWFM()" class="w-full bg-gradient-to-r from-cyan-500 via-blue-600 to-violet-600 hover:from-cyan-400 hover:to-violet-500 text-white font-black py-4 px-4 rounded-xl text-xs transition-all duration-300 shadow-lg shadow-cyan-500/20 uppercase tracking-wider mt-4 hover:shadow-cyan-500/40 active:scale-[0.98]">
-                🚀 PROCESAR FORECAST
+                🚀 ACTUALIZAR FORECAST
             </button>
         </aside>
 
@@ -575,33 +575,44 @@
 
         async function procesarWFM() {
             const file = document.getElementById('fileInput').files[0];
-            if (!file) { alert("Por favor selecciona tu archivo historico.xlsx (Asegúrate de incluir la hoja 'Plantilla')"); return; }
             
+            // Ya no bloqueamos el proceso si no hay archivo. 
+            // El backend usará el último historico.xlsx que tenga guardado.
             await saveWFMConfig();
 
             const btn = document.getElementById('btnProcesar');
             btn.disabled = true;
-            btn.innerText = "⏳ PROCESANDO...";
+            btn.innerText = "⏳ RECALCULANDO...";
+            
             const formData = new FormData();
-            formData.append('file', file);
+            
+            // Solo adjuntamos el archivo si realmente seleccionaste uno nuevo
+            if (file) {
+                formData.append('file', file);
+            }
+            
             formData.append('target_sl', document.getElementById('targetSl').value);
             formData.append('target_time', document.getElementById('targetTime').value);
             formData.append('merma', document.getElementById('merma').value);
             formData.append('dias', document.getElementById('dias').value);
+            
             try {
                 const response = await fetch('/api/process', { method: 'POST', body: formData });
                 globalData = await response.json();
+                
                 if (response.ok && Array.isArray(globalData)) {
                     inicializarFiltrosMultiples();
                     debouncedActualizarGrafica();
+                    // Limpiamos el input file para que no se quede pegado
+                    document.getElementById('fileInput').value = ""; 
                 } else {
-                    alert("Error procesando los datos: " + (globalData.error || "Formato no válido"));
+                    alert("Error: " + (globalData.error || "Asegúrate de haber subido el archivo base al menos una vez."));
                 }
             } catch (e) {
                 alert("Error de conexión: " + e.message);
             } finally {
                 btn.disabled = false;
-                btn.innerText = "🚀 PROCESAR FORECAST";
+                btn.innerText = "🚀 ACTUALIZAR FORECAST";
             }
         }
 
