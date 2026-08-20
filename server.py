@@ -355,7 +355,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
     col_fecha = encontrar_columna(df_raw, ['fecha', 'date'])
 
-    # Búsqueda defensiva si fallan los nombres predeterminados
     if not col_camp: col_camp = df_raw.columns[0]
     if not col_fecha: col_fecha = df_raw.columns[1]
     if not col_inter: col_inter = df_raw.columns[2]
@@ -365,7 +364,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce')
     df_raw = df_raw.dropna(subset=[col_fecha])
 
-    # Limpieza robusta de valores numéricos de llamadas
     df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
 
     # CORTE INTELIGENTE ROBUSTO: Se queda con la historia donde sí hubo actividad real
