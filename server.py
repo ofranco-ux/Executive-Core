@@ -355,27 +355,22 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
     col_fecha = encontrar_columna(df_raw, ['fecha', 'date'])
 
-    # Búsqueda defensiva si fallan los nombres predeterminados
     if not col_camp: col_camp = df_raw.columns[0]
     if not col_fecha: col_fecha = df_raw.columns[1]
     if not col_inter: col_inter = df_raw.columns[2]
     if not col_calls: col_calls = df_raw.columns[3]
 
-    # 1. Asegurar el texto de la campaña
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     
-    # 2. Parseo de fechas seguro
-    df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce')
+    # FORZAMOS DAYFIRST por si el Excel viene en formato latino y confunde los meses
+    df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce', dayfirst=True)
     df_raw = df_raw.dropna(subset=[col_fecha])
     
-    # 3. Limpieza estricta de numéricos
     df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
 
-    # 4. Corte inteligente BLINDADO
     df_valido = df_raw[df_raw[col_calls] > 0]
     if not df_valido.empty:
         max_fecha_real = df_valido[col_fecha].max()
-        # Validamos que la fecha no sea nula antes de recortar el dataframe
         if pd.notna(max_fecha_real):
             df_raw = df_raw[df_raw[col_fecha] <= max_fecha_real]
 
@@ -404,8 +399,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     fecha_maxima = df[col_fecha].max()
     if pd.isna(fecha_maxima):
-        from datetime import datetime
-        fecha_maxima = datetime.now() # Rescate por si todo falla
+        fecha_maxima = datetime.now()
         
     fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
     
@@ -724,11 +718,19 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 
 @app.route('/api/latest', methods=['GET'])
 def get_latest_forecast():
-    if os.path.exists(CACHE_FILE):
+    use_cache = False
+    
+    # 1. DESTRUCTOR DE CACHÉ INTELIGENTE
+    if os.path.exists(CACHE_FILE) and os.path.exists(EXCEL_DEFAULT):
+        if os.path.getmtime(CACHE_FILE) >= os.path.getmtime(EXCEL_DEFAULT):
+            use_cache = True
+    elif os.path.exists(CACHE_FILE):
+        use_cache = True
+
+    if use_cache:
         try:
             with open(CACHE_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            return jsonify(data), 200
+                return jsonify(json.load(f)), 200
         except Exception as e:
             pass
             
@@ -786,7 +788,10 @@ def process_data():
     dias_futuros = int(clean_num(request.form.get('dias'), 30))
 
     if 'file' in request.files and request.files['file'].filename != '':
-        file_source = request.files['file']
+        file = request.files['file']
+        # 2. REEMPLAZO MAESTRO: ¡Guarda el archivo subido sobre el local!
+        file.save(EXCEL_DEFAULT)
+        file_source = EXCEL_DEFAULT
     elif os.path.exists(EXCEL_DEFAULT):
         file_source = EXCEL_DEFAULT
     else:
