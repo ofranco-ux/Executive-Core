@@ -362,8 +362,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     
-    # FORZAMOS DAYFIRST por si el Excel viene en formato latino y confunde los meses
-    df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce', dayfirst=True)
+    # NORMALIZACIÓN ESTRICTA: .dt.normalize() elimina horas/minutos basura de Excel.
+    df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce').dt.normalize()
     df_raw = df_raw.dropna(subset=[col_fecha])
     
     df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
@@ -399,7 +399,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     fecha_maxima = df[col_fecha].max()
     if pd.isna(fecha_maxima):
-        fecha_maxima = datetime.now()
+        fecha_maxima = pd.to_datetime(datetime.now()).normalize()
         
     fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
     
@@ -720,10 +720,14 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 def get_latest_forecast():
     use_cache = False
     
-    # 1. DESTRUCTOR DE CACHÉ INTELIGENTE
+    # Destrucción forzada de caché: si subes tu excel por Github (modificado más reciente),
+    # el caché se anula y te procesa lo nuevo.
     if os.path.exists(CACHE_FILE) and os.path.exists(EXCEL_DEFAULT):
         if os.path.getmtime(CACHE_FILE) >= os.path.getmtime(EXCEL_DEFAULT):
             use_cache = True
+        else:
+            try: os.remove(CACHE_FILE)
+            except: pass
     elif os.path.exists(CACHE_FILE):
         use_cache = True
 
@@ -789,9 +793,12 @@ def process_data():
 
     if 'file' in request.files and request.files['file'].filename != '':
         file = request.files['file']
-        # 2. REEMPLAZO MAESTRO: ¡Guarda el archivo subido sobre el local!
         file.save(EXCEL_DEFAULT)
         file_source = EXCEL_DEFAULT
+        # Destruir el caché explícitamente si subes un archivo manual para que no lea datos antiguos
+        if os.path.exists(CACHE_FILE):
+            try: os.remove(CACHE_FILE)
+            except: pass
     elif os.path.exists(EXCEL_DEFAULT):
         file_source = EXCEL_DEFAULT
     else:
