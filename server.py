@@ -362,8 +362,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     
-    # NORMALIZACIÓN ESTRICTA: .dt.normalize() elimina horas/minutos basura de Excel.
-    df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce').dt.normalize()
+    # NORMALIZACIÓN ESTRICTA Y FORMATO LATINO (AQUÍ ESTÁ LA MAGIA)
+    df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce', dayfirst=True).dt.normalize()
     df_raw = df_raw.dropna(subset=[col_fecha])
     
     df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
