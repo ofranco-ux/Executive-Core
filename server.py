@@ -355,22 +355,29 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
     col_fecha = encontrar_columna(df_raw, ['fecha', 'date'])
 
+    # Búsqueda defensiva si fallan los nombres predeterminados
     if not col_camp: col_camp = df_raw.columns[0]
     if not col_fecha: col_fecha = df_raw.columns[1]
     if not col_inter: col_inter = df_raw.columns[2]
     if not col_calls: col_calls = df_raw.columns[3]
 
+    # 1. Asegurar el texto de la campaña
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
+    
+    # 2. Parseo de fechas seguro
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce')
     df_raw = df_raw.dropna(subset=[col_fecha])
-
+    
+    # 3. Limpieza estricta de numéricos
     df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
 
-    # CORTE INTELIGENTE ROBUSTO: Se queda con la historia donde sí hubo actividad real
+    # 4. Corte inteligente BLINDADO
     df_valido = df_raw[df_raw[col_calls] > 0]
     if not df_valido.empty:
         max_fecha_real = df_valido[col_fecha].max()
-        df_raw = df_raw[df_raw[col_fecha] <= max_fecha_real]
+        # Validamos que la fecha no sea nula antes de recortar el dataframe
+        if pd.notna(max_fecha_real):
+            df_raw = df_raw[df_raw[col_fecha] <= max_fecha_real]
 
     if col_aht:
         df_raw[col_aht] = [parse_aht_to_seconds(x) for x in df_raw[col_aht]]
@@ -396,7 +403,12 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df['Dia_Semana_Clean'] = df[col_fecha].dt.weekday.apply(lambda w: dias_espanol[w])
 
     fecha_maxima = df[col_fecha].max()
+    if pd.isna(fecha_maxima):
+        from datetime import datetime
+        fecha_maxima = datetime.now() # Rescate por si todo falla
+        
     fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
+    
     aht_global_campana = df.groupby(col_camp)[col_aht].apply(lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 180.0).to_dict()
 
     df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
