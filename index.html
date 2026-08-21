@@ -326,7 +326,7 @@
                     <canvas id="optChart"></canvas>
                 </div>
 
-                <!-- TABLA ROSTER SEMANAL CON SCROLL Y LÍMITE DE ALTURA -->
+                <!-- TABLA ROSTER SEMANAL CON LÍMITE DE ALTURA Y SCROLL -->
                 <div class="overflow-x-auto overflow-y-auto max-h-[350px] border border-slate-700/60 rounded-xl shadow-lg relative">
                     <table class="w-full text-center text-xs text-slate-300">
                         <thead class="bg-[#0D1322] text-slate-400 font-bold uppercase tracking-widest text-[10px] sticky top-0 border-b border-slate-700/60 z-10">
@@ -1161,6 +1161,10 @@
                 if (globalTurnosOptimos.length === 0) {
                     optTbody.innerHTML = '<tr><td colspan="8" class="text-center py-6 text-slate-500 font-sans">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
                 } else {
+                    
+                    let offsetDiurno = 0;
+                    let offsetNocturno = 0;
+
                     globalTurnosOptimos.forEach(t => {
                         const hcTurno = t.nomina_a_contratar;
                         if (hcTurno <= 0) return;
@@ -1171,7 +1175,13 @@
                         let distribucion = [0, 0, 0, 0, 0, 0, 0];
                         
                         for (let i = 0; i < hcTurno; i++) {
-                            distribucion[i % 7]++;
+                            if (esTurnoNocturno) {
+                                distribucion[offsetNocturno % 7]++;
+                                offsetNocturno++;
+                            } else {
+                                distribucion[offsetDiurno % 7]++;
+                                offsetDiurno++;
+                            }
                         }
 
                         for (let i = 0; i < 7; i++) {
@@ -1285,6 +1295,9 @@
             
             const headers = ["HC", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
             const csvRows = [headers.join(",")];
+            
+            let offsetDiurno = 0;
+            let offsetNocturno = 0;
 
             globalTurnosOptimos.forEach(t => {
                 const hcTurno = t.nomina_a_contratar;
@@ -1296,7 +1309,13 @@
                 let distribucion = [0, 0, 0, 0, 0, 0, 0];
                 
                 for (let i = 0; i < hcTurno; i++) {
-                    distribucion[i % 7]++;
+                    if (esTurnoNocturno) {
+                        distribucion[offsetNocturno % 7]++;
+                        offsetNocturno++;
+                    } else {
+                        distribucion[offsetDiurno % 7]++;
+                        offsetDiurno++;
+                    }
                 }
                 
                 for (let i = 0; i < 7; i++) {
