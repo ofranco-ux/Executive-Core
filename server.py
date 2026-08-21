@@ -139,7 +139,7 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         last_term = current_term * (A / N) / (1.0 - (A / N))
         pw = last_term / (sum_terms + last_term)
         intensity = N - A
-        sl = 1.0 - (pw * math.exp(-intensity * (target_time / AHT)))
+        sl = 1.0 - (pw * Math.exp(-intensity * (target_time / AHT)))
         resultado = round(max(0.0, min(100.0, sl * 100.0)), 1)
         ERLANG_CACHE[key] = resultado
         return resultado
@@ -425,15 +425,12 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         peso_ridge = 0.35
         factor_ajuste = 1.0
 
-        # --- MOTOR DE BACKTESTING Y APRENDIZAJE AUTÓNOMO ---
         if n >= 21:
             train_vols = vols[:-7]
             val_vols = vols[-7:]
             
-            # Evaluar Holt-Winters
             hw_val_preds = grid_search_auto_hw(train_vols, n_preds=7)
             
-            # Evaluar Ridge ML
             X_train_bt, y_train_bt = [], []
             for i in range(14, len(train_vols)):
                 feat = extraer_features_fecha(fechas_list[i], train_vols[:i], trend_idx=i)
@@ -449,7 +446,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     pred_r = predecir_ridge_ml(w_bt, m_bt, s_bt, np.array([feat]))
                     ridge_val_preds.append(max(0, pred_r))
                 
-                # Asignar Pesos Dinámicos por Precisión
                 error_hw = calc_mae(val_vols, hw_val_preds) + 1e-5
                 error_ridge = calc_mae(val_vols, ridge_val_preds) + 1e-5
                 
@@ -457,7 +453,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 peso_hw = (1.0 / error_hw) / total_inv_error
                 peso_ridge = (1.0 / error_ridge) / total_inv_error
                 
-                # Corrección de Drift Automático (El Freno Inteligente)
                 ensemble_val_preds = [(peso_hw * hw_val_preds[i] + peso_ridge * ridge_val_preds[i]) for i in range(7)]
                 sum_actual = sum(val_vols)
                 sum_pred = sum(ensemble_val_preds)
@@ -471,9 +466,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             'w_ridge': peso_ridge,
             'factor_ajuste': factor_ajuste
         }
-        # --- FIN DE BACKTESTING ---
 
-        # ENTRENAMIENTO FINAL (Para proyectar al futuro con toda la data)
         hw_forecasts[camp] = grid_search_auto_hw(vols, n_preds=dias_futuros)
 
         X_data, y_data = [], []
@@ -494,7 +487,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_filtrado = df[df['En_Ventana']].copy()
 
     max_date_hist = df_filtrado[col_fecha].max()
-    df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_date_hist - timedelta(days=60))]
+    # AQUÍ ESTÁ EL AJUSTE A 21 DÍAS PARA EL PERFIL INTRADÍA
+    df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_date_hist - timedelta(days=21))]
 
     perfil_intradia = df_reciente.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
         avg_calls=(col_calls, 'mean'),
@@ -540,7 +534,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             w_info = pesos_campana.get(camp, {'w_hw': 0.65, 'w_ridge': 0.35, 'factor_ajuste': 1.0})
             vol_hw = hw_forecasts[camp][d] if d < len(hw_forecasts[camp]) else vol_ridge
             
-            # EL ALGORITMO AUTÓNOMO DECIDE EL PESO Y EL AJUSTE
             volumen_predicho_diario = (w_info['w_hw'] * vol_hw + w_info['w_ridge'] * vol_ridge) * w_info['factor_ajuste']
             
             historial_volumenes[camp].append(volumen_predicho_diario)
