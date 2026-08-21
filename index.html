@@ -326,22 +326,22 @@
                     <canvas id="optChart"></canvas>
                 </div>
 
-                <!-- TABLA ROSTER SEMANAL -->
-                <div class="overflow-x-auto border border-slate-800/80 rounded-xl">
+                <!-- TABLA ROSTER SEMANAL MEJORADA -->
+                <div class="overflow-x-auto border border-slate-700/60 rounded-xl shadow-lg">
                     <table class="w-full text-center text-xs text-slate-300">
-                        <thead class="bg-brand-surface text-slate-400 font-bold uppercase tracking-wider text-[9px] sticky top-0 border-b border-slate-800">
+                        <thead class="bg-slate-800/80 text-slate-400 font-bold uppercase tracking-widest text-[10px] sticky top-0 border-b border-slate-700/60">
                             <tr>
-                                <th class="py-3 px-3 text-amber-400 border-r border-slate-800/50">HC</th>
-                                <th class="py-3 px-2">Lunes</th>
-                                <th class="py-3 px-2">Martes</th>
-                                <th class="py-3 px-2">Miércoles</th>
-                                <th class="py-3 px-2">Jueves</th>
-                                <th class="py-3 px-2">Viernes</th>
-                                <th class="py-3 px-2">Sábado</th>
-                                <th class="py-3 px-2">Domingo</th>
+                                <th class="py-4 px-4 text-amber-400 border-r border-slate-700/60 w-16">HC</th>
+                                <th class="py-4 px-2">Lunes</th>
+                                <th class="py-4 px-2">Martes</th>
+                                <th class="py-4 px-2">Miércoles</th>
+                                <th class="py-4 px-2">Jueves</th>
+                                <th class="py-4 px-2">Viernes</th>
+                                <th class="py-4 px-2">Sábado</th>
+                                <th class="py-4 px-2">Domingo</th>
                             </tr>
                         </thead>
-                        <tbody id="optShiftsTableBody" class="divide-y divide-slate-800/50 font-mono-num text-[11px]">
+                        <tbody id="optShiftsTableBody" class="divide-y divide-slate-700/50 font-mono-num text-[11px]">
                             <tr>
                                 <td colspan="8" class="text-center py-6 text-slate-500 font-sans">Selecciona filtros...</td>
                             </tr>
@@ -1166,8 +1166,6 @@
                         if (hcTurno <= 0) return;
                         
                         const shiftStr = `${t.horario_entrada} - ${t.horario_salida}`;
-                        
-                        // EL CANDADO ESTÁ AQUÍ: Evaluamos si ESTE turno específico es nocturno
                         const esTurnoNocturno = t.duracion.includes('Nocturno');
 
                         let distribucion = [0, 0, 0, 0, 0, 0, 0];
@@ -1180,24 +1178,23 @@
                             const hcDescanso = distribucion[i];
                             if (hcDescanso > 0) {
                                 const tr = document.createElement('tr');
-                                tr.className = 'hover:bg-slate-800/40 transition-colors border-b border-slate-800/50';
+                                // DISEÑO PREMIUM DE LA FILA
+                                tr.className = 'hover:bg-slate-800/60 transition-colors border-b border-slate-700/50';
                                 
-                                let htmlRow = `<td class="py-2.5 px-3 font-black text-amber-300 text-sm border-r border-slate-800/50">${hcDescanso}</td>`;
+                                let htmlRow = `<td class="py-3.5 px-4 font-black text-amber-400 text-base border-r border-slate-700/60 bg-slate-800/20">${hcDescanso}</td>`;
                                 
                                 for (let d = 0; d < 7; d++) {
                                     if (esTurnoNocturno) { 
-                                        // Si es nocturno, aplica 5x2 (2 días descanso)
                                         if (d === i || d === (i + 1) % 7) {
-                                            htmlRow += `<td class="py-2.5 px-2 text-rose-400 font-bold text-[10px]">Descanso</td>`;
+                                            htmlRow += `<td class="py-3.5 px-2 text-rose-400 font-bold text-[11px] tracking-wide">Descanso</td>`;
                                         } else {
-                                            htmlRow += `<td class="py-2.5 px-2 text-slate-300 font-mono-num text-[10px]">${shiftStr}</td>`;
+                                            htmlRow += `<td class="py-3.5 px-2 text-slate-300 font-mono-num text-[11px] tracking-widest">${shiftStr}</td>`;
                                         }
                                     } else { 
-                                        // Si es diurno, aplica 6x1 (1 día descanso)
                                         if (d === i) {
-                                            htmlRow += `<td class="py-2.5 px-2 text-rose-400 font-bold text-[10px]">Descanso</td>`;
+                                            htmlRow += `<td class="py-3.5 px-2 text-rose-400 font-bold text-[11px] tracking-wide">Descanso</td>`;
                                         } else {
-                                            htmlRow += `<td class="py-2.5 px-2 text-slate-300 font-mono-num text-[10px]">${shiftStr}</td>`;
+                                            htmlRow += `<td class="py-3.5 px-2 text-slate-300 font-mono-num text-[11px] tracking-widest">${shiftStr}</td>`;
                                         }
                                     }
                                 }
@@ -1295,7 +1292,6 @@
                 if (hcTurno <= 0) return;
                 
                 const shiftStr = `${t.horario_entrada} - ${t.horario_salida}`;
-                // EL CANDADO TAMBIÉN APLICA AL EXPORTAR
                 const esTurnoNocturno = t.duracion.includes('Nocturno');
 
                 let distribucion = [0, 0, 0, 0, 0, 0, 0];
