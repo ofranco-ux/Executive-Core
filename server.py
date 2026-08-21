@@ -524,7 +524,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         key = (r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean'])
         mapa_perfil[key] = {'weight': r['weight'], 'aht': r['avg_aht']}
 
-    # --- AQUÍ ESTÁ EL AJUSTE PARA FORZAR LOS 48 INTERVALOS SIEMPRE ---
     TODOS_LOS_INTERVALOS = [f"{int(h):02d}:{int(m):02d}" for h in range(24) for m in (0, 30)]
     intervalos_operativos_por_camp = {}
     for camp in campanas_unicas:
@@ -566,7 +565,13 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 key_p = (camp, nombre_dia, inter)
                 info_p = mapa_perfil.get(key_p, {'weight': 0.0, 'aht': 0.0})
                 calls = volumen_predicho_diario * info_p['weight']
-                aht = info_p['aht'] if (info_p['aht'] > 0 and not pd.isna(info_p['aht'])) else aht_global_campana.get(camp, 180.0)
+                calls_int = int(round(calls))
+
+                # --- EL AJUSTE ESTÉTICO PARA EL AHT EN 0 ---
+                if calls_int == 0:
+                    aht = 0.0
+                else:
+                    aht = info_p['aht'] if (info_p['aht'] > 0 and not pd.isna(info_p['aht'])) else aht_global_campana.get(camp, 180.0)
 
                 a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
@@ -582,7 +587,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'Mes': str_mes,
                     'Día_Semana': nombre_dia.capitalize(),
                     'Intervalo': inter,
-                    'Llamadas': int(round(calls)),
+                    'Llamadas': calls_int,
                     'AHT': format_aht_str(aht),
                     'AHT_Segundos': int(round(aht)),
                     'Agentes_Requeridos': req_hc,
