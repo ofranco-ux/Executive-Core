@@ -111,7 +111,7 @@
             </div>
         </div>
 
-        <!-- BOTÓN DE RESCATE (Solo aparece cuando el panel se oculta) -->
+        <!-- BOTÓN DE RESCATE -->
         <div id="containerShowSidebar" class="z-10 ml-auto hidden">
             <button onclick="toggleSidebar()" class="bg-slate-800/50 hover:bg-slate-700/80 text-slate-300 border border-slate-600/50 px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 font-mono shadow-lg">
                 <span class="text-cyan-400">▶</span> Mostrar Parámetros
@@ -123,7 +123,6 @@
 
         <aside id="panelControl" class="col-span-12 lg:col-span-3 glass-panel p-6 rounded-2xl space-y-6 h-fit relative transition-all duration-300">
             
-            <!-- BOTON OCULTAR (DENTRO DEL PANEL) -->
             <button onclick="toggleSidebar()" class="w-full bg-slate-800/50 hover:bg-slate-700/80 text-slate-300 border border-slate-600/50 px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 font-mono shadow-sm">
                 <span class="text-cyan-400">◀</span> Ocultar Parámetros
             </button>
@@ -327,7 +326,7 @@
                     <canvas id="optChart"></canvas>
                 </div>
 
-                <!-- NUEVA TABLA ROSTER SEMANAL -->
+                <!-- TABLA ROSTER SEMANAL -->
                 <div class="overflow-x-auto border border-slate-800/80 rounded-xl">
                     <table class="w-full text-center text-xs text-slate-300">
                         <thead class="bg-brand-surface text-slate-400 font-bold uppercase tracking-wider text-[9px] sticky top-0 border-b border-slate-800">
@@ -1167,14 +1166,16 @@
                         if (hcTurno <= 0) return;
                         
                         const shiftStr = `${t.horario_entrada} - ${t.horario_salida}`;
+                        
+                        // EL CANDADO ESTÁ AQUÍ: Evaluamos si ESTE turno específico es nocturno
+                        const esTurnoNocturno = t.duracion.includes('Nocturno');
+
                         let distribucion = [0, 0, 0, 0, 0, 0, 0];
                         
-                        // Lógica de Distribución Round-Robin para Descansos
                         for (let i = 0; i < hcTurno; i++) {
                             distribucion[i % 7]++;
                         }
 
-                        // Generar filas en la tabla por cada bloque de descansos
                         for (let i = 0; i < 7; i++) {
                             const hcDescanso = distribucion[i];
                             if (hcDescanso > 0) {
@@ -1184,15 +1185,15 @@
                                 let htmlRow = `<td class="py-2.5 px-3 font-black text-amber-300 text-sm border-r border-slate-800/50">${hcDescanso}</td>`;
                                 
                                 for (let d = 0; d < 7; d++) {
-                                    if (usarNocturno) { 
-                                        // Lógica 5x2 (2 días descanso)
+                                    if (esTurnoNocturno) { 
+                                        // Si es nocturno, aplica 5x2 (2 días descanso)
                                         if (d === i || d === (i + 1) % 7) {
                                             htmlRow += `<td class="py-2.5 px-2 text-rose-400 font-bold text-[10px]">Descanso</td>`;
                                         } else {
                                             htmlRow += `<td class="py-2.5 px-2 text-slate-300 font-mono-num text-[10px]">${shiftStr}</td>`;
                                         }
                                     } else { 
-                                        // Lógica 6x1 (1 día descanso)
+                                        // Si es diurno, aplica 6x1 (1 día descanso)
                                         if (d === i) {
                                             htmlRow += `<td class="py-2.5 px-2 text-rose-400 font-bold text-[10px]">Descanso</td>`;
                                         } else {
@@ -1286,17 +1287,17 @@
                 return;
             }
             
-            // ACTUALIZAMOS EL EXPORT PARA QUE COINCIDA CON LA NUEVA VISTA
             const headers = ["HC", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
             const csvRows = [headers.join(",")];
-            
-            const usarNocturno = document.getElementById('chkNocturno') ? document.getElementById('chkNocturno').checked : false;
 
             globalTurnosOptimos.forEach(t => {
                 const hcTurno = t.nomina_a_contratar;
                 if (hcTurno <= 0) return;
                 
                 const shiftStr = `${t.horario_entrada} - ${t.horario_salida}`;
+                // EL CANDADO TAMBIÉN APLICA AL EXPORTAR
+                const esTurnoNocturno = t.duracion.includes('Nocturno');
+
                 let distribucion = [0, 0, 0, 0, 0, 0, 0];
                 
                 for (let i = 0; i < hcTurno; i++) {
@@ -1308,7 +1309,7 @@
                     if (hcDescanso > 0) {
                         let row = [hcDescanso];
                         for (let d = 0; d < 7; d++) {
-                            if (usarNocturno) {
+                            if (esTurnoNocturno) {
                                 if (d === i || d === (i+1)%7) row.push("Descanso");
                                 else row.push(shiftStr);
                             } else {
