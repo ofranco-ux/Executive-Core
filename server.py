@@ -44,11 +44,9 @@ def buscar_archivo_excel():
         archivos = [f for f in os.listdir(BASE_DIR) if f.lower().endswith('.xlsx') and not f.startswith('~')]
         if not archivos:
             return None
-        # Priorizar si tiene 'historico' en el nombre
         for f in archivos:
             if 'historico' in f.lower():
                 return os.path.join(BASE_DIR, f)
-        # Si no, tomar el primero que encuentre
         return os.path.join(BASE_DIR, archivos[0])
     except Exception:
         return None
@@ -382,17 +380,16 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     
-    # PROTECCIÓN CONTRA FECHAS CORRUPTAS
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce', dayfirst=True).dt.normalize()
     df_raw = df_raw.dropna(subset=[col_fecha])
     if df_raw.empty:
-        raise ValueError("Error Crítico: No se pudieron leer las fechas. Revisa que la columna de fechas en tu Excel tenga el formato correcto y no sea texto.")
+        raise ValueError("Error Crítico: No se pudieron leer las fechas. Revisa que la columna de fechas en tu Excel.")
     
     df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
 
     df_valido = df_raw[df_raw[col_calls] > 0]
     if df_valido.empty:
-        raise ValueError("Error Crítico: El archivo no tiene volumen de llamadas mayor a cero. Revisa tu historial de llamadas.")
+        raise ValueError("Error Crítico: El archivo no tiene volumen de llamadas mayor a cero.")
     
     max_fecha_real = df_valido[col_fecha].max()
     df_raw = df_raw[df_raw[col_fecha] <= max_fecha_real]
@@ -509,11 +506,9 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     max_date_hist = df_filtrado[col_fecha].max()
     
-    # BLINDAJE CONTRA NaT
     if pd.isna(max_date_hist):
         df_reciente = df_filtrado.copy()
     else:
-        # AJUSTE A 21 DÍAS PARA PERFIL INTRADÍA
         df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_date_hist - timedelta(days=21))]
 
     perfil_intradia = df_reciente.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
@@ -529,10 +524,11 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         key = (r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean'])
         mapa_perfil[key] = {'weight': r['weight'], 'aht': r['avg_aht']}
 
+    # --- AQUÍ ESTÁ EL AJUSTE PARA FORZAR LOS 48 INTERVALOS SIEMPRE ---
+    TODOS_LOS_INTERVALOS = [f"{int(h):02d}:{int(m):02d}" for h in range(24) for m in (0, 30)]
     intervalos_operativos_por_camp = {}
     for camp in campanas_unicas:
-        inters_camp = df_filtrado[df_filtrado[col_camp] == camp]['Inter_Clean'].unique().tolist()
-        intervalos_operativos_por_camp[camp] = sorted([i for i in inters_camp if esta_en_ventana_servicio(camp, i)])
+        intervalos_operativos_por_camp[camp] = sorted([i for i in TODOS_LOS_INTERVALOS if esta_en_ventana_servicio(camp, i)])
 
     del df_raw, df, df_diario, df_filtrado, df_reciente
     gc.collect()
