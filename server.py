@@ -36,6 +36,23 @@ VENTANAS_SERVICIO = {
     'retenciones liverpool': {'inicio': 9 * 60, 'fin': 20 * 60}
 }
 
+# --- BUSCADOR UNIVERSAL DE ARCHIVO EXCEL ---
+def buscar_archivo_excel():
+    if os.path.exists(EXCEL_DEFAULT):
+        return EXCEL_DEFAULT
+    try:
+        archivos = [f for f in os.listdir(BASE_DIR) if f.lower().endswith('.xlsx') and not f.startswith('~')]
+        if not archivos:
+            return None
+        # Priorizar si tiene 'historico' en el nombre
+        for f in archivos:
+            if 'historico' in f.lower():
+                return os.path.join(BASE_DIR, f)
+        # Si no, tomar el primero que encuentre
+        return os.path.join(BASE_DIR, archivos[0])
+    except Exception:
+        return None
+
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
@@ -139,7 +156,7 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         last_term = current_term * (A / N) / (1.0 - (A / N))
         pw = last_term / (sum_terms + last_term)
         intensity = N - A
-        sl = 1.0 - (pw * Math.exp(-intensity * (target_time / AHT)))
+        sl = 1.0 - (pw * math.exp(-intensity * (target_time / AHT)))
         resultado = round(max(0.0, min(100.0, sl * 100.0)), 1)
         ERLANG_CACHE[key] = resultado
         return resultado
@@ -348,7 +365,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             df_roster = pd.read_excel(xls_file, sheet_name=sheet_roster, engine='openpyxl')
             roster_coverage, roster_total_camp, roster_total_dia_camp = procesar_hoja_roster(df_roster)
         except Exception as e:
-            print("Aviso: No se pudo procesar la hoja de Roster:", e)
+            pass
 
     df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
 
@@ -365,16 +382,20 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     
+    # PROTECCIÓN CONTRA FECHAS CORRUPTAS
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce', dayfirst=True).dt.normalize()
     df_raw = df_raw.dropna(subset=[col_fecha])
+    if df_raw.empty:
+        raise ValueError("Error Crítico: No se pudieron leer las fechas. Revisa que la columna de fechas en tu Excel tenga el formato correcto y no sea texto.")
     
     df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
 
     df_valido = df_raw[df_raw[col_calls] > 0]
-    if not df_valido.empty:
-        max_fecha_real = df_valido[col_fecha].max()
-        if pd.notna(max_fecha_real):
-            df_raw = df_raw[df_raw[col_fecha] <= max_fecha_real]
+    if df_valido.empty:
+        raise ValueError("Error Crítico: El archivo no tiene volumen de llamadas mayor a cero. Revisa tu historial de llamadas.")
+    
+    max_fecha_real = df_valido[col_fecha].max()
+    df_raw = df_raw[df_raw[col_fecha] <= max_fecha_real]
 
     if col_aht:
         df_raw[col_aht] = [parse_aht_to_seconds(x) for x in df_raw[col_aht]]
@@ -487,8 +508,13 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_filtrado = df[df['En_Ventana']].copy()
 
     max_date_hist = df_filtrado[col_fecha].max()
-    # AQUÍ ESTÁ EL AJUSTE A 21 DÍAS PARA EL PERFIL INTRADÍA
-    df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_date_hist - timedelta(days=21))]
+    
+    # BLINDAJE CONTRA NaT
+    if pd.isna(max_date_hist):
+        df_reciente = df_filtrado.copy()
+    else:
+        # AJUSTE A 21 DÍAS PARA PERFIL INTRADÍA
+        df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_date_hist - timedelta(days=21))]
 
     perfil_intradia = df_reciente.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
         avg_calls=(col_calls, 'mean'),
@@ -776,9 +802,10 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 @app.route('/api/latest', methods=['GET'])
 def get_latest_forecast():
     use_cache = False
+    excel_path = buscar_archivo_excel()
     
-    if os.path.exists(CACHE_FILE) and os.path.exists(EXCEL_DEFAULT):
-        if os.path.getmtime(CACHE_FILE) >= os.path.getmtime(EXCEL_DEFAULT):
+    if os.path.exists(CACHE_FILE) and excel_path:
+        if os.path.getmtime(CACHE_FILE) >= os.path.getmtime(excel_path):
             use_cache = True
         else:
             try: os.remove(CACHE_FILE)
@@ -793,14 +820,14 @@ def get_latest_forecast():
         except Exception as e:
             pass
             
-    if os.path.exists(EXCEL_DEFAULT):
+    if excel_path:
         try:
-            data = procesar_archivo_excel(EXCEL_DEFAULT)
+            data = procesar_archivo_excel(excel_path)
             return jsonify(data), 200
         except Exception as e:
-            return jsonify({'error': f'Error procesando historico.xlsx: {str(e)}'}), 500
+            return jsonify({'error': f'Error procesando Excel: {str(e)}'}), 500
             
-    return jsonify({'error': 'No se encontró historico.xlsx en el servidor.'}), 404
+    return jsonify({'error': 'No se encontró ningún archivo Excel en el servidor.'}), 404
 
 @app.route('/api/optimize-schedules', methods=['POST'])
 def api_optimize_schedules():
@@ -846,25 +873,18 @@ def process_data():
     merma = float(clean_num(request.form.get('merma'), 20.0)) / 100.0
     dias_futuros = int(clean_num(request.form.get('dias'), 30))
 
-    if 'file' in request.files and request.files['file'].filename != '':
-        file = request.files['file']
-        file.save(EXCEL_DEFAULT)
-        file_source = EXCEL_DEFAULT
-        if os.path.exists(CACHE_FILE):
-            try: os.remove(CACHE_FILE)
-            except: pass
-    elif os.path.exists(EXCEL_DEFAULT):
-        file_source = EXCEL_DEFAULT
-    else:
-        return jsonify({'error': 'No se recibió archivo ni existe historico.xlsx.'}), 400
+    excel_path = buscar_archivo_excel()
+
+    if not excel_path:
+        return jsonify({'error': 'No se encontró ningún archivo Excel (.xlsx) en el repositorio.'}), 400
 
     try:
-        data_processed = procesar_archivo_excel(file_source, target_sl, target_time, merma, dias_futuros)
+        data_processed = procesar_archivo_excel(excel_path, target_sl, target_time, merma, dias_futuros)
         gc.collect()
         return jsonify(data_processed)
     except Exception as e:
         gc.collect()
-        return jsonify({'error': f"Error en procesamiento: {str(e)}"}), 500
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
