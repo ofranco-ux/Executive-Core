@@ -69,10 +69,6 @@ def serve_index():
 def favicon():
     return '', 204
 
-@app.route('/logo.png')
-def serve_logo():
-    return send_from_directory(BASE_DIR, 'logo.png')
-
 @app.route('/api/config', methods=['GET', 'POST'])
 def manage_config():
     if request.method == 'POST':
@@ -674,16 +670,13 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     duracion_minutos = int(round(duracion_jornada * 60))
     label_jornada_diurna = f"{duracion_jornada:.1f} hrs".replace('.0', '')
 
-    # --- NUEVO CANDADO DE LÍMITE DE HORARIOS (07:00 a 22:00) ---
     valid_starts = []
     for j in range(m):
         min_in_val = parse_time_str(intervalos[j])
         if min_in_val is not None:
             min_out_val = min_in_val + duracion_minutos
-            # Todo turno dinámico diurno debe comenzar >= 07:00 y terminar <= 22:00
             if min_in_val >= (7 * 60) and min_out_val <= (22 * 60):
                 valid_starts.append(j)
-    # ----------------------------------------------------------
 
     def calc_current_global_sl(current_cob):
         if tot_llamadas <= 0: return 100.0
@@ -708,7 +701,22 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 
             deficit = req_hc_base - cob_hc
             if np.max(deficit) <= 0:
-                break 
+                # --- NUEVO CANDADO DE SL: GARANTIZAR SL TARGET GLOBAL ---
+                se_ajusto = False
+                for i in range(m):
+                    c = llamadas_arr[i]
+                    if c > 0:
+                        a_erl = (c * aht_arr[i]) / 1800.0
+                        n_opt = cob_hc[i] * factor_asistencia
+                        sl_v = erlang_c_sl_optimizado(a_erl, n_opt, aht_arr[i], target_time)
+                        if sl_v < target_sl_dinamico:
+                            req_hc_base[i] += 1
+                            se_ajusto = True
+                
+                if not se_ajusto:
+                    break
+                    
+                deficit = req_hc_base - cob_hc
 
             best_start_idx = -1
             best_score = -999999
