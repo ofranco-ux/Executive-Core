@@ -69,6 +69,10 @@ def serve_index():
 def favicon():
     return '', 204
 
+@app.route('/logo.png')
+def serve_logo():
+    return send_from_directory(BASE_DIR, 'logo.png')
+
 @app.route('/api/config', methods=['GET', 'POST'])
 def manage_config():
     if request.method == 'POST':
@@ -600,7 +604,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     return data_processed
 
-
 def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht_vec=None, req_vec=None, target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, es_nocturno=False):
     m = len(intervalos)
     if m == 0:
@@ -616,7 +619,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     req_hc_pooled = []
     req_hc_base = np.zeros(m)
     
-    # 1. Calculamos el requerimiento base por Erlang-C intervalo a intervalo
     for i in range(m):
         if req_vec is not None and i < len(req_vec) and req_vec[i] > 0:
             req_hc_i = int(req_vec[i])
@@ -636,7 +638,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     agentes_nocturnos_totales_hc = 0
     agentes_diurnos_totales_hc = 0
 
-    # 2. Configuración de Turno Nocturno Fijo (si aplica)
     if es_nocturno:
         label_jornada_noc = "9.0 hrs (Nocturno 5x2)"
         indices_nocturnos = []
@@ -668,18 +669,21 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             for idx in indices_nocturnos:
                 cob_hc[idx] += agentes_noc_hc
 
-    # 3. Configuración de Turnos Diurnos Dinámicos
     duracion_jornada = float(duracion_jornada)
     SHIFT_BLOCKS = int(round(duracion_jornada * 2))
     duracion_minutos = int(round(duracion_jornada * 60))
     label_jornada_diurna = f"{duracion_jornada:.1f} hrs".replace('.0', '')
 
-    # MODIFICACIÓN CLAVE: Ya no hay límite estricto de 07:00 a 22:00.
+    # --- NUEVO CANDADO DE LÍMITE DE HORARIOS (07:00 a 22:00) ---
     valid_starts = []
     for j in range(m):
         min_in_val = parse_time_str(intervalos[j])
         if min_in_val is not None:
-            valid_starts.append(j)
+            min_out_val = min_in_val + duracion_minutos
+            # Todo turno dinámico diurno debe comenzar >= 07:00 y terminar <= 22:00
+            if min_in_val >= (7 * 60) and min_out_val <= (22 * 60):
+                valid_starts.append(j)
+    # ----------------------------------------------------------
 
     def calc_current_global_sl(current_cob):
         if tot_llamadas <= 0: return 100.0
@@ -693,79 +697,37 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                 sl_acum += c * sl_v
         return sl_acum / tot_llamadas
 
-    # 4. Bucle principal de asignación y GARANTÍA DE SL GLOBAL
     if len(valid_starts) > 0:
         max_iterations = 5000
         iteration = 0
         while iteration < max_iterations:
             iteration += 1
             
+            if calc_current_global_sl(cob_hc) >= target_sl_dinamico:
+                break
+
             deficit = req_hc_base - cob_hc
-            
-            # --- CANDADO DE SERVICE LEVEL ---
-            # Si ya cubrimos el mínimo intervalo por intervalo, revisamos el SL Global ponderado.
             if np.max(deficit) <= 0:
-                current_sl = calc_current_global_sl(cob_hc)
-                if current_sl >= target_sl_dinamico:
-                    break  # ¡Logramos la meta global! Rompemos el ciclo.
-                else:
-                    # SL Global por debajo del target (ej. 77%). 
-                    # Buscamos la media hora que más impacto positivo nos dé al meterle un turno extra.
-                    best_i = -1
-                    max_impact = -1
-                    for i in range(m):
-                        c = llamadas_arr[i]
-                        if c > 0:
-                            a_erl = (c * aht_arr[i]) / 1800.0
-                            n_opt_curr = cob_hc[i] * factor_asistencia
-                            sl_curr = erlang_c_sl_optimizado(a_erl, n_opt_curr, aht_arr[i], target_time)
-                            
-                            n_opt_next = (cob_hc[i] + 1) * factor_asistencia
-                            sl_next = erlang_c_sl_optimizado(a_erl, n_opt_next, aht_arr[i], target_time)
-                            
-                            # Impacto = cuánto sube el SLA multiplicado por el volumen de llamadas de esa media hora
-                            impact = (sl_next - sl_curr) * c
-                            if impact > max_impact and sl_curr < 99.9:
-                                max_impact = impact
-                                best_i = i
-                    
-                    if best_i != -1 and max_impact > 0.0001:
-                        # Le mentimos al motor subiéndole la meta base a este intervalo para forzar un turno
-                        req_hc_base[best_i] += 1
-                        deficit = req_hc_base - cob_hc
-                    else:
-                        break # Ya no hay forma matemática de subir el SL
-            # -------------------------------------------
+                break 
 
             best_start_idx = -1
-            best_cov = -1
-            best_pen = 999999
+            best_score = -999999
 
-            # Buscamos el mejor horario de entrada para cubrir el déficit actual
             for s_idx in valid_starts:
                 if s_idx + SHIFT_BLOCKS <= m:
                     sub_deficit = deficit[s_idx : s_idx + SHIFT_BLOCKS]
                 else:
                     sub_deficit = np.concatenate((deficit[s_idx:], deficit[:(s_idx + SHIFT_BLOCKS) - m]))
                 
-                # Cuánto déficit resolvemos (cov) vs cuánta sobrecapacidad innecesaria generamos (pen)
-                cov = np.sum(np.maximum(0, sub_deficit))
-                pen = np.sum(np.maximum(0, -sub_deficit))
+                score = np.sum(np.maximum(0, sub_deficit)) - np.sum(np.maximum(0, -sub_deficit)) * 0.001
                 
-                if cov > best_cov:
-                    best_cov = cov
-                    best_pen = pen
-                    best_start_idx = s_idx
-                elif cov == best_cov and pen < best_pen:
-                    best_cov = cov
-                    best_pen = pen
+                if score > best_score:
+                    best_score = score
                     best_start_idx = s_idx
 
-            # Si ya no hay déficit que cubrir (best_cov <= 0), terminamos
-            if best_start_idx == -1 or best_cov <= 0:
+            if best_start_idx == -1 or best_score <= 0.0001:
                 break
                 
-            # Agregamos el turno ganador
             min_in_val = parse_time_str(intervalos[best_start_idx])
             min_out_val = min_in_val + duracion_minutos
             min_out_val = min_out_val % (24 * 60) 
@@ -782,7 +744,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                 cob_hc[best_start_idx:] += 1
                 cob_hc[:(best_start_idx + SHIFT_BLOCKS) - m] += 1
 
-    # 5. Consolidación de Resultados
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
