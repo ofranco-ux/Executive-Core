@@ -671,12 +671,16 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     label_jornada_diurna = f"{duracion_jornada:.1f} hrs".replace('.0', '')
 
     valid_starts = []
+    reachable_intervals = set()
     for j in range(m):
         min_in_val = parse_time_str(intervalos[j])
         if min_in_val is not None:
             min_out_val = min_in_val + duracion_minutos
+            # Todo turno dinámico diurno debe comenzar >= 07:00 y terminar <= 22:00
             if min_in_val >= (7 * 60) and min_out_val <= (22 * 60):
                 valid_starts.append(j)
+                for k in range(SHIFT_BLOCKS):
+                    reachable_intervals.add((j + k) % m)
 
     def calc_current_global_sl(current_cob):
         if tot_llamadas <= 0: return 100.0
@@ -696,27 +700,30 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         while iteration < max_iterations:
             iteration += 1
             
-            if calc_current_global_sl(cob_hc) >= target_sl_dinamico:
-                break
-
+            current_sl = calc_current_global_sl(cob_hc)
             deficit = req_hc_base - cob_hc
+            
             if np.max(deficit) <= 0:
-                # --- NUEVO CANDADO DE SL: GARANTIZAR SL TARGET GLOBAL ---
-                se_ajusto = False
-                for i in range(m):
-                    c = llamadas_arr[i]
-                    if c > 0:
-                        a_erl = (c * aht_arr[i]) / 1800.0
-                        n_opt = cob_hc[i] * factor_asistencia
-                        sl_v = erlang_c_sl_optimizado(a_erl, n_opt, aht_arr[i], target_time)
-                        if sl_v < target_sl_dinamico:
-                            req_hc_base[i] += 1
-                            se_ajusto = True
-                
-                if not se_ajusto:
-                    break
+                if current_sl >= target_sl_dinamico:
+                    break 
+                else:
+                    # CANDADO DE SL: Forzar incremento de requerimiento para subir el SL Global
+                    best_i = -1
+                    max_c = -1
+                    for i in range(m):
+                        if i in reachable_intervals and llamadas_arr[i] > 0:
+                            a_erl = (llamadas_arr[i] * aht_arr[i]) / 1800.0
+                            n_opt = cob_hc[i] * factor_asistencia
+                            sl_v = erlang_c_sl_optimizado(a_erl, n_opt, aht_arr[i], target_time)
+                            if sl_v < 99.0 and llamadas_arr[i] > max_c:
+                                max_c = llamadas_arr[i]
+                                best_i = i
                     
-                deficit = req_hc_base - cob_hc
+                    if best_i != -1:
+                        req_hc_base[best_i] += 1
+                        deficit = req_hc_base - cob_hc
+                    else:
+                        break # No hay más intervalos alcanzables que mejorar
 
             best_start_idx = -1
             best_score = -999999
