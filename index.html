@@ -12,7 +12,7 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     
     <script>
         tailwind.config = {
@@ -24,10 +24,10 @@
                     },
                     colors: {
                         brand: {
-                            bg: '#0B1121', // Dark blue background
-                            surface: '#111827', // Card background
-                            border: '#1F2937', // Subtle border
-                            primary: '#3B82F6', // Blue button
+                            bg: '#0B1121',
+                            surface: '#111827',
+                            border: '#1F2937',
+                            primary: '#3B82F6',
                             primaryHover: '#2563EB',
                             accentCyan: '#06B6D4',
                             accentViolet: '#8B5CF6',
@@ -68,58 +68,47 @@
             border-color: #475569;
             background-color: #1E293B;
         }
-
-        /* Utilidad para inputs numéricos oscuros */
-        .input-dark {
-            background-color: #0F172A;
-            border: 1px solid #334155;
-            color: #F8FAFC;
-        }
-        .input-dark:focus {
-            outline: none;
-            border-color: #3B82F6;
-            box-shadow: 0 0 0 1px #3B82F6;
-        }
     </style>
 </head>
 <body class="flex h-screen overflow-hidden antialiased selection:bg-brand-primary selection:text-white">
 
-    <!-- SIDEBAR (Mockup Style) -->
+    <!-- SIDEBAR (Reference Style) -->
     <aside class="w-64 bg-[#090E17] border-r border-brand-border flex flex-col justify-between hidden md:flex z-50">
         <div>
-            <div class="p-6 border-b border-brand-border/50">
-                <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-                    <span class="text-brand-accentCyan">●</span> WFM Engine
+            <div class="p-6 pb-4">
+                <h2 class="text-[22px] font-extrabold text-white tracking-tight flex items-center gap-2">
+                    <span class="text-brand-accentCyan text-sm">●</span> WFM Engine
                 </h2>
-                <p class="text-[10px] text-slate-500 mt-1 uppercase tracking-widest font-semibold">by Operations</p>
+                <p class="text-[11px] text-slate-500 mt-1.5 uppercase tracking-widest font-bold">by Operations</p>
                 <div id="tagModoOps" class="hidden mt-2 inline-block text-[10px] bg-brand-accentCyan/10 text-brand-accentCyan border border-brand-accentCyan/30 px-2 py-0.5 rounded font-mono font-bold uppercase">
                     Vista Operaciones
                 </div>
             </div>
             
-            <nav class="p-4 space-y-1">
-                <a href="#" class="flex items-center gap-3 px-3 py-2 bg-brand-primary/10 text-brand-primary rounded-lg font-medium text-sm border border-brand-primary/20">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+            <nav class="px-4 space-y-1 mt-4">
+                <a href="#" class="flex items-center gap-3 px-4 py-3 bg-[#172554]/50 text-blue-500 rounded-lg font-medium text-[14px] border border-blue-900/40">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
                     Dashboard
                 </a>
-                <a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-lg font-medium text-sm transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                <a href="#" class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white rounded-lg font-medium text-[14px] transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                     Capacity Plan
                 </a>
-                <a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-lg font-medium text-sm transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                <a href="#" class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white rounded-lg font-medium text-[14px] transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
                     What-If Scenarios
                 </a>
-                <a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-lg font-medium text-sm transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                <a href="#" class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white rounded-lg font-medium text-[14px] transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                     Reports
                 </a>
             </nav>
         </div>
         
-        <div class="p-4 border-t border-brand-border/50">
+        <!-- Toggle button for Sidebar (Optional, visually matched to dark theme) -->
+        <div class="p-4 border-t border-brand-border/50 hidden">
             <button onclick="toggleSidebar()" class="w-full flex items-center justify-center gap-2 px-3 py-2 text-slate-500 hover:text-white bg-brand-surface rounded-lg text-xs font-mono border border-brand-border transition-colors">
-                <span id="btnSidebarIcon">◀</span> Colapsar Panel
+                <span id="btnSidebarIcon">◀</span>
             </button>
         </div>
     </aside>
@@ -131,19 +120,16 @@
         <header class="p-6 pb-2">
             <div class="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
                 
-                <!-- Title -->
                 <div>
-                    <h1 class="text-2xl font-bold text-white tracking-tight">WFM Capacity Planning Engine</h1>
+                    <h1 class="text-[22px] font-bold text-white tracking-tight">WFM Capacity Planning Engine</h1>
                     <p class="text-sm text-slate-400 mt-1">Turn Assumptions into Smarter Workforce Decisions</p>
                 </div>
 
-                <!-- Filters & Action -->
                 <div class="flex flex-wrap items-end gap-3 z-40">
                     <button id="btnResetTableFilter" onclick="resetAllFilters()" class="text-xs text-slate-400 hover:text-white underline decoration-slate-600 underline-offset-4 mr-2 pb-2">
                         Reset Filters
                     </button>
 
-                    <!-- Dropdowns Modeled exactly like mockup -->
                     <div class="relative">
                         <label class="block text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1.5">Planning Period (Month)</label>
                         <button id="btnDropdownMes" onclick="toggleDropdown('Mes')" class="select-btn flex items-center justify-between w-40 px-3 py-2 rounded-lg text-sm font-medium">
@@ -186,7 +172,6 @@
                 </div>
             </div>
             
-            <!-- ALERTA REFORECAST -->
             <div id="reforecastAlert" class="hidden mt-4 bg-brand-accentAmber/10 border border-brand-accentAmber/30 rounded-lg p-3 flex items-start gap-3">
                 <span class="text-brand-accentAmber">⚠️</span>
                 <div>
@@ -200,13 +185,12 @@
             
             <!-- TOP KPIs ROW -->
             <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                
                 <div class="card p-4 relative overflow-hidden group">
                     <div class="flex items-start gap-3">
                         <div class="p-2 bg-slate-800 rounded text-slate-400"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg></div>
                         <div>
                             <p class="text-[11px] text-slate-400 font-medium">Total Demand</p>
-                            <p id="kpiCalls" class="text-xl font-bold text-white mt-0.5">1,542,680</p>
+                            <p id="kpiCalls" class="text-xl font-bold text-white mt-0.5">0</p>
                             <p class="text-[10px] text-slate-500 mt-1">Interactions / Calls</p>
                         </div>
                     </div>
@@ -217,7 +201,7 @@
                         <div class="p-2 bg-slate-800 rounded text-brand-primary"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>
                         <div>
                             <p class="text-[11px] text-slate-400 font-medium">Avg Handle Time</p>
-                            <p id="kpiAht" class="text-xl font-bold text-white mt-0.5 font-mono">00:03:00</p>
+                            <p id="kpiAht" class="text-xl font-bold text-white mt-0.5 font-mono">00:00:00</p>
                             <p class="text-[10px] text-slate-500 mt-1">AHT Promedio</p>
                         </div>
                     </div>
@@ -229,7 +213,7 @@
                         <div class="p-2 bg-brand-primary/10 rounded text-brand-primary"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg></div>
                         <div>
                             <p id="kpiHcRequeridoTitle" class="text-[11px] text-slate-400 font-medium">Required FTE</p>
-                            <p id="kpiHcRequerido" class="text-xl font-bold text-white mt-0.5">612.4</p>
+                            <p id="kpiHcRequerido" class="text-xl font-bold text-white mt-0.5">0</p>
                             <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1">Total HC Requerido</p>
                         </div>
                     </div>
@@ -241,7 +225,7 @@
                         <div class="p-2 bg-brand-accentEmerald/10 rounded text-brand-accentEmerald"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg></div>
                         <div>
                             <p id="kpiHcRosterTitle" class="text-[11px] text-slate-400 font-medium">Available FTE</p>
-                            <p id="kpiHcRoster" class="text-xl font-bold text-white mt-0.5">554.0</p>
+                            <p id="kpiHcRoster" class="text-xl font-bold text-white mt-0.5">0</p>
                             <p id="kpiHcRosterSub" class="text-[10px] text-slate-500 mt-1">Plantilla Actual</p>
                         </div>
                     </div>
@@ -255,23 +239,20 @@
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                                 Staffing Gap
                             </p>
-                            <p id="kpiHcGap" class="text-xl font-bold text-brand-accentRose mt-0.5 font-mono tracking-tight">58.4</p>
+                            <p id="kpiHcGap" class="text-xl font-bold text-brand-accentRose mt-0.5 font-mono tracking-tight">0.0</p>
                         </div>
                         <div class="text-right">
                             <p class="text-[9px] text-slate-500 uppercase mb-1">Recommended</p>
-                            <div class="bg-brand-accentEmerald/20 text-brand-accentEmerald text-[10px] px-2 py-1 rounded font-bold border border-brand-accentEmerald/30">
-                                Start Hiring
+                            <div class="bg-slate-800 text-slate-400 text-[10px] px-2 py-1 rounded font-bold border border-slate-700">
+                                Monitor
                             </div>
                         </div>
                     </div>
                 </div>
-
             </div>
 
             <!-- CHARTS ROW -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                
-                <!-- Main Chart -->
                 <div class="card p-5 lg:col-span-2 flex flex-col">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-sm font-semibold text-white flex items-center gap-2">
@@ -286,14 +267,13 @@
                     </div>
                 </div>
 
-                <!-- Secondary Chart -->
                 <div id="modOptimizacion" class="card p-5 flex flex-col">
                     <div class="flex justify-between items-center mb-4">
                         <h3 id="optModuleTitle" class="text-sm font-semibold text-white flex items-center gap-2">
                             <span class="text-brand-primary">📈</span> FTE Trend (Opt. Malla)
                         </h3>
                         <div class="flex flex-col items-end">
-                            <span id="compSlOptimo" class="text-xs font-bold text-brand-accentEmerald">84.1% SL</span>
+                            <span id="compSlOptimo" class="text-xs font-bold text-brand-accentEmerald">--% SL</span>
                             <span id="optHeadcount" class="text-[10px] text-slate-400">Total HC: 0</span>
                         </div>
                     </div>
@@ -301,13 +281,11 @@
                         <canvas id="optChart"></canvas>
                     </div>
                 </div>
-
             </div>
 
             <!-- BOTTOM TABLES & SETTINGS ROW -->
             <div class="grid grid-cols-1 xl:grid-cols-4 gap-4 pb-10">
                 
-                <!-- Roster Table (Capacity Plan) -->
                 <div class="card p-5 xl:col-span-3 flex flex-col">
                     <div class="flex justify-between items-center mb-4">
                         <div>
@@ -344,63 +322,60 @@
                     </div>
                 </div>
 
-                <!-- Key Assumptions (Parameters) -->
-                <aside id="panelControl" class="card p-5 flex flex-col">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-sm font-semibold text-white flex items-center gap-2">
-                            <span class="text-brand-accentViolet">⚙️</span> Key Assumptions
-                        </h3>
+                <!-- KEY ASSUMPTIONS (Reference Style) -->
+                <aside id="panelControl" class="card p-6 flex flex-col">
+                    <div class="flex items-center gap-2 mb-6">
+                        <svg class="w-[18px] h-[18px] text-slate-300" fill="currentColor" viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+                        <h3 class="text-[15px] font-bold text-white tracking-wide">Key Assumptions</h3>
                     </div>
                     
-                    <div class="space-y-4 flex-1">
-                        
-                        <div class="flex justify-between items-center py-2 border-b border-brand-border/50">
-                            <label class="text-xs text-slate-400 font-medium">AHT Target (sec)</label>
-                            <input type="number" id="targetTime" value="20" class="input-dark w-16 text-right px-2 py-1 rounded text-xs font-mono font-bold" onchange="debouncedActualizarGrafica()"/>
+                    <div class="space-y-6 flex-1">
+                        <div class="flex justify-between items-center">
+                            <label class="text-[13px] text-slate-300 font-medium">AHT Target (sec)</label>
+                            <input type="number" id="targetTime" value="20" class="bg-transparent border border-slate-700/80 w-16 text-center py-1.5 rounded-md text-sm font-mono font-bold text-white focus:outline-none focus:border-brand-primary" onchange="debouncedActualizarGrafica()"/>
                         </div>
                         
-                        <div class="flex justify-between items-center py-2 border-b border-brand-border/50">
-                            <label class="text-xs text-slate-400 font-medium">Service Level (%)</label>
-                            <input type="number" id="targetSl" value="80" class="input-dark w-16 text-right px-2 py-1 rounded text-xs font-mono font-bold text-brand-accentEmerald" onchange="debouncedActualizarGrafica()"/>
+                        <div class="flex justify-between items-center">
+                            <label class="text-[13px] text-slate-300 font-medium">Service Level (%)</label>
+                            <input type="number" id="targetSl" value="80" class="bg-transparent border border-slate-700/80 w-16 text-center py-1.5 rounded-md text-sm font-mono font-bold text-brand-accentEmerald focus:outline-none focus:border-brand-primary" onchange="debouncedActualizarGrafica()"/>
                         </div>
 
-                        <div class="flex justify-between items-center py-2 border-b border-brand-border/50">
-                            <label class="text-xs text-slate-400 font-medium">Shrinkage (%)</label>
-                            <input type="number" id="merma" value="30" class="input-dark w-16 text-right px-2 py-1 rounded text-xs font-mono font-bold text-brand-accentRose" onchange="debouncedActualizarGrafica()"/>
+                        <div class="flex justify-between items-center">
+                            <label class="text-[13px] text-slate-300 font-medium">Shrinkage (%)</label>
+                            <input type="number" id="merma" value="30" class="bg-transparent border border-slate-700/80 w-16 text-center py-1.5 rounded-md text-sm font-mono font-bold text-brand-accentRose focus:outline-none focus:border-brand-primary" onchange="debouncedActualizarGrafica()"/>
                         </div>
 
-                        <div class="flex justify-between items-center py-2 border-b border-brand-border/50">
-                            <label class="text-xs text-slate-400 font-medium">Jornada (Hrs)</label>
-                            <input type="number" id="duracionJornada" value="8" step="0.5" class="input-dark w-16 text-right px-2 py-1 rounded text-xs font-mono font-bold text-brand-accentAmber" onchange="debouncedActualizarGrafica()"/>
+                        <div class="flex justify-between items-center pb-2">
+                            <label class="text-[13px] text-slate-300 font-medium">Jornada (Hrs)</label>
+                            <input type="number" id="duracionJornada" value="6.5" step="0.5" class="bg-transparent border border-slate-700/80 w-16 text-center py-1.5 rounded-md text-sm font-mono font-bold text-brand-accentAmber focus:outline-none focus:border-brand-primary" onchange="debouncedActualizarGrafica()"/>
                         </div>
 
-                        <div class="flex justify-between items-center py-2 border-b border-brand-border/50 hidden">
-                            <label class="text-xs text-slate-400 font-medium">Planning Horizon</label>
-                            <input type="number" id="dias" value="30" class="input-dark w-16 text-right px-2 py-1 rounded text-xs font-mono font-bold"/>
+                        <!-- Oculto el de días como en el mockup, pero mantenemos su valor para backend -->
+                        <div class="hidden">
+                            <input type="number" id="dias" value="30" />
                         </div>
 
-                        <label class="flex items-center justify-between cursor-pointer py-2">
-                            <span class="text-xs text-slate-300 font-medium flex items-center gap-2"><span class="text-brand-accentViolet">🌙</span> Turno Nocturno</span>
-                            <div class="relative">
-                                <input type="checkbox" id="chkNocturno" onchange="debouncedActualizarGrafica()" class="sr-only peer">
-                                <div class="w-8 h-4 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-brand-accentViolet"></div>
-                            </div>
-                        </label>
+                        <div class="pt-2 space-y-6">
+                            <label class="flex items-center justify-between cursor-pointer">
+                                <span class="text-[13px] text-slate-300 font-medium flex items-center gap-2.5"><span class="text-brand-accentAmber text-base leading-none">🌙</span> Turno Nocturno</span>
+                                <div class="relative">
+                                    <input type="checkbox" id="chkNocturno" onchange="debouncedActualizarGrafica()" class="sr-only peer" checked>
+                                    <div class="w-10 h-5 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-accentViolet"></div>
+                                </div>
+                            </label>
 
-                        <label class="flex items-center justify-between cursor-pointer py-2">
-                            <span class="text-xs text-slate-300 font-medium flex items-center gap-2"><span class="text-brand-accentRose">🔥</span> Staffing x Picos</span>
-                            <div class="relative">
-                                <input type="checkbox" id="chkPicos" onchange="debouncedActualizarGrafica()" class="sr-only peer">
-                                <div class="w-8 h-4 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-brand-accentRose"></div>
-                            </div>
-                        </label>
-                        
+                            <label class="flex items-center justify-between cursor-pointer">
+                                <span class="text-[13px] text-slate-300 font-medium flex items-center gap-2.5"><span class="text-brand-accentRose text-base leading-none">🔥</span> Staffing x Picos</span>
+                                <div class="relative">
+                                    <input type="checkbox" id="chkPicos" onchange="debouncedActualizarGrafica()" class="sr-only peer" checked>
+                                    <div class="w-10 h-5 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-accentRose"></div>
+                                </div>
+                            </label>
+                        </div>
                     </div>
                 </aside>
-
             </div>
             
-            <!-- Tabla Oculta requerida por el JS original (Matrix Gap en modo Data) -->
             <div class="hidden">
                  <tbody id="intervalTableBody"></tbody>
             </div>
@@ -408,7 +383,7 @@
         </div>
     </main>
 
-    <!-- SCRIPT ORIGINAL (Con mínimos ajustes para soportar los IDs visuales) -->
+    <!-- SCRIPT JS -->
     <script>
         let globalData = [];
         let optChartInstance = null;
@@ -422,7 +397,6 @@
         let debounceTimer;
         let totalesFiltros = { M: 0, C: 0, F: 0, I: 0 };
         let currentMode = 'wfm';
-        let isSidebarVisible = true; 
 
         const mesesMap = {
             "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
@@ -441,16 +415,6 @@
 
             if (anoA !== anoB) return anoA - anoB;
             return (mesesMap[mesA] || 0) - (mesesMap[mesB] || 0);
-        }
-
-        function toggleSidebar() {
-            // Placeholder: Ajustado para el nuevo layout (el aside real ya se oculta en mobile via tailwind)
-            const btnIcon = document.getElementById('btnSidebarIcon');
-            if (btnIcon) btnIcon.innerText = btnIcon.innerText === '◀' ? '▶' : '◀';
-            setTimeout(() => { 
-                if (optChartInstance) optChartInstance.resize(); 
-                if (gapChartInstance) gapChartInstance.resize(); 
-            }, 150);
         }
 
         async function fetchWFMConfig() {
@@ -625,7 +589,7 @@
                     inicializarFiltrosMultiples();
                     debouncedActualizarGrafica();
                 } else {
-                    alert("Error: " + (globalData.error || "Asegúrate de que 'historico.xlsx' esté cargado en tu GitHub."));
+                    alert("Error: " + (globalData.error || "Asegúrate de que 'historico.xlsx' esté cargado."));
                 }
             } catch (e) {
                 alert("Error de conexión: " + e.message);
@@ -778,7 +742,7 @@
             const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
             const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
-            const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 8.0;
+            const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 6.5;
             
             const usarPicos = document.getElementById('chkPicos') ? document.getElementById('chkPicos').checked : false;
             const usarNocturno = document.getElementById('chkNocturno') ? document.getElementById('chkNocturno').checked : false;
@@ -1043,7 +1007,7 @@
                 
                 document.getElementById('kpiHcRoster').innerText = totalRosterHC.toLocaleString();
                 
-                const gapTotal = hcRequeridoDisplay - totalRosterHC; // Gap is Requerido - Roster (Si positivo = faltan)
+                const gapTotal = hcRequeridoDisplay - totalRosterHC; 
                 const gapEl = document.getElementById('kpiHcGap');
                 if (gapTotal > 0) {
                     gapEl.innerText = `${gapTotal.toFixed(1)}`;
@@ -1051,16 +1015,22 @@
                     gapEl.parentElement.parentElement.parentElement.classList.add('bg-brand-accentRose/5', 'border-brand-accentRose/20');
                     gapEl.classList.replace('text-brand-accentEmerald', 'text-brand-accentRose');
                     gapEl.parentElement.parentElement.querySelector('svg').parentElement.classList.replace('text-brand-accentEmerald', 'text-brand-accentRose');
-                    gapEl.parentElement.parentElement.querySelector('.bg-brand-accentEmerald\\/20').innerText = 'Start Hiring';
-                    gapEl.parentElement.parentElement.querySelector('.bg-brand-accentEmerald\\/20').className = 'bg-brand-accentRose/20 text-brand-accentRose text-[10px] px-2 py-1 rounded font-bold border border-brand-accentRose/30';
+                    gapEl.parentElement.parentElement.querySelector('.bg-brand-accentEmerald\\/20')?.classList.replace('bg-brand-accentEmerald/20', 'bg-brand-accentRose/20');
+                    gapEl.parentElement.parentElement.querySelector('.text-brand-accentEmerald')?.classList.replace('text-brand-accentEmerald', 'text-brand-accentRose');
+                    gapEl.parentElement.parentElement.querySelector('.border-brand-accentEmerald\\/30')?.classList.replace('border-brand-accentEmerald/30', 'border-brand-accentRose/30');
+                    const recEl = gapEl.parentElement.parentElement.querySelector('.bg-brand-accentRose\\/20');
+                    if(recEl) recEl.innerText = 'Start Hiring';
                 } else {
                     gapEl.innerText = `+${Math.abs(gapTotal).toFixed(1)}`;
                     gapEl.parentElement.parentElement.parentElement.classList.remove('bg-brand-accentRose/5', 'border-brand-accentRose/20');
                     gapEl.parentElement.parentElement.parentElement.classList.add('bg-brand-accentEmerald/5', 'border-brand-accentEmerald/20');
                     gapEl.classList.replace('text-brand-accentRose', 'text-brand-accentEmerald');
                     gapEl.parentElement.parentElement.querySelector('svg').parentElement.classList.replace('text-brand-accentRose', 'text-brand-accentEmerald');
-                    gapEl.parentElement.parentElement.querySelector('.bg-brand-accentRose\\/20').innerText = 'Monitor';
-                    gapEl.parentElement.parentElement.querySelector('.bg-brand-accentRose\\/20').className = 'bg-brand-accentEmerald/20 text-brand-accentEmerald text-[10px] px-2 py-1 rounded font-bold border border-brand-accentEmerald/30';
+                    gapEl.parentElement.parentElement.querySelector('.bg-brand-accentRose\\/20')?.classList.replace('bg-brand-accentRose/20', 'bg-brand-accentEmerald/20');
+                    gapEl.parentElement.parentElement.querySelector('.text-brand-accentRose')?.classList.replace('text-brand-accentRose', 'text-brand-accentEmerald');
+                    gapEl.parentElement.parentElement.querySelector('.border-brand-accentRose\\/30')?.classList.replace('border-brand-accentRose/30', 'border-brand-accentEmerald/30');
+                    const recEl = gapEl.parentElement.parentElement.querySelector('.bg-brand-accentEmerald\\/20');
+                    if(recEl) recEl.innerText = 'Monitor';
                 }
 
                 const slOptimoVal = parseFloat(optData.sl_optimo_global || 0);
