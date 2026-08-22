@@ -674,17 +674,12 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     duracion_minutos = int(round(duracion_jornada * 60))
     label_jornada_diurna = f"{duracion_jornada:.1f} hrs".replace('.0', '')
 
+    # MODIFICACIÓN CLAVE: Ya no hay límite estricto de 07:00 a 22:00.
     valid_starts = []
-    reachable_intervals = set()
     for j in range(m):
         min_in_val = parse_time_str(intervalos[j])
         if min_in_val is not None:
-            min_out_val = min_in_val + duracion_minutos
-            # Todo turno dinámico diurno debe comenzar >= 07:00 y terminar <= 22:00
-            if min_in_val >= (7 * 60) and min_out_val <= (22 * 60):
-                valid_starts.append(j)
-                for k in range(SHIFT_BLOCKS):
-                    reachable_intervals.add((j + k) % m)
+            valid_starts.append(j)
 
     def calc_current_global_sl(current_cob):
         if tot_llamadas <= 0: return 100.0
@@ -705,12 +700,12 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         while iteration < max_iterations:
             iteration += 1
             
-            current_sl = calc_current_global_sl(cob_hc)
             deficit = req_hc_base - cob_hc
             
-            # --- CANDADO DE SERVICE LEVEL (La Magia) ---
+            # --- CANDADO DE SERVICE LEVEL ---
             # Si ya cubrimos el mínimo intervalo por intervalo, revisamos el SL Global ponderado.
             if np.max(deficit) <= 0:
+                current_sl = calc_current_global_sl(cob_hc)
                 if current_sl >= target_sl_dinamico:
                     break  # ¡Logramos la meta global! Rompemos el ciclo.
                 else:
@@ -718,7 +713,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                     # Buscamos la media hora que más impacto positivo nos dé al meterle un turno extra.
                     best_i = -1
                     max_impact = -1
-                    for i in reachable_intervals:
+                    for i in range(m):
                         c = llamadas_arr[i]
                         if c > 0:
                             a_erl = (c * aht_arr[i]) / 1800.0
@@ -730,7 +725,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                             
                             # Impacto = cuánto sube el SLA multiplicado por el volumen de llamadas de esa media hora
                             impact = (sl_next - sl_curr) * c
-                            if impact > max_impact:
+                            if impact > max_impact and sl_curr < 99.9:
                                 max_impact = impact
                                 best_i = i
                     
@@ -739,7 +734,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                         req_hc_base[best_i] += 1
                         deficit = req_hc_base - cob_hc
                     else:
-                        break # Ya no hay forma matemática de subir el SL con los intervalos diurnos permitidos
+                        break # Ya no hay forma matemática de subir el SL
             # -------------------------------------------
 
             best_start_idx = -1
