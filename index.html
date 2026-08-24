@@ -111,7 +111,6 @@
             </div>
         </div>
 
-        <!-- BOTÓN DE RESCATE -->
         <div id="containerShowSidebar" class="z-10 ml-auto hidden">
             <button onclick="toggleSidebar()" class="bg-slate-800/50 hover:bg-slate-700/80 text-slate-300 border border-slate-600/50 px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 font-mono shadow-lg">
                 <span class="text-cyan-400">▶</span> Mostrar Parámetros
@@ -193,7 +192,7 @@
                     <div class="p-2.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-xl text-sm">🎯</div>
                     <div>
                         <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Filtros Operativos Intradía (Multiselección)</p>
-                        <p id="tableSelectionLabel" class="text-xs text-slate-200 font-medium">Selecciona una o más campañas, meses, fechas e intervalos</p>
+                        <p id="tableSelectionLabel" class="text-xs text-slate-200 font-medium">Selecciona campaña, meses, semanas, fechas e intervalos</p>
                     </div>
                 </div>
                 
@@ -209,6 +208,17 @@
                             <span class="text-[10px] text-amber-400">▼</span>
                         </button>
                         <div id="dropdownMesMenu" class="hidden absolute top-full left-0 mt-2 w-56 max-h-60 bg-[#0D1322] border border-amber-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200">
+                        </div>
+                    </div>
+
+                    <!-- NUEVO FILTRO DE SEMANAS -->
+                    <div class="flex flex-col relative">
+                        <label class="text-[9px] text-slate-400 font-bold uppercase mb-1">Semana(s)</label>
+                        <button id="btnDropdownSemana" onclick="toggleDropdown('Semana')" class="bg-brand-surface border border-pink-500/30 text-xs rounded-xl px-3 py-2 text-pink-300 font-mono-num font-bold focus:outline-none transition-all shadow-inner min-w-[170px] h-[36px] flex items-center justify-between gap-2">
+                            <span id="semanaSelectedText">🗓️ SEM. (0)</span>
+                            <span class="text-[10px] text-pink-400">▼</span>
+                        </button>
+                        <div id="dropdownSemanaMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#0D1322] border border-pink-500/40 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200">
                         </div>
                     </div>
 
@@ -244,7 +254,6 @@
                 </div>
             </div>
 
-            <!-- ALERTA REFORECAST -->
             <div id="reforecastAlert" class="hidden glass-panel border-l-4 border-l-amber-500 p-4 rounded-2xl mb-4 relative overflow-hidden flex items-center gap-4">
                 <div class="absolute -left-4 -top-4 w-16 h-16 bg-amber-500/20 rounded-full blur-xl pointer-events-none"></div>
                 <div class="text-3xl relative z-10">⚠️</div>
@@ -254,7 +263,6 @@
                 </div>
             </div>
 
-            <!-- 4 CARDS PRINCIPALES -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div class="glass-panel glass-panel-hover p-4 rounded-2xl relative overflow-hidden">
                     <p class="text-[10px] uppercase tracking-widest text-slate-400 font-black">Volumen Tráfico</p>
@@ -288,7 +296,6 @@
                 </div>
             </div>
 
-            <!-- MÓDULO 2: OPTIMIZACIÓN DE HORARIOS -->
             <div id="modOptimizacion" class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-amber-500 relative overflow-hidden transition-all duration-300">
                 <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
                     <div>
@@ -326,7 +333,6 @@
                     <canvas id="optChart"></canvas>
                 </div>
 
-                <!-- TABLA ROSTER SEMANAL CON LÍMITE DE ALTURA Y SCROLL -->
                 <div class="overflow-x-auto overflow-y-auto max-h-[350px] border border-slate-700/60 rounded-xl shadow-lg relative">
                     <table class="w-full text-center text-xs text-slate-300">
                         <thead class="bg-[#0D1322] text-slate-400 font-bold uppercase tracking-widest text-[10px] sticky top-0 border-b border-slate-700/60 z-10">
@@ -350,7 +356,6 @@
                 </div>
             </div>
 
-            <!-- MÓDULO 3: MATRIZ GAP Y GRÁFICA DE CAPACIDAD -->
             <div class="glass-panel p-6 rounded-2xl shadow-2xl border-t-2 border-t-cyan-500">
                 <div class="flex justify-between items-center mb-4">
                     <div>
@@ -393,13 +398,15 @@
         let optChartInstance = null;
         let gapChartInstance = null; 
         let globalTurnosOptimos = [];
+        
         let selectedMeses = new Set();
+        let selectedSemanas = new Set();
         let selectedCampanas = new Set();
         let selectedFechas = new Set();
         let selectedIntervalos = new Set();
 
         let debounceTimer;
-        let totalesFiltros = { M: 0, C: 0, F: 0, I: 0 };
+        let totalesFiltros = { M: 0, S: 0, C: 0, F: 0, I: 0 };
         let currentMode = 'wfm';
         let isSidebarVisible = true; 
 
@@ -665,6 +672,10 @@
             selectedMeses = new Set(meses);
             renderMenuOptions('Mes', meses, selectedMeses);
 
+            const semanas = [...new Set(globalData.map(i => String(getProp(i, ['Semana'], ''))))].filter(Boolean).sort();
+            selectedSemanas = new Set(semanas);
+            renderMenuOptions('Semana', semanas, selectedSemanas);
+
             const campanas = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).sort();
             selectedCampanas = new Set(campanas);
             renderMenuOptions('Campana', campanas, selectedCampanas);
@@ -683,6 +694,7 @@
 
         function calcularTotalesFiltros() {
             totalesFiltros.M = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).length;
+            totalesFiltros.S = [...new Set(globalData.map(i => String(getProp(i, ['Semana'], ''))))].filter(Boolean).length;
             totalesFiltros.C = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).length;
             totalesFiltros.F = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).length;
             totalesFiltros.I = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).length;
@@ -723,12 +735,25 @@
         }
 
         function onCheckboxChange(type, value, checked) {
-            let setRef = type === 'Mes' ? selectedMeses : (type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos));
+            let setRef;
+            if (type === 'Mes') setRef = selectedMeses;
+            else if (type === 'Semana') setRef = selectedSemanas;
+            else if (type === 'Campana') setRef = selectedCampanas;
+            else if (type === 'Fecha') setRef = selectedFechas;
+            else setRef = selectedIntervalos;
+
             if (checked) setRef.add(value); else setRef.delete(value);
 
-            if (type === 'Mes') {
-                const fechasInMes = [...new Set(globalData.filter(i => selectedMeses.has(getProp(i, ['Mes'], ''))).map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
-                selectedFechas = new Set(fechasInMes);
+            if (type === 'Mes' || type === 'Semana') {
+                const fechasInFiltered = [...new Set(globalData.filter(i => {
+                    const m = String(getProp(i, ['Mes'], ''));
+                    const s = String(getProp(i, ['Semana'], ''));
+                    const matchMes = selectedMeses.size === 0 || selectedMeses.has(m);
+                    const matchSemana = selectedSemanas.size === 0 || selectedSemanas.has(s);
+                    return matchMes && matchSemana;
+                }).map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
+                
+                selectedFechas = new Set(fechasInFiltered);
                 const allFechas = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
                 renderMenuOptions('Fecha', allFechas, selectedFechas);
             }
@@ -738,24 +763,28 @@
         }
 
         function selectAllFilter(type, selectAll) {
-            let setRef = type === 'Mes' ? selectedMeses : (type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos));
+            let setRef;
             let allOptions = [];
-            if (type === 'Mes') {
-                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean);
-            } else if (type === 'Campana') {
-                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean);
-            } else if (type === 'Fecha') {
-                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
-            } else {
-                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean);
-            }
-            if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
             
             if (type === 'Mes') {
+                setRef = selectedMeses;
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean);
                 allOptions.sort(ordenarMesesCronologicamente);
+            } else if (type === 'Semana') {
+                setRef = selectedSemanas;
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Semana'], ''))))].filter(Boolean).sort();
+            } else if (type === 'Campana') {
+                setRef = selectedCampanas;
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).sort();
+            } else if (type === 'Fecha') {
+                setRef = selectedFechas;
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
             } else {
-                allOptions.sort();
+                setRef = selectedIntervalos;
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
             }
+            
+            if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
             
             renderMenuOptions(type, allOptions, setRef);
             actualizarTextosBotones();
@@ -763,7 +792,7 @@
         }
 
         function toggleDropdown(type) {
-            ['Mes', 'Campana', 'Fecha', 'Intervalo'].forEach(t => {
+            ['Mes', 'Semana', 'Campana', 'Fecha', 'Intervalo'].forEach(t => {
                 if (t !== type) {
                     const menu = document.getElementById(`dropdown${t}Menu`);
                     if (menu) menu.classList.add('hidden');
@@ -774,7 +803,7 @@
         }
 
         window.addEventListener('click', function(e) {
-            ['Mes', 'Campana', 'Fecha', 'Intervalo'].forEach(type => {
+            ['Mes', 'Semana', 'Campana', 'Fecha', 'Intervalo'].forEach(type => {
                 const btn = document.getElementById(`btnDropdown${type}`);
                 const menu = document.getElementById(`dropdown${type}Menu`);
                 if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) {
@@ -789,6 +818,9 @@
             const btnMes = document.getElementById('mesSelectedText');
             if (btnMes) btnMes.innerText = `🗓️ MES (${selectedMeses.size}/${totalesFiltros.M})`;
             
+            const btnSemana = document.getElementById('semanaSelectedText');
+            if (btnSemana) btnSemana.innerText = `🗓️ SEM. (${selectedSemanas.size}/${totalesFiltros.S})`;
+
             document.getElementById('campanaSelectedText').innerText = `🎧 SELECC. (${selectedCampanas.size}/${totalesFiltros.C})`;
             document.getElementById('fechaSelectedText').innerText = `📅 SELECC. (${selectedFechas.size}/${totalesFiltros.F})`;
             document.getElementById('intervaloSelectedText').innerText = `⏰ SELECC. (${selectedIntervalos.size}/${totalesFiltros.I})`;
@@ -818,16 +850,18 @@
 
             const dfFiltered = globalData.filter(item => {
                 const m = String(getProp(item, ['Mes'], ''));
+                const s = String(getProp(item, ['Semana'], ''));
                 const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
                 const f = String(getProp(item, ['Fecha'], '')).split(' ')[0].split('T')[0];
                 const i = String(getProp(item, ['Intervalo'], '00:00'));
                 
                 const matchMes = selectedMeses.size === 0 || selectedMeses.has(m);
+                const matchSemana = selectedSemanas.size === 0 || selectedSemanas.has(s);
                 const matchCamp = selectedCampanas.size === 0 || selectedCampanas.has(c);
                 const matchFecha = selectedFechas.size === 0 || selectedFechas.has(f);
                 const matchInter = selectedIntervalos.size === 0 || selectedIntervalos.has(i);
 
-                return matchMes && matchCamp && matchFecha && matchInter;
+                return matchMes && matchSemana && matchCamp && matchFecha && matchInter;
             });
 
             const reforecastAlert = document.getElementById('reforecastAlert');
@@ -1349,12 +1383,13 @@
                 alert("No hay datos cargados para exportar.");
                 return;
             }
-            const headers = ["Campana", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT_HH_MM_SS", "Agentes_Requeridos_HC", "HC_Actual_Roster", "Factor_Reforecast"];
+            const headers = ["Campana", "Mes", "Semana", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT_HH_MM_SS", "Agentes_Requeridos_HC", "HC_Actual_Roster", "Factor_Reforecast"];
             const csvRows = [headers.join(",")];
             globalData.forEach(row => {
                 const values = [
                     getProp(row, ['Campaña', 'Campana'], 'General'),
                     getProp(row, ['Mes'], ''),
+                    getProp(row, ['Semana'], ''),
                     getProp(row, ['Fecha'], ''),
                     getProp(row, ['Día_Semana', 'Dia_Semana'], ''),
                     getProp(row, ['Intervalo'], '00:00'),
