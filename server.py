@@ -1,895 +1,1353 @@
-import os
-import math
-import gc
-import re
-import json
-from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, send_from_directory, make_response
-from flask_cors import CORS
-import pandas as pd
-import numpy as np
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CACHE_FILE = os.path.join(BASE_DIR, 'forecast_cache.json')
-CONFIG_FILE = os.path.join(BASE_DIR, 'wfm_config.json') 
-EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
-
-app = Flask(__name__)
-CORS(app)
-
-VENTANAS_SERVICIO = {
-    'ambulancia servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'asignación hogar': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'asignacion hogar': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'asignación vial': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'asignacion vial': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'coppel servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'liverpool servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'multicampañas': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'multicampanas': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'seguimiento hogar': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'seguimiento vial': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'suburbia servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
-    'experiencias liverpool': {'inicio': 9 * 60, 'fin': 21 * 60},
-    'experiencias suburbia': {'inicio': 9 * 60, 'fin': 21 * 60},
-    'retenciones suburbia': {'inicio': 9 * 60, 'fin': 20 * 60},
-    'retenciones liverpool': {'inicio': 9 * 60, 'fin': 20 * 60}
-}
-
-# --- BUSCADOR UNIVERSAL DE ARCHIVO EXCEL ---
-def buscar_archivo_excel():
-    if os.path.exists(EXCEL_DEFAULT):
-        return EXCEL_DEFAULT
-    try:
-        archivos = [f for f in os.listdir(BASE_DIR) if f.lower().endswith('.xlsx') and not f.startswith('~')]
-        if not archivos:
-            return None
-        for f in archivos:
-            if 'historico' in f.lower():
-                return os.path.join(BASE_DIR, f)
-        return os.path.join(BASE_DIR, archivos[0])
-    except Exception:
-        return None
-
-@app.route('/')
-@app.route('/index.html')
-def serve_index():
-    rutas_a_buscar = [BASE_DIR, os.getcwd(), os.path.dirname(BASE_DIR)]
-    for ruta in rutas_a_buscar:
-        target_path = os.path.join(ruta, 'index.html')
-        if os.path.exists(target_path):
-            response = make_response(send_from_directory(ruta, 'index.html'))
-            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-            response.headers['Pragma'] = 'no-cache'
-            response.headers['Expires'] = '0'
-            return response
-    return jsonify({"error": "ALERTA CRÍTICA: No se encontró el archivo index.html en el servidor."}), 404
-
-@app.route('/favicon.ico')
-def favicon():
-    return '', 204
-
-@app.route('/logo.png')
-def serve_logo():
-    return send_from_directory(BASE_DIR, 'logo.png')
-
-@app.route('/api/config', methods=['GET', 'POST'])
-def manage_config():
-    if request.method == 'POST':
-        try:
-            new_config = request.get_json(force=True)
-            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-                json.dump(new_config, f)
-            return jsonify({'status': 'Configuración guardada exitosamente'}), 200
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
-    else:
-        if os.path.exists(CONFIG_FILE):
-            try:
-                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-                    return jsonify(json.load(f)), 200
-            except:
-                pass
-        return jsonify({
-            'targetSl': 80,
-            'targetTime': 20,
-            'merma': 30,
-            'duracionJornada': 8,
-            'chkNocturno': False,
-            'chkPicos': False
-        }), 200
-
-def clean_num(val, default=0.0):
-    if pd.isna(val) or val is None: return default
-    try:
-        val_str = str(val).strip().replace(',', '.')
-        val_str = re.sub(r'[^0-9.]', '', val_str)
-        return float(val_str) if val_str else default
-    except Exception:
-        return default
-
-def parse_aht_to_seconds(val):
-    if pd.isna(val) or val is None: return 180.0
-    secs = 180.0
-    if isinstance(val, (int, float)):
-        secs = float(val)
-    elif hasattr(val, 'hour') and hasattr(val, 'minute') and hasattr(val, 'second'):
-        secs = val.hour * 3600 + val.minute * 60 + val.second
-    else:
-        val_str = str(val).strip()
-        if ':' in val_str:
-            parts = val_str.split(':')
-            try:
-                if len(parts) == 3: secs = int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
-                elif len(parts) == 2: secs = int(parts[0]) * 60 + float(parts[1])
-            except: pass
-        else:
-            try: secs = float(val_str)
-            except: pass
-    if 0 < secs <= 15: secs = secs * 60.0
-    return secs if secs > 0 else 180.0
-
-def format_aht_str(seconds):
-    if pd.isna(seconds) or seconds is None or seconds <= 0: return "00:00:00"
-    secs = int(round(seconds))
-    hrs = secs // 3600
-    mins = (secs % 3600) // 60
-    s = secs % 60
-    return f"{hrs:02d}:{mins:02d}:{s:02d}"
-
-ERLANG_CACHE = {}
-
-def erlang_c_sl_optimizado(A, N, AHT, target_time):
-    if N <= A or A <= 0 or N <= 0: return 0.0
-    key = (round(A, 2), N, round(AHT, 1), target_time)
-    if key in ERLANG_CACHE:
-        return ERLANG_CACHE[key]
-        
-    try:
-        sum_terms, current_term = 1.0, 1.0
-        int_N = min(int(N), 1000)
-        for k in range(1, int_N):
-            current_term *= (A / k)
-            sum_terms += current_term
-        last_term = current_term * (A / N) / (1.0 - (A / N))
-        pw = last_term / (sum_terms + last_term)
-        intensity = N - A
-        sl = 1.0 - (pw * math.exp(-intensity * (target_time / AHT)))
-        resultado = round(max(0.0, min(100.0, sl * 100.0)), 1)
-        ERLANG_CACHE[key] = resultado
-        return resultado
-    except: return 0.0
-
-def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
-    if A <= 0 or aht <= 0: return 0
-    n = max(1, int(math.floor(A)) + 1)
-    while n < 1000:
-        if erlang_c_sl_optimizado(A, n, aht, target_time) >= target_sl: return n
-        n += 1
-    return n
-
-def parse_time_str(t_str):
-    if not t_str: return None
-    t = str(t_str).lower().replace('hrs', '').replace(' ', '')
-    is_pm = 'pm' in t
-    is_am = 'am' in t
-    t = t.replace('am', '').replace('pm', '')
-    t = re.sub(r'[^\d:]', '', t)
-    if not t: return None
-    if ':' not in t: t += ':00'
-    try:
-        parts = t.split(':')
-        hh, mm = int(parts[0]), int(parts[1])
-        if is_pm and hh < 12: hh += 12
-        if is_am and hh == 12: hh = 0
-        return hh * 60 + mm
-    except: return None
-
-def esta_en_ventana_servicio(campana, intervalo_str):
-    camp_key = str(campana).strip().lower()
-    minutos_inter = parse_time_str(intervalo_str)
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+    <meta http-equiv="Pragma" content="no-cache"/>
+    <meta http-equiv="Expires" content="0"/>
+    <title>Workforce Capacity Forecast — C-Suite Analytics</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    if minutos_inter is None: 
-        return True
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            bg: '#070B14',
+                            surface: '#111827',
+                            border: '#1F2937', 
+                            primary: '#3B82F6', 
+                            primaryHover: '#60A5FA',
+                            accentCyan: '#22D3EE',
+                            accentViolet: '#A78BFA',
+                            accentEmerald: '#34D399',
+                            accentRose: '#FB7185',
+                            accentAmber: '#FBBF24'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: #070B14; 
+            color: #E2E8F0; 
+        }
+        .glass-panel { 
+            background-color: #111827; 
+            border: 1px solid #1F2937; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+        }
+        .glass-panel-hover {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass-panel-hover:hover {
+            border-color: #3B82F6;
+            transform: translateY(-3px);
+            box-shadow: 0 12px 20px -8px rgba(59, 130, 246, 0.3);
+        }
+        .font-mono-num {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #070B14; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 99px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
         
-    for key, ventana in VENTANAS_SERVICIO.items():
-        if key in camp_key or camp_key in key:
-            return ventana['inicio'] <= minutos_inter < ventana['fin']
-            
-    return True
+        .input-clean {
+            background-color: #0F172A;
+            border: 1px solid #334155;
+            color: #F8FAFC;
+            transition: all 0.2s;
+        }
+        .input-clean:focus {
+            outline: none;
+            border-color: #3B82F6;
+            box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.5);
+        }
+    </style>
+</head>
+<body class="p-6 md:p-8 min-h-screen">
 
-def encontrar_columna(df, posibles_nombres):
-    for pos in posibles_nombres:
-        for col_orig in df.columns:
-            col_clean = str(col_orig).strip().lower()
-            if pos.strip().lower() == col_clean or pos.strip().lower() in col_clean:
-                return col_orig
-    return None
+    <header class="flex justify-between items-center bg-[#111827] border border-[#1F2937] shadow-lg rounded-2xl p-6 mb-8 relative flex-wrap gap-4">
+        <div class="flex items-center gap-5 z-10">
+            <svg class="h-12 w-12 flex-shrink-0 text-brand-accentCyan transition-transform hover:scale-110 duration-300 drop-shadow-[0_0_10px_rgba(34,211,238,0.4)]" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="100" cy="100" r="85" stroke="#3B82F6" stroke-width="12" stroke-linecap="round" stroke-dasharray="350 150" transform="rotate(-45 100 100)"/>
+                <circle cx="100" cy="100" r="65" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-dasharray="150 250" transform="rotate(135 100 100)"/>
+                <circle cx="100" cy="75" r="16" fill="#3B82F6"/>
+                <path d="M75 130 C75 110 125 110 125 130 L125 140 L75 140 Z" fill="#3B82F6"/>
+                <circle cx="60" cy="95" r="12" fill="currentColor"/>
+                <path d="M40 140 C40 125 80 125 80 140 Z" fill="currentColor"/>
+                <circle cx="140" cy="95" r="12" fill="currentColor"/>
+                <path d="M120 140 C120 125 160 125 160 140 Z" fill="currentColor"/>
+            </svg>
 
-def calc_mae(y_true, y_pred):
-    return float(np.mean(np.abs(np.array(y_true) - np.array(y_pred))))
+            <div>
+                <div class="flex items-center gap-3">
+                    <h1 class="text-2xl font-bold text-white tracking-tight">Workforce Capacity Forecast</h1>
+                    <span id="tagModoOps" class="hidden text-[10px] bg-brand-primary/20 text-brand-primary border border-brand-primary/40 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider drop-shadow-md">Vista Operaciones</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer</p>
+            </div>
+        </div>
 
-def entrenar_ridge_ml(X, y, l2_reg=10.0):
-    X_b = np.c_[np.ones((X.shape[0], 1)), X]
-    mean = np.mean(X_b[:, 1:], axis=0)
-    std = np.std(X_b[:, 1:], axis=0) + 1e-8
-    X_norm = X_b.copy()
-    X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
-    I = np.eye(X_norm.shape[1])
-    I[0, 0] = 0.0
-    try:
-        weights = np.linalg.inv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
-    except np.linalg.LinAlgError:
-        weights = np.linalg.pinv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
-    return weights, mean, std
+        <div id="containerShowSidebar" class="z-10 ml-auto hidden">
+            <button onclick="toggleSidebar()" class="bg-[#1E293B] hover:bg-[#334155] text-slate-200 border border-[#475569] px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 font-mono shadow-lg">
+                <span class="text-brand-accentCyan drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">▶</span> Mostrar Parámetros
+            </button>
+        </div>
+    </header>
 
-def predecir_ridge_ml(weights, mean, std, X_new):
-    n_rows = X_new.shape[0] if hasattr(X_new, 'shape') else len(X_new)
-    X_b = np.c_[np.ones((n_rows, 1)), X_new]
-    X_norm = X_b.copy()
-    X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
-    pred = X_norm @ weights
-    return float(pred[0])
+    <div class="grid grid-cols-12 gap-8">
 
-def extraer_features_fecha(fecha, volumenes_hist, trend_idx):
-    day_of_week = fecha.weekday()
-    day_of_month = fecha.day
-    is_weekend = 1.0 if day_of_week >= 5 else 0.0
-    is_quincena = 1.0 if day_of_month in [1, 15, 16, 30, 31] else 0.0
-    lag_1 = volumenes_hist[-1] if len(volumenes_hist) >= 1 else 100.0
-    lag_7 = volumenes_hist[-7] if len(volumenes_hist) >= 7 else lag_1
-    lag_14 = volumenes_hist[-14] if len(volumenes_hist) >= 14 else lag_7
-    dow_encoded = [1.0 if day_of_week == i else 0.0 for i in range(7)]
-    return [lag_1, lag_7, lag_14, float(day_of_month), is_weekend, is_quincena, float(trend_idx)] + dow_encoded
+        <!-- SIDEBAR DE PARÁMETROS -->
+        <aside id="panelControl" class="col-span-12 lg:col-span-3 glass-panel p-6 rounded-[1.5rem] space-y-6 h-fit transition-all duration-300 relative overflow-hidden">
+            <div class="absolute -top-10 -right-10 w-32 h-32 bg-brand-accentViolet/10 rounded-full blur-3xl pointer-events-none"></div>
 
-def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=30):
-    n = len(series)
-    if n < season_len * 2:
-        return [np.mean(series) if len(series) > 0 else 100.0] * n_preds
-    level = np.mean(series[:season_len])
-    trend = (np.mean(series[season_len:2*season_len]) - np.mean(series[:season_len])) / season_len
-    seasonals = [series[i] - level for i in range(season_len)]
-    for i in range(n):
-        val = series[i]
-        last_level, last_trend = level, trend
-        st_prev = seasonals[i % season_len]
-        level = alpha * (val - st_prev) + (1 - alpha) * (last_level + last_trend)
-        trend = beta * (level - last_level) + (1 - beta) * last_trend
-        seasonals[i % season_len] = gamma * (val - level) + (1 - gamma) * st_prev
-    preds = []
-    for m in range(1, n_preds + 1):
-        p = level + m * trend + seasonals[(n + m - 1) % season_len]
-        preds.append(max(0.0, float(p)))
-    return preds
+            <button onclick="toggleSidebar()" class="w-full bg-[#111827] hover:bg-[#1E293B] text-slate-200 border border-[#1F2937] px-4 py-3.5 rounded-[14px] text-[11px] font-bold transition-all flex items-center justify-center gap-2 font-mono relative z-10 shadow-sm">
+                <span class="text-brand-accentCyan drop-shadow-sm">◀</span> Ocultar Parámetros
+            </button>
 
-def grid_search_auto_hw(series, n_preds=30):
-    return holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=n_preds)
+            <div class="flex items-center justify-between pb-4 border-b border-[#1F2937] relative z-10 mt-4">
+                <h2 class="text-xs font-extrabold text-white uppercase tracking-widest flex items-center gap-2">
+                    <span class="text-slate-300">⚙️</span> KEY ASSUMPTIONS
+                </h2>
+            </div>
 
-def limpiar_outliers_iqr(series_list):
-    if len(series_list) < 14:
-        return list(series_list)
-    arr = np.array(series_list)
-    q25, q75 = np.percentile(arr, 25), np.percentile(arr, 75)
-    iqr = q75 - q25
-    lower, upper = q25 - 1.5 * iqr, q75 + 1.5 * iqr
-    return np.clip(arr, lower, upper).tolist()
+            <div class="space-y-4 pt-2 relative z-10">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="flex flex-col group">
+                        <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentEmerald transition-colors">Target SL (%)</label>
+                        <input type="number" id="targetSl" value="80" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentEmerald font-mono-num font-bold focus:border-brand-accentEmerald focus:ring-1 focus:ring-brand-accentEmerald focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
+                    </div>
+                    <div class="flex flex-col group">
+                        <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-white transition-colors">Target ASA (s)</label>
+                        <input type="number" id="targetTime" value="20" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-white font-mono-num font-bold focus:border-white focus:ring-1 focus:ring-white focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
+                    </div>
+                </div>
 
-def generar_intervalos_cobertura(start_min, end_min):
-    intervals = []
-    if start_min < end_min:
-        curr = start_min
-        while curr < end_min:
-            hh = curr // 60
-            mm = curr % 60
-            intervals.append(f"{int(hh):02d}:{int(mm):02d}")
-            curr += 30
-    else: 
-        curr = start_min
-        while curr < 24 * 60:
-            hh = curr // 60
-            mm = curr % 60
-            intervals.append(f"{int(hh):02d}:{int(mm):02d}")
-            curr += 30
-        curr = 0
-        while curr < end_min:
-            hh = curr // 60
-            mm = curr % 60
-            intervals.append(f"{int(hh):02d}:{int(mm):02d}")
-            curr += 30
-    return intervals
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="flex flex-col group">
+                        <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentRose transition-colors">Shrinkage (%)</label>
+                        <input type="number" id="merma" value="30" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentRose font-mono-num font-bold focus:border-brand-accentRose focus:ring-1 focus:ring-brand-accentRose focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
+                    </div>
+                    <div class="flex flex-col group">
+                        <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentAmber transition-colors">Jornada (Hrs)</label>
+                        <input type="number" id="duracionJornada" value="6.5" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentAmber font-mono-num font-bold focus:border-brand-accentAmber focus:ring-1 focus:ring-brand-accentAmber focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
+                    </div>
+                </div>
 
-def procesar_hoja_roster(df_roster):
-    dias_map = {'lunes': 'Lunes', 'martes': 'Martes', 'miércoles': 'Miércoles', 'miercoles': 'Miércoles', 
-                'jueves': 'Jueves', 'viernes': 'Viernes', 'sábado': 'Sábado', 'sabado': 'Sábado', 'domingo': 'Domingo'}
-    
-    roster_cov = {} 
-    roster_total_camp = {}
-    roster_total_dia_camp = {} 
-    
-    col_camp = encontrar_columna(df_roster, ['campaña', 'campana', 'skill', 'servicio'])
-    if not col_camp:
-        return roster_cov, roster_total_camp, roster_total_dia_camp
-        
-    for idx, row in df_roster.iterrows():
-        camp = str(row[col_camp]).strip().title()
-        if camp == 'Nan' or camp == '': continue
-        
-        roster_total_camp[camp] = roster_total_camp.get(camp, 0) + 1
-        
-        for col in df_roster.columns:
-            col_lower = str(col).lower().strip()
-            if col_lower in dias_map:
-                dia_real = dias_map[col_lower]
-                horario = str(row[col]).strip().upper()
-                
-                if horario != 'DD-DD' and 'NAN' not in horario and horario != '' and '-' in horario:
-                    key_dia = (camp, dia_real)
-                    roster_total_dia_camp[key_dia] = roster_total_dia_camp.get(key_dia, 0) + 1
+                <div class="flex flex-col group pt-1">
+                    <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-white transition-colors">Horizonte (Días)</label>
+                    <input type="number" id="dias" value="11" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-white font-mono-num font-bold focus:border-brand-primary focus:ring-1 focus:ring-brand-primary focus:outline-none transition-all shadow-inner"/>
+                </div>
+
+                <div class="pt-6 space-y-6">
+                    <label class="flex items-center justify-between cursor-pointer group">
+                        <div class="flex items-center gap-3">
+                            <span class="text-brand-accentAmber text-lg drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]">🌙</span>
+                            <span class="text-[13px] text-white font-bold transition-colors tracking-wide">Turno Nocturno</span>
+                        </div>
+                        <div class="relative">
+                            <input type="checkbox" id="chkNocturno" onchange="debouncedActualizarGrafica()" class="sr-only peer" checked>
+                            <div class="w-[42px] h-[22px] bg-[#1E293B] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#A78BFA] peer-checked:shadow-[0_0_10px_rgba(167,139,250,0.5)]"></div>
+                        </div>
+                    </label>
                     
-                    parts = horario.split('-')
-                    if len(parts) == 2:
-                        start_min = parse_time_str(parts[0].strip())
-                        end_min = parse_time_str(parts[1].strip())
-                        
-                        if start_min is not None and end_min is not None:
-                            intervals = generar_intervalos_cobertura(start_min, end_min)
-                            for inv in intervals:
-                                key = (camp, dia_real, inv)
-                                roster_cov[key] = roster_cov.get(key, 0) + 1
-                                
-    return roster_cov, roster_total_camp, roster_total_dia_camp
+                    <label class="flex items-center justify-between cursor-pointer group">
+                        <div class="flex items-center gap-3">
+                            <span class="text-brand-accentRose text-lg drop-shadow-[0_0_5px_rgba(251,113,133,0.5)]">🔥</span>
+                            <span class="text-[13px] text-white font-bold transition-colors tracking-wide">Staffing x Picos</span>
+                        </div>
+                        <div class="relative">
+                            <input type="checkbox" id="chkPicos" onchange="debouncedActualizarGrafica()" class="sr-only peer" checked>
+                            <div class="w-[42px] h-[22px] bg-[#1E293B] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#FB7185] peer-checked:shadow-[0_0_10px_rgba(251,113,133,0.5)]"></div>
+                        </div>
+                    </label>
+                </div>
+            </div>
 
-def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=30):
-    xls_file = pd.ExcelFile(file_source, engine='openpyxl')
-    
-    sheet_calls = xls_file.sheet_names[0]
-    for s in xls_file.sheet_names:
-        if 'llam' in s.lower() or 'hist' in s.lower() or 'datos' in s.lower():
-            sheet_calls = s
-            break
-            
-    sheet_roster = None
-    for s in xls_file.sheet_names:
-        if 'roster' in s.lower() or 'plantilla' in s.lower() or 'horario' in s.lower():
-            sheet_roster = s
-            break
+            <button id="btnProcesar" onclick="procesarWFM()" class="w-full bg-gradient-to-r from-[#3B82F6] to-[#22D3EE] hover:from-[#2563EB] hover:to-[#06B6D4] text-white font-extrabold py-4 px-4 rounded-[14px] text-[13px] transition-all shadow-[0_4px_15px_-3px_rgba(34,211,238,0.4)] hover:shadow-[0_8px_25px_-5px_rgba(34,211,238,0.6)] uppercase tracking-wider mt-8 relative z-10">
+                ▶ RUN PLAN
+            </button>
+        </aside>
 
-    roster_coverage = {}
-    roster_total_camp = {}
-    roster_total_dia_camp = {}
-    
-    if sheet_roster:
-        try:
-            df_roster = pd.read_excel(xls_file, sheet_name=sheet_roster, engine='openpyxl')
-            roster_coverage, roster_total_camp, roster_total_dia_camp = procesar_hoja_roster(df_roster)
-        except Exception as e:
-            pass
+        <!-- DASHBOARD PRINCIPAL -->
+        <main id="dashboardMain" class="col-span-12 lg:col-span-9 space-y-6 transition-all duration-300">
 
-    df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
-
-    col_calls = encontrar_columna(df_raw, ['recibidas', 'llamadas', 'calls', 'volumen', 'ofrecidas', 'entrada'])
-    col_aht = encontrar_columna(df_raw, ['aht', 'tmo', 'handle', 'duracion'])
-    col_camp = encontrar_columna(df_raw, ['campaña', 'campana', 'skill', 'servicio', 'ring group'])
-    col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
-    col_fecha = encontrar_columna(df_raw, ['fecha', 'date'])
-
-    if not col_camp: col_camp = df_raw.columns[0]
-    if not col_fecha: col_fecha = df_raw.columns[1]
-    if not col_inter: col_inter = df_raw.columns[2]
-    if not col_calls: col_calls = df_raw.columns[3]
-
-    df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
-    
-    df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce', dayfirst=True).dt.normalize()
-    df_raw = df_raw.dropna(subset=[col_fecha])
-    if df_raw.empty:
-        raise ValueError("Error Crítico: No se pudieron leer las fechas. Revisa que la columna de fechas en tu Excel.")
-    
-    df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
-
-    df_valido = df_raw[df_raw[col_calls] > 0]
-    if df_valido.empty:
-        raise ValueError("Error Crítico: El archivo no tiene volumen de llamadas mayor a cero.")
-    
-    max_fecha_real = df_valido[col_fecha].max()
-    
-    # --- CANDADO DE 1 AÑO ---
-    fecha_limite = max_fecha_real - timedelta(days=365)
-    df_raw = df_raw[(df_raw[col_fecha] >= fecha_limite) & (df_raw[col_fecha] <= max_fecha_real)]
-
-    if col_aht:
-        df_raw[col_aht] = [parse_aht_to_seconds(x) for x in df_raw[col_aht]]
-    else:
-        df_raw['AHT_Calc'] = 180.0
-        col_aht = 'AHT_Calc'
-
-    df_raw['Total_Segundos_Handle'] = df_raw[col_calls] * df_raw[col_aht]
-    df_raw['Inter_Clean'] = [':'.join(str(x).strip().split(':')[:2]) if len(str(x).strip().split(':')) == 3 else str(x).strip() for x in df_raw[col_inter]]
-
-    df = df_raw.groupby([col_fecha, col_camp, 'Inter_Clean']).agg({
-        col_calls: 'sum',
-        'Total_Segundos_Handle': 'sum'
-    }).reset_index()
-
-    df[col_aht] = np.where(df[col_calls] > 0, df['Total_Segundos_Handle'] / df[col_calls], 180.0)
-    df = df.drop(columns=['Total_Segundos_Handle'])
-    df[col_inter] = df['Inter_Clean']
-
-    dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
-    meses_espanol = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-
-    df['Dia_Semana_Clean'] = df[col_fecha].dt.weekday.apply(lambda w: dias_espanol[w])
-
-    fecha_maxima = df[col_fecha].max()
-    if pd.isna(fecha_maxima):
-        fecha_maxima = pd.to_datetime(datetime.now()).normalize()
-        
-    fecha_inicio_forecast = fecha_maxima + timedelta(days=1)
-    
-    aht_global_campana = df.groupby(col_camp)[col_aht].apply(lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 180.0).to_dict()
-
-    df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
-    campanas_unicas = df[col_camp].unique()
-
-    modelos_ml, historial_volumenes, hw_forecasts, pesos_campana = {}, {}, {}, {}
-
-    for camp in campanas_unicas:
-        sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
-        fechas_list = sub[col_fecha].tolist()
-        volumenes_list = limpiar_outliers_iqr(sub[col_calls].tolist())
-        historial_volumenes[camp] = list(volumenes_list)
-        
-        vols = list(volumenes_list)
-        n = len(vols)
-        
-        peso_hw = 0.65
-        peso_ridge = 0.35
-        factor_ajuste = 1.0
-
-        if n >= 21:
-            train_vols = vols[:-7]
-            val_vols = vols[-7:]
-            
-            hw_val_preds = grid_search_auto_hw(train_vols, n_preds=7)
-            
-            X_train_bt, y_train_bt = [], []
-            for i in range(14, len(train_vols)):
-                feat = extraer_features_fecha(fechas_list[i], train_vols[:i], trend_idx=i)
-                X_train_bt.append(feat)
-                y_train_bt.append(train_vols[i])
-            
-            if len(X_train_bt) > 5:
-                w_bt, m_bt, s_bt = entrenar_ridge_ml(np.array(X_train_bt), np.array(y_train_bt), l2_reg=10.0)
-                ridge_val_preds = []
-                for i in range(7):
-                    f_idx = len(train_vols) + i
-                    feat = extraer_features_fecha(fechas_list[f_idx], train_vols + val_vols[:i], trend_idx=f_idx)
-                    pred_r = predecir_ridge_ml(w_bt, m_bt, s_bt, np.array([feat]))
-                    ridge_val_preds.append(max(0, pred_r))
+            <!-- FILTROS -->
+            <div class="glass-panel p-4 rounded-2xl flex justify-between items-center flex-wrap gap-4 relative z-50 overflow-visible border-[#1F2937]">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-brand-primary/20 text-brand-primary rounded-lg text-sm border border-brand-primary/30 drop-shadow-md flex items-center justify-center" style="width: 32px; height: 32px;">
+                        <span style="font-size: 16px;">🎯</span>
+                    </div>
+                    <div>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Filtros Operativos</p>
+                        <p id="tableSelectionLabel" class="text-xs text-slate-200 font-medium">Selecciona parámetros para analizar</p>
+                    </div>
+                </div>
                 
-                error_hw = calc_mae(val_vols, hw_val_preds) + 1e-5
-                error_ridge = calc_mae(val_vols, ridge_val_preds) + 1e-5
+                <div class="flex items-center gap-3 flex-wrap">
+                    <button id="btnResetTableFilter" onclick="resetAllFilters()" class="text-xs text-slate-400 hover:text-white underline decoration-slate-600 underline-offset-4 mr-2 transition-colors">
+                        Resetear
+                    </button>
+
+                    <div class="flex flex-col relative group">
+                        <button id="btnDropdownMes" onclick="toggleDropdown('Mes')" class="bg-[#0B1121] border border-[#1F2937] hover:border-brand-accentCyan text-xs rounded-xl px-4 py-2.5 text-white font-mono-num font-bold transition-all min-w-[130px] flex items-center justify-between gap-3 shadow-sm">
+                            <span id="mesSelectedText">Mes (0)</span>
+                            <span class="text-[10px] text-brand-accentCyan">▼</span>
+                        </button>
+                        <div id="dropdownMesMenu" class="hidden absolute top-full left-0 mt-2 w-56 max-h-60 bg-[#111827] border border-brand-accentCyan/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
+                    </div>
+
+                    <div class="flex flex-col relative group">
+                        <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-[#0B1121] border border-[#1F2937] hover:border-brand-accentViolet text-xs rounded-xl px-4 py-2.5 text-white font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
+                            <span id="campanaSelectedText">Campaña (0)</span>
+                            <span class="text-[10px] text-brand-accentViolet">▼</span>
+                        </button>
+                        <div id="dropdownCampanaMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#111827] border border-brand-accentViolet/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
+                    </div>
+
+                    <div id="containerFiltroFecha" class="flex flex-col relative group">
+                        <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-[#0B1121] border border-[#1F2937] hover:border-brand-accentEmerald text-xs rounded-xl px-4 py-2.5 text-white font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
+                            <span id="fechaSelectedText">Fecha (0)</span>
+                            <span class="text-[10px] text-brand-accentEmerald">▼</span>
+                        </button>
+                        <div id="dropdownFechaMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#111827] border border-brand-accentEmerald/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
+                    </div>
+
+                    <div class="flex flex-col relative group">
+                        <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-[#0B1121] border border-[#1F2937] hover:border-brand-accentAmber text-xs rounded-xl px-4 py-2.5 text-white font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
+                            <span id="intervaloSelectedText">Intervalo (0)</span>
+                            <span class="text-[10px] text-brand-accentAmber">▼</span>
+                        </button>
+                        <div id="dropdownIntervaloMenu" class="hidden absolute top-full right-0 mt-2 w-64 max-h-60 bg-[#111827] border border-brand-accentAmber/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ALERTA REFORECAST -->
+            <div id="reforecastAlert" class="hidden glass-panel border-l-4 border-l-brand-accentAmber p-4 rounded-xl mb-4 flex items-center gap-4 bg-brand-accentAmber/10 shadow-[0_0_15px_rgba(251,191,36,0.15)]">
+                <div class="text-2xl drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]">⚠️</div>
+                <div>
+                    <h4 class="text-xs uppercase tracking-widest text-brand-accentAmber font-extrabold drop-shadow-sm">Reforecast Dinámico Activado</h4>
+                    <p id="reforecastMsg" class="text-xs text-amber-100/80 mt-1 font-medium">El algoritmo detectó un quiebre de tendencia y ajustó la proyección.</p>
+                </div>
+            </div>
+
+            <!-- 4 CARDS PRINCIPALES -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 
-                total_inv_error = (1.0 / error_hw) + (1.0 / error_ridge)
-                peso_hw = (1.0 / error_hw) / total_inv_error
-                peso_ridge = (1.0 / error_ridge) / total_inv_error
+                <div class="glass-panel glass-panel-hover p-5 rounded-xl relative overflow-hidden flex flex-col justify-between">
+                    <div class="flex justify-between items-start">
+                        <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Demanda Total</p>
+                        <div class="p-1.5 bg-slate-800/40 rounded-lg text-slate-300 border border-slate-700/50 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
+                        </div>
+                    </div>
+                    <p id="kpiCalls" class="text-3xl font-black font-mono-num mt-2 text-white drop-shadow-sm">0</p>
+                </div>
+
+                <div class="glass-panel glass-panel-hover p-5 rounded-xl relative overflow-hidden border-t-2 border-t-brand-accentCyan shadow-[0_4px_15px_-5px_rgba(34,211,238,0.15)] flex flex-col justify-between">
+                    <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-accentCyan/10 rounded-full blur-xl pointer-events-none"></div>
+                    <div class="flex justify-between items-start relative z-10">
+                        <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">AHT Promedio</p>
+                        <div class="p-1.5 bg-brand-accentCyan/10 rounded-lg text-brand-accentCyan border border-brand-accentCyan/20 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                    </div>
+                    <p id="kpiAht" class="text-3xl font-black font-mono-num mt-2 text-brand-accentCyan drop-shadow-[0_0_8px_rgba(34,211,238,0.3)] relative z-10">00:00:00</p>
+                </div>
+
+                <div class="glass-panel glass-panel-hover p-5 rounded-xl border-t-2 border-t-brand-accentViolet shadow-[0_4px_15px_-5px_rgba(167,139,250,0.15)] relative overflow-hidden flex flex-col justify-between">
+                    <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-accentViolet/10 rounded-full blur-xl pointer-events-none"></div>
+                    <div class="flex justify-between items-start relative z-10">
+                        <p id="kpiHcRequeridoTitle" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">HC Requerido</p>
+                        <div class="p-1.5 bg-brand-accentViolet/10 rounded-lg text-brand-accentViolet border border-brand-accentViolet/20 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                        </div>
+                    </div>
+                    <div class="relative z-10 mt-2">
+                        <p id="kpiHcRequerido" class="text-3xl font-black font-mono-num text-brand-accentViolet drop-shadow-[0_0_8px_rgba(167,139,250,0.3)]">0 HC</p>
+                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium">Plantilla total sugerida para el periodo</p>
+                    </div>
+                </div>
+
+                <div class="glass-panel glass-panel-hover p-5 rounded-xl border-t-2 border-t-brand-accentEmerald shadow-[0_4px_15px_-5px_rgba(52,211,153,0.15)] relative overflow-hidden flex flex-col justify-between">
+                    <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-accentEmerald/10 rounded-full blur-xl pointer-events-none"></div>
+                    <div class="flex justify-between items-start relative z-10">
+                        <p id="kpiHcRosterTitle" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">HC Disponible</p>
+                        <div class="p-1.5 bg-brand-accentEmerald/10 rounded-lg text-brand-accentEmerald border border-brand-accentEmerald/20 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                        </div>
+                    </div>
+                    <div class="relative z-10 mt-2">
+                        <div class="flex items-center gap-3">
+                            <p id="kpiHcRoster" class="text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)]">0 HC</p>
+                            <p id="kpiHcGap" class="text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] border border-[#334155] text-slate-300 font-mono-num shadow-inner">0</p>
+                        </div>
+                        <p id="kpiHcRosterSub" class="text-[10px] text-slate-500 mt-1 font-medium">Total de agentes contratados en Roster</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MÓDULO 2: OPTIMIZACIÓN DE HORARIOS -->
+            <div id="modOptimizacion" class="glass-panel p-6 rounded-2xl relative transition-all duration-300">
+                <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
+                    <div>
+                        <h3 id="optModuleTitle" class="text-[15px] font-extrabold text-white flex items-center gap-2 tracking-wide">
+                            <span class="text-brand-primary drop-shadow-[0_0_5px_rgba(59,130,246,0.6)]">📈</span> Capacity Plan (Roster Semanal)
+                        </h3>
+                        <p id="subtHeadcountMod" class="text-[11px] text-slate-400 mt-1 font-medium">Distribución de días de descanso para cubrir la demanda requerida</p>
+                    </div>
+                    <button onclick="exportarTurnosCSV()" class="bg-[#1E293B] hover:bg-brand-primary/20 text-slate-200 hover:text-brand-primary border border-[#334155] hover:border-brand-primary/50 text-xs py-2 px-4 rounded-lg transition-all duration-200 font-bold shadow-md">
+                        📥 Export Plan
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="bg-[#0F172A] p-4 rounded-xl border border-[#1F2937] shadow-inner relative overflow-hidden group">
+                        <div class="absolute inset-0 bg-brand-accentEmerald/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Projected SL (Con Malla)</p>
+                        <div class="my-1">
+                            <span id="compSlOptimo" class="text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)] block">--%</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-[#0F172A] p-4 rounded-xl border border-[#1F2937] shadow-inner relative overflow-hidden group">
+                        <div class="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <p id="lblHeadcountType" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Required HC (A Contratar)</p>
+                        <div class="my-1">
+                            <p id="optHeadcount" class="text-3xl font-black font-mono-num text-white drop-shadow-sm">--</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="h-64 mb-6 relative">
+                    <canvas id="optChart"></canvas>
+                </div>
+
+                <!-- TABLA ROSTER SEMANAL -->
+                <div class="overflow-x-auto overflow-y-auto max-h-[350px] border border-[#1F2937] rounded-xl bg-[#0F172A] shadow-inner">
+                    <table class="w-full text-center text-xs text-slate-300">
+                        <thead class="bg-[#111827] text-slate-400 font-bold text-[10px] uppercase tracking-wider sticky top-0 border-b border-[#334155] z-10 shadow-sm">
+                            <tr>
+                                <th class="py-3.5 px-4 border-r border-[#334155] w-16 text-brand-accentAmber">HC</th>
+                                <th class="py-3.5 px-2">Lunes</th>
+                                <th class="py-3.5 px-2">Martes</th>
+                                <th class="py-3.5 px-2">Miércoles</th>
+                                <th class="py-3.5 px-2">Jueves</th>
+                                <th class="py-3.5 px-2">Viernes</th>
+                                <th class="py-3.5 px-2">Sábado</th>
+                                <th class="py-3.5 px-2">Domingo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="optShiftsTableBody" class="divide-y divide-[#1F2937] font-mono-num text-[11px]">
+                            <tr>
+                                <td colspan="8" class="text-center py-8 text-slate-500 font-sans font-medium">Selecciona filtros para procesar turnos...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- MÓDULO 3: MATRIZ GAP -->
+            <div class="glass-panel p-6 rounded-2xl border-t-2 border-t-brand-accentAmber shadow-[0_4px_15px_-5px_rgba(251,191,36,0.15)] relative overflow-hidden">
+                <div class="flex justify-between items-center mb-6 relative z-10">
+                    <h3 class="text-[15px] font-extrabold text-white flex items-center gap-2 tracking-wide">
+                        <span class="text-brand-accentAmber drop-shadow-[0_0_5px_rgba(251,191,36,0.6)]">📊</span> Demand vs. Capacity (Gap Matrix)
+                    </h3>
+                    <button onclick="exportarCSV()" class="bg-[#1E293B] hover:bg-brand-accentAmber/20 text-slate-200 hover:text-brand-accentAmber border border-[#334155] hover:border-brand-accentAmber/50 text-xs py-2 px-4 rounded-lg transition-all duration-200 font-bold shadow-md">
+                        📥 Export CSV
+                    </button>
+                </div>
                 
-                ensemble_val_preds = [(peso_hw * hw_val_preds[i] + peso_ridge * ridge_val_preds[i]) for i in range(7)]
-                sum_actual = sum(val_vols)
-                sum_pred = sum(ensemble_val_preds)
-                
-                if sum_pred > 0:
-                    drift = sum_actual / sum_pred
-                    factor_ajuste = max(0.5, min(1.5, drift))
-                    
-        pesos_campana[camp] = {
-            'w_hw': peso_hw,
-            'w_ridge': peso_ridge,
-            'factor_ajuste': factor_ajuste
+                <div class="h-64 mb-6 relative bg-[#0F172A] p-2 rounded-xl border border-[#1F2937] shadow-inner">
+                    <canvas id="gapChart"></canvas>
+                </div>
+
+                <div class="overflow-x-auto max-h-80 border border-[#1F2937] rounded-xl bg-[#0F172A] shadow-inner">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-[#111827] text-slate-400 font-bold text-[10px] uppercase tracking-wider sticky top-0 border-b border-[#334155] z-10 shadow-sm">
+                            <tr>
+                                <th class="py-3.5 px-4">Intervalo</th>
+                                <th class="py-3.5 px-4">Llamadas (FCST)</th>
+                                <th class="py-3.5 px-4">AHT (HH:MM:SS)</th>
+                                <th class="py-3.5 px-4 text-brand-primary">Req. (HC)</th>
+                                <th class="py-3.5 px-4 text-brand-accentEmerald">Avail. (HC)</th>
+                                <th class="py-3.5 px-4 text-brand-accentAmber">Capacidad SLA</th>
+                                <th class="py-3.5 px-4 text-center">Gap</th>
+                            </tr>
+                        </thead>
+                        <tbody id="intervalTableBody" class="divide-y divide-[#1F2937] font-mono-num text-[11px]">
+                            <tr><td colspan="7" class="text-center py-8 text-slate-500 font-medium font-sans">Cargue datos...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        let globalData = [];
+        let optChartInstance = null;
+        let gapChartInstance = null; 
+        let globalTurnosOptimos = [];
+        let selectedMeses = new Set();
+        let selectedCampanas = new Set();
+        let selectedFechas = new Set();
+        let selectedIntervalos = new Set();
+
+        let debounceTimer;
+        let totalesFiltros = { M: 0, C: 0, F: 0, I: 0 };
+        let currentMode = 'wfm';
+        let isSidebarVisible = true; 
+
+        const mesesMap = {
+            "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
+            "julio": 7, "agosto": 8, "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12
+        };
+
+        function ordenarMesesCronologicamente(a, b) {
+            const partsA = a.toLowerCase().trim().split(' ');
+            const partsB = b.toLowerCase().trim().split(' ');
+            
+            const mesA = partsA[0];
+            const anoA = partsA[1] ? parseInt(partsA[1]) : 0;
+            
+            const mesB = partsB[0];
+            const anoB = partsB[1] ? parseInt(partsB[1]) : 0;
+
+            if (anoA !== anoB) return anoA - anoB;
+            return (mesesMap[mesA] || 0) - (mesesMap[mesB] || 0);
         }
 
-        hw_forecasts[camp] = grid_search_auto_hw(vols, n_preds=dias_futuros)
+        function toggleSidebar() {
+            const aside = document.getElementById('panelControl');
+            const main = document.getElementById('dashboardMain');
+            const containerShow = document.getElementById('containerShowSidebar');
 
-        X_data, y_data = [], []
-        for i in range(14, len(vols)):
-            f = fechas_list[i]
-            feat = extraer_features_fecha(f, vols[:i], trend_idx=i)
-            X_data.append(feat)
-            y_data.append(vols[i])
-
-        if len(X_data) > 10:
-            X_arr, y_arr = np.array(X_data), np.array(y_data)
-            weights, mean, std = entrenar_ridge_ml(X_arr, y_arr, l2_reg=10.0)
-            modelos_ml[camp] = {'weights': weights, 'mean': mean, 'std': std, 'promedio_base': np.mean(y_arr)}
-        else:
-            modelos_ml[camp] = None
-
-    df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
-    df_filtrado = df[df['En_Ventana']].copy()
-
-    max_date_hist = df_filtrado[col_fecha].max()
-    
-    if pd.isna(max_date_hist):
-        df_reciente = df_filtrado.copy()
-    else:
-        df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_date_hist - timedelta(days=21))]
-
-    perfil_intradia = df_reciente.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
-        avg_calls=(col_calls, 'mean'),
-        avg_aht=(col_aht, lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 0)
-    ).reset_index()
-
-    totales_dia = perfil_intradia.groupby([col_camp, 'Dia_Semana_Clean'])['avg_calls'].transform('sum')
-    perfil_intradia['weight'] = [(c / t) if t > 0 else 0 for c, t in zip(perfil_intradia['avg_calls'], totales_dia)]
-
-    mapa_perfil = {}
-    for _, r in perfil_intradia.iterrows():
-        key = (r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean'])
-        mapa_perfil[key] = {'weight': r['weight'], 'aht': r['avg_aht']}
-
-    TODOS_LOS_INTERVALOS = [f"{int(h):02d}:{int(m):02d}" for h in range(24) for m in (0, 30)]
-    intervalos_operativos_por_camp = {}
-    for camp in campanas_unicas:
-        intervalos_operativos_por_camp[camp] = sorted([i for i in TODOS_LOS_INTERVALOS if esta_en_ventana_servicio(camp, i)])
-
-    del df_raw, df, df_diario, df_filtrado, df_reciente
-    gc.collect()
-
-    factor_asistencia = max(0.01, 1.0 - merma)
-    data_processed = []
-
-    for d in range(dias_futuros):
-        fecha_actual = fecha_inicio_forecast + timedelta(days=d)
-        str_fecha = fecha_actual.strftime('%Y-%m-%d')
-        str_mes = f"{meses_espanol[fecha_actual.month]} {fecha_actual.year}"
-        nombre_dia = dias_espanol[fecha_actual.weekday()]
-
-        # --- NUEVO: CÁLCULO DE SEMANA ---
-        inicio_semana = fecha_actual - timedelta(days=fecha_actual.weekday())
-        fin_semana = inicio_semana + timedelta(days=6)
-        str_semana = f"W {inicio_semana.strftime('%Y/%m/%d')} - {fin_semana.strftime('%Y/%m/%d')}"
-        # --------------------------------
-
-        for camp in campanas_unicas:
-            hist_vol = historial_volumenes[camp]
-            feat_futuras = np.array([extraer_features_fecha(fecha_actual, hist_vol, len(hist_vol))])
-
-            model_info = modelos_ml.get(camp)
-            if model_info:
-                vol_ridge = predecir_ridge_ml(model_info['weights'], model_info['mean'], model_info['std'], feat_futuras)
-                vol_ridge = max(vol_ridge, model_info['promedio_base'] * 0.15)
-            else:
-                vol_ridge = np.mean(hist_vol[-7:]) if hist_vol else 100.0
-
-            w_info = pesos_campana.get(camp, {'w_hw': 0.65, 'w_ridge': 0.35, 'factor_ajuste': 1.0})
-            vol_hw = hw_forecasts[camp][d] if d < len(hw_forecasts[camp]) else vol_ridge
+            if (isSidebarVisible) {
+                if (aside) aside.style.display = 'none';
+                if (main) {
+                    main.classList.remove('lg:col-span-9');
+                    main.classList.add('lg:col-span-12');
+                }
+                if (containerShow && currentMode !== 'ops' && currentMode !== 'operaciones') {
+                    containerShow.classList.remove('hidden');
+                }
+                isSidebarVisible = false;
+            } else {
+                if (aside) aside.style.display = 'block';
+                if (main) {
+                    main.classList.remove('lg:col-span-12');
+                    main.classList.add('lg:col-span-9');
+                }
+                if (containerShow) containerShow.classList.add('hidden');
+                isSidebarVisible = true;
+            }
             
-            volumen_predicho_diario = (w_info['w_hw'] * vol_hw + w_info['w_ridge'] * vol_ridge) * w_info['factor_ajuste']
+            setTimeout(() => { 
+                if (optChartInstance) optChartInstance.resize(); 
+                if (gapChartInstance) gapChartInstance.resize(); 
+            }, 150);
+        }
+
+        async function fetchWFMConfig() {
+            try {
+                const response = await fetch('/api/config');
+                if (response.ok) {
+                    const config = await response.json();
+                    if(config.targetSl) document.getElementById('targetSl').value = config.targetSl;
+                    if(config.targetTime) document.getElementById('targetTime').value = config.targetTime;
+                    if(config.merma) document.getElementById('merma').value = config.merma;
+                    if(config.duracionJornada) document.getElementById('duracionJornada').value = config.duracionJornada;
+                    if(config.chkNocturno !== undefined) document.getElementById('chkNocturno').checked = config.chkNocturno;
+                    if(config.chkPicos !== undefined) document.getElementById('chkPicos').checked = config.chkPicos;
+                }
+            } catch (e) {
+                console.log("No hay config WFM previa, usando valores default.");
+            }
+        }
+
+        async function saveWFMConfig() {
+            if(currentMode === 'ops') return; 
             
-            historial_volumenes[camp].append(volumen_predicho_diario)
+            const config = {
+                targetSl: document.getElementById('targetSl').value,
+                targetTime: document.getElementById('targetTime').value,
+                merma: document.getElementById('merma').value,
+                duracionJornada: document.getElementById('duracionJornada').value,
+                chkNocturno: document.getElementById('chkNocturno').checked,
+                chkPicos: document.getElementById('chkPicos').checked
+            };
 
-            intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
+            try {
+                await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+            } catch (e) {
+                console.log("No se pudo guardar la config de WFM.");
+            }
+        }
 
-            for inter in intervalos_validos:
-                key_p = (camp, nombre_dia, inter)
-                info_p = mapa_perfil.get(key_p, {'weight': 0.0, 'aht': 0.0})
-                calls = volumen_predicho_diario * info_p['weight']
-                calls_int = int(round(calls))
+        function switchMode(mode) {
+            currentMode = mode;
+            const aside = document.getElementById('panelControl');
+            const main = document.getElementById('dashboardMain');
+            const tag = document.getElementById('tagModoOps');
+            const modOpt = document.getElementById('modOptimizacion');
+            const containerShow = document.getElementById('containerShowSidebar');
 
-                if calls_int == 0:
-                    aht = 0.0
-                else:
-                    aht = info_p['aht'] if (info_p['aht'] > 0 and not pd.isna(info_p['aht'])) else aht_global_campana.get(camp, 180.0)
-
-                a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
-                req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
-                req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
+            if (mode === 'ops' || mode === 'operaciones') {
+                if (aside) aside.style.display = 'none';
+                if (modOpt) modOpt.style.display = 'none';
+                if (containerShow) containerShow.classList.add('hidden'); 
                 
-                hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
-                tot_camp = roster_total_camp.get(str(camp), 0)
-                tot_camp_dia = roster_total_dia_camp.get((str(camp), nombre_dia.capitalize()), 0)
-
-                data_processed.append({
-                    'Campaña': str(camp),
-                    'Fecha': str_fecha,
-                    'Mes': str_mes,
-                    'Semana': str_semana,
-                    'Día_Semana': nombre_dia.capitalize(),
-                    'Intervalo': inter,
-                    'Llamadas': calls_int,
-                    'AHT': format_aht_str(aht),
-                    'AHT_Segundos': int(round(aht)),
-                    'Agentes_Requeridos': req_hc,
-                    'HC_Actual_Roster': hc_roster,
-                    'Total_Roster_Campana': tot_camp,
-                    'Total_Roster_Dia': tot_camp_dia,
-                    'Factor_Correccion': round(float(w_info['factor_ajuste']), 2)
-                })
-
-    try:
-        with open(CACHE_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data_processed, f)
-    except Exception as err:
-        pass
-
-    return data_processed
-
-def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht_vec=None, req_vec=None, target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, es_nocturno=False):
-    m = len(intervalos)
-    if m == 0:
-        return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0, [0]*m
-
-    llamadas_arr = np.nan_to_num(np.array(llamadas_vec, dtype=float), nan=0.0) if llamadas_vec is not None else np.zeros(m)
-    aht_arr = np.nan_to_num(np.array(aht_vec, dtype=float), nan=180.0) if aht_vec is not None else np.full(m, 180.0)
-    
-    tot_llamadas = float(np.sum(llamadas_arr))
-    
-    # --- NUEVO CANDADO PARA VOLUMEN CERO ---
-    if tot_llamadas <= 0:
-        return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0, [0]*m
-    # ---------------------------------------
-    
-    factor_asistencia = max(0.01, 1.0 - merma)
-    target_sl_dinamico = float(target_sl)
-    
-    req_hc_pooled = []
-    req_hc_base = np.zeros(m)
-    
-    for i in range(m):
-        if req_vec is not None and i < len(req_vec) and req_vec[i] > 0:
-            req_hc_i = int(req_vec[i])
-        else:
-            c = llamadas_arr[i]
-            aht_s = aht_arr[i]
-            a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-            req_ftes_i = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico) if c > 0 else 0
-            req_hc_i = math.ceil(req_ftes_i / factor_asistencia) if req_ftes_i > 0 else 0
-            
-        req_hc_pooled.append(int(req_hc_i))
-        req_hc_base[i] = req_hc_i
-
-    cob_hc = np.zeros(m, dtype=float)
-    x_turnos_dict = {}
-
-    agentes_nocturnos_totales_hc = 0
-    agentes_diurnos_totales_hc = 0
-
-    if es_nocturno:
-        label_jornada_noc = "9.0 hrs (Nocturno 5x2)"
-        indices_nocturnos = []
-        for j in range(m):
-            min_in = parse_time_str(intervalos[j])
-            if min_in is not None:
-                if min_in >= (22 * 60) or min_in < (7 * 60):
-                    indices_nocturnos.append(j)
-
-        if len(indices_nocturnos) > 0:
-            agentes_noc_hc = 1
-            while agentes_noc_hc <= 200:
-                cob_temp_ftes = agentes_noc_hc * factor_asistencia
-                sl_acum, llamadas_noc = 0.0, 0.0
-                for idx in indices_nocturnos:
-                    c = llamadas_arr[idx]
-                    aht_s = aht_arr[idx]
-                    a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-                    sl_v = erlang_c_sl_optimizado(a_erl, cob_temp_ftes, aht_s, target_time) if c > 0 else 100.0
-                    sl_acum += (c * sl_v)
-                    llamadas_noc += c
-                sl_prom_noc = (sl_acum / llamadas_noc) if llamadas_noc > 0 else 100.0
-                if sl_prom_noc >= target_sl_dinamico:
-                    break
-                agentes_noc_hc += 1
-            key_turno_noc = ("22:00", "07:00", label_jornada_noc)
-            x_turnos_dict[key_turno_noc] = agentes_noc_hc
-            agentes_nocturnos_totales_hc = agentes_noc_hc
-            for idx in indices_nocturnos:
-                cob_hc[idx] += agentes_noc_hc
-
-    duracion_jornada = float(duracion_jornada)
-    SHIFT_BLOCKS = int(round(duracion_jornada * 2))
-    duracion_minutos = int(round(duracion_jornada * 60))
-    label_jornada_diurna = f"{duracion_jornada:.1f} hrs".replace('.0', '')
-
-    valid_starts = []
-    for j in range(m):
-        min_in_val = parse_time_str(intervalos[j])
-        if min_in_val is not None:
-            min_out_val = min_in_val + duracion_minutos
-            if min_in_val >= (7 * 60) and min_out_val <= (22 * 60):
-                valid_starts.append(j)
-
-    def calc_current_global_sl(current_cob):
-        if tot_llamadas <= 0: return 100.0
-        sl_acum = 0.0
-        for i in range(m):
-            c = llamadas_arr[i]
-            if c > 0:
-                a_erl = (c * aht_arr[i]) / 1800.0
-                n_opt = current_cob[i] * factor_asistencia
-                sl_v = erlang_c_sl_optimizado(a_erl, n_opt, aht_arr[i], target_time)
-                sl_acum += c * sl_v
-        return sl_acum / tot_llamadas
-
-    if len(valid_starts) > 0:
-        max_iterations = 5000
-        iteration = 0
-        while iteration < max_iterations:
-            iteration += 1
-            
-            if calc_current_global_sl(cob_hc) >= target_sl_dinamico:
-                break
-
-            deficit = req_hc_base - cob_hc
-            if np.max(deficit) <= 0:
-                break 
-
-            best_start_idx = -1
-            best_score = -999999
-
-            for s_idx in valid_starts:
-                if s_idx + SHIFT_BLOCKS <= m:
-                    sub_deficit = deficit[s_idx : s_idx + SHIFT_BLOCKS]
-                else:
-                    sub_deficit = np.concatenate((deficit[s_idx:], deficit[:(s_idx + SHIFT_BLOCKS) - m]))
+                if (main) {
+                    main.classList.remove('lg:col-span-9');
+                    main.classList.add('lg:col-span-12');
+                }
+                if (tag) tag.classList.remove('hidden');
                 
-                score = np.sum(np.maximum(0, sub_deficit)) - np.sum(np.maximum(0, -sub_deficit)) * 0.001
+                setTimeout(() => { if (gapChartInstance) gapChartInstance.resize(); }, 100);
+            } else {
+                if (modOpt) modOpt.style.display = 'block';
+                if (tag) tag.classList.add('hidden');
                 
-                if score > best_score:
-                    best_score = score
-                    best_start_idx = s_idx
-
-            if best_start_idx == -1 or best_score <= 0.0001:
-                break
+                if (isSidebarVisible) {
+                    if (aside) aside.style.display = 'block';
+                    if (containerShow) containerShow.classList.add('hidden');
+                    if (main) {
+                        main.classList.remove('lg:col-span-12');
+                        main.classList.add('lg:col-span-9');
+                    }
+                } else {
+                    if (aside) aside.style.display = 'none';
+                    if (containerShow) containerShow.classList.remove('hidden');
+                    if (main) {
+                        main.classList.remove('lg:col-span-9');
+                        main.classList.add('lg:col-span-12');
+                    }
+                }
                 
-            min_in_val = parse_time_str(intervalos[best_start_idx])
-            min_out_val = min_in_val + duracion_minutos
-            min_out_val = min_out_val % (24 * 60) 
+                setTimeout(() => { 
+                    if (optChartInstance) optChartInstance.resize(); 
+                    if (gapChartInstance) gapChartInstance.resize(); 
+                }, 100);
+            }
+        }
+
+        function debouncedActualizarGrafica() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                actualizarGrafica();
+            }, 400); 
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const mode = urlParams.get('mode') || urlParams.get('role') || 'wfm';
+            switchMode(mode);
+
+            if(mode === 'ops') {
+                await fetchWFMConfig();
+            }
+
+            try {
+                const response = await fetch('/api/latest?t=' + new Date().getTime());
+                if (response.ok) {
+                    globalData = await response.json();
+                    if (Array.isArray(globalData) && globalData.length > 0) {
+                        inicializarFiltrosMultiples();
+                        debouncedActualizarGrafica();
+                    }
+                }
+            } catch (e) {
+                console.log("Error cargando pronóstico automático.");
+            }
+        });
+
+        function getProp(row, keys, def = '') {
+            for (let k of keys) {
+                if (row[k] !== undefined && row[k] !== null) return row[k];
+            }
+            return def;
+        }
+
+        function formatAHT(seconds) {
+            if (!seconds || seconds <= 0) return "00:00:00";
+            const secs = Math.round(seconds);
+            const hrs = Math.floor(secs / 3600);
+            const mins = Math.floor((secs % 3600) / 60);
+            const remainderSecs = secs % 60;
+            return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(remainderSecs).padStart(2, '0')}`;
+        }
+
+        function parseMinStr(t_str) {
+            if (!t_str) return 0;
+            const parts = t_str.split(':');
+            return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        }
+
+        async function procesarWFM() {
+            await saveWFMConfig();
+
+            const btn = document.getElementById('btnProcesar');
+            btn.disabled = true;
+            btn.innerText = "⏳ RECALCULANDO...";
             
-            h_in_str = f"{(int(min_in_val // 60)):02d}:{(int(min_in_val % 60)):02d}"
-            h_out_str = f"{(int(min_out_val // 60)):02d}:{(int(min_out_val % 60)):02d}"
+            const formData = new FormData();
             
-            key_turno = (h_in_str, h_out_str, label_jornada_diurna)
-            x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + 1
+            formData.append('target_sl', document.getElementById('targetSl').value);
+            formData.append('target_time', document.getElementById('targetTime').value);
+            formData.append('merma', document.getElementById('merma').value);
+            formData.append('dias', document.getElementById('dias') ? document.getElementById('dias').value : 30);
             
-            if best_start_idx + SHIFT_BLOCKS <= m:
-                cob_hc[best_start_idx : best_start_idx + SHIFT_BLOCKS] += 1
-            else:
-                cob_hc[best_start_idx:] += 1
-                cob_hc[:(best_start_idx + SHIFT_BLOCKS) - m] += 1
+            try {
+                const response = await fetch('/api/process', { method: 'POST', body: formData });
+                globalData = await response.json();
+                
+                if (response.ok && Array.isArray(globalData)) {
+                    inicializarFiltrosMultiples();
+                    debouncedActualizarGrafica();
+                } else {
+                    alert("Error: " + (globalData.error || "Asegúrate de que 'historico.xlsx' esté cargado en tu servidor."));
+                }
+            } catch (e) {
+                alert("Error de conexión: " + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "▶ RUN PLAN";
+            }
+        }
 
-    sl_optimo_vector = []
-    for i in range(m):
-        c = llamadas_arr[i]
-        aht_s = aht_arr[i]
-        n_opt_ftes = cob_hc[i] * factor_asistencia
-        a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-        sl_val = erlang_c_sl_optimizado(a_erl, n_opt_ftes, aht_s, target_time) if c > 0 else 100.0
-        sl_optimo_vector.append(float(sl_val))
+        function inicializarFiltrosMultiples() {
+            const meses = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).sort(ordenarMesesCronologicamente);
+            selectedMeses = new Set(meses);
+            renderMenuOptions('Mes', meses, selectedMeses);
 
-    sl_arr = np.array(sl_optimo_vector)
-    sl_optimo_global = float(np.sum(llamadas_arr * sl_arr) / tot_llamadas) if tot_llamadas > 0 else 100.0
+            const campanas = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).sort();
+            selectedCampanas = new Set(campanas);
+            renderMenuOptions('Campana', campanas, selectedCampanas);
 
-    cobertura_hc_entera = [int(x) for x in np.round(cob_hc)]
-    turnos_sugeridos = []
-    total_agentes_diarios_hc = 0
+            const fechas = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
+            selectedFechas = new Set(fechas);
+            renderMenuOptions('Fecha', fechas, selectedFechas);
 
-    for (h_in, h_out, label_dur), qty in x_turnos_dict.items():
-        if qty > 0:
-            turnos_sugeridos.append({
-                'horario_entrada': h_in,
-                'horario_salida': h_out,
-                'agentes_a_programar': int(qty),
-                'duracion': label_dur
-            })
-            total_agentes_diarios_hc += int(qty)
-            if "Nocturno" not in label_dur:
-                agentes_diurnos_totales_hc += int(qty)
-
-    turnos_sugeridos = sorted(turnos_sugeridos, key=lambda x: parse_time_str(x['horario_entrada']) or 0)
-
-    hc_nocturno = math.ceil(agentes_nocturnos_totales_hc * (7.0 / 5.0))
-    hc_diurno = math.ceil(agentes_diurnos_totales_hc * (7.0 / 6.0))
-    headcount_semanal_requerido = int(hc_nocturno + hc_diurno)
-
-    total_req_hc_pooled = float(np.sum(req_hc_pooled))
-    total_prog_hc = float(np.sum(cob_hc))
-    
-    if total_req_hc_pooled > 0:
-        staffing_level_optimo = float((total_prog_hc / total_req_hc_pooled) * 100.0)
-        eficiencia = float(min(100.0, (total_req_hc_pooled / total_prog_hc) * 100.0)) if total_prog_hc > 0 else 100.0
-    else:
-        staffing_level_optimo = 100.0
-        eficiencia = 100.0
-
-    return turnos_sugeridos, cobertura_hc_entera, total_agentes_diarios_hc, headcount_semanal_requerido, eficiencia, sl_optimo_vector, sl_optimo_global, staffing_level_optimo, req_hc_pooled
-
-@app.route('/api/latest', methods=['GET'])
-def get_latest_forecast():
-    use_cache = False
-    excel_path = buscar_archivo_excel()
-    
-    if os.path.exists(CACHE_FILE) and excel_path:
-        if os.path.getmtime(CACHE_FILE) >= os.path.getmtime(excel_path):
-            use_cache = True
-        else:
-            try: os.remove(CACHE_FILE)
-            except: pass
-    elif os.path.exists(CACHE_FILE):
-        use_cache = True
-
-    if use_cache:
-        try:
-            with open(CACHE_FILE, 'r', encoding='utf-8') as f:
-                return jsonify(json.load(f)), 200
-        except Exception as e:
-            pass
+            const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
+            selectedIntervalos = new Set(intervalos);
+            renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
             
-    if excel_path:
-        try:
-            data = procesar_archivo_excel(excel_path)
-            return jsonify(data), 200
-        except Exception as e:
-            return jsonify({'error': f'Error procesando Excel: {str(e)}'}), 500
+            calcularTotalesFiltros();
+            actualizarTextosBotones();
+        }
+
+        function calcularTotalesFiltros() {
+            totalesFiltros.M = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).length;
+            totalesFiltros.C = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).length;
+            totalesFiltros.F = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).length;
+            totalesFiltros.I = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).length;
+        }
+
+        function renderMenuOptions(type, allOptions, setRef) {
+            const menu = document.getElementById(`dropdown${type}Menu`);
+            if (!menu) return;
+            menu.innerHTML = '';
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'flex items-center justify-between p-2 pb-2 mb-1 border-b border-[#334155] text-[10px] font-bold uppercase tracking-wider text-slate-500';
+            headerDiv.innerHTML = `
+                <button type="button" onclick="selectAllFilter('${type}', true)" class="text-brand-primary hover:text-white transition-colors">Todos</button>
+                <button type="button" onclick="selectAllFilter('${type}', false)" class="text-brand-accentRose hover:text-white transition-colors">Ninguno</button>
+            `;
+            menu.appendChild(headerDiv);
+            allOptions.forEach(opt => {
+                const label = document.createElement('label');
+                label.className = 'flex items-center gap-2.5 p-2 hover:bg-[#1E293B] rounded-lg cursor-pointer transition-colors';
+                const isChecked = setRef.has(opt);
+                
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.checked = isChecked;
+                input.className = 'rounded bg-[#0B1121] border-[#334155] text-brand-primary focus:ring-brand-primary';
+                input.addEventListener('change', (e) => {
+                    onCheckboxChange(type, opt, e.target.checked);
+                });
+
+                const span = document.createElement('span');
+                span.className = 'truncate text-slate-200 font-medium';
+                span.innerText = opt;
+
+                label.appendChild(input);
+                label.appendChild(span);
+                menu.appendChild(label);
+            });
+        }
+
+        function onCheckboxChange(type, value, checked) {
+            let setRef = type === 'Mes' ? selectedMeses : (type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos));
+            if (checked) setRef.add(value); else setRef.delete(value);
+
+            if (type === 'Mes') {
+                const fechasInMes = [...new Set(globalData.filter(i => selectedMeses.has(getProp(i, ['Mes'], ''))).map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
+                selectedFechas = new Set(fechasInMes);
+                const allFechas = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
+                renderMenuOptions('Fecha', allFechas, selectedFechas);
+            }
+
+            actualizarTextosBotones();
+            debouncedActualizarGrafica();
+        }
+
+        function selectAllFilter(type, selectAll) {
+            let setRef = type === 'Mes' ? selectedMeses : (type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos));
+            let allOptions = [];
+            if (type === 'Mes') {
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean);
+            } else if (type === 'Campana') {
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean);
+            } else if (type === 'Fecha') {
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
+            } else {
+                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean);
+            }
+            if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
             
-    return jsonify({'error': 'No se encontró ningún archivo Excel en el servidor.'}), 404
+            if (type === 'Mes') {
+                allOptions.sort(ordenarMesesCronologicamente);
+            } else {
+                allOptions.sort();
+            }
+            
+            renderMenuOptions(type, allOptions, setRef);
+            actualizarTextosBotones();
+            debouncedActualizarGrafica();
+        }
 
-@app.route('/api/optimize-schedules', methods=['POST'])
-def api_optimize_schedules():
-    try:
-        body = request.get_json(force=True)
-        intervalos = body.get('intervalos', [])
-        campanas = body.get('campanas', [])
-        llamadas = body.get('llamadas', [])
-        ahts = body.get('ahts', [])
-        requeridos = body.get('requeridos', [])
-        target_sl = float(body.get('target_sl', 80.0))
-        target_time = float(body.get('target_time', 20.0))
-        merma = float(body.get('merma', 30.0)) / 100.0
-        duracion_jornada = float(body.get('duracion_jornada', 8.0))
-        es_nocturno = bool(body.get('es_nocturno', False))
+        function toggleDropdown(type) {
+            ['Mes', 'Campana', 'Fecha', 'Intervalo'].forEach(t => {
+                if (t !== type) {
+                    const menu = document.getElementById(`dropdown${t}Menu`);
+                    if (menu) menu.classList.add('hidden');
+                }
+            });
+            const selectedMenu = document.getElementById(`dropdown${type}Menu`);
+            if (selectedMenu) selectedMenu.classList.toggle('hidden');
+        }
 
-        turnos, cob_optima, total_diario, total_hc, eficiencia, sl_vec, sl_global, staff_level, req_hc_pooled = resolver_turnos_optimos(
-            intervalos, campanas, llamadas_vec=llamadas, aht_vec=ahts, req_vec=requeridos,
-            target_sl=target_sl, target_time=target_time, merma=merma, 
-            duracion_jornada=duracion_jornada, es_nocturno=es_nocturno
-        )
-        return jsonify({
-            'turnos': turnos,
-            'cobertura_optima': [int(x) for x in cob_optima],
-            'total_agentes_diarios': int(total_diario),
-            'headcount_semanal_6x1': int(total_hc),
-            'eficiencia_cobertura': float(eficiencia),
-            'sl_optimo_vector': [float(x) for x in sl_vec],
-            'sl_optimo_global': float(sl_global),
-            'staffing_level_optimo': float(staff_level),
-            'req_hc_pooled': [int(x) for x in req_hc_pooled]
-        }), 200
-    except Exception as e:
-        return jsonify({'error': f'Error optimizando turnos: {str(e)}'}), 500
+        window.addEventListener('click', function(e) {
+            ['Mes', 'Campana', 'Fecha', 'Intervalo'].forEach(type => {
+                const btn = document.getElementById(`btnDropdown${type}`);
+                const menu = document.getElementById(`dropdown${type}Menu`);
+                if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) {
+                    menu.classList.add('hidden');
+                }
+            });
+        });
 
-@app.route('/api/process', methods=['POST', 'GET'])
-def process_data():
-    if request.method == 'GET':
-        return jsonify({'status': 'API predictiva activa'}), 200
+        function actualizarTextosBotones() {
+            if(totalesFiltros.M === 0) calcularTotalesFiltros();
+            
+            const btnMes = document.getElementById('mesSelectedText');
+            if (btnMes) btnMes.innerText = `Mes (${selectedMeses.size}/${totalesFiltros.M})`;
+            
+            document.getElementById('campanaSelectedText').innerText = `Campaña (${selectedCampanas.size}/${totalesFiltros.C})`;
+            document.getElementById('fechaSelectedText').innerText = `Fecha (${selectedFechas.size}/${totalesFiltros.F})`;
+            document.getElementById('intervaloSelectedText').innerText = `Intervalo (${selectedIntervalos.size}/${totalesFiltros.I})`;
+        }
 
-    target_sl = float(clean_num(request.form.get('target_sl'), 80.0))
-    target_time = float(clean_num(request.form.get('target_time'), 20.0))
-    merma = float(clean_num(request.form.get('merma'), 20.0)) / 100.0
-    dias_futuros = int(clean_num(request.form.get('dias'), 30))
+        function resetAllFilters() {
+            inicializarFiltrosMultiples();
+            debouncedActualizarGrafica();
+        }
 
-    excel_path = buscar_archivo_excel()
+        function toggleTableInterval(inter) {
+            if (selectedIntervalos.has(inter)) selectedIntervalos.delete(inter); else selectedIntervalos.add(inter);
+            const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
+            renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
+            actualizarTextosBotones();
+            debouncedActualizarGrafica();
+        }
 
-    if not excel_path:
-        return jsonify({'error': 'No se encontró ningún archivo Excel (.xlsx) en el repositorio.'}), 400
+        async function actualizarGrafica() {
+            const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
+            const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
+            const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
+            const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 6.5;
+            
+            const usarPicos = document.getElementById('chkPicos') ? document.getElementById('chkPicos').checked : false;
+            const usarNocturno = document.getElementById('chkNocturno') ? document.getElementById('chkNocturno').checked : false;
 
-    try:
-        data_processed = procesar_archivo_excel(excel_path, target_sl, target_time, merma, dias_futuros)
-        gc.collect()
-        return jsonify(data_processed)
-    except Exception as e:
-        gc.collect()
-        return jsonify({'error': str(e)}), 500
+            const dfFiltered = globalData.filter(item => {
+                const m = String(getProp(item, ['Mes'], ''));
+                const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
+                const f = String(getProp(item, ['Fecha'], '')).split(' ')[0].split('T')[0];
+                const i = String(getProp(item, ['Intervalo'], '00:00'));
+                
+                const matchMes = selectedMeses.size === 0 || selectedMeses.has(m);
+                const matchCamp = selectedCampanas.size === 0 || selectedCampanas.has(c);
+                const matchFecha = selectedFechas.size === 0 || selectedFechas.has(f);
+                const matchInter = selectedIntervalos.size === 0 || selectedIntervalos.has(i);
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+                return matchMes && matchCamp && matchFecha && matchInter;
+            });
+
+            const reforecastAlert = document.getElementById('reforecastAlert');
+            const reforecastMsg = document.getElementById('reforecastMsg');
+            let campanasModificadas = {};
+            
+            dfFiltered.forEach(r => {
+                const f = parseFloat(getProp(r, ['Factor_Correccion'], 1.0));
+                if (f !== 1.0 && !isNaN(f)) {
+                    const c = String(getProp(r, ['Campaña', 'Campana'], 'General'));
+                    campanasModificadas[c] = f;
+                }
+            });
+
+            if (Object.keys(campanasModificadas).length > 0 && reforecastAlert && currentMode !== 'ops' && currentMode !== 'operaciones') {
+                reforecastAlert.classList.remove('hidden');
+                let detalles = Object.entries(campanasModificadas).map(([camp, factor]) => {
+                    let pct = Math.round((factor - 1) * 100);
+                    let signo = pct > 0 ? '+' : '';
+                    return `<span class="text-brand-accentAmber font-bold">${camp} (${signo}${pct}%)</span>`;
+                }).join(', ');
+                reforecastMsg.innerHTML = `El algoritmo detectó un quiebre de tendencia reciente. Ajuste aplicado a: ${detalles}.`;
+            } else if (reforecastAlert) {
+                reforecastAlert.classList.add('hidden');
+            }
+
+            if (!dfFiltered || dfFiltered.length === 0) {
+                document.getElementById('kpiCalls').innerText = "0";
+                document.getElementById('kpiAht').innerText = "00:00:00";
+                document.getElementById('kpiHcRequerido').innerText = "0 HC";
+                document.getElementById('kpiHcRoster').innerText = "0 HC";
+                const tbody = document.getElementById('intervalTableBody');
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-500">Sin datos</td></tr>';
+                return;
+            }
+
+            const totCalls = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
+            
+            const sumLlamadasAht = dfFiltered.reduce((acc, row) => {
+                const calls = Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0;
+                let ahtSegs = Number(getProp(row, ['AHT_Segundos'], 180));
+                return acc + (calls * ahtSegs);
+            }, 0);
+
+            const avgAhtSegs = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
+
+            const fechasFiltradas = [...new Set(dfFiltered.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
+            const todosIntervalos = [...new Set(dfFiltered.map(r => String(getProp(r, ['Intervalo'], '00:00'))))].sort();
+            
+            const esVistaSemanal = fechasFiltradas.length > 1;
+
+            const llamadasAvgVector = todosIntervalos.map(() => 0);
+            const ahtAvgVector = todosIntervalos.map(() => 0);
+            const rosterAvgVector = todosIntervalos.map(() => 0); 
+            const reqAvgVector = todosIntervalos.map(() => 0); 
+
+            const mapIntervaloFecha = {};
+            dfFiltered.forEach(r => {
+                const fStr = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
+                const iStr = String(getProp(r, ['Intervalo'], '00:00'));
+                const key = `${fStr}_${iStr}`;
+                if (!mapIntervaloFecha[key]) mapIntervaloFecha[key] = [];
+                mapIntervaloFecha[key].push(r);
+            });
+
+            // MAGIA WFM APLICADA EN EL FRONTEND
+            todosIntervalos.forEach((inter, idx) => {
+                let callsArray = [];
+                let reqArray = [];
+                let ahtArray = [];
+                let totalRoster = 0;
+                
+                fechasFiltradas.forEach(fStr => {
+                    const subRows = mapIntervaloFecha[`${fStr}_${inter}`] || [];
+                    let sumCalls = 0, sumReq = 0, sumHT = 0, sumRoster = 0;
+                    
+                    if (subRows.length > 0) {
+                        sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
+                        sumRoster = subRows.reduce((a, b) => a + (Number(getProp(b, ['HC_Actual_Roster'], 0)) || 0), 0);
+                        sumReq = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0), 0);
+                        sumHT = subRows.reduce((a, b) => {
+                            const c = Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0;
+                            const ht = Number(getProp(b, ['AHT_Segundos'], 180)) || 180;
+                            return a + (c * ht);
+                        }, 0);
+                    }
+
+                    callsArray.push(sumCalls);
+                    reqArray.push(sumReq);
+                    ahtArray.push(sumCalls > 0 ? sumHT / sumCalls : 180);
+                    totalRoster += sumRoster;
+                });
+
+                const diasTotales = fechasFiltradas.length; 
+                
+                if (diasTotales > 0) {
+                    rosterAvgVector[idx] = Math.round(totalRoster / diasTotales); 
+                    
+                    if (usarPicos) {
+                        llamadasAvgVector[idx] = Math.max(...callsArray);
+                        reqAvgVector[idx] = Math.max(...reqArray);
+                        ahtAvgVector[idx] = Math.max(...ahtArray);
+                    } else {
+                        if (diasTotales <= 7) {
+                            // Para 1 semana o menos: usa promedio exacto
+                            llamadasAvgVector[idx] = callsArray.reduce((a,b)=>a+b,0) / diasTotales;
+                            reqAvgVector[idx] = Math.ceil(reqArray.reduce((a,b)=>a+b,0) / diasTotales);
+                            ahtAvgVector[idx] = ahtArray.reduce((a,b)=>a+b,0) / diasTotales;
+                        } else {
+                            // Para más de 1 semana (Ej. Mes): Usa Percentil 85 ("Día de Diseño")
+                            let sortedC = [...callsArray].sort((a,b)=>a-b);
+                            let sortedR = [...reqArray].sort((a,b)=>a-b);
+                            let pIdx = Math.floor(diasTotales * 0.85);
+                            if(pIdx >= diasTotales) pIdx = diasTotales - 1;
+                            
+                            llamadasAvgVector[idx] = sortedC[pIdx];
+                            reqAvgVector[idx] = sortedR[pIdx];
+                            ahtAvgVector[idx] = ahtArray.reduce((a,b)=>a+b,0) / diasTotales;
+                        }
+                    }
+                }
+            });
+
+            document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
+            document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
+
+            try {
+                ejecutarOptimizadorHorarios(todosIntervalos, llamadasAvgVector, ahtAvgVector, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, dfFiltered);
+            } catch (e) {
+                console.log("Error al preparar optimizador:", e);
+            }
+        }
+
+        async function ejecutarOptimizadorHorarios(intervalos, llamadasArr, ahtSegsArr, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, dfFiltered) {
+            if (!intervalos || intervalos.length === 0) return;
+
+            try {
+                const res = await fetch('/api/optimize-schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        intervalos: intervalos,
+                        campanas: Array.from(selectedCampanas),
+                        llamadas: llamadasArr,
+                        ahts: ahtSegsArr,
+                        requeridos: reqAvgVector, 
+                        target_sl: targetSlObj,
+                        target_time: targetTimeObj,
+                        merma: mermaVal,
+                        duracion_jornada: durJornada,
+                        es_nocturno: usarNocturno
+                    })
+                });
+
+                if (!res.ok) throw new Error("Error procesando optimizador en backend");
+
+                const optData = await res.json() || {};
+                
+                const capacidadRosterVector = []; 
+                const capacidadSugeridaVector = []; 
+                
+                const tbody = document.getElementById('intervalTableBody');
+                tbody.innerHTML = '';
+
+                intervalos.forEach((inter, idx) => {
+                    const rowLlamadas = Math.round(llamadasArr[idx]);
+                    const rowAhtSegs = ahtSegsArr[idx];
+                    const rowReq = reqAvgVector[idx] || 0; 
+                    const rowRoster = rosterAvgVector[idx] || 0;
+                    
+                    const mermaDecimal = mermaVal / 100;
+                    const agentesConectadosRoster = rowRoster * (1 - mermaDecimal);
+                    const capacidadRoster = maxCallsForAgents(agentesConectadosRoster, rowAhtSegs, targetTimeObj, targetSlObj);
+                    capacidadRosterVector.push(capacidadRoster);
+
+                    const rowMallaSugerida = optData.cobertura_optima ? optData.cobertura_optima[idx] : 0;
+                    const agentesConectadosSugeridos = rowMallaSugerida * (1 - mermaDecimal);
+                    const capacidadSugerida = maxCallsForAgents(agentesConectadosSugeridos, rowAhtSegs, targetTimeObj, targetSlObj);
+                    capacidadSugeridaVector.push(capacidadSugerida);
+                    
+                    const gap = rowRoster - rowReq;
+                    let gapHtml = '';
+                    if (gap > 0) gapHtml = `<span class="bg-[#34D399]/20 text-[#34D399] px-2 py-0.5 rounded-md font-bold">+${gap}</span>`;
+                    else if (gap < 0) gapHtml = `<span class="bg-[#FB7185]/20 text-[#FB7185] px-2 py-0.5 rounded-md font-bold">${gap}</span>`;
+                    else gapHtml = `<span class="text-slate-500 font-bold">0</span>`;
+
+                    const tr = document.createElement('tr');
+                    tr.onclick = () => toggleTableInterval(inter);
+                    tr.className = `cursor-pointer transition-all duration-200 hover:bg-[#1E293B]`;
+                    tr.innerHTML = `
+                        <td class="py-2.5 px-4 font-bold text-slate-200 flex items-center gap-2">
+                            <span class="text-[10px] text-brand-accentCyan drop-shadow-[0_0_2px_rgba(34,211,238,0.8)]">●</span> ${inter}
+                        </td>
+                        <td class="py-2.5 px-4 text-slate-300 font-medium">${rowLlamadas.toLocaleString()}</td>
+                        <td class="py-2.5 px-4 text-slate-300 font-medium">${formatAHT(rowAhtSegs)}</td>
+                        <td class="py-2.5 px-4 text-brand-primary font-black text-sm">${rowReq}</td>
+                        <td class="py-2.5 px-4 text-brand-accentEmerald font-black text-sm">${rowRoster}</td>
+                        <td class="py-2.5 px-4 text-brand-accentAmber font-black text-sm">${capacidadRoster}</td>
+                        <td class="py-2.5 px-4 text-center">${gapHtml}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                if (gapChartInstance) gapChartInstance.destroy();
+                const ctxGap = document.getElementById('gapChart').getContext('2d');
+                
+                gapChartInstance = new Chart(ctxGap, {
+                    type: 'bar',
+                    data: {
+                        labels: intervalos,
+                        datasets: [
+                            { 
+                                label: 'Capacidad Malla Sugerida', 
+                                type: 'line',
+                                data: capacidadSugeridaVector, 
+                                borderColor: '#A78BFA', // Violeta vivo
+                                backgroundColor: '#A78BFA',
+                                borderWidth: 3,
+                                tension: 0.4,
+                                pointRadius: 0,
+                                pointHoverRadius: 6,
+                                borderDash: [4, 4] 
+                            },
+                            { 
+                                label: 'Capacidad Roster Actual', 
+                                type: 'line',
+                                data: capacidadRosterVector, 
+                                borderColor: '#FBBF24', // Ámbar vivo
+                                backgroundColor: '#FBBF24',
+                                borderWidth: 3,
+                                tension: 0.4,
+                                pointRadius: 0,
+                                pointHoverRadius: 6
+                            },
+                            { 
+                                label: 'Llamadas (FCST)', 
+                                data: llamadasArr.map(x => Math.round(x)), 
+                                backgroundColor: '#38BDF8', // Celeste vibrante
+                                borderColor: 'transparent',
+                                borderWidth: 0,
+                                borderRadius: 4,
+                                barPercentage: 0.7
+                            }
+                        ]
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: { 
+                            legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 }, usePointStyle: true, boxWidth: 8 } },
+                            tooltip: { backgroundColor: '#111827', titleColor: '#F8FAFC', bodyColor: '#cbd5e1', borderColor: '#1F2937', borderWidth: 1, padding: 12, boxPadding: 6, usePointStyle: true }
+                        }, 
+                        scales: { 
+                            x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 12 } }, 
+                            y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true } 
+                        } 
+                    }
+                });
+
+                const uniqueCampaigns = [...new Set(dfFiltered.map(r => r.Campaña))];
+                let totalRosterHC = 0;
+                
+                if (esVistaSemanal) {
+                    uniqueCampaigns.forEach(c => {
+                        const row = dfFiltered.find(r => r.Campaña === c);
+                        if (row) totalRosterHC += (row.Total_Roster_Campana || 0);
+                    });
+                } else {
+                    uniqueCampaigns.forEach(c => {
+                        const row = dfFiltered.find(r => r.Campaña === c);
+                        if (row) totalRosterHC += (row.Total_Roster_Dia || 0);
+                    });
+                }
+
+                const nominaRequeridaTotalSemana = optData.headcount_semanal_6x1 || 0;
+                const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
+                const hcRequeridoDisplay = esVistaSemanal ? nominaRequeridaTotalSemana : nominaRequeridaDiaria;
+                
+                document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay.toLocaleString() + ' HC';
+                document.getElementById('optHeadcount').innerText = hcRequeridoDisplay.toLocaleString();
+                
+                document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Disponible" : "Plantilla de Hoy";
+                document.getElementById('kpiHcRosterSub').innerText = esVistaSemanal ? "Total de agentes contratados en Roster" : "Descuenta descansos (DD-DD) del día";
+                document.getElementById('kpiHcRoster').innerText = totalRosterHC.toLocaleString() + ' HC';
+                
+                const gapTotal = totalRosterHC - hcRequeridoDisplay;
+                const gapEl = document.getElementById('kpiHcGap');
+                if (gapTotal > 0) {
+                    gapEl.innerText = `+${gapTotal} Sobran`;
+                    gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
+                } else if (gapTotal < 0) {
+                    gapEl.innerText = `${gapTotal} Faltan`;
+                    gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
+                } else {
+                    gapEl.innerText = `✓ Balanceado`;
+                    gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
+                }
+
+                if (esVistaSemanal) {
+                    document.getElementById('lblHeadcountType').innerText = usarNocturno ? 'Required HC (Mixto)' : 'Required HC';
+                    document.getElementById('kpiHcRequeridoSub').innerText = "Plantilla total sugerida para el periodo";
+                } else {
+                    document.getElementById('lblHeadcountType').innerText = 'Required HC (Diario)';
+                    document.getElementById('kpiHcRequeridoSub').innerText = "Plantilla sugerida activa solo para hoy";
+                }
+
+                const slOptimoVal = parseFloat(optData.sl_optimo_global || 0);
+                const slEl = document.getElementById('compSlOptimo');
+                slEl.innerText = slOptimoVal.toFixed(1) + '%';
+                if (slOptimoVal >= targetSlObj) slEl.className = "text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)] block";
+                else slEl.className = "text-3xl font-black font-mono-num text-brand-accentRose drop-shadow-[0_0_8px_rgba(251,113,133,0.3)] block";
+
+                const optTbody = document.getElementById('optShiftsTableBody');
+                optTbody.innerHTML = '';
+                
+                const totalDiarioMalla = optData.total_agentes_diarios || 1;
+                let turnosBase = optData.turnos || [];
+                let accumulatedNomina = 0;
+                
+                globalTurnosOptimos = turnosBase.map((t, index) => {
+                    let nominaTurno;
+                    if (index === turnosBase.length - 1) {
+                        nominaTurno = hcRequeridoDisplay - accumulatedNomina;
+                    } else {
+                        nominaTurno = Math.round((t.agentes_a_programar / totalDiarioMalla) * hcRequeridoDisplay);
+                        accumulatedNomina += nominaTurno;
+                    }
+                    nominaTurno = Math.max(0, nominaTurno);
+                    return { ...t, nomina_a_contratar: nominaTurno };
+                });
+
+                globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
+
+                if (globalTurnosOptimos.length === 0) {
+                    optTbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500 font-sans font-medium">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
+                } else {
+                    
+                    let offsetDiurno = 0;
+                    let offsetNocturno = 0;
+
+                    globalTurnosOptimos.forEach(t => {
+                        const hcTurno = t.nomina_a_contratar;
+                        if (hcTurno <= 0) return;
+                        
+                        const shiftStr = `${t.horario_entrada} - ${t.horario_salida}`;
+                        const esTurnoNocturno = t.duracion.includes('Nocturno');
+
+                        let distribucion = [0, 0, 0, 0, 0, 0, 0];
+                        
+                        for (let i = 0; i < hcTurno; i++) {
+                            if (esTurnoNocturno) {
+                                distribucion[offsetNocturno % 7]++;
+                                offsetNocturno++;
+                            } else {
+                                distribucion[offsetDiurno % 7]++;
+                                offsetDiurno++;
+                            }
+                        }
+
+                        for (let i = 0; i < 7; i++) {
+                            const hcDescanso = distribucion[i];
+                            if (hcDescanso > 0) {
+                                const tr = document.createElement('tr');
+                                tr.className = 'hover:bg-[#1E293B] transition-colors';
+                                
+                                let htmlRow = `<td class="py-3.5 px-4 font-black text-brand-accentAmber text-[13px] border-r border-[#1F2937] bg-[#111827]">${hcDescanso}</td>`;
+                                
+                                for (let d = 0; d < 7; d++) {
+                                    if (esTurnoNocturno) { 
+                                        if (d === i || d === (i + 1) % 7) {
+                                            htmlRow += `<td class="py-3.5 px-2 text-brand-accentRose font-bold text-[11px] tracking-wider">Descanso</td>`;
+                                        } else {
+                                            htmlRow += `<td class="py-3.5 px-2 text-slate-300 font-mono-num font-medium text-[11px]">${shiftStr}</td>`;
+                                        }
+                                    } else { 
+                                        if (d === i) {
+                                            htmlRow += `<td class="py-3.5 px-2 text-brand-accentRose font-bold text-[11px] tracking-wider">Descanso</td>`;
+                                        } else {
+                                            htmlRow += `<td class="py-3.5 px-2 text-slate-300 font-mono-num font-medium text-[11px]">${shiftStr}</td>`;
+                                        }
+                                    }
+                                }
+                                
+                                tr.innerHTML = htmlRow;
+                                optTbody.appendChild(tr);
+                            }
+                        }
+                    });
+                }
+
+                if (optChartInstance) optChartInstance.destroy();
+                const ctxOpt = document.getElementById('optChart').getContext('2d');
+                const labelCurvaCob = usarNocturno ? "Malla Sugerida (Mixta)" : `Malla Sugerida (${durJornada}h)`;
+
+                optChartInstance = new Chart(ctxOpt, {
+                    type: 'line',
+                    data: {
+                        labels: intervalos,
+                        datasets: [
+                            { 
+                                label: 'HC Requerido (Motor)', 
+                                data: reqAvgVector, 
+                                borderColor: '#22D3EE', // Cyan brillante
+                                backgroundColor: 'rgba(34, 211, 238, 0.1)', 
+                                fill: true, 
+                                tension: 0.4, 
+                                borderWidth: 3,
+                                pointRadius: 0,
+                                pointHoverRadius: 6
+                            },
+                            { 
+                                label: 'Plantilla Actual (Roster)', 
+                                data: rosterAvgVector, 
+                                borderColor: '#34D399', // Esmeralda vibrante
+                                backgroundColor: '#34D399', 
+                                fill: false, 
+                                tension: 0.4, 
+                                borderWidth: 2, 
+                                borderDash: [5, 5],
+                                pointRadius: 0,
+                                pointHoverRadius: 6
+                            },
+                            { 
+                                label: labelCurvaCob, 
+                                data: (optData.cobertura_optima || []), 
+                                borderColor: '#3B82F6', // Azul principal
+                                backgroundColor: '#3B82F6', 
+                                fill: false, 
+                                tension: 0.4, 
+                                borderWidth: 3, 
+                                borderDash: [4, 4],
+                                pointRadius: 0,
+                                pointHoverRadius: 6
+                            }
+                        ]
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: { 
+                            legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 }, usePointStyle: true, boxWidth: 8 } },
+                            tooltip: { backgroundColor: '#111827', titleColor: '#F8FAFC', bodyColor: '#cbd5e1', borderColor: '#1F2937', borderWidth: 1, padding: 12, boxPadding: 6, usePointStyle: true }
+                        }, 
+                        scales: { 
+                            x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 12 } }, 
+                            y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true } 
+                        } 
+                    }
+                });
+
+            } catch (e) {
+                console.log("Error al optimizar turnos en frontend:", e);
+                document.getElementById('compSlOptimo').innerText = "Error";
+                document.getElementById('optHeadcount').innerText = "Error";
+            }
+        }
+
+        function exportarTurnosCSV() {
+            if (!globalTurnosOptimos || globalTurnosOptimos.length === 0) {
+                alert("No hay turnos optimizados para exportar.");
+                return;
+            }
+            
+            const headers = ["HC", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
+            const csvRows = [headers.join(",")];
+            
+            let offsetDiurno = 0;
+            let offsetNocturno = 0;
+
+            globalTurnosOptimos.forEach(t => {
+                const hcTurno = t.nomina_a_contratar;
+                if (hcTurno <= 0) return;
+                
+                const shiftStr = `${t.horario_entrada} - ${t.horario_salida}`;
+                const esTurnoNocturno = t.duracion.includes('Nocturno');
+
+                let distribucion = [0, 0, 0, 0, 0, 0, 0];
+                
+                for (let i = 0; i < hcTurno; i++) {
+                    if (esTurnoNocturno) {
+                        distribucion[offsetNocturno % 7]++;
+                        offsetNocturno++;
+                    } else {
+                        distribucion[offsetDiurno % 7]++;
+                        offsetDiurno++;
+                    }
+                }
+                
+                for (let i = 0; i < 7; i++) {
+                    const hcDescanso = distribucion[i];
+                    if (hcDescanso > 0) {
+                        let row = [hcDescanso];
+                        for (let d = 0; d < 7; d++) {
+                            if (esTurnoNocturno) {
+                                if (d === i || d === (i+1)%7) row.push("Descanso");
+                                else row.push(shiftStr);
+                            } else {
+                                if (d === i) row.push("Descanso");
+                                else row.push(shiftStr);
+                            }
+                        }
+                        csvRows.push(row.join(","));
+                    }
+                }
+            });
+
+            const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', `Roster_Semanal_Sugerido_${new Date().toISOString().slice(0,10)}.csv`);
+            a.click();
+        }
+
+        function exportarCSV() {
+            if (!globalData || globalData.length === 0) {
+                alert("No hay datos cargados para exportar.");
+                return;
+            }
+            const headers = ["Campana", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT_HH_MM_SS", "Agentes_Requeridos_HC", "HC_Actual_Roster", "Factor_Reforecast"];
+            const csvRows = [headers.join(",")];
+            globalData.forEach(row => {
+                const values = [
+                    getProp(row, ['Campaña', 'Campana'], 'General'),
+                    getProp(row, ['Mes'], ''),
+                    getProp(row, ['Fecha'], ''),
+                    getProp(row, ['Día_Semana', 'Dia_Semana'], ''),
+                    getProp(row, ['Intervalo'], '00:00'),
+                    getProp(row, ['Llamadas', 'Recibidas'], 0),
+                    formatAHT(getProp(row, ['AHT_Segundos'], 180)),
+                    getProp(row, ['Agentes_Requeridos'], 0),
+                    getProp(row, ['HC_Actual_Roster'], 0),
+                    getProp(row, ['Factor_Correccion'], 1.0)
+                ];
+                csvRows.push(values.join(","));
+            });
+            const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', `WFM_Reporte_Ejecutivo_HC_${new Date().toISOString().slice(0,10)}.csv`);
+            a.click();
+        }
+    </script>
+</body>
+</html>
