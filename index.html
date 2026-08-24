@@ -160,7 +160,7 @@
                         </div>
                         <div class="relative">
                             <input type="checkbox" id="chkNocturno" onchange="debouncedActualizarGrafica()" class="sr-only peer" checked>
-                            <div class="w-[42px] h-[22px] bg-[#1E293B] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#A78BFA] peer-checked:shadow-[0_0_10px_rgba(167,139,250,0.5)]"></div>
+                            <div class="w-[42px] h-[22px] bg-[#1E293B] border border-[#334155] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[16px] after:w-[16px] after:transition-all peer-checked:bg-[#A78BFA] peer-checked:border-brand-accentViolet peer-checked:shadow-[0_0_10px_rgba(167,139,250,0.5)]"></div>
                         </div>
                     </label>
                     
@@ -171,7 +171,7 @@
                         </div>
                         <div class="relative">
                             <input type="checkbox" id="chkPicos" onchange="debouncedActualizarGrafica()" class="sr-only peer" checked>
-                            <div class="w-[42px] h-[22px] bg-[#1E293B] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#FB7185] peer-checked:shadow-[0_0_10px_rgba(251,113,133,0.5)]"></div>
+                            <div class="w-[42px] h-[22px] bg-[#1E293B] border border-[#334155] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[16px] after:w-[16px] after:transition-all peer-checked:bg-[#FB7185] peer-checked:border-brand-accentRose peer-checked:shadow-[0_0_10px_rgba(251,113,133,0.5)]"></div>
                         </div>
                     </label>
                 </div>
@@ -204,7 +204,7 @@
 
                     <div class="flex flex-col relative group">
                         <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Mes(es)</label>
-                        <button id="btnDropdownMes" onclick="toggleDropdown('Mes')" class="bg-[#0B1121] border border-brand-accentAmber/50 hover:border-brand-accentAmber focus:outline-none focus:border-brand-accentAmber text-xs rounded-xl px-4 py-2.5 text-brand-accentAmber font-mono-num font-bold transition-all min-w-[120px] flex items-center justify-between gap-3 shadow-sm">
+                        <button id="btnDropdownMes" onclick="toggleDropdown('Mes')" class="bg-[#0B1121] border border-[#334155] hover:border-brand-accentAmber focus:outline-none focus:border-brand-accentAmber text-xs rounded-xl px-4 py-2.5 text-brand-accentAmber font-mono-num font-bold transition-all min-w-[120px] flex items-center justify-between gap-3 shadow-sm">
                             <span id="mesSelectedText">MES (0/0)</span>
                             <span class="text-[10px]">▼</span>
                         </button>
@@ -213,16 +213,16 @@
 
                     <div class="flex flex-col relative group">
                         <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Semana(s)</label>
-                        <button id="btnDropdownSemana" onclick="toggleDropdown('Semana')" class="bg-[#0B1121] border border-brand-accentRose/50 hover:border-brand-accentRose focus:outline-none focus:border-brand-accentRose text-xs rounded-xl px-4 py-2.5 text-brand-accentRose font-mono-num font-bold transition-all min-w-[200px] flex items-center justify-between gap-3 shadow-sm">
+                        <button id="btnDropdownSemana" onclick="toggleDropdown('Semana')" class="bg-[#0B1121] border border-[#334155] hover:border-brand-accentRose focus:outline-none focus:border-brand-accentRose text-xs rounded-xl px-4 py-2.5 text-brand-accentRose font-mono-num font-bold transition-all min-w-[130px] flex items-center justify-between gap-3 shadow-sm">
                             <span id="semanaSelectedText">SEM. (0/0)</span>
                             <span class="text-[10px]">▼</span>
                         </button>
-                        <div id="dropdownSemanaMenu" class="hidden absolute top-full left-0 mt-2 w-72 max-h-60 bg-[#111827] border border-brand-accentRose/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
+                        <div id="dropdownSemanaMenu" class="hidden absolute top-full left-0 mt-2 w-56 max-h-60 bg-[#111827] border border-brand-accentRose/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
                     </div>
 
                     <div class="flex flex-col relative group">
                         <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Campaña(s)</label>
-                        <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-[#0B1121] border border-brand-accentViolet/50 hover:border-brand-accentViolet focus:outline-none focus:border-brand-accentViolet text-xs rounded-xl px-4 py-2.5 text-brand-accentViolet font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
+                        <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-[#0B1121] border border-[#334155] hover:border-brand-accentViolet focus:outline-none focus:border-brand-accentViolet text-xs rounded-xl px-4 py-2.5 text-brand-accentViolet font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
                             <span id="campanaSelectedText">SELECC. (0/0)</span>
                             <span class="text-[10px]">▼</span>
                         </button>
@@ -231,7 +231,7 @@
 
                     <div id="containerFiltroFecha" class="flex flex-col relative group">
                         <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Fecha(s)</label>
-                        <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-[#0B1121] border border-brand-accentCyan/50 hover:border-brand-accentCyan focus:outline-none focus:border-brand-accentCyan text-xs rounded-xl px-4 py-2.5 text-brand-accentCyan font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
+                        <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-[#0B1121] border border-[#334155] hover:border-brand-accentCyan focus:outline-none focus:border-brand-accentCyan text-xs rounded-xl px-4 py-2.5 text-brand-accentCyan font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
                             <span id="fechaSelectedText">SELECC. (0/0)</span>
                             <span class="text-[10px]">▼</span>
                         </button>
@@ -240,7 +240,7 @@
 
                     <div class="flex flex-col relative group">
                         <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Intervalo(s)</label>
-                        <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-[#0B1121] border border-brand-accentEmerald/50 hover:border-brand-accentEmerald focus:outline-none focus:border-brand-accentEmerald text-xs rounded-xl px-4 py-2.5 text-brand-accentEmerald font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
+                        <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-[#0B1121] border border-[#334155] hover:border-brand-accentEmerald focus:outline-none focus:border-brand-accentEmerald text-xs rounded-xl px-4 py-2.5 text-brand-accentEmerald font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
                             <span id="intervaloSelectedText">SELECC. (0/0)</span>
                             <span class="text-[10px]">▼</span>
                         </button>
@@ -258,7 +258,7 @@
                 </div>
             </div>
 
-            <!-- 4 CARDS PRINCIPALES -->
+            <!-- 4 CARDS PRINCIPALES BLINDADAS CON TAMAÑO FIJO EN SVGS -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 
                 <!-- CARD 1: TOTAL DEMAND -->
@@ -422,6 +422,12 @@
         let gapChartInstance = null; 
         let globalTurnosOptimos = [];
         
+        let allMesesOptions = [];
+        let allSemanasOptions = [];
+        let allCampanasOptions = [];
+        let allFechasOptions = [];
+        let allIntervalosOptions = [];
+
         let selectedMeses = new Set();
         let selectedSemanas = new Set(); 
         let selectedCampanas = new Set();
@@ -449,16 +455,14 @@
             return (mesesMap[mesA] || 0) - (mesesMap[mesB] || 0);
         }
 
-        // FUNCION MODIFICADA PARA QUE REGRESE EL RANGO DE FECHAS (LUNES A DOMINGO)
         function getWeekNumber(dateStr) {
             if (!dateStr) return '';
             const cleanDate = dateStr.split(' ')[0].split('T')[0];
             const parts = cleanDate.split('-');
             if (parts.length !== 3) return '';
             
-            // Usamos UTC para evitar problemas de desfase horario
             const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-            const dayNum = d.getUTCDay() || 7; // Lunes es 1, Domingo es 7
+            const dayNum = d.getUTCDay() || 7; 
             
             const startOfWeek = new Date(d);
             startOfWeek.setUTCDate(d.getUTCDate() - dayNum + 1);
@@ -715,36 +719,36 @@
         }
 
         function inicializarFiltrosMultiples() {
-            const meses = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).sort(ordenarMesesCronologicamente);
-            selectedMeses = new Set(meses);
-            renderMenuOptions('Mes', meses, selectedMeses);
+            allMesesOptions = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).sort(ordenarMesesCronologicamente);
+            selectedMeses = new Set(allMesesOptions);
+            renderMenuOptions('Mes', allMesesOptions, selectedMeses);
 
-            const semanas = [...new Set(globalData.map(i => getWeekNumber(getProp(i, ['Fecha'], ''))))].filter(Boolean).sort();
-            selectedSemanas = new Set(semanas);
-            renderMenuOptions('Semana', semanas, selectedSemanas);
+            allSemanasOptions = [...new Set(globalData.map(i => getWeekNumber(getProp(i, ['Fecha'], ''))))].filter(Boolean).sort();
+            selectedSemanas = new Set(allSemanasOptions);
+            renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
 
-            const campanas = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).sort();
-            selectedCampanas = new Set(campanas);
-            renderMenuOptions('Campana', campanas, selectedCampanas);
+            allCampanasOptions = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).sort();
+            selectedCampanas = new Set(allCampanasOptions);
+            renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
 
-            const fechas = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
-            selectedFechas = new Set(fechas);
-            renderMenuOptions('Fecha', fechas, selectedFechas);
+            allFechasOptions = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
+            selectedFechas = new Set(allFechasOptions);
+            renderMenuOptions('Fecha', allFechasOptions, selectedFechas);
 
-            const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
-            selectedIntervalos = new Set(intervalos);
-            renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
+            allIntervalosOptions = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
+            selectedIntervalos = new Set(allIntervalosOptions);
+            renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
             
             calcularTotalesFiltros();
             actualizarTextosBotones();
         }
 
         function calcularTotalesFiltros() {
-            totalesFiltros.M = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).length;
-            totalesFiltros.S = [...new Set(globalData.map(i => getWeekNumber(getProp(i, ['Fecha'], ''))))].filter(Boolean).length; 
-            totalesFiltros.C = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).length;
-            totalesFiltros.F = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).length;
-            totalesFiltros.I = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).length;
+            totalesFiltros.M = allMesesOptions.length;
+            totalesFiltros.S = allSemanasOptions.length;
+            totalesFiltros.C = allCampanasOptions.length;
+            totalesFiltros.F = allFechasOptions.length;
+            totalesFiltros.I = allIntervalosOptions.length;
         }
 
         function renderMenuOptions(type, allOptions, setRef) {
@@ -792,15 +796,63 @@
             });
         }
 
-        function onCheckboxChange(type, value, checked) {
-            let setRef = type === 'Mes' ? selectedMeses : (type === 'Semana' ? selectedSemanas : (type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos)));
-            if (checked) setRef.add(value); else setRef.delete(value);
+        // ==========================================
+        // LA MAGIA: SINCRONIZACIÓN DE FILTROS EN CASCADA
+        // ==========================================
+        function syncFilters(changedType) {
+            let validRows = [];
+            
+            if (changedType === 'Mes') {
+                if (selectedMeses.size === 0) {
+                    selectedSemanas.clear();
+                    selectedFechas.clear();
+                } else {
+                    validRows = globalData.filter(r => selectedMeses.has(String(getProp(r, ['Mes'], ''))));
+                    selectedSemanas = new Set(validRows.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))).filter(Boolean));
+                    selectedFechas = new Set(validRows.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]).filter(Boolean));
+                }
+                renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
+                renderMenuOptions('Fecha', allFechasOptions, selectedFechas);
+                
+            } else if (changedType === 'Semana') {
+                if (selectedSemanas.size === 0) {
+                    selectedMeses.clear();
+                    selectedFechas.clear();
+                } else {
+                    validRows = globalData.filter(r => selectedSemanas.has(getWeekNumber(getProp(r, ['Fecha'], ''))));
+                    selectedMeses = new Set(validRows.map(r => String(getProp(r, ['Mes'], ''))).filter(Boolean));
+                    selectedFechas = new Set(validRows.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]).filter(Boolean));
+                }
+                renderMenuOptions('Mes', allMesesOptions, selectedMeses);
+                renderMenuOptions('Fecha', allFechasOptions, selectedFechas);
+                
+            } else if (changedType === 'Fecha') {
+                if (selectedFechas.size === 0) {
+                    selectedMeses.clear();
+                    selectedSemanas.clear();
+                } else {
+                    validRows = globalData.filter(r => selectedFechas.has(String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]));
+                    selectedMeses = new Set(validRows.map(r => String(getProp(r, ['Mes'], ''))).filter(Boolean));
+                    selectedSemanas = new Set(validRows.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))).filter(Boolean));
+                }
+                renderMenuOptions('Mes', allMesesOptions, selectedMeses);
+                renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
+            }
+        }
 
-            if (type === 'Mes') {
-                const fechasInMes = [...new Set(globalData.filter(i => selectedMeses.has(getProp(i, ['Mes'], ''))).map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
-                selectedFechas = new Set(fechasInMes);
-                const allFechas = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
-                renderMenuOptions('Fecha', allFechas, selectedFechas);
+        function onCheckboxChange(type, value, checked) {
+            let setRef;
+            if(type === 'Mes') setRef = selectedMeses;
+            else if(type === 'Semana') setRef = selectedSemanas;
+            else if(type === 'Campana') setRef = selectedCampanas;
+            else if(type === 'Fecha') setRef = selectedFechas;
+            else setRef = selectedIntervalos;
+
+            if (checked) setRef.add(value); 
+            else setRef.delete(value);
+
+            if (['Mes', 'Semana', 'Fecha'].includes(type)) {
+                syncFilters(type);
             }
 
             actualizarTextosBotones();
@@ -808,30 +860,22 @@
         }
 
         function selectAllFilter(type, selectAll) {
-            let setRef = type === 'Mes' ? selectedMeses : (type === 'Semana' ? selectedSemanas : (type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos)));
-            let allOptions = [];
+            let setRef, allOptions;
             
-            if (type === 'Mes') {
-                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean);
-            } else if (type === 'Semana') {
-                allOptions = [...new Set(globalData.map(i => getWeekNumber(getProp(i, ['Fecha'], ''))))].filter(Boolean);
-            } else if (type === 'Campana') {
-                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean);
-            } else if (type === 'Fecha') {
-                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
-            } else {
-                allOptions = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean);
-            }
+            if (type === 'Mes') { setRef = selectedMeses; allOptions = allMesesOptions; }
+            else if (type === 'Semana') { setRef = selectedSemanas; allOptions = allSemanasOptions; }
+            else if (type === 'Campana') { setRef = selectedCampanas; allOptions = allCampanasOptions; }
+            else if (type === 'Fecha') { setRef = selectedFechas; allOptions = allFechasOptions; }
+            else { setRef = selectedIntervalos; allOptions = allIntervalosOptions; }
             
             if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
             
-            if (type === 'Mes') {
-                allOptions.sort(ordenarMesesCronologicamente);
-            } else {
-                allOptions.sort();
+            renderMenuOptions(type, allOptions, setRef);
+            
+            if (['Mes', 'Semana', 'Fecha'].includes(type)) {
+                syncFilters(type);
             }
             
-            renderMenuOptions(type, allOptions, setRef);
             actualizarTextosBotones();
             debouncedActualizarGrafica();
         }
@@ -878,8 +922,7 @@
 
         function toggleTableInterval(inter) {
             if (selectedIntervalos.has(inter)) selectedIntervalos.delete(inter); else selectedIntervalos.add(inter);
-            const intervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
-            renderMenuOptions('Intervalo', intervalos, selectedIntervalos);
+            renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
             actualizarTextosBotones();
             debouncedActualizarGrafica();
         }
