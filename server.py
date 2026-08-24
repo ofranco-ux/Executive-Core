@@ -393,10 +393,9 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     
     max_fecha_real = df_valido[col_fecha].max()
     
-    # --- NUEVO CANDADO: Máximo 1 año de histórico (365 días) ---
+    # --- CANDADO DE 1 AÑO ---
     fecha_limite = max_fecha_real - timedelta(days=365)
     df_raw = df_raw[(df_raw[col_fecha] >= fecha_limite) & (df_raw[col_fecha] <= max_fecha_real)]
-    # -----------------------------------------------------------
 
     if col_aht:
         df_raw[col_aht] = [parse_aht_to_seconds(x) for x in df_raw[col_aht]]
@@ -545,6 +544,12 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         str_mes = f"{meses_espanol[fecha_actual.month]} {fecha_actual.year}"
         nombre_dia = dias_espanol[fecha_actual.weekday()]
 
+        # --- NUEVO: CÁLCULO DE SEMANA ---
+        inicio_semana = fecha_actual - timedelta(days=fecha_actual.weekday())
+        fin_semana = inicio_semana + timedelta(days=6)
+        str_semana = f"W {inicio_semana.strftime('%Y/%m/%d')} - {fin_semana.strftime('%Y/%m/%d')}"
+        # --------------------------------
+
         for camp in campanas_unicas:
             hist_vol = historial_volumenes[camp]
             feat_futuras = np.array([extraer_features_fecha(fecha_actual, hist_vol, len(hist_vol))])
@@ -588,6 +593,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'Campaña': str(camp),
                     'Fecha': str_fecha,
                     'Mes': str_mes,
+                    'Semana': str_semana,  # <--- SE AGREGA AL JSON
                     'Día_Semana': nombre_dia.capitalize(),
                     'Intervalo': inter,
                     'Llamadas': calls_int,
@@ -678,16 +684,13 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     duracion_minutos = int(round(duracion_jornada * 60))
     label_jornada_diurna = f"{duracion_jornada:.1f} hrs".replace('.0', '')
 
-    # --- NUEVO CANDADO DE LÍMITE DE HORARIOS (07:00 a 22:00) ---
     valid_starts = []
     for j in range(m):
         min_in_val = parse_time_str(intervalos[j])
         if min_in_val is not None:
             min_out_val = min_in_val + duracion_minutos
-            # Todo turno dinámico diurno debe comenzar >= 07:00 y terminar <= 22:00
             if min_in_val >= (7 * 60) and min_out_val <= (22 * 60):
                 valid_starts.append(j)
-    # ----------------------------------------------------------
 
     def calc_current_global_sl(current_cob):
         if tot_llamadas <= 0: return 100.0
