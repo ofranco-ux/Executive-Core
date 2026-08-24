@@ -36,7 +36,7 @@ VENTANAS_SERVICIO = {
     'retenciones liverpool': {'inicio': 9 * 60, 'fin': 20 * 60}
 }
 
-# === BUSCADOR UNIVERSAL DE ARCHIVO EXCEL ===
+# --- BUSCADOR UNIVERSAL DE ARCHIVO EXCEL ---
 def buscar_archivo_excel():
     if os.path.exists(EXCEL_DEFAULT):
         return EXCEL_DEFAULT
@@ -616,7 +616,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     req_hc_pooled = []
     req_hc_base = np.zeros(m)
     
-    # 1. Calculamos el requerimiento base por Erlang-C intervalo a intervalo
     for i in range(m):
         if req_vec is not None and i < len(req_vec) and req_vec[i] > 0:
             req_hc_i = int(req_vec[i])
@@ -636,7 +635,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     agentes_nocturnos_totales_hc = 0
     agentes_diurnos_totales_hc = 0
 
-    # 2. Configuracion de Turno Nocturno Fijo (si aplica)
     if es_nocturno:
         label_jornada_noc = "9.0 hrs (Nocturno 5x2)"
         indices_nocturnos = []
@@ -647,28 +645,31 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                     indices_nocturnos.append(j)
 
         if len(indices_nocturnos) > 0:
-            agentes_noc_hc = 1
-            while agentes_noc_hc <= 200:
-                cob_temp_ftes = agentes_noc_hc * factor_asistencia
-                sl_acum, llamadas_noc = 0.0, 0.0
+            # === NUEVO CANDADO: Solo forzar turno nocturno si hay llamadas en la madrugada ===
+            if sum([llamadas_arr[idx] for idx in indices_nocturnos]) > 0:
+                agentes_noc_hc = 1
+                while agentes_noc_hc <= 200:
+                    cob_temp_ftes = agentes_noc_hc * factor_asistencia
+                    sl_acum, llamadas_noc = 0.0, 0.0
+                    for idx in indices_nocturnos:
+                        c = llamadas_arr[idx]
+                        aht_s = aht_arr[idx]
+                        a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
+                        sl_v = erlang_c_sl_optimizado(a_erl, cob_temp_ftes, aht_s, target_time) if c > 0 else 100.0
+                        sl_acum += (c * sl_v)
+                        llamadas_noc += c
+                    sl_prom_noc = (sl_acum / llamadas_noc) if llamadas_noc > 0 else 100.0
+                    if sl_prom_noc >= target_sl_dinamico:
+                        break
+                    agentes_noc_hc += 1
+                key_turno_noc = ("22:00", "07:00", label_jornada_noc)
+                x_turnos_dict[key_turno_noc] = agentes_noc_hc
+                agentes_nocturnos_totales_hc = agentes_noc_hc
                 for idx in indices_nocturnos:
-                    c = llamadas_arr[idx]
-                    aht_s = aht_arr[idx]
-                    a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-                    sl_v = erlang_c_sl_optimizado(a_erl, cob_temp_ftes, aht_s, target_time) if c > 0 else 100.0
-                    sl_acum += (c * sl_v)
-                    llamadas_noc += c
-                sl_prom_noc = (sl_acum / llamadas_noc) if llamadas_noc > 0 else 100.0
-                if sl_prom_noc >= target_sl_dinamico:
-                    break
-                agentes_noc_hc += 1
-            key_turno_noc = ("22:00", "07:00", label_jornada_noc)
-            x_turnos_dict[key_turno_noc] = agentes_noc_hc
-            agentes_nocturnos_totales_hc = agentes_noc_hc
-            for idx in indices_nocturnos:
-                cob_hc[idx] += agentes_noc_hc
+                    cob_hc[idx] += agentes_noc_hc
+            else:
+                agentes_nocturnos_totales_hc = 0
 
-    # 3. Configuracion de Turnos Diurnos Dinamicos
     duracion_jornada = float(duracion_jornada)
     SHIFT_BLOCKS = int(round(duracion_jornada * 2))
     duracion_minutos = int(round(duracion_jornada * 60))
@@ -695,7 +696,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                 sl_acum += c * sl_v
         return sl_acum / tot_llamadas
 
-    # 4. Bucle principal de asignacion y GARANTIA DE SL GLOBAL
     if len(valid_starts) > 0:
         max_iterations = 5000
         iteration = 0
@@ -704,12 +704,10 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             
             deficit = req_hc_base - cob_hc
             
-            # === CANDADO DE SERVICE LEVEL ===
-            # Si ya cubrimos el minimo intervalo por intervalo, revisamos el SL Global ponderado.
             if np.max(deficit) <= 0:
                 current_sl = calc_current_global_sl(cob_hc)
                 if current_sl >= target_sl_dinamico:
-                    break  # Logramos la meta global. Rompemos el ciclo.
+                    break 
                 else:
                     best_i = -1
                     max_impact = -1
@@ -732,8 +730,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                         req_hc_base[best_i] += 1
                         deficit = req_hc_base - cob_hc
                     else:
-                        break # Ya no hay forma matematica de subir el SL
-            # ==========================================
+                        break 
 
             best_start_idx = -1
             best_cov = -1
@@ -776,7 +773,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                 cob_hc[best_start_idx:] += 1
                 cob_hc[:(best_start_idx + SHIFT_BLOCKS) - m] += 1
 
-    # 5. Consolidacion de Resultados
     sl_optimo_vector = []
     for i in range(m):
         c = llamadas_arr[i]
@@ -851,7 +847,7 @@ def get_latest_forecast():
         except Exception as e:
             return jsonify({'error': f'Error procesando Excel: {str(e)}'}), 500
             
-    return jsonify({'error': 'No se encontro ningun archivo Excel en el servidor.'}), 404
+    return jsonify({'error': 'No se encontró ningún archivo Excel en el servidor.'}), 404
 
 @app.route('/api/optimize-schedules', methods=['POST'])
 def api_optimize_schedules():
