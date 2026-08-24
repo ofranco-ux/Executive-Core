@@ -392,7 +392,11 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         raise ValueError("Error Crítico: El archivo no tiene volumen de llamadas mayor a cero.")
     
     max_fecha_real = df_valido[col_fecha].max()
-    df_raw = df_raw[df_raw[col_fecha] <= max_fecha_real]
+    
+    # --- NUEVO CANDADO: Máximo 1 año de histórico (365 días) ---
+    fecha_limite = max_fecha_real - timedelta(days=365)
+    df_raw = df_raw[(df_raw[col_fecha] >= fecha_limite) & (df_raw[col_fecha] <= max_fecha_real)]
+    # -----------------------------------------------------------
 
     if col_aht:
         df_raw[col_aht] = [parse_aht_to_seconds(x) for x in df_raw[col_aht]]
