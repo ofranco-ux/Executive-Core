@@ -593,7 +593,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'Campaña': str(camp),
                     'Fecha': str_fecha,
                     'Mes': str_mes,
-                    'Semana': str_semana,  # <--- SE AGREGA AL JSON
+                    'Semana': str_semana,
                     'Día_Semana': nombre_dia.capitalize(),
                     'Intervalo': inter,
                     'Llamadas': calls_int,
@@ -623,6 +623,12 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     aht_arr = np.nan_to_num(np.array(aht_vec, dtype=float), nan=180.0) if aht_vec is not None else np.full(m, 180.0)
     
     tot_llamadas = float(np.sum(llamadas_arr))
+    
+    # --- NUEVO CANDADO PARA VOLUMEN CERO ---
+    if tot_llamadas <= 0:
+        return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0, [0]*m
+    # ---------------------------------------
+    
     factor_asistencia = max(0.01, 1.0 - merma)
     target_sl_dinamico = float(target_sl)
     
