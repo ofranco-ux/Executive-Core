@@ -204,46 +204,45 @@
 
                     <div class="flex flex-col relative group">
                         <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Mes(es)</label>
-                        <button id="btnDropdownMes" onclick="toggleDropdown('Mes')" class="bg-[#0B1121] border border-[#334155] hover:border-brand-accentAmber text-xs rounded-xl px-4 py-2.5 text-white font-mono-num font-bold transition-all min-w-[120px] flex items-center justify-between gap-3 shadow-sm">
+                        <button id="btnDropdownMes" onclick="toggleDropdown('Mes')" class="bg-[#0B1121] border border-brand-accentAmber/50 hover:border-brand-accentAmber focus:outline-none focus:border-brand-accentAmber text-xs rounded-xl px-4 py-2.5 text-brand-accentAmber font-mono-num font-bold transition-all min-w-[120px] flex items-center justify-between gap-3 shadow-sm">
                             <span id="mesSelectedText">MES (0/0)</span>
-                            <span class="text-[10px] text-brand-accentAmber">▼</span>
+                            <span class="text-[10px]">▼</span>
                         </button>
                         <div id="dropdownMesMenu" class="hidden absolute top-full left-0 mt-2 w-56 max-h-60 bg-[#111827] border border-brand-accentAmber/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
                     </div>
 
-                    <!-- NUEVO FILTRO DE SEMANAS -->
                     <div class="flex flex-col relative group">
                         <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Semana(s)</label>
-                        <button id="btnDropdownSemana" onclick="toggleDropdown('Semana')" class="bg-[#0B1121] border border-[#334155] hover:border-brand-accentRose text-xs rounded-xl px-4 py-2.5 text-white font-mono-num font-bold transition-all min-w-[130px] flex items-center justify-between gap-3 shadow-sm">
+                        <button id="btnDropdownSemana" onclick="toggleDropdown('Semana')" class="bg-[#0B1121] border border-brand-accentRose/50 hover:border-brand-accentRose focus:outline-none focus:border-brand-accentRose text-xs rounded-xl px-4 py-2.5 text-brand-accentRose font-mono-num font-bold transition-all min-w-[200px] flex items-center justify-between gap-3 shadow-sm">
                             <span id="semanaSelectedText">SEM. (0/0)</span>
-                            <span class="text-[10px] text-brand-accentRose">▼</span>
+                            <span class="text-[10px]">▼</span>
                         </button>
-                        <div id="dropdownSemanaMenu" class="hidden absolute top-full left-0 mt-2 w-56 max-h-60 bg-[#111827] border border-brand-accentRose/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
+                        <div id="dropdownSemanaMenu" class="hidden absolute top-full left-0 mt-2 w-72 max-h-60 bg-[#111827] border border-brand-accentRose/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
                     </div>
 
                     <div class="flex flex-col relative group">
                         <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Campaña(s)</label>
-                        <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-[#0B1121] border border-[#334155] hover:border-brand-accentViolet text-xs rounded-xl px-4 py-2.5 text-white font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
+                        <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-[#0B1121] border border-brand-accentViolet/50 hover:border-brand-accentViolet focus:outline-none focus:border-brand-accentViolet text-xs rounded-xl px-4 py-2.5 text-brand-accentViolet font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
                             <span id="campanaSelectedText">SELECC. (0/0)</span>
-                            <span class="text-[10px] text-brand-accentViolet">▼</span>
+                            <span class="text-[10px]">▼</span>
                         </button>
                         <div id="dropdownCampanaMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#111827] border border-brand-accentViolet/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
                     </div>
 
                     <div id="containerFiltroFecha" class="flex flex-col relative group">
                         <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Fecha(s)</label>
-                        <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-[#0B1121] border border-[#334155] hover:border-brand-accentCyan text-xs rounded-xl px-4 py-2.5 text-white font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
+                        <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-[#0B1121] border border-brand-accentCyan/50 hover:border-brand-accentCyan focus:outline-none focus:border-brand-accentCyan text-xs rounded-xl px-4 py-2.5 text-brand-accentCyan font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
                             <span id="fechaSelectedText">SELECC. (0/0)</span>
-                            <span class="text-[10px] text-brand-accentCyan">▼</span>
+                            <span class="text-[10px]">▼</span>
                         </button>
                         <div id="dropdownFechaMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#111827] border border-brand-accentCyan/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
                     </div>
 
                     <div class="flex flex-col relative group">
                         <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Intervalo(s)</label>
-                        <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-[#0B1121] border border-[#334155] hover:border-brand-accentEmerald text-xs rounded-xl px-4 py-2.5 text-white font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
+                        <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-[#0B1121] border border-brand-accentEmerald/50 hover:border-brand-accentEmerald focus:outline-none focus:border-brand-accentEmerald text-xs rounded-xl px-4 py-2.5 text-brand-accentEmerald font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
                             <span id="intervaloSelectedText">SELECC. (0/0)</span>
-                            <span class="text-[10px] text-brand-accentEmerald">▼</span>
+                            <span class="text-[10px]">▼</span>
                         </button>
                         <div id="dropdownIntervaloMenu" class="hidden absolute top-full right-0 mt-2 w-64 max-h-60 bg-[#111827] border border-brand-accentEmerald/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
                     </div>
@@ -259,7 +258,7 @@
                 </div>
             </div>
 
-            <!-- 4 CARDS PRINCIPALES BLINDADAS CON TAMAÑO FIJO EN SVGS -->
+            <!-- 4 CARDS PRINCIPALES -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 
                 <!-- CARD 1: TOTAL DEMAND -->
@@ -424,13 +423,13 @@
         let globalTurnosOptimos = [];
         
         let selectedMeses = new Set();
-        let selectedSemanas = new Set(); // NUEVO: Set para semanas
+        let selectedSemanas = new Set(); 
         let selectedCampanas = new Set();
         let selectedFechas = new Set();
         let selectedIntervalos = new Set();
 
         let debounceTimer;
-        let totalesFiltros = { M: 0, S: 0, C: 0, F: 0, I: 0 }; // NUEVO: Totales de semana
+        let totalesFiltros = { M: 0, S: 0, C: 0, F: 0, I: 0 }; 
         let currentMode = 'wfm';
         let isSidebarVisible = true; 
 
@@ -450,18 +449,31 @@
             return (mesesMap[mesA] || 0) - (mesesMap[mesB] || 0);
         }
 
-        // NUEVA FUNCIÓN: Extraer Número de Semana de la Fecha
+        // FUNCION MODIFICADA PARA QUE REGRESE EL RANGO DE FECHAS (LUNES A DOMINGO)
         function getWeekNumber(dateStr) {
             if (!dateStr) return '';
             const cleanDate = dateStr.split(' ')[0].split('T')[0];
             const parts = cleanDate.split('-');
             if (parts.length !== 3) return '';
+            
+            // Usamos UTC para evitar problemas de desfase horario
             const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-            const dayNum = d.getUTCDay() || 7;
-            d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-            const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
-            const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1)/7);
-            return `Semana ${weekNo}`;
+            const dayNum = d.getUTCDay() || 7; // Lunes es 1, Domingo es 7
+            
+            const startOfWeek = new Date(d);
+            startOfWeek.setUTCDate(d.getUTCDate() - dayNum + 1);
+            
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setUTCDate(startOfWeek.getUTCDate() + 6);
+
+            const formatDt = (date) => {
+                const yyyy = date.getUTCFullYear();
+                const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+                const dd = String(date.getUTCDate()).padStart(2, '0');
+                return `${yyyy}/${mm}/${dd}`;
+            };
+
+            return `W${formatDt(startOfWeek)} - ${formatDt(endOfWeek)}`;
         }
 
         function toggleSidebar() {
@@ -707,7 +719,6 @@
             selectedMeses = new Set(meses);
             renderMenuOptions('Mes', meses, selectedMeses);
 
-            // NUEVO: Extraer Semanas y renderizar
             const semanas = [...new Set(globalData.map(i => getWeekNumber(getProp(i, ['Fecha'], ''))))].filter(Boolean).sort();
             selectedSemanas = new Set(semanas);
             renderMenuOptions('Semana', semanas, selectedSemanas);
@@ -730,7 +741,7 @@
 
         function calcularTotalesFiltros() {
             totalesFiltros.M = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).length;
-            totalesFiltros.S = [...new Set(globalData.map(i => getWeekNumber(getProp(i, ['Fecha'], ''))))].filter(Boolean).length; // NUEVO
+            totalesFiltros.S = [...new Set(globalData.map(i => getWeekNumber(getProp(i, ['Fecha'], ''))))].filter(Boolean).length; 
             totalesFiltros.C = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).length;
             totalesFiltros.F = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).length;
             totalesFiltros.I = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).length;
@@ -742,39 +753,37 @@
             menu.innerHTML = '';
             const headerDiv = document.createElement('div');
             
-            // Colores por tipo de filtro
-            let textColor = 'text-brand-primary';
-            let hoverColor = 'hover:bg-[#1E293B]';
-            let focusColor = 'focus:ring-brand-primary text-brand-primary';
-            
-            if(type === 'Mes') { textColor = 'text-brand-accentAmber'; focusColor = 'focus:ring-brand-accentAmber text-brand-accentAmber'; }
-            if(type === 'Semana') { textColor = 'text-brand-accentRose'; focusColor = 'focus:ring-brand-accentRose text-brand-accentRose'; }
-            if(type === 'Campana') { textColor = 'text-brand-accentViolet'; focusColor = 'focus:ring-brand-accentViolet text-brand-accentViolet'; }
-            if(type === 'Fecha') { textColor = 'text-brand-accentCyan'; focusColor = 'focus:ring-brand-accentCyan text-brand-accentCyan'; }
-            if(type === 'Intervalo') { textColor = 'text-brand-accentEmerald'; focusColor = 'focus:ring-brand-accentEmerald text-brand-accentEmerald'; }
+            let checkboxHex = '#3B82F6';
+            if(type === 'Mes') checkboxHex = '#FBBF24';
+            if(type === 'Semana') checkboxHex = '#FB7185';
+            if(type === 'Campana') checkboxHex = '#A78BFA';
+            if(type === 'Fecha') checkboxHex = '#22D3EE';
+            if(type === 'Intervalo') checkboxHex = '#34D399';
 
-            headerDiv.className = 'flex items-center justify-between p-2 pb-2 mb-1 border-b border-[#334155] text-[10px] font-bold uppercase tracking-wider text-slate-500';
+            headerDiv.className = 'flex items-center justify-between p-2 pb-3 mb-1 border-b border-[#334155] text-[11px] font-bold tracking-wider';
             headerDiv.innerHTML = `
-                <button type="button" onclick="selectAllFilter('${type}', true)" class="${textColor} hover:text-white transition-colors">Todos</button>
+                <button type="button" onclick="selectAllFilter('${type}', true)" class="text-brand-accentCyan hover:text-white transition-colors">Todos</button>
                 <button type="button" onclick="selectAllFilter('${type}', false)" class="text-brand-accentRose hover:text-white transition-colors">Ninguno</button>
             `;
             menu.appendChild(headerDiv);
             
             allOptions.forEach(opt => {
                 const label = document.createElement('label');
-                label.className = `flex items-center gap-2.5 p-2 ${hoverColor} rounded-lg cursor-pointer transition-colors`;
+                label.className = `flex items-center gap-3 p-2 hover:bg-[#1E293B] rounded-lg cursor-pointer transition-colors`;
                 const isChecked = setRef.has(opt);
                 
                 const input = document.createElement('input');
                 input.type = 'checkbox';
                 input.checked = isChecked;
-                input.className = `rounded bg-[#0B1121] border-[#334155] ${focusColor}`;
+                input.className = 'w-4 h-4 cursor-pointer';
+                input.style.accentColor = checkboxHex; 
+                
                 input.addEventListener('change', (e) => {
                     onCheckboxChange(type, opt, e.target.checked);
                 });
 
                 const span = document.createElement('span');
-                span.className = 'truncate text-slate-200 font-medium';
+                span.className = 'truncate text-slate-200 font-medium text-[13px]';
                 span.innerText = opt;
 
                 label.appendChild(input);
@@ -786,6 +795,13 @@
         function onCheckboxChange(type, value, checked) {
             let setRef = type === 'Mes' ? selectedMeses : (type === 'Semana' ? selectedSemanas : (type === 'Campana' ? selectedCampanas : (type === 'Fecha' ? selectedFechas : selectedIntervalos)));
             if (checked) setRef.add(value); else setRef.delete(value);
+
+            if (type === 'Mes') {
+                const fechasInMes = [...new Set(globalData.filter(i => selectedMeses.has(getProp(i, ['Mes'], ''))).map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
+                selectedFechas = new Set(fechasInMes);
+                const allFechas = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
+                renderMenuOptions('Fecha', allFechas, selectedFechas);
+            }
 
             actualizarTextosBotones();
             debouncedActualizarGrafica();
@@ -879,13 +895,13 @@
 
             const dfFiltered = globalData.filter(item => {
                 const m = String(getProp(item, ['Mes'], ''));
-                const s = getWeekNumber(getProp(item, ['Fecha'], '')); // Evaluamos semana
+                const s = getWeekNumber(getProp(item, ['Fecha'], ''));
                 const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
                 const f = String(getProp(item, ['Fecha'], '')).split(' ')[0].split('T')[0];
                 const i = String(getProp(item, ['Intervalo'], '00:00'));
                 
                 const matchMes = selectedMeses.size === 0 || selectedMeses.has(m);
-                const matchSem = selectedSemanas.size === 0 || selectedSemanas.has(s); // Condicion de semana
+                const matchSem = selectedSemanas.size === 0 || selectedSemanas.has(s); 
                 const matchCamp = selectedCampanas.size === 0 || selectedCampanas.has(c);
                 const matchFecha = selectedFechas.size === 0 || selectedFechas.has(f);
                 const matchInter = selectedIntervalos.size === 0 || selectedIntervalos.has(i);
@@ -956,7 +972,6 @@
                 mapIntervaloFecha[key].push(r);
             });
 
-            // MAGIA DE AGRUPACIÓN (Percentil 85 para Mes, Promedio para Semana, Max para Picos)
             todosIntervalos.forEach((inter, idx) => {
                 let callsArray = [];
                 let reqArray = [];
@@ -995,12 +1010,10 @@
                         ahtAvgVector[idx] = Math.max(...ahtArray);
                     } else {
                         if (diasTotales <= 7) {
-                            // Para 1 semana o menos: usa promedio exacto
                             llamadasAvgVector[idx] = callsArray.reduce((a,b)=>a+b,0) / diasTotales;
                             reqAvgVector[idx] = Math.ceil(reqArray.reduce((a,b)=>a+b,0) / diasTotales);
                             ahtAvgVector[idx] = ahtArray.reduce((a,b)=>a+b,0) / diasTotales;
                         } else {
-                            // Para más de 1 semana (Ej. Mes): Usa Percentil 85 ("Día de Diseño")
                             let sortedC = [...callsArray].sort((a,b)=>a-b);
                             let sortedR = [...reqArray].sort((a,b)=>a-b);
                             let pIdx = Math.floor(diasTotales * 0.85);
