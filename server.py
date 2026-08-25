@@ -149,13 +149,8 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
 def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
     if A <= 0 or aht <= 0: return 0
     n = max(1, int(math.floor(A)) + 1)
-    
-    # === FAST-PATH MATEMÁTICO (Evita que Render colapse por timeout) ===
-    # Si las llamadas son extremas, nos saltamos miles de iteraciones inútiles
-    if A > 50:
-        n = max(n, int(math.floor(A + math.sqrt(A))))
-        
-    while n < 3000: # Límite ampliado seguro
+    if A > 50: n = max(n, int(math.floor(A + math.sqrt(A))))
+    while n < 3000:
         if erlang_c_sl_optimizado(A, n, aht, target_time) >= target_sl: return n
         n += 1
     return n
@@ -380,19 +375,42 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         vols = limpiar_outliers_iqr(vols_completos)
         n = len(vols)
         
-        baseline_actual = np.mean(vols[-56:]) if n >= 56 else (np.mean(vols) if n > 0 else 100.0)
+        # === DETECTOR DE DATA INCOMPLETA (EL SALVAVIDAS WFM) ===
+        # 1. Buscamos cual ha sido tu mes mas fuerte y estable en el historial
+        reference_baseline = np.mean(vols) if n > 0 else 100.0
+        if n >= 28:
+            rolling_28 = pd.Series(vols).rolling(window=28).mean().dropna()
+            if not rolling_28.empty:
+                reference_baseline = rolling_28.max()
+
+        recent_14_avg = np.mean(vols[-14:]) if n >= 14 else reference_baseline
+
+        # 2. Si las últimas 2 semanas cayeron más del 20% respecto al mes pico (Ej. Agosto vs Julio), es data incompleta
+        is_anomalous = (recent_14_avg < reference_baseline * 0.80)
+
+        if is_anomalous:
+            # IGNORAMOS LA CAIDA. Nos anclamos al mes sano.
+            baseline_actual = reference_baseline
+            vols_sanos = vols[:-14] if n > 14 else vols
+            fechas_sanas = fechas_list[:-14] if n > 14 else fechas_list
+        else:
+            baseline_actual = np.mean(vols[-28:]) if n >= 28 else np.mean(vols)
+            vols_sanos = vols
+            fechas_sanas = fechas_list
+
         if math.isnan(baseline_actual) or baseline_actual <= 0: baseline_actual = 100.0
-            
+
+        # Sacamos el comportamiento Lunes-Domingo basado solo en la data sana
         dow_avg = {}
         for i in range(7):
-            vols_dow = [vols[j] for j in range(n) if fechas_list[j].weekday() == i]
-            dow_avg[i] = np.mean(vols_dow[-8:]) if len(vols_dow) >= 8 else baseline_actual
+            vols_dow = [vols_sanos[j] for j in range(len(vols_sanos)) if fechas_sanas[j].weekday() == i]
+            dow_avg[i] = np.mean(vols_dow[-4:]) if len(vols_dow) >= 4 else (np.mean(vols_dow) if len(vols_dow)>0 else baseline_actual)
             if math.isnan(dow_avg[i]) or dow_avg[i] <= 0: dow_avg[i] = baseline_actual
 
         peso_hw, peso_ridge, factor_ajuste = 0.50, 0.50, 1.0
-        modelo_entrenado = None
+        modelo_entrenado, max_hist_vol = None, np.max(vols) if n > 0 else 100.0
 
-        if n >= 21:
+        if not is_anomalous and n >= 21:
             train_vols, val_vols = vols[:-7], vols[-7:]
             hw_val_preds = grid_search_auto_hw(train_vols, n_preds=7)
             
@@ -421,30 +439,31 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             ultimos_14, previos_14 = sum(vols[-14:]), sum(vols[-28:-14]) if n >= 28 else sum(vols[:-14])
             if previos_14 > 0: factor_ajuste = max(0.85, min(1.15, ultimos_14 / previos_14))
 
-        hw_preds = grid_search_auto_hw(vols, n_preds=dias_futuros)
         preds_finales = []
-        max_hist_vol = np.max(vols) if n > 0 else 100.0
-        
-        for d in range(dias_futuros):
-            fecha_futura = fecha_inicio_forecast + timedelta(days=d)
-            vol_estacional = dow_avg.get(fecha_futura.weekday(), baseline_actual)
-            vol_hw = hw_preds[d] if d < len(hw_preds) else baseline_actual
-            
-            if modelo_entrenado:
-                feat = extraer_features_calendario(fecha_futura, baseline_actual)
-                vol_ridge = predecir_ridge_ml(modelo_entrenado['weights'], modelo_entrenado['mean'], modelo_entrenado['std'], np.array([feat]))
-                vol_ml = (vol_ridge * peso_ridge) + (vol_hw * peso_hw)
-                vol_final = (vol_ml * 0.70) + (vol_estacional * 0.30)
-            else: vol_final = vol_estacional
+        if is_anomalous:
+            # Si Agosto esta roto, apagamos el ML para no hundir la proyeccion.
+            for d in range(dias_futuros):
+                fecha_futura = fecha_inicio_forecast + timedelta(days=d)
+                preds_finales.append(dow_avg.get(fecha_futura.weekday(), baseline_actual))
+        else:
+            hw_preds = grid_search_auto_hw(vols, n_preds=dias_futuros)
+            for d in range(dias_futuros):
+                fecha_futura = fecha_inicio_forecast + timedelta(days=d)
+                vol_estacional = dow_avg.get(fecha_futura.weekday(), baseline_actual)
+                vol_hw = hw_preds[d] if d < len(hw_preds) else baseline_actual
                 
-            # Cero caídas drásticas, respeta tu Lunes Perfecto.
-            piso_seguro = vol_estacional * 0.85
-            techo_seguro = vol_estacional * 1.35
-            vol_final = max(piso_seguro, min(techo_seguro, vol_final))
-            preds_finales.append(vol_final)
+                if modelo_entrenado:
+                    feat = extraer_features_calendario(fecha_futura, baseline_actual)
+                    vol_ridge = predecir_ridge_ml(modelo_entrenado['weights'], modelo_entrenado['mean'], modelo_entrenado['std'], np.array([feat]))
+                    vol_ml = (vol_ridge * peso_ridge + vol_hw * peso_hw)
+                    vol_final = (vol_ml * 0.70) + (vol_estacional * 0.30)
+                else: vol_final = vol_estacional
+                    
+                vol_final = max(10.0, min(max_hist_vol * 1.40, vol_final))
+                preds_finales.append(vol_final)
 
         predicciones_futuras[camp] = preds_finales
-        factores_ui[camp] = round(factor_ajuste, 2)
+        factores_ui[camp] = round(factor_ajuste, 2) if not is_anomalous else 1.0
 
     df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
     df_filtrado = df[df['En_Ventana']].copy()
