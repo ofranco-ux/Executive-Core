@@ -490,6 +490,9 @@
 
         // FUNCION NUEVA PARA CAMBIAR ENTRE INBOUND Y OUTBOUND
         function setModeWFM(mode) {
+            // Si el usuario ya está en ese modo, no hacemos nada
+            if (forecastMode === mode) return; 
+
             forecastMode = mode;
             if(mode === 'inbound') {
                 document.getElementById('btnTabInbound').className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-primary text-white shadow-md";
@@ -506,14 +509,9 @@
                 document.getElementById('colHeaderCapacity').innerText = "Productividad Neta";
                 document.getElementById('lblProjectedSl').innerText = "Coverage de Productividad";
             }
-            // Resetear vistas al cambiar para obligar a darle Run Plan
-            document.getElementById('kpiCalls').innerText = "0";
-            document.getElementById('kpiAht').innerText = "00:00:00";
-            document.getElementById('kpiHcRequerido').innerText = "0 HC";
-            document.getElementById('kpiHcRoster').innerText = "0 HC";
-            document.getElementById('intervalTableBody').innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-500">Presiona RUN PLAN para procesar proyección ' + mode.toUpperCase() + '</td></tr>';
-            if(optChartInstance) optChartInstance.destroy();
-            if(gapChartInstance) gapChartInstance.destroy();
+            
+            // Disparar el recálculo en automático al cambiar de tab
+            procesarWFM();
         }
 
         function toggleSidebar() {
