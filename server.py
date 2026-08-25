@@ -149,7 +149,7 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         last_term = current_term * (A / N) / (1.0 - (A / N))
         pw = last_term / (sum_terms + last_term)
         intensity = N - A
-        sl = 1.0 - (pw * math.exp(-intensity * (target_time / AHT)))
+        sl = 1.0 - (pw * Math.exp(-intensity * (target_time / AHT)))
         resultado = round(max(0.0, min(100.0, sl * 100.0)), 1)
         ERLANG_CACHE[key] = resultado
         return resultado
@@ -257,7 +257,6 @@ def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.
         
     preds = []
     for m in range(1, n_preds + 1):
-        # FIX: Damped trend - Evita que se desplome a cero en proyecciones largas
         damped_trend = trend * (0.85 ** m)
         p = level + (m * damped_trend) + seasonals[(n + m - 1) % season_len]
         preds.append(max(avg_hist * 0.1, float(p)))
@@ -384,7 +383,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce', dayfirst=True).dt.normalize()
     df_raw = df_raw.dropna(subset=[col_fecha])
     if df_raw.empty:
-        raise ValueError("Error Critico: No se pudieron leer las fechas. Revisa que la columna de fechas en tu Excel.")
+        raise ValueError("Error Critico: No se pudieron leer las fechas.")
     
     df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
 
@@ -432,17 +431,14 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     modelos_ml, historial_volumenes, hw_forecasts, pesos_campana = {}, {}, {}, {}
 
     for camp in campanas_unicas:
-        sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha)
+        sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        # --- FIX: Rellenar fechas vacias para no romper la estacionalidad Lunes-Domingo ---
         min_d, max_d = sub[col_fecha].min(), sub[col_fecha].max()
         all_dates = pd.date_range(start=min_d, end=max_d, freq='D')
         sub = sub.set_index(col_fecha).reindex(all_dates).rename_axis(col_fecha).reset_index()
         sub[col_camp] = camp
-        # Interpolar huecos
         sub[col_calls] = sub[col_calls].interpolate(method='linear').ffill().bfill()
-        # --------------------------------------------------------------------------------
         
         fechas_list = sub[col_fecha].tolist()
         volumenes_list = limpiar_outliers_iqr(sub[col_calls].tolist())
@@ -450,6 +446,11 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         
         vols = list(volumenes_list)
         n = len(vols)
+        
+        # === FIX: CALCULAR BASELINE DEL HISTORIAL REAL (ANCLA) ===
+        baseline = np.mean(vols[-28:]) if len(vols) >= 28 else (np.mean(vols) if len(vols) > 0 else 100.0)
+        if math.isnan(baseline) or baseline <= 0:
+            baseline = 100.0
         
         peso_hw = 0.65
         peso_ridge = 0.35
@@ -489,13 +490,13 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 
                 if sum_pred > 0:
                     drift = sum_actual / sum_pred
-                    # FIX: Limitar que el "quiebre de tendencia" no sea mayor a +- 20%
                     factor_ajuste = max(0.8, min(1.2, drift))
                     
         pesos_campana[camp] = {
             'w_hw': peso_hw,
             'w_ridge': peso_ridge,
-            'factor_ajuste': factor_ajuste
+            'factor_ajuste': factor_ajuste,
+            'baseline': baseline
         }
 
         hw_forecasts[camp] = grid_search_auto_hw(vols, n_preds=dias_futuros)
@@ -565,18 +566,14 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             else:
                 vol_ridge = np.mean(hist_vol[-7:]) if hist_vol else 100.0
 
-            w_info = pesos_campana.get(camp, {'w_hw': 0.65, 'w_ridge': 0.35, 'factor_ajuste': 1.0})
+            w_info = pesos_campana.get(camp, {'w_hw': 0.65, 'w_ridge': 0.35, 'factor_ajuste': 1.0, 'baseline': 100.0})
             vol_hw = hw_forecasts[camp][d] if d < len(hw_forecasts[camp]) else vol_ridge
             
             vol_puro = (w_info['w_hw'] * vol_hw + w_info['w_ridge'] * vol_ridge)
             
-            # --- FIX: CANDADO DE REALIDAD ---
-            # Prevenir que la tendencia de ML infle o hunda la prediccion a niveles absurdos.
-            reciente_avg = np.mean(hist_vol[-14:]) if len(hist_vol) >= 14 else np.mean(hist_vol)
-            if math.isnan(reciente_avg) or reciente_avg <= 0: reciente_avg = 100.0
-            
-            # Limitar el volumen base entre el 80% y 125% del promedio reciente
-            vol_puro = max(reciente_avg * 0.80, min(reciente_avg * 1.25, vol_puro))
+            # --- FIX: CANDADO DE REALIDAD ANCLADO AL PASADO ---
+            baseline_real = w_info['baseline']
+            vol_puro = max(baseline_real * 0.85, min(baseline_real * 1.15, vol_puro))
             
             historial_volumenes[camp].append(vol_puro)
             
@@ -626,7 +623,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         pass
 
     return data_processed
-
 
 def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht_vec=None, req_vec=None, target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, es_nocturno=False):
     m = len(intervalos)
