@@ -149,7 +149,7 @@
 
                 <div class="flex flex-col group pt-1">
                     <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-white transition-colors">Horizonte (Días)</label>
-                    <input type="number" id="dias" value="30" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-white font-mono-num font-bold focus:border-brand-primary focus:ring-1 focus:ring-brand-primary focus:outline-none transition-all shadow-inner"/>
+                    <input type="number" id="dias" value="45" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-white font-mono-num font-bold focus:border-brand-primary focus:ring-1 focus:ring-brand-primary focus:outline-none transition-all shadow-inner"/>
                 </div>
 
                 <div class="pt-6 space-y-6">
@@ -249,7 +249,6 @@
                 </div>
             </div>
 
-            <!-- ALERTA REFORECAST -->
             <div id="reforecastAlert" class="hidden glass-panel border-l-4 border-l-brand-accentAmber p-4 rounded-xl mb-4 flex items-center gap-4 bg-brand-accentAmber/10 shadow-[0_0_15px_rgba(251,191,36,0.15)]">
                 <div class="text-2xl drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]">⚠️</div>
                 <div>
@@ -698,7 +697,7 @@
             formData.append('target_sl', document.getElementById('targetSl').value);
             formData.append('target_time', document.getElementById('targetTime').value);
             formData.append('merma', document.getElementById('merma').value);
-            formData.append('dias', document.getElementById('dias') ? document.getElementById('dias').value : 30);
+            formData.append('dias', document.getElementById('dias') ? document.getElementById('dias').value : 45);
             
             try {
                 const response = await fetch('/api/process', { method: 'POST', body: formData });
@@ -983,11 +982,9 @@
                 return;
             }
 
-            // === FIX: VOLVER A SUMAR LA DEMANDA TOTAL REAL ===
             const totCalls = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
             document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
             document.getElementById('kpiCallsTitle').innerText = "Demanda Total";
-            // ===================================================
             
             const sumLlamadasAht = dfFiltered.reduce((acc, row) => {
                 const calls = Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0;
