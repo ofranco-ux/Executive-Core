@@ -110,7 +110,6 @@
 
     <div class="grid grid-cols-12 gap-8">
 
-        <!-- SIDEBAR DE PARÁMETROS -->
         <aside id="panelControl" class="col-span-12 lg:col-span-3 glass-panel p-6 rounded-[1.5rem] space-y-6 h-fit transition-all duration-300 relative overflow-hidden">
             <div class="absolute -top-10 -right-10 w-32 h-32 bg-brand-accentViolet/10 rounded-full blur-3xl pointer-events-none"></div>
 
@@ -182,7 +181,6 @@
             </button>
         </aside>
 
-        <!-- DASHBOARD PRINCIPAL -->
         <main id="dashboardMain" class="col-span-12 lg:col-span-9 space-y-6 transition-all duration-300">
 
             <!-- FILTROS -->
@@ -204,7 +202,7 @@
 
                     <div class="flex flex-col relative group">
                         <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Mes(es)</label>
-                        <button id="btnDropdownMes" onclick="toggleDropdown('Mes')" class="bg-[#0B1121] border border-[#334155] hover:border-brand-accentAmber focus:outline-none focus:border-brand-accentAmber text-xs rounded-xl px-4 py-2.5 text-brand-accentAmber font-mono-num font-bold transition-all min-w-[120px] flex items-center justify-between gap-3 shadow-sm">
+                        <button id="btnDropdownMes" onclick="toggleDropdown('Mes')" class="bg-[#0B1121] border border-brand-accentAmber/50 hover:border-brand-accentAmber focus:outline-none focus:border-brand-accentAmber text-xs rounded-xl px-4 py-2.5 text-brand-accentAmber font-mono-num font-bold transition-all min-w-[120px] flex items-center justify-between gap-3 shadow-sm">
                             <span id="mesSelectedText">MES (0/0)</span>
                             <span class="text-[10px]">▼</span>
                         </button>
@@ -213,16 +211,16 @@
 
                     <div class="flex flex-col relative group">
                         <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Semana(s)</label>
-                        <button id="btnDropdownSemana" onclick="toggleDropdown('Semana')" class="bg-[#0B1121] border border-[#334155] hover:border-brand-accentRose focus:outline-none focus:border-brand-accentRose text-xs rounded-xl px-4 py-2.5 text-brand-accentRose font-mono-num font-bold transition-all min-w-[130px] flex items-center justify-between gap-3 shadow-sm">
+                        <button id="btnDropdownSemana" onclick="toggleDropdown('Semana')" class="bg-[#0B1121] border border-brand-accentRose/50 hover:border-brand-accentRose focus:outline-none focus:border-brand-accentRose text-xs rounded-xl px-4 py-2.5 text-brand-accentRose font-mono-num font-bold transition-all min-w-[200px] flex items-center justify-between gap-3 shadow-sm">
                             <span id="semanaSelectedText">SEM. (0/0)</span>
                             <span class="text-[10px]">▼</span>
                         </button>
-                        <div id="dropdownSemanaMenu" class="hidden absolute top-full left-0 mt-2 w-56 max-h-60 bg-[#111827] border border-brand-accentRose/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
+                        <div id="dropdownSemanaMenu" class="hidden absolute top-full left-0 mt-2 w-72 max-h-60 bg-[#111827] border border-brand-accentRose/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
                     </div>
 
                     <div class="flex flex-col relative group">
                         <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Campaña(s)</label>
-                        <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-[#0B1121] border border-[#334155] hover:border-brand-accentViolet focus:outline-none focus:border-brand-accentViolet text-xs rounded-xl px-4 py-2.5 text-brand-accentViolet font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
+                        <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-[#0B1121] border border-brand-accentViolet/50 hover:border-brand-accentViolet focus:outline-none focus:border-brand-accentViolet text-xs rounded-xl px-4 py-2.5 text-brand-accentViolet font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
                             <span id="campanaSelectedText">SELECC. (0/0)</span>
                             <span class="text-[10px]">▼</span>
                         </button>
@@ -231,7 +229,7 @@
 
                     <div id="containerFiltroFecha" class="flex flex-col relative group">
                         <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Fecha(s)</label>
-                        <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-[#0B1121] border border-[#334155] hover:border-brand-accentCyan focus:outline-none focus:border-brand-accentCyan text-xs rounded-xl px-4 py-2.5 text-brand-accentCyan font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
+                        <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-[#0B1121] border border-brand-accentCyan/50 hover:border-brand-accentCyan focus:outline-none focus:border-brand-accentCyan text-xs rounded-xl px-4 py-2.5 text-brand-accentCyan font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
                             <span id="fechaSelectedText">SELECC. (0/0)</span>
                             <span class="text-[10px]">▼</span>
                         </button>
@@ -240,7 +238,7 @@
 
                     <div class="flex flex-col relative group">
                         <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Intervalo(s)</label>
-                        <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-[#0B1121] border border-[#334155] hover:border-brand-accentEmerald focus:outline-none focus:border-brand-accentEmerald text-xs rounded-xl px-4 py-2.5 text-brand-accentEmerald font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
+                        <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-[#0B1121] border border-brand-accentEmerald/50 hover:border-brand-accentEmerald focus:outline-none focus:border-brand-accentEmerald text-xs rounded-xl px-4 py-2.5 text-brand-accentEmerald font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
                             <span id="intervaloSelectedText">SELECC. (0/0)</span>
                             <span class="text-[10px]">▼</span>
                         </button>
@@ -249,7 +247,6 @@
                 </div>
             </div>
 
-            <!-- ALERTA REFORECAST -->
             <div id="reforecastAlert" class="hidden glass-panel border-l-4 border-l-brand-accentAmber p-4 rounded-xl mb-4 flex items-center gap-4 bg-brand-accentAmber/10 shadow-[0_0_15px_rgba(251,191,36,0.15)]">
                 <div class="text-2xl drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]">⚠️</div>
                 <div>
@@ -264,7 +261,7 @@
                 <!-- CARD 1: TOTAL DEMAND -->
                 <div class="glass-panel glass-panel-hover p-5 rounded-xl relative overflow-hidden flex flex-col justify-between">
                     <div class="flex justify-between items-start">
-                        <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Demanda Total</p>
+                        <p id="kpiCallsTitle" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Demanda Total</p>
                         <div class="p-1.5 bg-slate-800/40 rounded-lg text-slate-300 border border-slate-700/50 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
                         </div>
@@ -295,7 +292,7 @@
                     </div>
                     <div class="relative z-10 mt-2">
                         <p id="kpiHcRequerido" class="text-3xl font-black font-mono-num text-brand-accentViolet drop-shadow-[0_0_8px_rgba(167,139,250,0.3)]">0 HC</p>
-                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium">Plantilla total sugerida para la semana</p>
+                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium">Plantilla total sugerida para el periodo</p>
                     </div>
                 </div>
 
@@ -796,9 +793,6 @@
             });
         }
 
-        // ==========================================
-        // LA MAGIA: SINCRONIZACIÓN DE FILTROS EN CASCADA
-        // ==========================================
         function syncFilters(changedType) {
             let validRows = [];
             
@@ -1071,6 +1065,8 @@
             });
 
             document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
+            document.getElementById('kpiCallsTitle').innerText = "Demanda Total";
+
             document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
 
             try {
