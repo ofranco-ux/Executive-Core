@@ -321,7 +321,12 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     if not col_calls: col_calls = df_raw.columns[3]
 
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
-    df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce').dt.normalize()
+    
+    # === LA RAIZ DEL PROBLEMA ESTABA AQUI ===
+    # Restauramos dayfirst=True para que respete el formato de Mexico (DD/MM/YYYY)
+    # y deje de enviar los dias de agosto al mes de enero
+    df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], dayfirst=True, errors='coerce').dt.normalize()
+    
     df_raw = df_raw.dropna(subset=[col_fecha])
     df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
 
@@ -375,36 +380,39 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         vols = limpiar_outliers_iqr(vols_completos)
         n = len(vols)
         
-        # === DETECTOR DE DATA INCOMPLETA (EL SALVAVIDAS WFM) ===
-        # 1. Buscamos cual ha sido tu mes mas fuerte y estable en el historial
+        # === SALVAVIDAS WFM: Busqueda del Mes Perfecto (28 dias) ===
         reference_baseline = np.mean(vols) if n > 0 else 100.0
+        best_start, best_end = 0, max(0, n - 1)
+        
         if n >= 28:
-            rolling_28 = pd.Series(vols).rolling(window=28).mean().dropna()
-            if not rolling_28.empty:
-                reference_baseline = rolling_28.max()
+            s_vols = pd.Series(vols)
+            rolling_sum = s_vols.rolling(window=28, min_periods=1).sum()
+            best_end = int(rolling_sum.idxmax()) if not pd.isna(rolling_sum.idxmax()) else n - 1
+            best_start = max(0, best_end - 27)
+            reference_baseline = np.mean(vols[best_start:best_end+1])
 
         recent_14_avg = np.mean(vols[-14:]) if n >= 14 else reference_baseline
 
-        # 2. Si las últimas 2 semanas cayeron más del 20% respecto al mes pico (Ej. Agosto vs Julio), es data incompleta
-        is_anomalous = (recent_14_avg < reference_baseline * 0.80)
+        # Si las últimas 2 semanas cayeron más del 25% respecto al mes pico, hay anomalia
+        is_anomalous = (recent_14_avg < reference_baseline * 0.75)
 
         if is_anomalous:
-            # IGNORAMOS LA CAIDA. Nos anclamos al mes sano.
+            # Si Agosto esta roto, usamos estrictamente el bloque del mes pico para estacionalidad
             baseline_actual = reference_baseline
-            vols_sanos = vols[:-14] if n > 14 else vols
-            fechas_sanas = fechas_list[:-14] if n > 14 else fechas_list
+            vols_sanos = vols[best_start:best_end+1]
+            fechas_sanas = fechas_list[best_start:best_end+1]
         else:
-            baseline_actual = np.mean(vols[-28:]) if n >= 28 else np.mean(vols)
+            # Si la data esta sana, usamos la data reciente
+            baseline_actual = np.mean(vols[-28:]) if n >= 28 else reference_baseline
             vols_sanos = vols
             fechas_sanas = fechas_list
 
         if math.isnan(baseline_actual) or baseline_actual <= 0: baseline_actual = 100.0
 
-        # Sacamos el comportamiento Lunes-Domingo basado solo en la data sana
         dow_avg = {}
         for i in range(7):
             vols_dow = [vols_sanos[j] for j in range(len(vols_sanos)) if fechas_sanas[j].weekday() == i]
-            dow_avg[i] = np.mean(vols_dow[-4:]) if len(vols_dow) >= 4 else (np.mean(vols_dow) if len(vols_dow)>0 else baseline_actual)
+            dow_avg[i] = np.mean(vols_dow[-4:]) if len(vols_dow) > 0 else baseline_actual
             if math.isnan(dow_avg[i]) or dow_avg[i] <= 0: dow_avg[i] = baseline_actual
 
         peso_hw, peso_ridge, factor_ajuste = 0.50, 0.50, 1.0
@@ -441,7 +449,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
         preds_finales = []
         if is_anomalous:
-            # Si Agosto esta roto, apagamos el ML para no hundir la proyeccion.
+            # Apagamos el ML y usamos estacionalidad pura del mes perfecto
             for d in range(dias_futuros):
                 fecha_futura = fecha_inicio_forecast + timedelta(days=d)
                 preds_finales.append(dow_avg.get(fecha_futura.weekday(), baseline_actual))
@@ -456,10 +464,15 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     feat = extraer_features_calendario(fecha_futura, baseline_actual)
                     vol_ridge = predecir_ridge_ml(modelo_entrenado['weights'], modelo_entrenado['mean'], modelo_entrenado['std'], np.array([feat]))
                     vol_ml = (vol_ridge * peso_ridge + vol_hw * peso_hw)
-                    vol_final = (vol_ml * 0.70) + (vol_estacional * 0.30)
-                else: vol_final = vol_estacional
                     
-                vol_final = max(10.0, min(max_hist_vol * 1.40, vol_final))
+                    # Decaimiento del ML: Despues de 30 dias vuelve gradualmente a la estacionalidad normal
+                    fade = max(0.0, 1.0 - (d / 30.0))
+                    vol_final = (vol_ml * fade) + (vol_estacional * (1.0 - fade))
+                else: 
+                    vol_final = vol_estacional
+                    
+                # Piso de seguridad sobre el mes actual
+                vol_final = max(baseline_actual * 0.70, min(baseline_actual * 1.40, vol_final))
                 preds_finales.append(vol_final)
 
         predicciones_futuras[camp] = preds_finales
