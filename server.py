@@ -201,6 +201,80 @@ def encontrar_columna(df, posibles_nombres):
                 return col_orig
     return None
 
+def calc_mae(y_true, y_pred):
+    return float(np.mean(np.abs(np.array(y_true) - np.array(y_pred))))
+
+def entrenar_ridge_ml(X, y, l2_reg=10.0):
+    X_b = np.c_[np.ones((X.shape[0], 1)), X]
+    mean = np.mean(X_b[:, 1:], axis=0)
+    std = np.std(X_b[:, 1:], axis=0) + 1e-8
+    X_norm = X_b.copy()
+    X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
+    I = np.eye(X_norm.shape[1])
+    I[0, 0] = 0.0
+    try:
+        weights = np.linalg.inv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
+    except np.linalg.LinAlgError:
+        weights = np.linalg.pinv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
+    return weights, mean, std
+
+def predecir_ridge_ml(weights, mean, std, X_new):
+    n_rows = X_new.shape[0] if hasattr(X_new, 'shape') else len(X_new)
+    X_b = np.c_[np.ones((n_rows, 1)), X_new]
+    X_norm = X_b.copy()
+    X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
+    pred = X_norm @ weights
+    return float(pred[0])
+
+def extraer_features_fecha(fecha, volumenes_hist, trend_idx):
+    day_of_week = fecha.weekday()
+    day_of_month = fecha.day
+    is_weekend = 1.0 if day_of_week >= 5 else 0.0
+    is_quincena = 1.0 if day_of_month in [1, 15, 16, 30, 31] else 0.0
+    lag_1 = volumenes_hist[-1] if len(volumenes_hist) >= 1 else 100.0
+    lag_7 = volumenes_hist[-7] if len(volumenes_hist) >= 7 else lag_1
+    lag_14 = volumenes_hist[-14] if len(volumenes_hist) >= 14 else lag_7
+    dow_encoded = [1.0 if day_of_week == i else 0.0 for i in range(7)]
+    return [lag_1, lag_7, lag_14, float(day_of_month), is_weekend, is_quincena, float(trend_idx)] + dow_encoded
+
+def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=30):
+    n = len(series)
+    avg_hist = np.mean(series) if n > 0 else 100.0
+    if n < season_len * 2:
+        return [avg_hist] * n_preds
+        
+    level = np.mean(series[:season_len])
+    trend = (np.mean(series[season_len:2*season_len]) - np.mean(series[:season_len])) / season_len
+    
+    seasonals = [series[i] - level for i in range(season_len)]
+    for i in range(n):
+        val = series[i]
+        last_level, last_trend = level, trend
+        st_prev = seasonals[i % season_len]
+        level = alpha * (val - st_prev) + (1 - alpha) * (last_level + last_trend)
+        trend = beta * (level - last_level) + (1 - beta) * last_trend
+        seasonals[i % season_len] = gamma * (val - level) + (1 - gamma) * st_prev
+        
+    preds = []
+    for m in range(1, n_preds + 1):
+        # Amortiguar la tendencia para que no se caiga a 0
+        damped_trend = trend * (0.85 ** m)
+        p = level + (m * damped_trend) + seasonals[(n + m - 1) % season_len]
+        preds.append(max(avg_hist * 0.1, float(p)))
+    return preds
+
+def grid_search_auto_hw(series, n_preds=30):
+    return holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=n_preds)
+
+def limpiar_outliers_iqr(series_list):
+    if len(series_list) < 14:
+        return list(series_list)
+    arr = np.array(series_list)
+    q25, q75 = np.percentile(arr, 25), np.percentile(arr, 75)
+    iqr = q75 - q25
+    lower, upper = q25 - 1.5 * iqr, q75 + 1.5 * iqr
+    return np.clip(arr, lower, upper).tolist()
+
 def generar_intervalos_cobertura(start_min, end_min):
     intervals = []
     if start_min < end_min:
@@ -310,7 +384,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce', dayfirst=True).dt.normalize()
     df_raw = df_raw.dropna(subset=[col_fecha])
     if df_raw.empty:
-        raise ValueError("Error Critico: No se pudieron leer las fechas. Revisa que la columna de fechas en tu Excel.")
+        raise ValueError("Error Critico: No se pudieron leer las fechas.")
     
     df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
 
@@ -355,52 +429,117 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
     campanas_unicas = df[col_camp].unique()
 
-    # === NUEVO MOTOR WFM ESTANDAR DE LA INDUSTRIA (4-Week Seasonal Naive) ===
-    pesos_campana = {}
+    modelos_ml, historial_volumenes, hw_forecasts, pesos_campana = {}, {}, {}, {}
 
     for camp in campanas_unicas:
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        # 1. Aseguramos que no haya huecos en el calendario
-        min_d, max_d = sub[col_fecha].min(), sub[col_fecha].max()
-        all_dates = pd.date_range(start=min_d, end=max_d, freq='D')
-        sub = sub.set_index(col_fecha).reindex(all_dates).rename_axis(col_fecha).reset_index()
-        sub[col_camp] = camp
-        sub[col_calls] = sub[col_calls].interpolate(method='linear').ffill().bfill()
+        fechas_reales = sub[col_fecha].tolist()
+        vols_reales = sub[col_calls].tolist()
         
-        # 2. Promedio historico exacto por dia de la semana (Ultimas 4 semanas)
-        dow_avg = {}
-        for i in range(7):
-            df_dow = sub[sub[col_fecha].dt.weekday == i]
-            if len(df_dow) > 0:
-                dow_avg[i] = df_dow.tail(4)[col_calls].mean()
-            else:
-                dow_avg[i] = sub[col_calls].mean()
+        fechas_completas = []
+        vols_completos = []
         
-        vols = sub[col_calls].tolist()
+        for i in range(len(fechas_reales)):
+            if i > 0:
+                dias_diff = (fechas_reales[i] - fechas_reales[i-1]).days
+                if 1 < dias_diff <= 30: 
+                    for step in range(1, dias_diff):
+                        fechas_completas.append(fechas_reales[i-1] + timedelta(days=step))
+                        vols_completos.append(vols_reales[i-1])
+            fechas_completas.append(fechas_reales[i])
+            vols_completos.append(vols_reales[i])
+
+        fechas_list = fechas_completas
+        volumenes_list = limpiar_outliers_iqr(vols_completos)
+        historial_volumenes[camp] = list(volumenes_list)
+        
+        vols = list(volumenes_list)
+        n = len(vols)
+        
+        # === CINTURON DE SEGURIDAD PARA EL MACHINE LEARNING ===
+        # Sacamos el promedio real de los ultimos 28 dias para usarlo de ancla
+        baseline = np.mean(vols[-28:]) if len(vols) >= 28 else (np.mean(vols) if len(vols) > 0 else 100.0)
+        if math.isnan(baseline) or baseline <= 0:
+            baseline = 100.0
+        
+        peso_hw = 0.65
+        peso_ridge = 0.35
         factor_ajuste = 1.0
-        
-        # 3. Micro-Ajuste de Tendencia (Reforecast)
-        if len(vols) >= 14:
-            sum_recent = sum(vols[-7:])
-            sum_prev = sum(vols[-14:-7])
-            if sum_prev > 0:
-                drift = sum_recent / sum_prev
-                # Maximo 15% de castigo/aumento para evitar colapsos irreales
-                factor_ajuste = max(0.85, min(1.15, drift))
+
+        if n >= 21:
+            train_vols = vols[:-7]
+            val_vols = vols[-7:]
+            
+            # 1. El modelo Holt-Winters aprende la estacionalidad
+            hw_val_preds = grid_search_auto_hw(train_vols, n_preds=7)
+            
+            # 2. El modelo Ridge aprende dias feriados/fines de semana
+            X_train_bt, y_train_bt = [], []
+            for i in range(14, len(train_vols)):
+                feat = extraer_features_fecha(fechas_list[i], train_vols[:i], trend_idx=i)
+                X_train_bt.append(feat)
+                y_train_bt.append(train_vols[i])
+            
+            if len(X_train_bt) > 5:
+                w_bt, m_bt, s_bt = entrenar_ridge_ml(np.array(X_train_bt), np.array(y_train_bt), l2_reg=10.0)
+                ridge_val_preds = []
+                for i in range(7):
+                    f_idx = len(train_vols) + i
+                    feat = extraer_features_fecha(fechas_list[f_idx], train_vols + val_vols[:i], trend_idx=f_idx)
+                    pred_r = predecir_ridge_ml(w_bt, m_bt, s_bt, np.array([feat]))
+                    ridge_val_preds.append(max(0, pred_r))
                 
+                # 3. Validacion: Se evalua quien tuvo menos error en la vida real
+                error_hw = calc_mae(val_vols, hw_val_preds) + 1e-5
+                error_ridge = calc_mae(val_vols, ridge_val_preds) + 1e-5
+                
+                total_inv_error = (1.0 / error_hw) + (1.0 / error_ridge)
+                peso_hw = (1.0 / error_hw) / total_inv_error
+                peso_ridge = (1.0 / error_ridge) / total_inv_error
+                
+                ensemble_val_preds = [(peso_hw * hw_val_preds[i] + peso_ridge * ridge_val_preds[i]) for i in range(7)]
+                sum_actual = sum(val_vols)
+                sum_pred = sum(ensemble_val_preds)
+                
+                if sum_pred > 0:
+                    drift = sum_actual / sum_pred
+                    factor_ajuste = max(0.85, min(1.15, drift))
+                    
         pesos_campana[camp] = {
-            'dow_avg': dow_avg,
-            'factor_ajuste': factor_ajuste
+            'w_hw': peso_hw,
+            'w_ridge': peso_ridge,
+            'factor_ajuste': factor_ajuste,
+            'baseline': baseline
         }
 
-    # 4. Construccion del Perfil Intradia (basado en los ultimos 28 dias)
+        # Entrenamos para predecir el futuro
+        hw_forecasts[camp] = grid_search_auto_hw(vols, n_preds=dias_futuros)
+
+        X_data, y_data = [], []
+        for i in range(14, len(vols)):
+            f = fechas_list[i]
+            feat = extraer_features_fecha(f, vols[:i], trend_idx=i)
+            X_data.append(feat)
+            y_data.append(vols[i])
+
+        if len(X_data) > 10:
+            X_arr, y_arr = np.array(X_data), np.array(y_data)
+            weights, mean, std = entrenar_ridge_ml(X_arr, y_arr, l2_reg=10.0)
+            modelos_ml[camp] = {'weights': weights, 'mean': mean, 'std': std, 'promedio_base': np.mean(y_arr)}
+        else:
+            modelos_ml[camp] = None
+
     df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
     df_filtrado = df[df['En_Ventana']].copy()
 
     max_date_hist = df_filtrado[col_fecha].max()
-    df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_date_hist - timedelta(days=28))]
+    
+    if pd.isna(max_date_hist):
+        df_reciente = df_filtrado.copy()
+    else:
+        df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_date_hist - timedelta(days=21))]
 
     perfil_intradia = df_reciente.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
         avg_calls=(col_calls, 'mean'),
@@ -426,7 +565,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     factor_asistencia = max(0.01, 1.0 - merma)
     data_processed = []
 
-    # 5. Proyeccion Final
     for d in range(dias_futuros):
         fecha_actual = fecha_inicio_forecast + timedelta(days=d)
         str_fecha = fecha_actual.strftime('%Y-%m-%d')
@@ -434,13 +572,32 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         nombre_dia = dias_espanol[fecha_actual.weekday()]
 
         for camp in campanas_unicas:
-            w_info = pesos_campana.get(camp, {'dow_avg': {}, 'factor_ajuste': 1.0})
+            hist_vol = historial_volumenes[camp]
+            feat_futuras = np.array([extraer_features_fecha(fecha_actual, hist_vol, len(hist_vol))])
+
+            model_info = modelos_ml.get(camp)
+            if model_info:
+                vol_ridge = predecir_ridge_ml(model_info['weights'], model_info['mean'], model_info['std'], feat_futuras)
+                vol_ridge = max(vol_ridge, model_info['promedio_base'] * 0.15)
+            else:
+                vol_ridge = np.mean(hist_vol[-7:]) if hist_vol else 100.0
+
+            w_info = pesos_campana.get(camp, {'w_hw': 0.65, 'w_ridge': 0.35, 'factor_ajuste': 1.0, 'baseline': 100.0})
+            vol_hw = hw_forecasts[camp][d] if d < len(hw_forecasts[camp]) else vol_ridge
             
-            # Obtiene el promedio exacto de ese dia de la semana
-            base_vol = w_info['dow_avg'].get(fecha_actual.weekday(), 100.0)
-            if math.isnan(base_vol) or base_vol <= 0: base_vol = 100.0
+            # Se combinan los cerebros
+            vol_puro = (w_info['w_hw'] * vol_hw + w_info['w_ridge'] * vol_ridge)
             
-            volumen_predicho_diario = base_vol * w_info['factor_ajuste']
+            # --- CANDADO MATEMATICO ---
+            # El ML no puede escupir un numero que se desvie +- 15% del promedio real historico
+            baseline_real = w_info.get('baseline', 100.0)
+            if pd.isna(baseline_real): baseline_real = 100.0
+            vol_puro = max(baseline_real * 0.85, min(baseline_real * 1.15, vol_puro))
+            
+            # El numero limitado se vuelve a guardar para que la IA no se pierda al dia siguiente
+            historial_volumenes[camp].append(vol_puro)
+            
+            volumen_predicho_diario = vol_puro * w_info['factor_ajuste']
 
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
 
