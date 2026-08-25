@@ -149,7 +149,7 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         last_term = current_term * (A / N) / (1.0 - (A / N))
         pw = last_term / (sum_terms + last_term)
         intensity = N - A
-        sl = 1.0 - (pw * Math.exp(-intensity * (target_time / AHT)))
+        sl = 1.0 - (pw * math.exp(-intensity * (target_time / AHT)))
         resultado = round(max(0.0, min(100.0, sl * 100.0)), 1)
         ERLANG_CACHE[key] = resultado
         return resultado
@@ -383,7 +383,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce', dayfirst=True).dt.normalize()
     df_raw = df_raw.dropna(subset=[col_fecha])
     if df_raw.empty:
-        raise ValueError("Error Critico: No se pudieron leer las fechas.")
+        raise ValueError("Error Critico: No se pudieron leer las fechas. Revisa que la columna de fechas en tu Excel.")
     
     df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
 
@@ -434,22 +434,34 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        min_d, max_d = sub[col_fecha].min(), sub[col_fecha].max()
-        all_dates = pd.date_range(start=min_d, end=max_d, freq='D')
-        sub = sub.set_index(col_fecha).reindex(all_dates).rename_axis(col_fecha).reset_index()
-        sub[col_camp] = camp
-        sub[col_calls] = sub[col_calls].interpolate(method='linear').ffill().bfill()
+        # --- FIX ABSOLUTO: RELLENO DE FECHAS EN PYTHON PURO (CERO CRASHES DE PANDAS) ---
+        fechas_reales = sub[col_fecha].tolist()
+        vols_reales = sub[col_calls].tolist()
         
-        fechas_list = sub[col_fecha].tolist()
-        volumenes_list = limpiar_outliers_iqr(sub[col_calls].tolist())
+        fechas_completas = []
+        vols_completos = []
+        
+        for i in range(len(fechas_reales)):
+            if i > 0:
+                dias_diff = (fechas_reales[i] - fechas_reales[i-1]).days
+                # Rellena los huecos asumiendo el volumen del ultimo dia conocido (Forward Fill manual)
+                if 1 < dias_diff <= 30: 
+                    for step in range(1, dias_diff):
+                        fechas_completas.append(fechas_reales[i-1] + timedelta(days=step))
+                        vols_completos.append(vols_reales[i-1])
+            fechas_completas.append(fechas_reales[i])
+            vols_completos.append(vols_reales[i])
+
+        fechas_list = fechas_completas
+        volumenes_list = limpiar_outliers_iqr(vols_completos)
         historial_volumenes[camp] = list(volumenes_list)
+        # --------------------------------------------------------------------------------
         
         vols = list(volumenes_list)
         n = len(vols)
         
-        # === FIX: CALCULAR BASELINE DEL HISTORIAL REAL (ANCLA) ===
         baseline = np.mean(vols[-28:]) if len(vols) >= 28 else (np.mean(vols) if len(vols) > 0 else 100.0)
-        if math.isnan(baseline) or baseline <= 0:
+        if pd.isna(baseline) or baseline <= 0:
             baseline = 100.0
         
         peso_hw = 0.65
@@ -571,8 +583,9 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             
             vol_puro = (w_info['w_hw'] * vol_hw + w_info['w_ridge'] * vol_ridge)
             
-            # --- FIX: CANDADO DE REALIDAD ANCLADO AL PASADO ---
-            baseline_real = w_info['baseline']
+            baseline_real = w_info.get('baseline', 100.0)
+            if pd.isna(baseline_real): baseline_real = 100.0
+            
             vol_puro = max(baseline_real * 0.85, min(baseline_real * 1.15, vol_puro))
             
             historial_volumenes[camp].append(vol_puro)
@@ -623,6 +636,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         pass
 
     return data_processed
+
 
 def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht_vec=None, req_vec=None, target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, es_nocturno=False):
     m = len(intervalos)
@@ -855,11 +869,14 @@ def get_latest_forecast():
     elif os.path.exists(CACHE_FILE):
         use_cache = True
 
+    # --- FIX CACHE: Forzar recalculo si el archivo esta vacio o roto ---
     if use_cache:
         try:
             with open(CACHE_FILE, 'r', encoding='utf-8') as f:
-                return jsonify(json.load(f)), 200
-        except Exception as e:
+                cache_data = json.load(f)
+                if isinstance(cache_data, list) and len(cache_data) > 0:
+                    return jsonify(cache_data), 200
+        except:
             pass
             
     if excel_path:
