@@ -95,6 +95,13 @@
             <div>
                 <div class="flex items-center gap-3">
                     <h1 class="text-2xl font-bold text-white tracking-tight">Workforce Capacity Forecast</h1>
+                    
+                    <!-- NUEVO: TABS INBOUND / OUTBOUND -->
+                    <div class="bg-[#1E293B] rounded-xl p-1 flex items-center shadow-inner border border-[#334155] ml-4">
+                        <button id="btnTabInbound" onclick="setModeWFM('inbound')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-primary text-white shadow-md">🎯 Inbound</button>
+                        <button id="btnTabOutbound" onclick="setModeWFM('outbound')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200">🚀 Outbound</button>
+                    </div>
+
                     <span id="tagModoOps" class="hidden text-[10px] bg-brand-primary/20 text-brand-primary border border-brand-primary/40 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider drop-shadow-md">Vista Operaciones</span>
                 </div>
                 <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning & Scheduling Optimizer</p>
@@ -126,11 +133,11 @@
 
             <div class="space-y-4 pt-2 relative z-10">
                 <div class="grid grid-cols-2 gap-4">
-                    <div class="flex flex-col group">
+                    <div class="flex flex-col group" id="contTargetSl">
                         <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentEmerald transition-colors">Target SL (%)</label>
                         <input type="number" id="targetSl" value="80" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentEmerald font-mono-num font-bold focus:border-brand-accentEmerald focus:ring-1 focus:ring-brand-accentEmerald focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
                     </div>
-                    <div class="flex flex-col group">
+                    <div class="flex flex-col group" id="contTargetTime">
                         <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-white transition-colors">Target ASA (s)</label>
                         <input type="number" id="targetTime" value="20" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-white font-mono-num font-bold focus:border-white focus:ring-1 focus:ring-white focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
                     </div>
@@ -335,7 +342,7 @@
                 <div class="grid grid-cols-2 gap-4 mb-6">
                     <div class="bg-[#0F172A] p-4 rounded-xl border border-[#1F2937] shadow-inner relative overflow-hidden group">
                         <div class="absolute inset-0 bg-brand-accentEmerald/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Projected SL (Con Malla)</p>
+                        <p id="lblProjectedSl" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Projected SL (Con Malla)</p>
                         <div class="my-1">
                             <span id="compSlOptimo" class="text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)] block">--%</span>
                         </div>
@@ -398,11 +405,11 @@
                         <thead class="bg-[#111827] text-slate-400 font-bold text-[10px] uppercase tracking-wider sticky top-0 border-b border-[#334155] z-10 shadow-sm">
                             <tr>
                                 <th class="py-3.5 px-4">Intervalo</th>
-                                <th class="py-3.5 px-4">Llamadas (FCST)</th>
+                                <th class="py-3.5 px-4" id="colHeaderCalls">Llamadas (FCST)</th>
                                 <th class="py-3.5 px-4">AHT (HH:MM:SS)</th>
                                 <th class="py-3.5 px-4 text-brand-primary">Req. (HC)</th>
                                 <th class="py-3.5 px-4 text-brand-accentEmerald">Avail. (HC)</th>
-                                <th class="py-3.5 px-4 text-brand-accentAmber">Capacidad SLA</th>
+                                <th class="py-3.5 px-4 text-brand-accentAmber" id="colHeaderCapacity">Capacidad SLA</th>
                                 <th class="py-3.5 px-4 text-center">Gap</th>
                             </tr>
                         </thead>
@@ -437,6 +444,7 @@
         let debounceTimer;
         let totalesFiltros = { M: 0, S: 0, C: 0, F: 0, I: 0 }; 
         let currentMode = 'wfm';
+        let forecastMode = 'inbound'; // NUEVO: Alternar Inbound / Outbound
         let isSidebarVisible = true; 
 
         const mesesMap = {
@@ -478,6 +486,34 @@
             };
 
             return `W${formatDt(startOfWeek)} - ${formatDt(endOfWeek)}`;
+        }
+
+        // FUNCION NUEVA PARA CAMBIAR ENTRE INBOUND Y OUTBOUND
+        function setModeWFM(mode) {
+            forecastMode = mode;
+            if(mode === 'inbound') {
+                document.getElementById('btnTabInbound').className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-primary text-white shadow-md";
+                document.getElementById('btnTabOutbound').className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200";
+                document.getElementById('contTargetSl').style.display = 'block';
+                document.getElementById('contTargetTime').style.display = 'block';
+                document.getElementById('colHeaderCapacity').innerText = "Capacidad SLA";
+                document.getElementById('lblProjectedSl').innerText = "Projected SL (Con Malla)";
+            } else {
+                document.getElementById('btnTabOutbound').className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-accentViolet text-white shadow-md";
+                document.getElementById('btnTabInbound').className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200";
+                document.getElementById('contTargetSl').style.display = 'none';
+                document.getElementById('contTargetTime').style.display = 'none';
+                document.getElementById('colHeaderCapacity').innerText = "Productividad Neta";
+                document.getElementById('lblProjectedSl').innerText = "Coverage de Productividad";
+            }
+            // Resetear vistas al cambiar para obligar a darle Run Plan
+            document.getElementById('kpiCalls').innerText = "0";
+            document.getElementById('kpiAht').innerText = "00:00:00";
+            document.getElementById('kpiHcRequerido').innerText = "0 HC";
+            document.getElementById('kpiHcRoster').innerText = "0 HC";
+            document.getElementById('intervalTableBody').innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-500">Presiona RUN PLAN para procesar proyección ' + mode.toUpperCase() + '</td></tr>';
+            if(optChartInstance) optChartInstance.destroy();
+            if(gapChartInstance) gapChartInstance.destroy();
         }
 
         function toggleSidebar() {
@@ -616,6 +652,13 @@
 
         function maxCallsForAgents(agentsNetos, aht, targetTime, targetSl) {
             if (agentsNetos <= 0 || aht <= 0) return 0;
+            
+            // LA MAGIA PARA OUTBOUND
+            if (forecastMode === 'outbound') {
+                return Math.floor(agentsNetos * (1800 / aht));
+            }
+
+            // MANTENEMOS ERLANG PARA INBOUND
             let low = 0;
             let high = agentsNetos * (1800 / aht); 
             let maxCalls = 0;
@@ -695,13 +738,17 @@
             
             const formData = new FormData();
             
-            formData.append('target_sl', document.getElementById('targetSl').value);
-            formData.append('target_time', document.getElementById('targetTime').value);
+            if (forecastMode === 'inbound') {
+                formData.append('target_sl', document.getElementById('targetSl').value);
+                formData.append('target_time', document.getElementById('targetTime').value);
+            }
             formData.append('merma', document.getElementById('merma').value);
             formData.append('dias', document.getElementById('dias') ? document.getElementById('dias').value : 45);
             
+            const url = forecastMode === 'inbound' ? '/api/process' : '/api/process_outbound';
+
             try {
-                const response = await fetch('/api/process', { method: 'POST', body: formData });
+                const response = await fetch(url, { method: 'POST', body: formData });
                 
                 const contentType = response.headers.get("content-type");
                 if (contentType && contentType.indexOf("application/json") === -1) {
@@ -1021,10 +1068,7 @@
                 mapIntervaloFecha[key].push(r);
             });
 
-            // === FIX DEFINITIVO: PROMEDIO POR DÍA DE LA SEMANA REAL ===
-            // Aquí el sistema calculará exactamente cuánto requerimos en una semana representativa del periodo filtrado.
             const numDiasPeriodo = fechasFiltradas.length;
-            const divisorDias = Math.max(1, numDiasPeriodo / 7);
 
             todosIntervalos.forEach((inter, idx) => {
                 let callsSum = 0;
@@ -1053,7 +1097,6 @@
                     rosterAvgVector[idx] = Math.round(rosterSum / numDiasPeriodo);
 
                     if (usarPicos) {
-                        // En modo picos, usa el pico de llamadas del periodo
                         let callsArray = [];
                         let reqArray = [];
                         let ahtArray = [];
@@ -1070,7 +1113,6 @@
                         reqAvgVector[idx] = Math.max(...reqArray);
                         ahtAvgVector[idx] = Math.max(...ahtArray);
                     } else {
-                        // FIX: Promedio por día de la semana (ej. suma total del mes / ~4.2 semanas)
                         llamadasAvgVector[idx] = callsSum / numDiasPeriodo;
                         reqAvgVector[idx] = reqSum / numDiasPeriodo;
                         ahtAvgVector[idx] = callsSum > 0 ? (htSum / callsSum) : 180;
@@ -1104,7 +1146,8 @@
                         target_time: targetTimeObj,
                         merma: mermaVal,
                         duracion_jornada: durJornada,
-                        es_nocturno: usarNocturno
+                        es_nocturno: usarNocturno,
+                        es_outbound: forecastMode === 'outbound'
                     })
                 });
 
@@ -1264,8 +1307,14 @@
                 const slOptimoVal = parseFloat(optData.sl_optimo_global || 0);
                 const slEl = document.getElementById('compSlOptimo');
                 slEl.innerText = slOptimoVal.toFixed(1) + '%';
-                if (slOptimoVal >= targetSlObj) slEl.className = "text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)] block";
-                else slEl.className = "text-3xl font-black font-mono-num text-brand-accentRose drop-shadow-[0_0_8px_rgba(251,113,133,0.3)] block";
+                
+                if (forecastMode === 'outbound') {
+                    if (slOptimoVal >= 95) slEl.className = "text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)] block";
+                    else slEl.className = "text-3xl font-black font-mono-num text-brand-accentRose drop-shadow-[0_0_8px_rgba(251,113,133,0.3)] block";
+                } else {
+                    if (slOptimoVal >= targetSlObj) slEl.className = "text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)] block";
+                    else slEl.className = "text-3xl font-black font-mono-num text-brand-accentRose drop-shadow-[0_0_8px_rgba(251,113,133,0.3)] block";
+                }
 
                 const optTbody = document.getElementById('optShiftsTableBody');
                 optTbody.innerHTML = '';
