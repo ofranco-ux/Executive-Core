@@ -88,15 +88,22 @@ def clean_num(val, default=0.0):
 
 def parse_aht_to_seconds(val):
     if pd.isna(val) or val is None: return 180.0
-    if isinstance(val, (int, float)): return float(val) if float(val) > 15 else float(val) * 60.0
-    val_str = str(val).strip()
-    if ':' in val_str:
-        p = val_str.split(':')
-        try:
-            if len(p) == 3: return int(p[0]) * 3600 + int(p[1]) * 60 + float(p[2])
-            elif len(p) == 2: return int(p[0]) * 60 + float(p[1])
-        except: pass
-    return clean_num(val_str, 180.0)
+    secs = 180.0
+    if isinstance(val, (int, float)): secs = float(val)
+    elif hasattr(val, 'hour') and hasattr(val, 'minute'): secs = val.hour * 3600 + val.minute * 60 + val.second
+    else:
+        val_str = str(val).strip()
+        if ':' in val_str:
+            parts = val_str.split(':')
+            try:
+                if len(parts) == 3: secs = int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+                elif len(parts) == 2: secs = int(parts[0]) * 60 + float(parts[1])
+            except: pass
+        else:
+            try: secs = float(val_str)
+            except: pass
+    if 0 < secs <= 15: secs = secs * 60.0
+    return secs if secs > 0 else 180.0
 
 def format_aht_str(seconds):
     if pd.isna(seconds) or seconds is None or seconds <= 0: return "00:00:00"
@@ -105,15 +112,19 @@ def format_aht_str(seconds):
 
 def clean_interval_str(val):
     try:
+        if pd.isna(val): return "00:00"
         val_str = str(val).strip()
-        m = re.search(r'(\d{1,2}):(\d{2})', val_str)
-        if m:
-            hh, mm = int(m.group(1)), int(m.group(2))
-            if mm < 15: mm_round = 0
-            elif mm < 45: mm_round = 30
-            else: mm_round = 0; hh = (hh + 1) % 24
-            return f"{hh:02d}:{mm_round:02d}"
-        return "00:00"
+        if hasattr(val, 'hour') and hasattr(val, 'minute'): hh, mm = val.hour, val.minute
+        else:
+            m = re.search(r'(\d{1,2}):(\d{2})', val_str)
+            if m: hh, mm = int(m.group(1)), int(m.group(2))
+            else: return "00:00"
+        if mm < 15: mm_round = 0
+        elif mm < 45: mm_round = 30
+        else:
+            mm_round = 0
+            hh = (hh + 1) % 24
+        return f"{hh:02d}:{mm_round:02d}"
     except: return "00:00"
 
 ERLANG_CACHE = {}
@@ -146,12 +157,13 @@ def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
 
 def parse_time_str(t_str):
     if not t_str: return None
-    t = re.sub(r'[^\d:]', '', str(t_str).lower())
+    t = str(t_str).lower().replace('hrs', '').replace('am', '').replace('pm', '')
+    t = re.sub(r'[^\d:]', '', t)
     if not t: return None
     if ':' not in t: t += ':00'
     try:
-        p = t.split(':')
-        return int(p[0]) * 60 + int(p[1])
+        parts = t.split(':')
+        return int(parts[0]) * 60 + int(parts[1])
     except: return None
 
 def esta_en_ventana_servicio(campana, intervalo_str):
@@ -214,7 +226,69 @@ def procesar_hoja_roster(df_roster):
                                 roster_cov[(camp, dia_real, inv)] = roster_cov.get((camp, dia_real, inv), 0) + 1
     return roster_cov, roster_total_camp, roster_total_dia_camp
 
-def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=30):
+def extraer_features_calendario(fecha, baseline):
+    day_of_week = fecha.weekday()
+    day_of_month = fecha.day
+    is_weekend = 1.0 if day_of_week >= 5 else 0.0
+    is_quincena = 1.0 if day_of_month in [1, 15, 16, 30, 31] else 0.0
+    dow_encoded = [1.0 if day_of_week == i else 0.0 for i in range(7)]
+    return [baseline, float(day_of_month), is_weekend, is_quincena] + dow_encoded
+
+def entrenar_ridge_ml(X, y, l2_reg=10.0):
+    X_b = np.c_[np.ones((X.shape[0], 1)), X]
+    mean = np.mean(X_b[:, 1:], axis=0)
+    std = np.std(X_b[:, 1:], axis=0) + 1e-8
+    X_norm = X_b.copy()
+    X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
+    I = np.eye(X_norm.shape[1])
+    I[0, 0] = 0.0
+    try: weights = np.linalg.inv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
+    except: weights = np.linalg.pinv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
+    return weights, mean, std
+
+def predecir_ridge_ml(weights, mean, std, X_new):
+    n_rows = X_new.shape[0] if hasattr(X_new, 'shape') else len(X_new)
+    X_b = np.c_[np.ones((n_rows, 1)), X_new]
+    X_norm = X_b.copy()
+    X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
+    return float((X_norm @ weights)[0])
+
+def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=30):
+    n = len(series)
+    avg_hist = np.mean(series) if n > 0 else 100.0
+    if n < season_len * 2: return [avg_hist] * n_preds
+        
+    level = np.mean(series[:season_len])
+    trend = (np.mean(series[season_len:2*season_len]) - np.mean(series[:season_len])) / season_len
+    seasonals = [series[i] - level for i in range(season_len)]
+    
+    for i in range(n):
+        val = series[i]
+        last_level, last_trend = level, trend
+        st_prev = seasonals[i % season_len]
+        level = alpha * (val - st_prev) + (1 - alpha) * (last_level + last_trend)
+        trend = beta * (level - last_level) + (1 - beta) * last_trend
+        seasonals[i % season_len] = gamma * (val - level) + (1 - gamma) * st_prev
+        
+    preds = []
+    phi = 0.90 
+    for m in range(1, n_preds + 1):
+        damped_trend = sum(trend * (phi**i) for i in range(1, m+1))
+        p = level + damped_trend + seasonals[(n + m - 1) % season_len]
+        preds.append(max(avg_hist * 0.4, float(p)))
+    return preds
+
+def calc_mae(y_true, y_pred): return float(np.mean(np.abs(np.array(y_true) - np.array(y_pred))))
+def grid_search_auto_hw(series, n_preds=30): return holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.05, gamma=0.3, n_preds=n_preds)
+
+def limpiar_outliers_iqr(series_list):
+    if len(series_list) < 14: return list(series_list)
+    arr = np.array(series_list)
+    q25, q75 = np.percentile(arr, 25), np.percentile(arr, 75)
+    iqr = q75 - q25
+    return np.clip(arr, q25 - 1.5 * iqr, q75 + 1.5 * iqr).tolist()
+
+def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=45):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
@@ -276,12 +350,10 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     predicciones_futuras, factores_ui = {}, {}
 
-    # === MOTOR MACHINE LEARNING CON RUN-RATE DE CIERRE ===
     for camp in campanas_unicas:
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        # 1. Promedio estacional por día de la semana (Lunes-Domingo) de las últimas 4 semanas
         dow_avg = {}
         for i in range(7):
             vols_dow = sub[sub[col_fecha].dt.weekday == i][col_calls]
@@ -290,7 +362,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             elif len(vols_dow) > 0: dow_avg[i] = vols_dow.mean()
             else: dow_avg[i] = sub[col_calls].mean()
 
-        # 2. Análisis de Trend & Momentum (Julio vs Agosto Run-Rate)
         n = len(sub)
         ml_factor = 1.0
         if n >= 28:
@@ -303,7 +374,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         for d in range(dias_futuros):
             fecha_futura = fecha_inicio_forecast + timedelta(days=d)
             wd = fecha_futura.weekday()
-            
             vol_base = dow_avg.get(wd, sub[col_calls].mean())
             preds_finales.append(max(10.0, vol_base * ml_factor))
 
