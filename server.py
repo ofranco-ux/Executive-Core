@@ -49,14 +49,16 @@ def buscar_archivo_excel():
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
-    rutas = [BASE_DIR, os.getcwd(), os.path.dirname(BASE_DIR)]
-    for r in rutas:
-        target = os.path.join(r, 'index.html')
-        if os.path.exists(target):
-            resp = make_response(send_from_directory(r, 'index.html'))
-            resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-            return resp
-    return jsonify({"error": "Archivo index.html no encontrado."}), 404
+    rutas_a_buscar = [BASE_DIR, os.getcwd(), os.path.dirname(BASE_DIR)]
+    for ruta in rutas_a_buscar:
+        target_path = os.path.join(ruta, 'index.html')
+        if os.path.exists(target_path):
+            response = make_response(send_from_directory(ruta, 'index.html'))
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+            return response
+    return jsonify({"error": "ALERTA CRITICA: No se encontro el archivo index.html."}), 404
 
 @app.route('/favicon.ico')
 def favicon(): return '', 204
@@ -295,7 +297,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             avg_julio = sub[(sub[col_fecha].dt.month == 7)][col_calls].mean()
             avg_agosto = sub[(sub[col_fecha].dt.month == 8)][col_calls].mean()
             if avg_julio > 0 and avg_agosto > 0:
-                # Compara el ritmo diario de Agosto contra Julio
                 ml_factor = max(0.90, min(1.15, avg_agosto / avg_julio))
 
         preds_finales = []
@@ -303,7 +304,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             fecha_futura = fecha_inicio_forecast + timedelta(days=d)
             wd = fecha_futura.weekday()
             
-            # Aplica el volumen proyectado del día
             vol_base = dow_avg.get(wd, sub[col_calls].mean())
             preds_finales.append(max(10.0, vol_base * ml_factor))
 
@@ -422,11 +422,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 
     if es_nocturno:
         label_jornada_noc = "9.0 hrs (Nocturno 5x2)"
-        indices_nocturnos = []
-        for j in range(m):
-            min_in = parse_time_str(intervalos[j])
-            if min_in is not None and (min_in >= (22 * 60) or min_in < (7 * 60)):
-                indices_nocturnos.append(j)
+        indices_nocturnos = [j for j in range(m) if parse_time_str(intervalos[j]) is not None and (parse_time_str(intervalos[j]) >= (22 * 60) or parse_time_str(intervalos[j]) < (7 * 60))]
 
         if len(indices_nocturnos) > 0 and sum([llamadas_arr[idx] for idx in indices_nocturnos]) > 0:
             agentes_noc_hc = 1
@@ -455,28 +451,23 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         sl_acum = sum([c * erlang_c_sl_optimizado((c * aht_arr[i]) / 1800.0, current_cob[i] * factor_asistencia, aht_arr[i], target_time) for i, c in enumerate(llamadas_arr) if c > 0])
         return sl_acum / tot_llamadas
 
+    # === AJUSTE DE MALLA EXACTO AL TARGET SL INGRESADO EN LA UI ===
     if len(valid_starts) > 0:
         for _ in range(5000):
-            deficit = req_hc_base - cob_hc
-            if np.max(deficit) <= 0:
-                if calc_current_global_sl(cob_hc) >= target_sl_dinamico: break 
-                else:
-                    best_i, max_impact = -1, -1
-                    for i, c in enumerate(llamadas_arr):
-                        if c > 0:
-                            a_erl = (c * aht_arr[i]) / 1800.0
-                            sl_curr = erlang_c_sl_optimizado(a_erl, cob_hc[i] * factor_asistencia, aht_arr[i], target_time)
-                            sl_next = erlang_c_sl_optimizado(a_erl, (cob_hc[i] + 1) * factor_asistencia, aht_arr[i], target_time)
-                            impact = (sl_next - sl_curr) * c
-                            if impact > max_impact and sl_curr < 99.9: max_impact, best_i = impact, i
-                    if best_i != -1 and max_impact > 0.0001: req_hc_base[best_i] += 1; deficit = req_hc_base - cob_hc
-                    else: break 
+            current_sl = calc_current_global_sl(cob_hc)
+            
+            # FRENO EXACTO: Al llegar al Target SL objetivo ingresado por el usuario, detiene la asignación
+            if current_sl >= target_sl_dinamico:
+                break
 
+            deficit = req_hc_base - cob_hc
             best_start_idx, best_cov, best_pen = -1, -1, 999999
+            
             for s_idx in valid_starts:
                 sub_def = deficit[s_idx : s_idx + SHIFT_BLOCKS] if s_idx + SHIFT_BLOCKS <= m else np.concatenate((deficit[s_idx:], deficit[:(s_idx + SHIFT_BLOCKS) - m]))
                 cov, pen = np.sum(np.maximum(0, sub_def)), np.sum(np.maximum(0, -sub_def))
-                if cov > best_cov or (cov == best_cov and pen < best_pen): best_cov, best_pen, best_start_idx = cov, pen, s_idx
+                if cov > best_cov or (cov == best_cov and pen < best_pen): 
+                    best_cov, best_pen, best_start_idx = cov, pen, s_idx
 
             if best_start_idx == -1 or best_cov <= 0: break
                 
