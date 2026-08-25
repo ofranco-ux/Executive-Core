@@ -149,7 +149,7 @@
 
                 <div class="flex flex-col group pt-1">
                     <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-white transition-colors">Horizonte (Días)</label>
-                    <input type="number" id="dias" value="45" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-white font-mono-num font-bold focus:border-brand-primary focus:ring-1 focus:ring-brand-primary focus:outline-none transition-all shadow-inner"/>
+                    <input type="number" id="dias" value="130" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-white font-mono-num font-bold focus:border-brand-primary focus:ring-1 focus:ring-brand-primary focus:outline-none transition-all shadow-inner"/>
                 </div>
 
                 <div class="pt-6 space-y-6">
@@ -698,7 +698,7 @@
             formData.append('target_sl', document.getElementById('targetSl').value);
             formData.append('target_time', document.getElementById('targetTime').value);
             formData.append('merma', document.getElementById('merma').value);
-            formData.append('dias', document.getElementById('dias') ? document.getElementById('dias').value : 45);
+            formData.append('dias', document.getElementById('dias') ? document.getElementById('dias').value : 130);
             
             try {
                 const response = await fetch('/api/process', { method: 'POST', body: formData });
@@ -1021,57 +1021,46 @@
                 mapIntervaloFecha[key].push(r);
             });
 
+            // === RECALCULO DINÁMICO POR PERIODO REAL ===
+            // Promedia por día de la semana y por número de semanas del mes filtrado
+            const numSemanasPeriodo = Math.max(1, fechasFiltradas.length / 7);
+
             todosIntervalos.forEach((inter, idx) => {
-                let callsArray = [];
-                let reqArray = [];
-                let ahtArray = [];
-                let totalRoster = 0;
-                
+                let callsSum = 0;
+                let reqSum = 0;
+                let htSum = 0;
+                let rosterSum = 0;
+
                 fechasFiltradas.forEach(fStr => {
                     const subRows = mapIntervaloFecha[`${fStr}_${inter}`] || [];
-                    let sumCalls = 0, sumReq = 0, sumHT = 0, sumRoster = 0;
-                    
                     if (subRows.length > 0) {
-                        sumCalls = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
-                        sumRoster = subRows.reduce((a, b) => a + (Number(getProp(b, ['HC_Actual_Roster'], 0)) || 0), 0);
-                        sumReq = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0), 0);
-                        sumHT = subRows.reduce((a, b) => {
+                        subRows.forEach(b => {
                             const c = Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0;
+                            const r = Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0;
                             const ht = Number(getProp(b, ['AHT_Segundos'], 180)) || 180;
-                            return a + (c * ht);
-                        }, 0);
-                    }
+                            const ros = Number(getProp(b, ['HC_Actual_Roster'], 0)) || 0;
 
-                    callsArray.push(sumCalls);
-                    reqArray.push(sumReq);
-                    ahtArray.push(sumCalls > 0 ? sumHT / sumCalls : 180);
-                    totalRoster += sumRoster;
+                            callsSum += c;
+                            reqSum += r;
+                            htSum += (c * ht);
+                            rosterSum += ros;
+                        });
+                    }
                 });
 
-                const diasTotales = fechasFiltradas.length; 
-                
-                if (diasTotales > 0) {
-                    rosterAvgVector[idx] = Math.round(totalRoster / diasTotales); 
-                    
+                const numDias = fechasFiltradas.length;
+                if (numDias > 0) {
+                    rosterAvgVector[idx] = Math.round(rosterSum / numDias);
+
                     if (usarPicos) {
-                        llamadasAvgVector[idx] = Math.max(...callsArray);
-                        reqAvgVector[idx] = Math.max(...reqArray);
-                        ahtAvgVector[idx] = Math.max(...ahtArray);
+                        llamadasAvgVector[idx] = callsSum / numSemanasPeriodo;
+                        reqAvgVector[idx] = Math.ceil(reqSum / numSemanasPeriodo);
+                        ahtAvgVector[idx] = callsSum > 0 ? (htSum / callsSum) : 180;
                     } else {
-                        if (diasTotales <= 7) {
-                            llamadasAvgVector[idx] = callsArray.reduce((a,b)=>a+b,0) / diasTotales;
-                            reqAvgVector[idx] = Math.ceil(reqArray.reduce((a,b)=>a+b,0) / diasTotales);
-                            ahtAvgVector[idx] = ahtArray.reduce((a,b)=>a+b,0) / diasTotales;
-                        } else {
-                            let sortedC = [...callsArray].sort((a,b)=>a-b);
-                            let sortedR = [...reqArray].sort((a,b)=>a-b);
-                            let pIdx = Math.floor(diasTotales * 0.85);
-                            if(pIdx >= diasTotales) pIdx = diasTotales - 1;
-                            
-                            llamadasAvgVector[idx] = sortedC[pIdx];
-                            reqAvgVector[idx] = sortedR[pIdx];
-                            ahtAvgVector[idx] = ahtArray.reduce((a,b)=>a+b,0) / diasTotales;
-                        }
+                        // Promedio representativo de una semana típica de ESTE mes
+                        llamadasAvgVector[idx] = callsSum / numSemanasPeriodo;
+                        reqAvgVector[idx] = Math.ceil(reqSum / numSemanasPeriodo);
+                        ahtAvgVector[idx] = callsSum > 0 ? (htSum / callsSum) : 180;
                     }
                 }
             });
@@ -1227,7 +1216,7 @@
                     });
                 }
 
-                // RECALCULO DINAMICO DEL HC REQUERIDO
+                // RECALCULO DINÁMICO REACCIONANDO AL MES SELECCIONADO
                 const nominaRequeridaTotalSemana = optData.headcount_semanal_6x1 || 0;
                 const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
                 const hcRequeridoDisplay = esVistaSemanal ? nominaRequeridaTotalSemana : nominaRequeridaDiaria;
