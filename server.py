@@ -110,24 +110,6 @@ def format_aht_str(seconds):
     secs = int(round(seconds))
     return f"{secs // 3600:02d}:{(secs % 3600) // 60:02d}:{secs % 60:02d}"
 
-# --- FIX: REDONDEO PERFECTO DE INTERVALOS ---
-def clean_interval_str(val):
-    try:
-        if pd.isna(val): return "00:00"
-        val_str = str(val).strip()
-        m = re.search(r'(\d{1,2}):(\d{2})', val_str)
-        if m:
-            hh = int(m.group(1))
-            mm = int(m.group(2))
-            if mm < 15: mm_round = 0
-            elif mm < 45: mm_round = 30
-            else:
-                mm_round = 0
-                hh = (hh + 1) % 24
-            return f"{hh:02d}:{mm_round:02d}"
-        return val_str
-    except: return "00:00"
-
 ERLANG_CACHE = {}
 def erlang_c_sl_optimizado(A, N, AHT, target_time):
     if N <= A or A <= 0 or N <= 0: return 0.0
@@ -226,6 +208,68 @@ def procesar_hoja_roster(df_roster):
                                 roster_cov[(camp, dia_real, inv)] = roster_cov.get((camp, dia_real, inv), 0) + 1
     return roster_cov, roster_total_camp, roster_total_dia_camp
 
+def extraer_features_calendario(fecha, baseline):
+    day_of_week = fecha.weekday()
+    day_of_month = fecha.day
+    is_weekend = 1.0 if day_of_week >= 5 else 0.0
+    is_quincena = 1.0 if day_of_month in [1, 15, 16, 30, 31] else 0.0
+    dow_encoded = [1.0 if day_of_week == i else 0.0 for i in range(7)]
+    return [baseline, float(day_of_month), is_weekend, is_quincena] + dow_encoded
+
+def entrenar_ridge_ml(X, y, l2_reg=10.0):
+    X_b = np.c_[np.ones((X.shape[0], 1)), X]
+    mean = np.mean(X_b[:, 1:], axis=0)
+    std = np.std(X_b[:, 1:], axis=0) + 1e-8
+    X_norm = X_b.copy()
+    X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
+    I = np.eye(X_norm.shape[1])
+    I[0, 0] = 0.0
+    try: weights = np.linalg.inv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
+    except: weights = np.linalg.pinv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
+    return weights, mean, std
+
+def predecir_ridge_ml(weights, mean, std, X_new):
+    n_rows = X_new.shape[0] if hasattr(X_new, 'shape') else len(X_new)
+    X_b = np.c_[np.ones((n_rows, 1)), X_new]
+    X_norm = X_b.copy()
+    X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
+    return float((X_norm @ weights)[0])
+
+def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=30):
+    n = len(series)
+    avg_hist = np.mean(series) if n > 0 else 100.0
+    if n < season_len * 2: return [avg_hist] * n_preds
+        
+    level = np.mean(series[:season_len])
+    trend = (np.mean(series[season_len:2*season_len]) - np.mean(series[:season_len])) / season_len
+    seasonals = [series[i] - level for i in range(season_len)]
+    
+    for i in range(n):
+        val = series[i]
+        last_level, last_trend = level, trend
+        st_prev = seasonals[i % season_len]
+        level = alpha * (val - st_prev) + (1 - alpha) * (last_level + last_trend)
+        trend = beta * (level - last_level) + (1 - beta) * last_trend
+        seasonals[i % season_len] = gamma * (val - level) + (1 - gamma) * st_prev
+        
+    preds = []
+    phi = 0.90 # Amortiguador para evitar caida infinita
+    for m in range(1, n_preds + 1):
+        damped_trend = sum(trend * (phi**i) for i in range(1, m+1))
+        p = level + damped_trend + seasonals[(n + m - 1) % season_len]
+        preds.append(max(avg_hist * 0.4, float(p))) # Candado de caida
+    return preds
+
+def calc_mae(y_true, y_pred): return float(np.mean(np.abs(np.array(y_true) - np.array(y_pred))))
+def grid_search_auto_hw(series, n_preds=30): return holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.05, gamma=0.3, n_preds=n_preds)
+
+def limpiar_outliers_iqr(series_list):
+    if len(series_list) < 14: return list(series_list)
+    arr = np.array(series_list)
+    q25, q75 = np.percentile(arr, 25), np.percentile(arr, 75)
+    iqr = q75 - q25
+    return np.clip(arr, q25 - 1.5 * iqr, q75 + 1.5 * iqr).tolist()
+
 def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=45):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     
@@ -244,7 +288,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         try:
             df_roster = pd.read_excel(xls_file, sheet_name=sheet_roster, engine='openpyxl')
             roster_coverage, roster_total_camp, roster_total_dia_camp = procesar_hoja_roster(df_roster)
-        except Exception: pass
+        except: pass
 
     df_raw = pd.read_excel(xls_file, sheet_name=sheet_calls, engine='openpyxl')
     col_calls = encontrar_columna(df_raw, ['recibidas', 'llamadas', 'calls', 'volumen', 'ofrecidas', 'entrada'])
@@ -259,13 +303,12 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     if not col_calls: col_calls = df_raw.columns[3]
 
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
-    # Parsea fechas sin dayfirst para evitar bugs de formato gringo
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce').dt.normalize()
     df_raw = df_raw.dropna(subset=[col_fecha])
     df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
 
     df_valido = df_raw[df_raw[col_calls] > 0]
-    if df_valido.empty: raise ValueError("Error Critico: El archivo no tiene volumen de llamadas mayor a cero.")
+    if df_valido.empty: raise ValueError("El archivo no tiene volumen mayor a cero.")
     
     max_fecha_real = df_valido[col_fecha].max()
     df_raw = df_raw[df_raw[col_fecha] <= max_fecha_real]
@@ -273,14 +316,12 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     if col_aht: df_raw[col_aht] = [parse_aht_to_seconds(x) for x in df_raw[col_aht]]
     else: df_raw['AHT_Calc'] = 180.0; col_aht = 'AHT_Calc'
 
-    # REDONDEO PERFECTO PARA EVITAR FUGAS DE VOLUMEN
-    df_raw['Inter_Clean'] = df_raw[col_inter].apply(clean_interval_str)
+    df_raw['Inter_Clean'] = [':'.join(str(x).strip().split(':')[:2]) if len(str(x).strip().split(':')) == 3 else str(x).strip() for x in df_raw[col_inter]]
     df_raw['Total_Segundos_Handle'] = df_raw[col_calls] * df_raw[col_aht]
 
     df = df_raw.groupby([col_fecha, col_camp, 'Inter_Clean']).agg({col_calls: 'sum', 'Total_Segundos_Handle': 'sum'}).reset_index()
     df[col_aht] = np.where(df[col_calls] > 0, df['Total_Segundos_Handle'] / df[col_calls], 180.0)
     df = df.drop(columns=['Total_Segundos_Handle'])
-    df[col_inter] = df['Inter_Clean']
 
     dias_espanol = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
     meses_espanol = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
@@ -292,51 +333,95 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
     campanas_unicas = df[col_camp].unique()
 
-    predicciones_futuras = {}
-    factores_ui = {}
+    predicciones_futuras, factores_ui = {}, {}
 
-    # === EL CEREBRO HIBRIDO ESTACIONAL (El verdadero ML para Call Centers) ===
     for camp in campanas_unicas:
-        sub_diario = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
-        if sub_diario.empty: continue
+        sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
+        if sub.empty: continue
         
-        # Saca el promedio estacional robusto (Ultimos 4 lunes, 4 martes...)
+        fechas_reales = sub[col_fecha].tolist()
+        vols_reales = sub[col_calls].tolist()
+        fechas_completas, vols_completos = [], []
+        
+        for i in range(len(fechas_reales)):
+            if i > 0:
+                dias_diff = (fechas_reales[i] - fechas_reales[i-1]).days
+                if 1 < dias_diff <= 30: 
+                    for step in range(1, dias_diff):
+                        fechas_completas.append(fechas_reales[i-1] + timedelta(days=step))
+                        vols_completos.append(vols_reales[i-1])
+            fechas_completas.append(fechas_reales[i])
+            vols_completos.append(vols_reales[i])
+            
+        fechas_list = fechas_completas
+        vols = limpiar_outliers_iqr(vols_completos)
+        n = len(vols)
+        
+        baseline_actual = np.mean(vols[-56:]) if n >= 56 else (np.mean(vols) if n > 0 else 100.0)
+        if math.isnan(baseline_actual) or baseline_actual <= 0: baseline_actual = 100.0
+            
         dow_avg = {}
         for i in range(7):
-            vols_dow = sub_diario[sub_diario[col_fecha].dt.weekday == i][col_calls]
-            vols_dow = vols_dow[vols_dow > 0] # Ignora los ceros de feriados
-            if len(vols_dow) >= 3: dow_avg[i] = vols_dow.tail(4).mean()
-            elif len(vols_dow) > 0: dow_avg[i] = vols_dow.mean()
-            else: dow_avg[i] = 0.0
+            vols_dow = [vols[j] for j in range(n) if fechas_list[j].weekday() == i]
+            dow_avg[i] = np.mean(vols_dow[-4:]) if len(vols_dow) > 0 else baseline_actual
 
-        n = len(sub_diario)
-        ml_multiplier = 1.0
-        
-        # Momentum Machine Learning (Aprende la curva de las ultimas 2 semanas)
-        if n >= 28:
-            recent_14 = sub_diario.tail(14)[col_calls].mean()
-            prev_14 = sub_diario.iloc[-28:-14][col_calls].mean()
-            if prev_14 > 0:
-                drift = recent_14 / prev_14
-                # Topado a un maximo de crecimiento/caida del 20% para evitar espirales
-                ml_multiplier = max(0.80, min(1.20, drift))
+        peso_hw, peso_ridge, factor_ajuste = 0.50, 0.50, 1.0
+        modelo_entrenado, max_hist_vol = None, np.max(vols) if n > 0 else 100.0
 
+        if n >= 21:
+            train_vols, val_vols = vols[:-7], vols[-7:]
+            hw_val_preds = grid_search_auto_hw(train_vols, n_preds=7)
+            
+            X_train_bt, y_train_bt = [], []
+            for i in range(14, len(train_vols)):
+                f = fechas_list[i]
+                base_movil = np.mean(train_vols[i-14:i])
+                X_train_bt.append(extraer_features_calendario(f, base_movil))
+                y_train_bt.append(train_vols[i])
+            
+            if len(X_train_bt) > 5:
+                w_bt, m_bt, s_bt = entrenar_ridge_ml(np.array(X_train_bt), np.array(y_train_bt), l2_reg=10.0)
+                modelo_entrenado = {'weights': w_bt, 'mean': m_bt, 'std': s_bt}
+                ridge_val_preds = []
+                for i in range(7):
+                    f_idx = len(train_vols) + i
+                    base_movil = np.mean(train_vols[-14+i:] + val_vols[:i])
+                    feat = extraer_features_calendario(fechas_list[f_idx], base_movil)
+                    pred_r = predecir_ridge_ml(w_bt, m_bt, s_bt, np.array([feat]))
+                    ridge_val_preds.append(max(0, pred_r))
+                
+                err_hw, err_ridge = calc_mae(val_vols, hw_val_preds) + 1e-5, calc_mae(val_vols, ridge_val_preds) + 1e-5
+                peso_hw = (1.0 / err_hw) / ((1.0 / err_hw) + (1.0 / err_ridge))
+                peso_ridge = (1.0 / err_ridge) / ((1.0 / err_hw) + (1.0 / err_ridge))
+
+            ultimos_14, previos_14 = sum(vols[-14:]), sum(vols[-28:-14]) if n >= 28 else sum(vols[:-14])
+            if previos_14 > 0: factor_ajuste = max(0.85, min(1.15, ultimos_14 / previos_14))
+
+        hw_preds = grid_search_auto_hw(vols, n_preds=dias_futuros)
         preds_finales = []
+        
         for d in range(dias_futuros):
             fecha_futura = fecha_inicio_forecast + timedelta(days=d)
-            wd = fecha_futura.weekday()
-            # Combina la estacionalidad perfecta de Julio/Agosto con la tendencia reciente
-            vol_final = dow_avg.get(wd, 0.0) * ml_multiplier
-            preds_finales.append(vol_final)
+            vol_estacional = dow_avg.get(fecha_futura.weekday(), baseline_actual)
+            vol_hw = hw_preds[d] if d < len(hw_preds) else baseline_actual
+            
+            if modelo_entrenado:
+                feat = extraer_features_calendario(fecha_futura, baseline_actual)
+                vol_ridge = predecir_ridge_ml(modelo_entrenado['weights'], modelo_entrenado['mean'], modelo_entrenado['std'], np.array([feat]))
+                vol_final = ((vol_ridge * peso_ridge + vol_hw * peso_hw) * 0.70) + (vol_estacional * 0.30)
+            else: vol_final = vol_estacional
+                
+            preds_finales.append(max(10.0, min(max_hist_vol * 1.40, vol_final)))
 
         predicciones_futuras[camp] = preds_finales
-        factores_ui[camp] = round(ml_multiplier, 2)
+        factores_ui[camp] = round(factor_ajuste, 2)
 
     df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
     df_filtrado = df[df['En_Ventana']].copy()
 
-    # Perfil Intradia: Se arma con los ultimos 28 dias
     df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_fecha_real - timedelta(days=28))]
+    if df_reciente.empty: df_reciente = df_filtrado.copy()
+    
     perfil_intradia = df_reciente.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
         avg_calls=(col_calls, 'mean'),
         avg_aht=(col_aht, lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 0)
@@ -345,18 +430,13 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     totales_dia = perfil_intradia.groupby([col_camp, 'Dia_Semana_Clean'])['avg_calls'].transform('sum')
     perfil_intradia['weight'] = [(c / t) if t > 0 else 0 for c, t in zip(perfil_intradia['avg_calls'], totales_dia)]
 
-    mapa_perfil = {}
-    for _, r in perfil_intradia.iterrows():
-        key = (r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean'])
-        mapa_perfil[key] = {'weight': r['weight'], 'aht': r['avg_aht']}
+    mapa_perfil = {(r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean']): {'weight': r['weight'], 'aht': r['avg_aht']} for _, r in perfil_intradia.iterrows()}
 
     todos_los_intervalos_crudos = df['Inter_Clean'].unique().tolist()
     if not todos_los_intervalos_crudos: todos_los_intervalos_crudos = [f"{int(h):02d}:{int(m):02d}" for h in range(24) for m in (0, 30)]
     todos_los_intervalos_crudos.sort()
 
-    intervalos_operativos_por_camp = {}
-    for camp in campanas_unicas:
-        intervalos_operativos_por_camp[camp] = [i for i in todos_los_intervalos_crudos if esta_en_ventana_servicio(camp, i)]
+    intervalos_operativos_por_camp = {camp: [i for i in todos_los_intervalos_crudos if esta_en_ventana_servicio(camp, i)] for camp in campanas_unicas}
 
     del df_raw, df, df_diario, df_filtrado, df_reciente
     gc.collect()
@@ -371,28 +451,36 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         nombre_dia = dias_espanol[fecha_actual.weekday()]
 
         for camp in campanas_unicas:
-            volumen_predicho_diario = predicciones_futuras.get(camp, [0]*dias_futuros)[d]
+            vol_diario = predicciones_futuras.get(camp, [0]*dias_futuros)[d]
             factor_visual_ui = factores_ui.get(camp, 1.0)
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
 
-            # === GARANTIA DE NORMALIZACION INTRA-DIA (Cero Fugas) ===
+            # === BUG FIX: LARGEST REMAINDER METHOD PARA CERO PERDIDA DE VOLUMEN ===
             pesos_crudos = [mapa_perfil.get((camp, nombre_dia, inter), {}).get('weight', 0.0) for inter in intervalos_validos]
             suma_pesos = sum(pesos_crudos)
-            if suma_pesos > 0: pesos_normalizados = [p / suma_pesos for p in pesos_crudos]
-            elif len(intervalos_validos) > 0: pesos_normalizados = [1.0 / len(intervalos_validos)] * len(intervalos_validos)
-            else: pesos_normalizados = []
+            if suma_pesos > 0: pesos_norm = [p / suma_pesos for p in pesos_crudos]
+            elif len(intervalos_validos) > 0: pesos_norm = [1.0 / len(intervalos_validos)] * len(intervalos_validos)
+            else: pesos_norm = []
+
+            exact_calls = [vol_diario * p for p in pesos_norm]
+            floor_calls = [int(math.floor(c)) for c in exact_calls]
+            remainders = [(exact_calls[i] - floor_calls[i], i) for i in range(len(exact_calls))]
+            remainders.sort(reverse=True, key=lambda x: x[0])
+            
+            diff = int(round(vol_diario)) - sum(floor_calls)
+            for i in range(diff):
+                if i < len(remainders): floor_calls[remainders[i][1]] += 1
 
             for idx_inter, inter in enumerate(intervalos_validos):
-                calls = volumen_predicho_diario * pesos_normalizados[idx_inter]
-                calls_int = int(round(calls))
+                calls_int = floor_calls[idx_inter]
+                calls_float = exact_calls[idx_inter] 
 
                 info_p = mapa_perfil.get((camp, nombre_dia, inter), {})
                 aht_real = info_p.get('aht', 0.0)
                 aht = aht_real if (aht_real > 0 and not pd.isna(aht_real)) else aht_global_campana.get(camp, 180.0)
-                if calls_int == 0: aht = 0.0
 
-                a_erlang = (calls * aht) / 1800.0 if (aht > 0 and calls > 0) else 0.0
-                req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls > 0 else 0
+                a_erlang = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
+                req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls_float > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
                 
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
@@ -416,8 +504,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 })
 
     try:
-        with open(CACHE_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data_processed, f)
+        with open(CACHE_FILE, 'w', encoding='utf-8') as f: json.dump(data_processed, f)
     except: pass
     return data_processed
 
@@ -425,27 +512,20 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     m = len(intervalos)
     if m == 0: return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0, [0]*m
 
-    llamadas_arr = np.nan_to_num(np.array(llamadas_vec, dtype=float), nan=0.0) if llamadas_vec is not None else np.zeros(m)
-    aht_arr = np.nan_to_num(np.array(aht_vec, dtype=float), nan=180.0) if aht_vec is not None else np.full(m, 180.0)
+    # BUG FIX: Sanitizar inputs Nulos para que Numpy no crashee en el frontend
+    try:
+        llamadas_arr = np.array([float(x) if (x is not None and str(x).lower() != 'nan') else 0.0 for x in llamadas_vec], dtype=float)
+        aht_arr = np.array([float(x) if (x is not None and str(x).lower() != 'nan') else 180.0 for x in aht_vec], dtype=float)
+        req_hc_base = np.array([int(x) if (x is not None and str(x).lower() != 'nan') else 0 for x in req_vec], dtype=int)
+    except:
+        llamadas_arr = np.zeros(m)
+        aht_arr = np.full(m, 180.0)
+        req_hc_base = np.zeros(m)
     
     tot_llamadas = float(np.sum(llamadas_arr))
     factor_asistencia = max(0.01, 1.0 - merma)
     target_sl_dinamico = float(target_sl)
-    
-    req_hc_pooled = []
-    req_hc_base = np.zeros(m)
-    
-    for i in range(m):
-        if req_vec is not None and i < len(req_vec) and req_vec[i] > 0: req_hc_i = int(req_vec[i])
-        else:
-            c = llamadas_arr[i]
-            aht_s = aht_arr[i]
-            a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-            req_ftes_i = calcular_agentes_requeridos_erlang_c(a_erl, aht_s, target_time, target_sl_dinamico) if c > 0 else 0
-            req_hc_i = math.ceil(req_ftes_i / factor_asistencia) if req_ftes_i > 0 else 0
-        req_hc_pooled.append(int(req_hc_i))
-        req_hc_base[i] = req_hc_i
-
+    req_hc_pooled = req_hc_base.tolist()
     cob_hc = np.zeros(m, dtype=float)
     x_turnos_dict = {}
 
@@ -466,92 +546,69 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                 cob_temp_ftes = agentes_noc_hc * factor_asistencia
                 sl_acum, llamadas_noc = 0.0, 0.0
                 for idx in indices_nocturnos:
-                    c = llamadas_arr[idx]
-                    aht_s = aht_arr[idx]
+                    c, aht_s = llamadas_arr[idx], aht_arr[idx]
                     a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
                     sl_v = erlang_c_sl_optimizado(a_erl, cob_temp_ftes, aht_s, target_time) if c > 0 else 100.0
-                    sl_acum += (c * sl_v)
-                    llamadas_noc += c
-                sl_prom_noc = (sl_acum / llamadas_noc) if llamadas_noc > 0 else 100.0
-                if sl_prom_noc >= target_sl_dinamico: break
+                    sl_acum += (c * sl_v); llamadas_noc += c
+                if (sl_acum / llamadas_noc if llamadas_noc > 0 else 100.0) >= target_sl_dinamico: break
                 agentes_noc_hc += 1
-            key_turno_noc = ("22:00", "07:00", label_jornada_noc)
-            x_turnos_dict[key_turno_noc] = agentes_noc_hc
+            x_turnos_dict[("22:00", "07:00", label_jornada_noc)] = agentes_noc_hc
             agentes_nocturnos_totales_hc = agentes_noc_hc
             for idx in indices_nocturnos: cob_hc[idx] += agentes_noc_hc
 
-    duracion_jornada = float(duracion_jornada)
-    SHIFT_BLOCKS = int(round(duracion_jornada * 2))
-    duracion_minutos = int(round(duracion_jornada * 60))
-    label_jornada_diurna = f"{duracion_jornada:.1f} hrs".replace('.0', '')
+    duracion_minutos = int(round(float(duracion_jornada) * 60))
+    SHIFT_BLOCKS = int(round(float(duracion_jornada) * 2))
+    label_jornada_diurna = f"{float(duracion_jornada):.1f} hrs".replace('.0', '')
 
-    valid_starts = []
-    for j in range(m):
-        min_in_val = parse_time_str(intervalos[j])
-        if min_in_val is not None: valid_starts.append(j)
+    valid_starts = [j for j in range(m) if parse_time_str(intervalos[j]) is not None]
 
     def calc_current_global_sl(current_cob):
         if tot_llamadas <= 0: return 100.0
-        sl_acum = 0.0
-        for i in range(m):
-            c = llamadas_arr[i]
-            if c > 0:
-                a_erl = (c * aht_arr[i]) / 1800.0
-                sl_v = erlang_c_sl_optimizado(a_erl, current_cob[i] * factor_asistencia, aht_arr[i], target_time)
-                sl_acum += c * sl_v
+        sl_acum = sum([c * erlang_c_sl_optimizado((c * aht_arr[i]) / 1800.0, current_cob[i] * factor_asistencia, aht_arr[i], target_time) for i, c in enumerate(llamadas_arr) if c > 0])
         return sl_acum / tot_llamadas
 
     if len(valid_starts) > 0:
-        for iteration in range(5000):
+        for _ in range(5000):
             deficit = req_hc_base - cob_hc
             if np.max(deficit) <= 0:
                 if calc_current_global_sl(cob_hc) >= target_sl_dinamico: break 
                 else:
                     best_i, max_impact = -1, -1
-                    for i in range(m):
-                        c = llamadas_arr[i]
+                    for i, c in enumerate(llamadas_arr):
                         if c > 0:
                             a_erl = (c * aht_arr[i]) / 1800.0
                             sl_curr = erlang_c_sl_optimizado(a_erl, cob_hc[i] * factor_asistencia, aht_arr[i], target_time)
                             sl_next = erlang_c_sl_optimizado(a_erl, (cob_hc[i] + 1) * factor_asistencia, aht_arr[i], target_time)
                             impact = (sl_next - sl_curr) * c
-                            if impact > max_impact and sl_curr < 99.9:
-                                max_impact = impact; best_i = i
-                    if best_i != -1 and max_impact > 0.0001:
-                        req_hc_base[best_i] += 1
-                        deficit = req_hc_base - cob_hc
+                            if impact > max_impact and sl_curr < 99.9: max_impact, best_i = impact, i
+                    if best_i != -1 and max_impact > 0.0001: req_hc_base[best_i] += 1; deficit = req_hc_base - cob_hc
                     else: break 
 
             best_start_idx, best_cov, best_pen = -1, -1, 999999
             for s_idx in valid_starts:
-                sub_deficit = deficit[s_idx : s_idx + SHIFT_BLOCKS] if s_idx + SHIFT_BLOCKS <= m else np.concatenate((deficit[s_idx:], deficit[:(s_idx + SHIFT_BLOCKS) - m]))
-                cov, pen = np.sum(np.maximum(0, sub_deficit)), np.sum(np.maximum(0, -sub_deficit))
-                if cov > best_cov or (cov == best_cov and pen < best_pen):
-                    best_cov, best_pen, best_start_idx = cov, pen, s_idx
+                sub_def = deficit[s_idx : s_idx + SHIFT_BLOCKS] if s_idx + SHIFT_BLOCKS <= m else np.concatenate((deficit[s_idx:], deficit[:(s_idx + SHIFT_BLOCKS) - m]))
+                cov, pen = np.sum(np.maximum(0, sub_def)), np.sum(np.maximum(0, -sub_def))
+                if cov > best_cov or (cov == best_cov and pen < best_pen): best_cov, best_pen, best_start_idx = cov, pen, s_idx
 
             if best_start_idx == -1 or best_cov <= 0: break
                 
-            min_in_val = parse_time_str(intervalos[best_start_idx])
-            min_out_val = (min_in_val + duracion_minutos) % (24 * 60)
-            h_in_str = f"{(int(min_in_val // 60)):02d}:{(int(min_in_val % 60)):02d}"
-            h_out_str = f"{(int(min_out_val // 60)):02d}:{(int(min_out_val % 60)):02d}"
-            key_turno = (h_in_str, h_out_str, label_jornada_diurna)
+            min_in = parse_time_str(intervalos[best_start_idx])
+            if min_in is None: min_in = 0 # Evita crash
+            
+            min_out = (min_in + duracion_minutos) % (24 * 60)
+            key_turno = (f"{(int(min_in // 60)):02d}:{(int(min_in % 60)):02d}", f"{(int(min_out // 60)):02d}:{(int(min_out % 60)):02d}", label_jornada_diurna)
             x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + 1
             
             if best_start_idx + SHIFT_BLOCKS <= m: cob_hc[best_start_idx : best_start_idx + SHIFT_BLOCKS] += 1
             else: cob_hc[best_start_idx:] += 1; cob_hc[:(best_start_idx + SHIFT_BLOCKS) - m] += 1
 
-    sl_optimo_vector = []
-    for i in range(m):
-        c, aht_s = llamadas_arr[i], aht_arr[i]
-        a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-        sl_val = erlang_c_sl_optimizado(a_erl, cob_hc[i] * factor_asistencia, aht_s, target_time) if c > 0 else 100.0
-        sl_optimo_vector.append(float(sl_val))
-
+    sl_optimo_vector = [float(erlang_c_sl_optimizado((llamadas_arr[i] * aht_arr[i]) / 1800.0 if (llamadas_arr[i] > 0 and aht_arr[i] > 0) else 0.0, cob_hc[i] * factor_asistencia, aht_arr[i], target_time) if llamadas_arr[i] > 0 else 100.0) for i in range(m)]
     sl_optimo_global = float(np.sum(llamadas_arr * np.array(sl_optimo_vector)) / tot_llamadas) if tot_llamadas > 0 else 100.0
+
     cobertura_hc_entera = [int(x) for x in np.round(cob_hc)]
     turnos_sugeridos = []
-    
+    total_agentes_diarios_hc = 0
+
     for (h_in, h_out, label_dur), qty in x_turnos_dict.items():
         if qty > 0:
             turnos_sugeridos.append({'horario_entrada': h_in, 'horario_salida': h_out, 'agentes_a_programar': int(qty), 'duracion': label_dur})
