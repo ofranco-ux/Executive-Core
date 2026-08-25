@@ -259,17 +259,16 @@ def procesar_hoja_roster(df_roster):
                                 roster_cov[key] = roster_cov.get(key, 0) + 1
     return roster_cov, roster_total_camp, roster_total_dia_camp
 
+
 # ======================================================================
-# NUEVO MOTOR: RIDGE REGRESSION CALENDAR-AWARE (ML ESTABLE)
+# MOTOR DE MACHINE LEARNING RECONECTADO Y LIBERADO
 # ======================================================================
 def extraer_features_calendario(fecha, baseline):
     day_of_week = fecha.weekday()
     day_of_month = fecha.day
     is_weekend = 1.0 if day_of_week >= 5 else 0.0
     is_quincena = 1.0 if day_of_month in [1, 15, 16, 30, 31] else 0.0
-    # One-hot encoding para los 7 días de la semana
     dow_encoded = [1.0 if day_of_week == i else 0.0 for i in range(7)]
-    # Feature array final (11 variables matematicas)
     return [baseline, float(day_of_month), is_weekend, is_quincena] + dow_encoded
 
 def entrenar_ridge_ml(X, y, l2_reg=10.0):
@@ -293,6 +292,38 @@ def predecir_ridge_ml(weights, mean, std, X_new):
     X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
     pred = X_norm @ weights
     return float(pred[0])
+
+def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=30):
+    n = len(series)
+    avg_hist = np.mean(series) if n > 0 else 100.0
+    if n < season_len * 2:
+        return [avg_hist] * n_preds
+        
+    level = np.mean(series[:season_len])
+    trend = (np.mean(series[season_len:2*season_len]) - np.mean(series[:season_len])) / season_len
+    
+    seasonals = [series[i] - level for i in range(season_len)]
+    for i in range(n):
+        val = series[i]
+        last_level, last_trend = level, trend
+        st_prev = seasonals[i % season_len]
+        level = alpha * (val - st_prev) + (1 - alpha) * (last_level + last_trend)
+        trend = beta * (level - last_level) + (1 - beta) * last_trend
+        seasonals[i % season_len] = gamma * (val - level) + (1 - gamma) * st_prev
+        
+    preds = []
+    phi = 0.90 # Amortiguador suave para evitar caidas libres al infinito
+    for m in range(1, n_preds + 1):
+        damped_trend = sum(trend * (phi**i) for i in range(1, m+1))
+        p = level + damped_trend + seasonals[(n + m - 1) % season_len]
+        preds.append(max(10.0, float(p)))
+    return preds
+
+def calc_mae(y_true, y_pred):
+    return float(np.mean(np.abs(np.array(y_true) - np.array(y_pred))))
+
+def grid_search_auto_hw(series, n_preds=30):
+    return holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.05, gamma=0.3, n_preds=n_preds)
 # ======================================================================
 
 def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=30):
@@ -376,11 +407,11 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     predicciones_futuras = {}
     factores_ui = {}
 
+    # === APLICAR EL ENSAMBLE HIBRIDO (ML LIBERADO) ===
     for camp in campanas_unicas:
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        # 1. Relleno de Fechas seguras para Machine Learning
         fechas_reales = sub[col_fecha].tolist()
         vols_reales = sub[col_calls].tolist()
         
@@ -399,63 +430,95 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         vols = limpiar_outliers_iqr(vols_completos)
         n = len(vols)
         
-        # 2. ANCLAJE MATEMATICO: Promedio móvil real (impide que la IA invente datos extremos)
+        # 1. Base Estacional (Para cuando el ML no tenga data suficiente)
         baseline_actual = np.mean(vols[-28:]) if n >= 28 else (np.mean(vols) if n > 0 else 100.0)
         if math.isnan(baseline_actual) or baseline_actual <= 0: baseline_actual = 100.0
-
-        # 3. ENTRENAMIENTO MACHINE LEARNING (Ridge Regression con Calendario)
-        X_data, y_data = [], []
-        for i in range(28, n):
-            f = fechas_list[i]
-            base_movil = np.mean(vols[i-28:i]) # El modelo aprende usando un ancla temporal
-            X_data.append(extraer_features_calendario(f, base_movil))
-            y_data.append(vols[i])
-
-        modelo_entrenado = None
-        if len(X_data) > 14:
-            X_arr = np.array(X_data)
-            y_arr = np.array(y_data)
-            weights, mean, std = entrenar_ridge_ml(X_arr, y_arr, l2_reg=10.0)
-            modelo_entrenado = {'weights': weights, 'mean': mean, 'std': std}
-
-        # 4. ENTRENAMIENTO ESTACIONAL (Día de la semana)
+            
         dow_avg = {}
         for i in range(7):
             vols_dow = [vols[j] for j in range(n) if fechas_list[j].weekday() == i]
             dow_avg[i] = np.mean(vols_dow[-4:]) if len(vols_dow) >= 4 else baseline_actual
             if math.isnan(dow_avg[i]) or dow_avg[i] <= 0: dow_avg[i] = baseline_actual
 
-        # 5. GENERAR EL PRONOSTICO DEL FUTURO
-        preds = []
-        for d in range(dias_futuros):
-            fecha_futura = fecha_inicio_forecast + timedelta(days=d)
-            
-            vol_estacional = dow_avg.get(fecha_futura.weekday(), baseline_actual)
-            
-            if modelo_entrenado:
-                feat = extraer_features_calendario(fecha_futura, baseline_actual)
-                vol_ml = predecir_ridge_ml(modelo_entrenado['weights'], modelo_entrenado['mean'], modelo_entrenado['std'], np.array([feat]))
-                # Ensamble Híbrido: 60% Inteligencia Artificial / 40% Comportamiento Estacional real
-                vol_final = (vol_ml * 0.60) + (vol_estacional * 0.40)
-            else:
-                vol_final = vol_estacional
-                
-            # CANDADO DE SEGURIDAD FINAL: Limitar picos o desplomes absurdos 
-            # Garantiza un margen seguro entre -25% y +35% de tu volumen operativo real
-            vol_final = max(baseline_actual * 0.75, min(baseline_actual * 1.35, vol_final))
-            preds.append(vol_final)
+        # 2. Entrenamiento de Modelos
+        peso_hw = 0.50
+        peso_ridge = 0.50
+        factor_ajuste = 1.0
+        modelo_entrenado = None
         
-        # 6. Alerta para la UI (Reforecast visual)
-        factor_ui = 1.0
-        if n >= 14:
+        # MAXIMO HISTORICO (El nuevo candado liberado)
+        max_hist_vol = np.max(vols) if n > 0 else 100.0
+
+        if n >= 21:
+            train_vols = vols[:-7]
+            val_vols = vols[-7:]
+            
+            # Holt-Winters (Tendencia general)
+            hw_val_preds = grid_search_auto_hw(train_vols, n_preds=7)
+            
+            # Ridge Regression (Calendario)
+            X_train_bt, y_train_bt = [], []
+            for i in range(14, len(train_vols)):
+                f = fechas_list[i]
+                base_movil = np.mean(train_vols[i-14:i])
+                X_train_bt.append(extraer_features_calendario(f, base_movil))
+                y_train_bt.append(train_vols[i])
+            
+            if len(X_train_bt) > 5:
+                w_bt, m_bt, s_bt = entrenar_ridge_ml(np.array(X_train_bt), np.array(y_train_bt), l2_reg=10.0)
+                modelo_entrenado = {'weights': w_bt, 'mean': m_bt, 'std': s_bt}
+                
+                ridge_val_preds = []
+                for i in range(7):
+                    f_idx = len(train_vols) + i
+                    base_movil = np.mean(train_vols[-14+i:] + val_vols[:i])
+                    feat = extraer_features_calendario(fechas_list[f_idx], base_movil)
+                    pred_r = predecir_ridge_ml(w_bt, m_bt, s_bt, np.array([feat]))
+                    ridge_val_preds.append(max(0, pred_r))
+                
+                # Pesos de Ensamble basados en el error real
+                error_hw = calc_mae(val_vols, hw_val_preds) + 1e-5
+                error_ridge = calc_mae(val_vols, ridge_val_preds) + 1e-5
+                
+                total_inv_error = (1.0 / error_hw) + (1.0 / error_ridge)
+                peso_hw = (1.0 / error_hw) / total_inv_error
+                peso_ridge = (1.0 / error_ridge) / total_inv_error
+
+            # Calculo de ajuste visual (alerta del UI)
             ultimos_7 = sum(vols[-7:])
             previos_7 = sum(vols[-14:-7])
             if previos_7 > 0:
                 drift = ultimos_7 / previos_7
-                factor_ui = max(0.85, min(1.15, drift))
+                factor_ajuste = max(0.85, min(1.15, drift))
+
+        # 3. Predicciones Futuras del ML
+        hw_preds = grid_search_auto_hw(vols, n_preds=dias_futuros)
         
-        predicciones_futuras[camp] = preds
-        factores_ui[camp] = round(factor_ui, 2)
+        preds_finales = []
+        for d in range(dias_futuros):
+            fecha_futura = fecha_inicio_forecast + timedelta(days=d)
+            vol_estacional = dow_avg.get(fecha_futura.weekday(), baseline_actual)
+            
+            vol_hw = hw_preds[d] if d < len(hw_preds) else baseline_actual
+            
+            if modelo_entrenado:
+                feat = extraer_features_calendario(fecha_futura, baseline_actual)
+                vol_ridge = predecir_ridge_ml(modelo_entrenado['weights'], modelo_entrenado['mean'], modelo_entrenado['std'], np.array([feat]))
+                
+                vol_ml = (vol_ridge * peso_ridge) + (vol_hw * peso_hw)
+                
+                # 70% Machine Learning Real / 30% Naive Estacional
+                vol_final = (vol_ml * 0.70) + (vol_estacional * 0.30)
+            else:
+                vol_final = vol_estacional
+                
+            # EL CANDADO LIBERADO: Puede subir hasta un 40% POR ENCIMA de tu dia más fuerte en la historia
+            vol_final = max(10.0, min(max_hist_vol * 1.40, vol_final))
+            
+            preds_finales.append(vol_final)
+
+        predicciones_futuras[camp] = preds_finales
+        factores_ui[camp] = round(factor_ajuste, 2)
 
     df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
     df_filtrado = df[df['En_Ventana']].copy()
@@ -543,7 +606,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         pass
 
     return data_processed
-
 
 def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht_vec=None, req_vec=None, target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, es_nocturno=False):
     m = len(intervalos)
