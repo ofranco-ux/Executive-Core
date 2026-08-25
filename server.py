@@ -201,6 +201,86 @@ def encontrar_columna(df, posibles_nombres):
                 return col_orig
     return None
 
+def calc_mae(y_true, y_pred):
+    return float(np.mean(np.abs(np.array(y_true) - np.array(y_pred))))
+
+# ======================================================================
+# CEREBRO MACHINE LEARNING REACTIVADO
+# ======================================================================
+def entrenar_ridge_ml(X, y, l2_reg=10.0):
+    X_b = np.c_[np.ones((X.shape[0], 1)), X]
+    mean = np.mean(X_b[:, 1:], axis=0)
+    std = np.std(X_b[:, 1:], axis=0) + 1e-8
+    X_norm = X_b.copy()
+    X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
+    I = np.eye(X_norm.shape[1])
+    I[0, 0] = 0.0
+    try:
+        weights = np.linalg.inv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
+    except np.linalg.LinAlgError:
+        weights = np.linalg.pinv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
+    return weights, mean, std
+
+def predecir_ridge_ml(weights, mean, std, X_new):
+    n_rows = X_new.shape[0] if hasattr(X_new, 'shape') else len(X_new)
+    X_b = np.c_[np.ones((n_rows, 1)), X_new]
+    X_norm = X_b.copy()
+    X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
+    pred = X_norm @ weights
+    return float(pred[0])
+
+def extraer_features_fecha(fecha, volumenes_hist, trend_idx):
+    day_of_week = fecha.weekday()
+    day_of_month = fecha.day
+    is_weekend = 1.0 if day_of_week >= 5 else 0.0
+    is_quincena = 1.0 if day_of_month in [1, 15, 16, 30, 31] else 0.0
+    lag_1 = volumenes_hist[-1] if len(volumenes_hist) >= 1 else 100.0
+    lag_7 = volumenes_hist[-7] if len(volumenes_hist) >= 7 else lag_1
+    lag_14 = volumenes_hist[-14] if len(volumenes_hist) >= 14 else lag_7
+    dow_encoded = [1.0 if day_of_week == i else 0.0 for i in range(7)]
+    return [lag_1, lag_7, lag_14, float(day_of_month), is_weekend, is_quincena, float(trend_idx)] + dow_encoded
+
+def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=30):
+    n = len(series)
+    avg_hist = np.mean(series) if n > 0 else 100.0
+    if n < season_len * 2:
+        return [avg_hist] * n_preds
+        
+    level = np.mean(series[:season_len])
+    trend = (np.mean(series[season_len:2*season_len]) - np.mean(series[:season_len])) / season_len
+    
+    seasonals = [series[i] - level for i in range(season_len)]
+    for i in range(n):
+        val = series[i]
+        last_level, last_trend = level, trend
+        st_prev = seasonals[i % season_len]
+        level = alpha * (val - st_prev) + (1 - alpha) * (last_level + last_trend)
+        trend = beta * (level - last_level) + (1 - beta) * last_trend
+        seasonals[i % season_len] = gamma * (val - level) + (1 - gamma) * st_prev
+        
+    preds = []
+    # FIX: DAMPED TREND (Amortiguador de tendencia)
+    # Evita que la tendencia matemática perfore el piso
+    phi = 0.85 
+    for m in range(1, n_preds + 1):
+        damped_trend = sum(trend * (phi**i) for i in range(1, m+1))
+        p = level + damped_trend + seasonals[(n + m - 1) % season_len]
+        preds.append(max(avg_hist * 0.1, float(p)))
+    return preds
+
+def grid_search_auto_hw(series, n_preds=30):
+    # La beta bajita y el amortiguador (Damped Trend) previenen la caida libre
+    return holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.05, gamma=0.3, n_preds=n_preds)
+
+def limpiar_outliers_iqr(series_list):
+    if len(series_list) < 14:
+        return list(series_list)
+    arr = np.array(series_list)
+    q25, q75 = np.percentile(arr, 25), np.percentile(arr, 75)
+    iqr = q75 - q25
+    lower, upper = q25 - 1.5 * iqr, q75 + 1.5 * iqr
+    return np.clip(arr, lower, upper).tolist()
+
 def generar_intervalos_cobertura(start_min, end_min):
     intervals = []
     if start_min < end_min:
@@ -265,67 +345,6 @@ def procesar_hoja_roster(df_roster):
                                 roster_cov[key] = roster_cov.get(key, 0) + 1
                                 
     return roster_cov, roster_total_camp, roster_total_dia_camp
-
-# ======================================================================
-# NUEVO MOTOR WFM: MACHINE LEARNING (TIME SERIES DECOMPOSITION)
-# ======================================================================
-def ml_decomposition_forecast(series, dates, n_preds=30):
-    n = len(series)
-    if n < 7:
-        avg = float(np.mean(series)) if n > 0 else 100.0
-        return [avg] * n_preds, 1.0
-        
-    df_hist = pd.DataFrame({'vol': series, 'date': dates})
-    df_hist['dow'] = df_hist['date'].dt.weekday
-    
-    # 1. BASE LEVEL: Promedio puro de los ultimos 21 dias reales
-    base_level = df_hist['vol'].tail(21).mean()
-    if base_level <= 0: base_level = 100.0
-    
-    # 2. SEASONALITY (DOW): Multiplicadores por día de la semana basados en últimas 6 semanas
-    dow_mults = {}
-    for i in range(7):
-        dow_vols = df_hist[df_hist['dow'] == i]['vol'].tail(6) 
-        if len(dow_vols) > 0:
-            dow_mults[i] = dow_vols.mean() / base_level
-        else:
-            dow_mults[i] = 1.0
-            
-    # Normalizamos los multiplicadores para que no inflen la base total
-    avg_mult = np.mean(list(dow_mults.values()))
-    for i in range(7):
-        dow_mults[i] = dow_mults[i] / avg_mult
-        
-    # 3. TREND MOMENTUM: Regresion Lineal de los ultimos 14 dias
-    recent_vols = df_hist['vol'].tail(14).values
-    if len(recent_vols) > 1:
-        x = np.arange(len(recent_vols))
-        slope, _ = np.polyfit(x, recent_vols, 1)
-    else:
-        slope = 0.0
-        
-    # EL CANDADO SALVAVIDAS: La pendiente no puede alterar más del 1.5% diario la base
-    max_slope = base_level * 0.015
-    slope = max(-max_slope, min(max_slope, slope))
-    
-    # 4. PREDICCION: Construir los dias futuros
-    preds = []
-    current_level = base_level
-    for m in range(1, n_preds + 1):
-        # Amortiguador Exponencial: Suaviza la pendiente con el tiempo para evitar que se estrelle a 0 o al infinito
-        current_level += slope * (0.9 ** m)
-        target_date = dates[-1] + timedelta(days=m)
-        
-        p = current_level * dow_mults.get(target_date.weekday(), 1.0)
-        # NUNCA dejar que caiga debajo del 50% histórico (Piso de Seguridad)
-        preds.append(max(base_level * 0.5, float(p)))
-        
-    # 5. Generar un "Factor Reforecast" para la UI del Dashboard (Rango: +- 15%)
-    ui_factor = 1.0 + (slope / base_level) * 7
-    ui_factor = round(max(0.85, min(1.15, ui_factor)), 2)
-    
-    return preds, ui_factor
-# ======================================================================
 
 def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=30):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
@@ -416,14 +435,13 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
     campanas_unicas = df[col_camp].unique()
 
-    predicciones_futuras = {}
-    factores_ui = {}
+    modelos_ml, historial_volumenes, hw_forecasts, pesos_campana = {}, {}, {}, {}
 
     for camp in campanas_unicas:
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        # 1. Relleno de Fechas seguro
+        # IMPORTANTE: Aseguramos que no haya huecos en fechas para que el ML no se confunda
         fechas_reales = sub[col_fecha].tolist()
         vols_reales = sub[col_calls].tolist()
         
@@ -440,11 +458,80 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             fechas_completas.append(fechas_reales[i])
             vols_completos.append(vols_reales[i])
             
-        # 2. Generar el Pronostico Multi-Capa
-        preds_campana, factor_ui = ml_decomposition_forecast(vols_completos, fechas_completas, dias_futuros)
+        fechas_list = fechas_completas
+        volumenes_list = limpiar_outliers_iqr(vols_completos)
+        historial_volumenes[camp] = list(volumenes_list)
         
-        predicciones_futuras[camp] = preds_campana
-        factores_ui[camp] = factor_ui
+        vols = list(volumenes_list)
+        n = len(vols)
+        
+        # ANCLAJE DE REALIDAD: Sacamos el promedio de los ultimos 28 dias
+        baseline = np.mean(vols[-28:]) if len(vols) >= 28 else (np.mean(vols) if len(vols) > 0 else 100.0)
+        if math.isnan(baseline) or baseline <= 0:
+            baseline = 100.0
+            
+        peso_hw = 0.65
+        peso_ridge = 0.35
+        factor_ajuste = 1.0
+
+        if n >= 21:
+            train_vols = vols[:-7]
+            val_vols = vols[-7:]
+            
+            hw_val_preds = grid_search_auto_hw(train_vols, n_preds=7)
+            
+            X_train_bt, y_train_bt = [], []
+            for i in range(14, len(train_vols)):
+                feat = extraer_features_fecha(fechas_list[i], train_vols[:i], trend_idx=i)
+                X_train_bt.append(feat)
+                y_train_bt.append(train_vols[i])
+            
+            if len(X_train_bt) > 5:
+                w_bt, m_bt, s_bt = entrenar_ridge_ml(np.array(X_train_bt), np.array(y_train_bt), l2_reg=10.0)
+                ridge_val_preds = []
+                for i in range(7):
+                    f_idx = len(train_vols) + i
+                    feat = extraer_features_fecha(fechas_list[f_idx], train_vols + val_vols[:i], trend_idx=f_idx)
+                    pred_r = predecir_ridge_ml(w_bt, m_bt, s_bt, np.array([feat]))
+                    ridge_val_preds.append(max(0, pred_r))
+                
+                error_hw = calc_mae(val_vols, hw_val_preds) + 1e-5
+                error_ridge = calc_mae(val_vols, ridge_val_preds) + 1e-5
+                
+                total_inv_error = (1.0 / error_hw) + (1.0 / error_ridge)
+                peso_hw = (1.0 / error_hw) / total_inv_error
+                peso_ridge = (1.0 / error_ridge) / total_inv_error
+                
+                ensemble_val_preds = [(peso_hw * hw_val_preds[i] + peso_ridge * ridge_val_preds[i]) for i in range(7)]
+                sum_actual = sum(val_vols)
+                sum_pred = sum(ensemble_val_preds)
+                
+                if sum_pred > 0:
+                    drift = sum_actual / sum_pred
+                    factor_ajuste = max(0.85, min(1.15, drift))
+                    
+        pesos_campana[camp] = {
+            'w_hw': peso_hw,
+            'w_ridge': peso_ridge,
+            'factor_ajuste': factor_ajuste,
+            'baseline': baseline
+        }
+
+        hw_forecasts[camp] = grid_search_auto_hw(vols, n_preds=dias_futuros)
+
+        X_data, y_data = [], []
+        for i in range(14, len(vols)):
+            f = fechas_list[i]
+            feat = extraer_features_fecha(f, vols[:i], trend_idx=i)
+            X_data.append(feat)
+            y_data.append(vols[i])
+
+        if len(X_data) > 10:
+            X_arr, y_arr = np.array(X_data), np.array(y_data)
+            weights, mean, std = entrenar_ridge_ml(X_arr, y_arr, l2_reg=10.0)
+            modelos_ml[camp] = {'weights': weights, 'mean': mean, 'std': std, 'promedio_base': np.mean(y_arr)}
+        else:
+            modelos_ml[camp] = None
 
     df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
     df_filtrado = df[df['En_Ventana']].copy()
@@ -454,7 +541,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     if pd.isna(max_date_hist):
         df_reciente = df_filtrado.copy()
     else:
-        df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_date_hist - timedelta(days=28))]
+        df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_date_hist - timedelta(days=21))]
 
     perfil_intradia = df_reciente.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
         avg_calls=(col_calls, 'mean'),
@@ -487,9 +574,33 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         nombre_dia = dias_espanol[fecha_actual.weekday()]
 
         for camp in campanas_unicas:
-            volumen_predicho_diario = predicciones_futuras.get(camp, [0]*dias_futuros)[d]
-            factor_visual_ui = factores_ui.get(camp, 1.0)
+            hist_vol = historial_volumenes[camp]
+            feat_futuras = np.array([extraer_features_fecha(fecha_actual, hist_vol, len(hist_vol))])
+
+            model_info = modelos_ml.get(camp)
+            if model_info:
+                vol_ridge = predecir_ridge_ml(model_info['weights'], model_info['mean'], model_info['std'], feat_futuras)
+                vol_ridge = max(vol_ridge, model_info['promedio_base'] * 0.15)
+            else:
+                vol_ridge = np.mean(hist_vol[-7:]) if hist_vol else 100.0
+
+            w_info = pesos_campana.get(camp, {'w_hw': 0.65, 'w_ridge': 0.35, 'factor_ajuste': 1.0, 'baseline': 100.0})
+            vol_hw = hw_forecasts[camp][d] if d < len(hw_forecasts[camp]) else vol_ridge
             
+            vol_puro = (w_info['w_hw'] * vol_hw + w_info['w_ridge'] * vol_ridge)
+            
+            # === EL PISO DE SEGURIDAD PARA EL MACHINE LEARNING ===
+            # Evita la cascada autoregresiva: Jamas predecir menos del 60% ni mas del 140% del promedio real del mes pasado
+            baseline_real = w_info.get('baseline', 100.0)
+            if pd.isna(baseline_real): baseline_real = 100.0
+            
+            vol_puro = max(baseline_real * 0.60, min(baseline_real * 1.40, vol_puro))
+            
+            # Se guarda la prediccion CON LIMITE para que el ML no se caiga mañana
+            historial_volumenes[camp].append(vol_puro)
+            
+            volumen_predicho_diario = vol_puro * w_info['factor_ajuste']
+
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
 
             for inter in intervalos_validos:
@@ -524,7 +635,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'HC_Actual_Roster': hc_roster,
                     'Total_Roster_Campana': tot_camp,
                     'Total_Roster_Dia': tot_camp_dia,
-                    'Factor_Correccion': factor_visual_ui
+                    'Factor_Correccion': round(float(w_info['factor_ajuste']), 2)
                 })
 
     try:
