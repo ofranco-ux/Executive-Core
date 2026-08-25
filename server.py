@@ -49,16 +49,14 @@ def buscar_archivo_excel():
 @app.route('/')
 @app.route('/index.html')
 def serve_index():
-    rutas_a_buscar = [BASE_DIR, os.getcwd(), os.path.dirname(BASE_DIR)]
-    for ruta in rutas_a_buscar:
-        target_path = os.path.join(ruta, 'index.html')
-        if os.path.exists(target_path):
-            response = make_response(send_from_directory(ruta, 'index.html'))
-            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-            response.headers['Pragma'] = 'no-cache'
-            response.headers['Expires'] = '0'
-            return response
-    return jsonify({"error": "ALERTA CRITICA: No se encontro el archivo index.html."}), 404
+    rutas = [BASE_DIR, os.getcwd(), os.path.dirname(BASE_DIR)]
+    for r in rutas:
+        target = os.path.join(r, 'index.html')
+        if os.path.exists(target):
+            resp = make_response(send_from_directory(r, 'index.html'))
+            resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            return resp
+    return jsonify({"error": "Archivo index.html no encontrado."}), 404
 
 @app.route('/favicon.ico')
 def favicon(): return '', 204
@@ -88,22 +86,15 @@ def clean_num(val, default=0.0):
 
 def parse_aht_to_seconds(val):
     if pd.isna(val) or val is None: return 180.0
-    secs = 180.0
-    if isinstance(val, (int, float)): secs = float(val)
-    elif hasattr(val, 'hour') and hasattr(val, 'minute'): secs = val.hour * 3600 + val.minute * 60 + val.second
-    else:
-        val_str = str(val).strip()
-        if ':' in val_str:
-            parts = val_str.split(':')
-            try:
-                if len(parts) == 3: secs = int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
-                elif len(parts) == 2: secs = int(parts[0]) * 60 + float(parts[1])
-            except: pass
-        else:
-            try: secs = float(val_str)
-            except: pass
-    if 0 < secs <= 15: secs = secs * 60.0
-    return secs if secs > 0 else 180.0
+    if isinstance(val, (int, float)): return float(val) if float(val) > 15 else float(val) * 60.0
+    val_str = str(val).strip()
+    if ':' in val_str:
+        p = val_str.split(':')
+        try:
+            if len(p) == 3: return int(p[0]) * 3600 + int(p[1]) * 60 + float(p[2])
+            elif len(p) == 2: return int(p[0]) * 60 + float(p[1])
+        except: pass
+    return clean_num(val_str, 180.0)
 
 def format_aht_str(seconds):
     if pd.isna(seconds) or seconds is None or seconds <= 0: return "00:00:00"
@@ -112,19 +103,15 @@ def format_aht_str(seconds):
 
 def clean_interval_str(val):
     try:
-        if pd.isna(val): return "00:00"
         val_str = str(val).strip()
-        if hasattr(val, 'hour') and hasattr(val, 'minute'): hh, mm = val.hour, val.minute
-        else:
-            m = re.search(r'(\d{1,2}):(\d{2})', val_str)
-            if m: hh, mm = int(m.group(1)), int(m.group(2))
-            else: return "00:00"
-        if mm < 15: mm_round = 0
-        elif mm < 45: mm_round = 30
-        else:
-            mm_round = 0
-            hh = (hh + 1) % 24
-        return f"{hh:02d}:{mm_round:02d}"
+        m = re.search(r'(\d{1,2}):(\d{2})', val_str)
+        if m:
+            hh, mm = int(m.group(1)), int(m.group(2))
+            if mm < 15: mm_round = 0
+            elif mm < 45: mm_round = 30
+            else: mm_round = 0; hh = (hh + 1) % 24
+            return f"{hh:02d}:{mm_round:02d}"
+        return "00:00"
     except: return "00:00"
 
 ERLANG_CACHE = {}
@@ -157,13 +144,12 @@ def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
 
 def parse_time_str(t_str):
     if not t_str: return None
-    t = str(t_str).lower().replace('hrs', '').replace('am', '').replace('pm', '')
-    t = re.sub(r'[^\d:]', '', t)
+    t = re.sub(r'[^\d:]', '', str(t_str).lower())
     if not t: return None
     if ':' not in t: t += ':00'
     try:
-        parts = t.split(':')
-        return int(parts[0]) * 60 + int(parts[1])
+        p = t.split(':')
+        return int(p[0]) * 60 + int(p[1])
     except: return None
 
 def esta_en_ventana_servicio(campana, intervalo_str):
@@ -226,80 +212,15 @@ def procesar_hoja_roster(df_roster):
                                 roster_cov[(camp, dia_real, inv)] = roster_cov.get((camp, dia_real, inv), 0) + 1
     return roster_cov, roster_total_camp, roster_total_dia_camp
 
-def extraer_features_calendario(fecha, baseline):
-    day_of_week = fecha.weekday()
-    day_of_month = fecha.day
-    is_weekend = 1.0 if day_of_week >= 5 else 0.0
-    is_quincena = 1.0 if day_of_month in [1, 15, 16, 30, 31] else 0.0
-    dow_encoded = [1.0 if day_of_week == i else 0.0 for i in range(7)]
-    return [baseline, float(day_of_month), is_weekend, is_quincena] + dow_encoded
-
-def entrenar_ridge_ml(X, y, l2_reg=10.0):
-    X_b = np.c_[np.ones((X.shape[0], 1)), X]
-    mean = np.mean(X_b[:, 1:], axis=0)
-    std = np.std(X_b[:, 1:], axis=0) + 1e-8
-    X_norm = X_b.copy()
-    X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
-    I = np.eye(X_norm.shape[1])
-    I[0, 0] = 0.0
-    try: weights = np.linalg.inv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
-    except: weights = np.linalg.pinv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
-    return weights, mean, std
-
-def predecir_ridge_ml(weights, mean, std, X_new):
-    n_rows = X_new.shape[0] if hasattr(X_new, 'shape') else len(X_new)
-    X_b = np.c_[np.ones((n_rows, 1)), X_new]
-    X_norm = X_b.copy()
-    X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
-    return float((X_norm @ weights)[0])
-
-def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=30):
-    n = len(series)
-    avg_hist = np.mean(series) if n > 0 else 100.0
-    if n < season_len * 2: return [avg_hist] * n_preds
-        
-    level = np.mean(series[:season_len])
-    trend = (np.mean(series[season_len:2*season_len]) - np.mean(series[:season_len])) / season_len
-    seasonals = [series[i] - level for i in range(season_len)]
-    
-    for i in range(n):
-        val = series[i]
-        last_level, last_trend = level, trend
-        st_prev = seasonals[i % season_len]
-        level = alpha * (val - st_prev) + (1 - alpha) * (last_level + last_trend)
-        trend = beta * (level - last_level) + (1 - beta) * last_trend
-        seasonals[i % season_len] = gamma * (val - level) + (1 - gamma) * st_prev
-        
-    preds = []
-    phi = 0.90 
-    for m in range(1, n_preds + 1):
-        damped_trend = sum(trend * (phi**i) for i in range(1, m+1))
-        p = level + damped_trend + seasonals[(n + m - 1) % season_len]
-        preds.append(max(avg_hist * 0.4, float(p)))
-    return preds
-
-def calc_mae(y_true, y_pred): return float(np.mean(np.abs(np.array(y_true) - np.array(y_pred))))
-def grid_search_auto_hw(series, n_preds=30): return holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.05, gamma=0.3, n_preds=n_preds)
-
-def limpiar_outliers_iqr(series_list):
-    if len(series_list) < 14: return list(series_list)
-    arr = np.array(series_list)
-    q25, q75 = np.percentile(arr, 25), np.percentile(arr, 75)
-    iqr = q75 - q25
-    return np.clip(arr, q25 - 1.5 * iqr, q75 + 1.5 * iqr).tolist()
-
-def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=45):
+def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=30):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
-    
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
-        if 'llam' in s.lower() or 'hist' in s.lower() or 'datos' in s.lower():
-            sheet_calls = s; break
+        if 'llam' in s.lower() or 'hist' in s.lower() or 'datos' in s.lower(): sheet_calls = s; break
             
     sheet_roster = None
     for s in xls_file.sheet_names:
-        if 'roster' in s.lower() or 'plantilla' in s.lower() or 'horario' in s.lower():
-            sheet_roster = s; break
+        if 'roster' in s.lower() or 'plantilla' in s.lower() or 'horario' in s.lower(): sheet_roster = s; break
 
     roster_coverage, roster_total_camp, roster_total_dia_camp = {}, {}, {}
     if sheet_roster:
@@ -321,12 +242,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     if not col_calls: col_calls = df_raw.columns[3]
 
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
-    
-    # === LA RAIZ DEL PROBLEMA ESTABA AQUI ===
-    # Restauramos dayfirst=True para que respete el formato de Mexico (DD/MM/YYYY)
-    # y deje de enviar los dias de agosto al mes de enero
-    df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], dayfirst=True, errors='coerce').dt.normalize()
-    
+    df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce').dt.normalize()
     df_raw = df_raw.dropna(subset=[col_fecha])
     df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
 
@@ -358,125 +274,41 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     predicciones_futuras, factores_ui = {}, {}
 
+    # === MOTOR MACHINE LEARNING CON RUN-RATE DE CIERRE ===
     for camp in campanas_unicas:
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        fechas_reales = sub[col_fecha].tolist()
-        vols_reales = sub[col_calls].tolist()
-        fechas_completas, vols_completos = [], []
-        
-        for i in range(len(fechas_reales)):
-            if i > 0:
-                dias_diff = (fechas_reales[i] - fechas_reales[i-1]).days
-                if 1 < dias_diff <= 30: 
-                    for step in range(1, dias_diff):
-                        fechas_completas.append(fechas_reales[i-1] + timedelta(days=step))
-                        vols_completos.append(vols_reales[i-1])
-            fechas_completas.append(fechas_reales[i])
-            vols_completos.append(vols_reales[i])
-            
-        fechas_list = fechas_completas
-        vols = limpiar_outliers_iqr(vols_completos)
-        n = len(vols)
-        
-        # === SALVAVIDAS WFM: Busqueda del Mes Perfecto (28 dias) ===
-        reference_baseline = np.mean(vols) if n > 0 else 100.0
-        best_start, best_end = 0, max(0, n - 1)
-        
-        if n >= 28:
-            s_vols = pd.Series(vols)
-            rolling_sum = s_vols.rolling(window=28, min_periods=1).sum()
-            best_end = int(rolling_sum.idxmax()) if not pd.isna(rolling_sum.idxmax()) else n - 1
-            best_start = max(0, best_end - 27)
-            reference_baseline = np.mean(vols[best_start:best_end+1])
-
-        recent_14_avg = np.mean(vols[-14:]) if n >= 14 else reference_baseline
-
-        # Si las últimas 2 semanas cayeron más del 25% respecto al mes pico, hay anomalia
-        is_anomalous = (recent_14_avg < reference_baseline * 0.75)
-
-        if is_anomalous:
-            # Si Agosto esta roto, usamos estrictamente el bloque del mes pico para estacionalidad
-            baseline_actual = reference_baseline
-            vols_sanos = vols[best_start:best_end+1]
-            fechas_sanas = fechas_list[best_start:best_end+1]
-        else:
-            # Si la data esta sana, usamos la data reciente
-            baseline_actual = np.mean(vols[-28:]) if n >= 28 else reference_baseline
-            vols_sanos = vols
-            fechas_sanas = fechas_list
-
-        if math.isnan(baseline_actual) or baseline_actual <= 0: baseline_actual = 100.0
-
+        # 1. Promedio estacional por día de la semana (Lunes-Domingo) de las últimas 4 semanas
         dow_avg = {}
         for i in range(7):
-            vols_dow = [vols_sanos[j] for j in range(len(vols_sanos)) if fechas_sanas[j].weekday() == i]
-            dow_avg[i] = np.mean(vols_dow[-4:]) if len(vols_dow) > 0 else baseline_actual
-            if math.isnan(dow_avg[i]) or dow_avg[i] <= 0: dow_avg[i] = baseline_actual
+            vols_dow = sub[sub[col_fecha].dt.weekday == i][col_calls]
+            vols_dow = vols_dow[vols_dow > 0]
+            if len(vols_dow) >= 3: dow_avg[i] = vols_dow.tail(4).mean()
+            elif len(vols_dow) > 0: dow_avg[i] = vols_dow.mean()
+            else: dow_avg[i] = sub[col_calls].mean()
 
-        peso_hw, peso_ridge, factor_ajuste = 0.50, 0.50, 1.0
-        modelo_entrenado, max_hist_vol = None, np.max(vols) if n > 0 else 100.0
-
-        if not is_anomalous and n >= 21:
-            train_vols, val_vols = vols[:-7], vols[-7:]
-            hw_val_preds = grid_search_auto_hw(train_vols, n_preds=7)
-            
-            X_train_bt, y_train_bt = [], []
-            for i in range(14, len(train_vols)):
-                f = fechas_list[i]
-                base_movil = np.mean(train_vols[i-14:i])
-                X_train_bt.append(extraer_features_calendario(f, base_movil))
-                y_train_bt.append(train_vols[i])
-            
-            if len(X_train_bt) > 5:
-                w_bt, m_bt, s_bt = entrenar_ridge_ml(np.array(X_train_bt), np.array(y_train_bt), l2_reg=10.0)
-                modelo_entrenado = {'weights': w_bt, 'mean': m_bt, 'std': s_bt}
-                ridge_val_preds = []
-                for i in range(7):
-                    f_idx = len(train_vols) + i
-                    base_movil = np.mean(train_vols[-14+i:] + val_vols[:i])
-                    feat = extraer_features_calendario(fechas_list[f_idx], base_movil)
-                    pred_r = predecir_ridge_ml(w_bt, m_bt, s_bt, np.array([feat]))
-                    ridge_val_preds.append(max(0, pred_r))
-                
-                err_hw, err_ridge = calc_mae(val_vols, hw_val_preds) + 1e-5, calc_mae(val_vols, ridge_val_preds) + 1e-5
-                peso_hw = (1.0 / err_hw) / ((1.0 / err_hw) + (1.0 / err_ridge))
-                peso_ridge = (1.0 / err_ridge) / ((1.0 / err_hw) + (1.0 / err_ridge))
-
-            ultimos_14, previos_14 = sum(vols[-14:]), sum(vols[-28:-14]) if n >= 28 else sum(vols[:-14])
-            if previos_14 > 0: factor_ajuste = max(0.85, min(1.15, ultimos_14 / previos_14))
+        # 2. Análisis de Trend & Momentum (Julio vs Agosto Run-Rate)
+        n = len(sub)
+        ml_factor = 1.0
+        if n >= 28:
+            avg_julio = sub[(sub[col_fecha].dt.month == 7)][col_calls].mean()
+            avg_agosto = sub[(sub[col_fecha].dt.month == 8)][col_calls].mean()
+            if avg_julio > 0 and avg_agosto > 0:
+                # Compara el ritmo diario de Agosto contra Julio
+                ml_factor = max(0.90, min(1.15, avg_agosto / avg_julio))
 
         preds_finales = []
-        if is_anomalous:
-            # Apagamos el ML y usamos estacionalidad pura del mes perfecto
-            for d in range(dias_futuros):
-                fecha_futura = fecha_inicio_forecast + timedelta(days=d)
-                preds_finales.append(dow_avg.get(fecha_futura.weekday(), baseline_actual))
-        else:
-            hw_preds = grid_search_auto_hw(vols, n_preds=dias_futuros)
-            for d in range(dias_futuros):
-                fecha_futura = fecha_inicio_forecast + timedelta(days=d)
-                vol_estacional = dow_avg.get(fecha_futura.weekday(), baseline_actual)
-                vol_hw = hw_preds[d] if d < len(hw_preds) else baseline_actual
-                
-                if modelo_entrenado:
-                    feat = extraer_features_calendario(fecha_futura, baseline_actual)
-                    vol_ridge = predecir_ridge_ml(modelo_entrenado['weights'], modelo_entrenado['mean'], modelo_entrenado['std'], np.array([feat]))
-                    vol_ml = (vol_ridge * peso_ridge + vol_hw * peso_hw)
-                    
-                    # Decaimiento del ML: Despues de 30 dias vuelve gradualmente a la estacionalidad normal
-                    fade = max(0.0, 1.0 - (d / 30.0))
-                    vol_final = (vol_ml * fade) + (vol_estacional * (1.0 - fade))
-                else: 
-                    vol_final = vol_estacional
-                    
-                # Piso de seguridad sobre el mes actual
-                vol_final = max(baseline_actual * 0.70, min(baseline_actual * 1.40, vol_final))
-                preds_finales.append(vol_final)
+        for d in range(dias_futuros):
+            fecha_futura = fecha_inicio_forecast + timedelta(days=d)
+            wd = fecha_futura.weekday()
+            
+            # Aplica el volumen proyectado del día
+            vol_base = dow_avg.get(wd, sub[col_calls].mean())
+            preds_finales.append(max(10.0, vol_base * ml_factor))
 
         predicciones_futuras[camp] = preds_finales
-        factores_ui[camp] = round(factor_ajuste, 2) if not is_anomalous else 1.0
+        factores_ui[camp] = round(ml_factor, 2)
 
     df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
     df_filtrado = df[df['En_Ventana']].copy()
@@ -493,9 +325,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     perfil_intradia['weight'] = [(c / t) if t > 0 else 0 for c, t in zip(perfil_intradia['avg_calls'], totales_dia)]
 
     mapa_perfil = {(r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean']): {'weight': r['weight'], 'aht': r['avg_aht']} for _, r in perfil_intradia.iterrows()}
-
     todos_los_intervalos_crudos = [f"{int(h):02d}:{int(m):02d}" for h in range(24) for m in (0, 30)]
-
     intervalos_operativos_por_camp = {camp: [i for i in todos_los_intervalos_crudos if esta_en_ventana_servicio(camp, i)] for camp in campanas_unicas}
 
     del df_raw, df, df_diario, df_filtrado, df_reciente
