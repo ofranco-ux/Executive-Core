@@ -239,10 +239,13 @@ def extraer_features_fecha(fecha, volumenes_hist, trend_idx):
 
 def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=30):
     n = len(series)
+    avg_hist = np.mean(series) if n > 0 else 100.0
     if n < season_len * 2:
-        return [np.mean(series) if len(series) > 0 else 100.0] * n_preds
+        return [avg_hist] * n_preds
+        
     level = np.mean(series[:season_len])
     trend = (np.mean(series[season_len:2*season_len]) - np.mean(series[:season_len])) / season_len
+    
     seasonals = [series[i] - level for i in range(season_len)]
     for i in range(n):
         val = series[i]
@@ -251,10 +254,13 @@ def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.
         level = alpha * (val - st_prev) + (1 - alpha) * (last_level + last_trend)
         trend = beta * (level - last_level) + (1 - beta) * last_trend
         seasonals[i % season_len] = gamma * (val - level) + (1 - gamma) * st_prev
+        
     preds = []
     for m in range(1, n_preds + 1):
-        p = level + m * trend + seasonals[(n + m - 1) % season_len]
-        preds.append(max(0.0, float(p)))
+        # FIX: Damped trend - Evita que se desplome a cero en proyecciones largas
+        damped_trend = trend * (0.85 ** m)
+        p = level + (m * damped_trend) + seasonals[(n + m - 1) % season_len]
+        preds.append(max(avg_hist * 0.1, float(p)))
     return preds
 
 def grid_search_auto_hw(series, n_preds=30):
@@ -426,7 +432,18 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     modelos_ml, historial_volumenes, hw_forecasts, pesos_campana = {}, {}, {}, {}
 
     for camp in campanas_unicas:
-        sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
+        sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha)
+        if sub.empty: continue
+        
+        # --- FIX: Rellenar fechas vacias para no romper la estacionalidad Lunes-Domingo ---
+        min_d, max_d = sub[col_fecha].min(), sub[col_fecha].max()
+        all_dates = pd.date_range(start=min_d, end=max_d, freq='D')
+        sub = sub.set_index(col_fecha).reindex(all_dates).rename_axis(col_fecha).reset_index()
+        sub[col_camp] = camp
+        # Interpolar huecos
+        sub[col_calls] = sub[col_calls].interpolate(method='linear').ffill().bfill()
+        # --------------------------------------------------------------------------------
+        
         fechas_list = sub[col_fecha].tolist()
         volumenes_list = limpiar_outliers_iqr(sub[col_calls].tolist())
         historial_volumenes[camp] = list(volumenes_list)
@@ -472,7 +489,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 
                 if sum_pred > 0:
                     drift = sum_actual / sum_pred
-                    factor_ajuste = max(0.5, min(1.5, drift))
+                    # FIX: Limitar que el "quiebre de tendencia" no sea mayor a +- 20%
+                    factor_ajuste = max(0.8, min(1.2, drift))
                     
         pesos_campana[camp] = {
             'w_hw': peso_hw,
@@ -550,14 +568,19 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             w_info = pesos_campana.get(camp, {'w_hw': 0.65, 'w_ridge': 0.35, 'factor_ajuste': 1.0})
             vol_hw = hw_forecasts[camp][d] if d < len(hw_forecasts[camp]) else vol_ridge
             
-            # --- FIX: EVITAR DECAIMIENTO EXPONENCIAL ---
-            # El historial puro alimenta al modelo
             vol_puro = (w_info['w_hw'] * vol_hw + w_info['w_ridge'] * vol_ridge)
+            
+            # --- FIX: CANDADO DE REALIDAD ---
+            # Prevenir que la tendencia de ML infle o hunda la prediccion a niveles absurdos.
+            reciente_avg = np.mean(hist_vol[-14:]) if len(hist_vol) >= 14 else np.mean(hist_vol)
+            if math.isnan(reciente_avg) or reciente_avg <= 0: reciente_avg = 100.0
+            
+            # Limitar el volumen base entre el 80% y 125% del promedio reciente
+            vol_puro = max(reciente_avg * 0.80, min(reciente_avg * 1.25, vol_puro))
+            
             historial_volumenes[camp].append(vol_puro)
             
-            # Solo el output final se ajusta por la alerta de quiebre
             volumen_predicho_diario = vol_puro * w_info['factor_ajuste']
-            # -------------------------------------------
 
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
 
