@@ -10,7 +10,8 @@ import pandas as pd
 import numpy as np
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CACHE_FILE = os.path.join(BASE_DIR, 'forecast_cache.json')
+CACHE_FILE_IN = os.path.join(BASE_DIR, 'forecast_cache_in.json')
+CACHE_FILE_OUT = os.path.join(BASE_DIR, 'forecast_cache_out.json')
 CONFIG_FILE = os.path.join(BASE_DIR, 'wfm_config.json') 
 EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 
@@ -414,7 +415,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 })
 
     try:
-        with open(CACHE_FILE, 'w', encoding='utf-8') as f: json.dump(data_processed, f)
+        with open(CACHE_FILE_IN, 'w', encoding='utf-8') as f: json.dump(data_processed, f)
     except: pass
     return data_processed
 
@@ -611,6 +612,10 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
                     'Total_Roster_Dia': tot_camp_dia,
                     'Factor_Correccion': factor_visual_ui
                 })
+
+    try:
+        with open(CACHE_FILE_OUT, 'w', encoding='utf-8') as f: json.dump(data_processed, f)
+    except: pass
     return data_processed
 # ==============================================================
 
@@ -731,9 +736,12 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 
 @app.route('/api/latest', methods=['GET'])
 def get_latest_forecast():
-    if os.path.exists(CACHE_FILE):
+    mode = request.args.get('mode', 'inbound')
+    target_cache = CACHE_FILE_OUT if mode == 'outbound' else CACHE_FILE_IN
+    
+    if os.path.exists(target_cache):
         try:
-            with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+            with open(target_cache, 'r', encoding='utf-8') as f:
                 cache_data = json.load(f)
                 if isinstance(cache_data, list) and len(cache_data) > 0: 
                     return jsonify(cache_data), 200
