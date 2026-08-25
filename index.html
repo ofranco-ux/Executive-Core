@@ -258,7 +258,7 @@
                 </div>
             </div>
 
-            <!-- 4 CARDS PRINCIPALES BLINDADAS CON TAMAÑO FIJO EN SVGS -->
+            <!-- 4 CARDS PRINCIPALES -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 
                 <!-- CARD 1: TOTAL DEMAND -->
@@ -703,11 +703,10 @@
             try {
                 const response = await fetch('/api/process', { method: 'POST', body: formData });
                 
-                // === ESCUDO ANTI-RENDER CRASH ===
                 const contentType = response.headers.get("content-type");
                 if (contentType && contentType.indexOf("application/json") === -1) {
                     const errorText = await response.text();
-                    throw new Error("El servidor de Render está saturado o reiniciándose (Error 502/504 HTML). Por favor, espera 1 minuto y vuelve a dar clic en 'Run Plan'.");
+                    throw new Error("El servidor está procesando un volumen alto. Por favor, espera unos segundos y vuelve a dar clic en 'Run Plan'.");
                 }
 
                 globalData = await response.json();
@@ -1168,7 +1167,7 @@
                                 label: 'Capacidad Malla Sugerida', 
                                 type: 'line',
                                 data: capacidadSugeridaVector, 
-                                borderColor: '#A78BFA', // Violeta vivo
+                                borderColor: '#A78BFA',
                                 backgroundColor: '#A78BFA',
                                 borderWidth: 3,
                                 tension: 0.4,
@@ -1180,7 +1179,7 @@
                                 label: 'Capacidad Roster Actual', 
                                 type: 'line',
                                 data: capacidadRosterVector, 
-                                borderColor: '#FBBF24', // Ámbar vivo
+                                borderColor: '#FBBF24',
                                 backgroundColor: '#FBBF24',
                                 borderWidth: 3,
                                 tension: 0.4,
@@ -1190,7 +1189,7 @@
                             { 
                                 label: 'Llamadas (FCST)', 
                                 data: llamadasArr.map(x => Math.round(x)), 
-                                backgroundColor: '#38BDF8', // Celeste vibrante
+                                backgroundColor: '#38BDF8',
                                 borderColor: 'transparent',
                                 borderWidth: 0,
                                 borderRadius: 4,
@@ -1228,6 +1227,7 @@
                     });
                 }
 
+                // RECALCULO DINAMICO DEL HC REQUERIDO AL CAMBIAR FILTROS
                 const nominaRequeridaTotalSemana = optData.headcount_semanal_6x1 || 0;
                 const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
                 const hcRequeridoDisplay = esVistaSemanal ? nominaRequeridaTotalSemana : nominaRequeridaDiaria;
@@ -1290,7 +1290,6 @@
                 if (globalTurnosOptimos.length === 0) {
                     optTbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500 font-sans font-medium">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
                 } else {
-                    
                     let offsetDiurno = 0;
                     let offsetNocturno = 0;
 
@@ -1356,7 +1355,7 @@
                             { 
                                 label: 'HC Requerido (Motor)', 
                                 data: reqAvgVector, 
-                                borderColor: '#22D3EE', // Cyan brillante
+                                borderColor: '#22D3EE', 
                                 backgroundColor: 'rgba(34, 211, 238, 0.1)', 
                                 fill: true, 
                                 tension: 0.4, 
@@ -1367,7 +1366,7 @@
                             { 
                                 label: 'Plantilla Actual (Roster)', 
                                 data: rosterAvgVector, 
-                                borderColor: '#34D399', // Esmeralda vibrante
+                                borderColor: '#34D399', 
                                 backgroundColor: '#34D399', 
                                 fill: false, 
                                 tension: 0.4, 
@@ -1379,7 +1378,7 @@
                             { 
                                 label: labelCurvaCob, 
                                 data: (optData.cobertura_optima || []), 
-                                borderColor: '#3B82F6', // Azul principal
+                                borderColor: '#3B82F6', 
                                 backgroundColor: '#3B82F6', 
                                 fill: false, 
                                 tension: 0.4, 
