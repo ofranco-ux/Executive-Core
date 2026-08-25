@@ -1021,9 +1021,8 @@
                 mapIntervaloFecha[key].push(r);
             });
 
-            // === RECALCULO DINÁMICO POR PERIODO REAL ===
-            // Promedia por día de la semana y por número de semanas del mes filtrado
-            const numSemanasPeriodo = Math.max(1, fechasFiltradas.length / 7);
+            // === RECALCULO DINÁMICO CORREGIDO (PROMEDIO DIARIO REAL DEL MES FILTRADO) ===
+            const numDiasPeriodo = Math.max(1, fechasFiltradas.length);
 
             todosIntervalos.forEach((inter, idx) => {
                 let callsSum = 0;
@@ -1048,18 +1047,30 @@
                     }
                 });
 
-                const numDias = fechasFiltradas.length;
-                if (numDias > 0) {
-                    rosterAvgVector[idx] = Math.round(rosterSum / numDias);
+                if (numDiasPeriodo > 0) {
+                    rosterAvgVector[idx] = Math.round(rosterSum / numDiasPeriodo);
 
                     if (usarPicos) {
-                        llamadasAvgVector[idx] = callsSum / numSemanasPeriodo;
-                        reqAvgVector[idx] = Math.ceil(reqSum / numSemanasPeriodo);
-                        ahtAvgVector[idx] = callsSum > 0 ? (htSum / callsSum) : 180;
+                        // En modo picos, usa el pico diario real del periodo
+                        let callsArray = [];
+                        let reqArray = [];
+                        let ahtArray = [];
+                        fechasFiltradas.forEach(fStr => {
+                            const subRows = mapIntervaloFecha[`${fStr}_${inter}`] || [];
+                            let sc = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
+                            let sr = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0), 0);
+                            let sht = subRows.reduce((a, b) => a + ((Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(b, ['AHT_Segundos'], 180)) || 180)), 0);
+                            callsArray.push(sc);
+                            reqArray.push(sr);
+                            ahtArray.push(sc > 0 ? sht / sc : 180);
+                        });
+                        llamadasAvgVector[idx] = Math.max(...callsArray);
+                        reqAvgVector[idx] = Math.max(...reqArray);
+                        ahtAvgVector[idx] = Math.max(...ahtArray);
                     } else {
-                        // Promedio representativo de una semana típica de ESTE mes
-                        llamadasAvgVector[idx] = callsSum / numSemanasPeriodo;
-                        reqAvgVector[idx] = Math.ceil(reqSum / numSemanasPeriodo);
+                        // Promedio diario exacto del periodo seleccionado (Suscita cambios reales entre meses)
+                        llamadasAvgVector[idx] = callsSum / numDiasPeriodo;
+                        reqAvgVector[idx] = Math.ceil(reqSum / numDiasPeriodo);
                         ahtAvgVector[idx] = callsSum > 0 ? (htSum / callsSum) : 180;
                     }
                 }
@@ -1216,7 +1227,7 @@
                     });
                 }
 
-                // RECALCULO DINÁMICO REACCIONANDO AL MES SELECCIONADO
+                // RECALCULO DINÁMICO CORREGIDO DE LA PLANTILLA SEGÚN EL MES SELECCIONADO
                 const nominaRequeridaTotalSemana = optData.headcount_semanal_6x1 || 0;
                 const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
                 const hcRequeridoDisplay = esVistaSemanal ? nominaRequeridaTotalSemana : nominaRequeridaDiaria;
