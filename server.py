@@ -105,15 +105,19 @@ def format_aht_str(seconds):
 
 def clean_interval_str(val):
     try:
+        if pd.isna(val): return "00:00"
         val_str = str(val).strip()
-        m = re.search(r'(\d{1,2}):(\d{2})', val_str)
-        if m:
-            hh, mm = int(m.group(1)), int(m.group(2))
-            if mm < 15: mm_round = 0
-            elif mm < 45: mm_round = 30
-            else: mm_round = 0; hh = (hh + 1) % 24
-            return f"{hh:02d}:{mm_round:02d}"
-        return "00:00"
+        if hasattr(val, 'hour') and hasattr(val, 'minute'): hh, mm = val.hour, val.minute
+        else:
+            m = re.search(r'(\d{1,2}):(\d{2})', val_str)
+            if m: hh, mm = int(m.group(1)), int(m.group(2))
+            else: return "00:00"
+        if mm < 15: mm_round = 0
+        elif mm < 45: mm_round = 30
+        else:
+            mm_round = 0
+            hh = (hh + 1) % 24
+        return f"{hh:02d}:{mm_round:02d}"
     except: return "00:00"
 
 ERLANG_CACHE = {}
@@ -129,7 +133,7 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
             sum_terms += current_term
         last_term = current_term * (A / N) / (1.0 - (A / N))
         pw = last_term / (sum_terms + last_term)
-        sl = 1.0 - (pw * math.exp(-(N - A) * (target_time / AHT)))
+        sl = 1.0 - (pw * Math.exp(-(N - A) * (target_time / AHT)))
         resultado = round(max(0.0, min(100.0, sl * 100.0)), 1)
         ERLANG_CACHE[key] = resultado
         return resultado
@@ -214,7 +218,7 @@ def procesar_hoja_roster(df_roster):
                                 roster_cov[(camp, dia_real, inv)] = roster_cov.get((camp, dia_real, inv), 0) + 1
     return roster_cov, roster_total_camp, roster_total_dia_camp
 
-def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=130):
+def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=45):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
@@ -244,7 +248,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     if not col_calls: col_calls = df_raw.columns[3]
 
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
-    df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], errors='coerce').dt.normalize()
+    df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], dayfirst=True, errors='coerce').dt.normalize()
     df_raw = df_raw.dropna(subset=[col_fecha])
     df_raw[col_calls] = [clean_num(x, 0.0) for x in df_raw[col_calls]]
 
@@ -276,7 +280,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     predicciones_futuras, factores_ui = {}, {}
 
-    # === MOTOR MACHINE LEARNING DINÁMICO (TENDENCIA + CALENDARIO + QUINCENAS) ===
     for camp in campanas_unicas:
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
@@ -291,7 +294,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
         n = len(sub)
         
-        # Factor de tendencia mes con mes (Mayo -> Junio -> Julio -> Cierre Agosto)
+        # Factor de tendencia
         avg_julio = sub[(sub[col_fecha].dt.month == 7)][col_calls].mean()
         avg_agosto = sub[(sub[col_fecha].dt.month == 8)][col_calls].mean()
         
@@ -310,15 +313,19 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             
             vol_base = dow_avg.get(wd, sub[col_calls].mean())
             
-            # Factor de crecimiento mensual progresivo
             month_idx = (fecha_futura.year - fecha_inicio_forecast.year) * 12 + (fecha_futura.month - fecha_inicio_forecast.month)
             monthly_trend = math.pow(trend_rate, month_idx)
-            
-            # Factor quincena (+10% en días de pago)
             quincena_factor = 1.10 if day_m in [1, 15, 16, 30, 31] else 1.0
             
             vol_final = vol_base * monthly_trend * quincena_factor
-            preds_finales.append(max(10.0, vol_final))
+            
+            # === CANDADO ANTI-ZOMBIES ===
+            # Si el volumen promedio histórico es menor a 1 llamada diaria, la campaña está muerta. No proyectar volumen.
+            if sub[col_calls].mean() < 1.0:
+                vol_final = 0.0
+                
+            # Si no está muerta, el piso real es 0 (no forzar artificialmente a 10 llamadas)
+            preds_finales.append(max(0.0, vol_final))
 
         predicciones_futuras[camp] = preds_finales
         factores_ui[camp] = round(trend_rate, 2)
@@ -467,8 +474,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     if len(valid_starts) > 0:
         for _ in range(5000):
             current_sl = calc_current_global_sl(cob_hc)
-            if current_sl >= target_sl_dinamico:
-                break
+            if current_sl >= target_sl_dinamico: break
 
             deficit = req_hc_base - cob_hc
             best_start_idx, best_cov, best_pen = -1, -1, 999999
@@ -557,7 +563,7 @@ def process_data():
     excel_path = buscar_archivo_excel()
     if not excel_path: return jsonify({'error': 'No se encontro Excel (.xlsx).'}), 400
     try:
-        data = procesar_archivo_excel(excel_path, float(clean_num(request.form.get('target_sl'), 80.0)), float(clean_num(request.form.get('target_time'), 20.0)), float(clean_num(request.form.get('merma'), 20.0)) / 100.0, int(clean_num(request.form.get('dias'), 130)))
+        data = procesar_archivo_excel(excel_path, float(clean_num(request.form.get('target_sl'), 80.0)), float(clean_num(request.form.get('target_time'), 20.0)), float(clean_num(request.form.get('merma'), 20.0)) / 100.0, int(clean_num(request.form.get('dias'), 45)))
         gc.collect()
         return jsonify(data)
     except Exception as e:
