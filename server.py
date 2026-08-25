@@ -149,7 +149,13 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
 def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
     if A <= 0 or aht <= 0: return 0
     n = max(1, int(math.floor(A)) + 1)
-    while n < 1000:
+    
+    # === FAST-PATH MATEMÁTICO (Evita que Render colapse por timeout) ===
+    # Si las llamadas son extremas, nos saltamos miles de iteraciones inútiles
+    if A > 50:
+        n = max(n, int(math.floor(A + math.sqrt(A))))
+        
+    while n < 3000: # Límite ampliado seguro
         if erlang_c_sl_optimizado(A, n, aht, target_time) >= target_sl: return n
         n += 1
     return n
@@ -417,6 +423,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
         hw_preds = grid_search_auto_hw(vols, n_preds=dias_futuros)
         preds_finales = []
+        max_hist_vol = np.max(vols) if n > 0 else 100.0
         
         for d in range(dias_futuros):
             fecha_futura = fecha_inicio_forecast + timedelta(days=d)
@@ -430,11 +437,9 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 vol_final = (vol_ml * 0.70) + (vol_estacional * 0.30)
             else: vol_final = vol_estacional
                 
-            # === PISO DINAMICO ESTACIONAL ===
-            # Le prohíbe al ML bajar del 85% o subir del 135% del promedio de ESE DIA DE LA SEMANA.
+            # Cero caídas drásticas, respeta tu Lunes Perfecto.
             piso_seguro = vol_estacional * 0.85
             techo_seguro = vol_estacional * 1.35
-            
             vol_final = max(piso_seguro, min(techo_seguro, vol_final))
             preds_finales.append(vol_final)
 
@@ -457,9 +462,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     mapa_perfil = {(r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean']): {'weight': r['weight'], 'aht': r['avg_aht']} for _, r in perfil_intradia.iterrows()}
 
-    todos_los_intervalos_crudos = df['Inter_Clean'].unique().tolist()
-    if not todos_los_intervalos_crudos: todos_los_intervalos_crudos = [f"{int(h):02d}:{int(m):02d}" for h in range(24) for m in (0, 30)]
-    todos_los_intervalos_crudos.sort()
+    todos_los_intervalos_crudos = [f"{int(h):02d}:{int(m):02d}" for h in range(24) for m in (0, 30)]
 
     intervalos_operativos_por_camp = {camp: [i for i in todos_los_intervalos_crudos if esta_en_ventana_servicio(camp, i)] for camp in campanas_unicas}
 
