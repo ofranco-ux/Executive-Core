@@ -133,7 +133,7 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
             sum_terms += current_term
         last_term = current_term * (A / N) / (1.0 - (A / N))
         pw = last_term / (sum_terms + last_term)
-        sl = 1.0 - (pw * Math.exp(-(N - A) * (target_time / AHT)))
+        sl = 1.0 - (pw * math.exp(-(N - A) * (target_time / AHT)))
         resultado = round(max(0.0, min(100.0, sl * 100.0)), 1)
         ERLANG_CACHE[key] = resultado
         return resultado
@@ -520,27 +520,20 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 
 @app.route('/api/latest', methods=['GET'])
 def get_latest_forecast():
-    use_cache = False
-    excel_path = buscar_archivo_excel()
-    if os.path.exists(CACHE_FILE) and excel_path:
-        if os.path.getmtime(CACHE_FILE) >= os.path.getmtime(excel_path): use_cache = True
-        else:
-            try: os.remove(CACHE_FILE)
-            except: pass
-    elif os.path.exists(CACHE_FILE): use_cache = True
-
-    if use_cache:
+    # 1. Simplemente intentamos leer la caché existente sin importar la fecha del Excel
+    if os.path.exists(CACHE_FILE):
         try:
             with open(CACHE_FILE, 'r', encoding='utf-8') as f:
                 cache_data = json.load(f)
-                if isinstance(cache_data, list) and len(cache_data) > 0: return jsonify(cache_data), 200
-        except: pass
+                if isinstance(cache_data, list) and len(cache_data) > 0: 
+                    return jsonify(cache_data), 200
+        except Exception as e:
+            print(f"Error leyendo caché: {e}")
+            pass
             
-    if excel_path:
-        try: return jsonify(procesar_archivo_excel(excel_path)), 200
-        except Exception as e: return jsonify({'error': f'Error procesando Excel: {str(e)}'}), 500
-            
-    return jsonify({'error': 'No se encontro Excel en el servidor.'}), 404
+    # 2. Si no hay caché, no bloqueamos el servidor. Le decimos al front que está vacío.
+    # El usuario tendrá que dar clic en "RUN PLAN" para generarla.
+    return jsonify([]), 200
 
 @app.route('/api/optimize-schedules', methods=['POST'])
 def api_optimize_schedules():
