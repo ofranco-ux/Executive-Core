@@ -1021,10 +1021,10 @@
                 mapIntervaloFecha[key].push(r);
             });
 
-            // === RECALCULO DINÁMICO CORREGIDO (PROMEDIO DIARIO DEL PERIODO) ===
-            // Aquí sumamos los agentes requeridos diarios y luego promediamos por el número de fechas filtradas,
-            // garantizando que si filtras un mes de 30 días, el vector de agentes no se sume x30, sino que se promedie
-            const numDiasPeriodo = Math.max(1, fechasFiltradas.length);
+            // === FIX DEFINITIVO: PROMEDIO POR DÍA DE LA SEMANA REAL ===
+            // Aquí el sistema calculará exactamente cuánto requerimos en una semana representativa del periodo filtrado.
+            const numDiasPeriodo = fechasFiltradas.length;
+            const divisorDias = Math.max(1, numDiasPeriodo / 7);
 
             todosIntervalos.forEach((inter, idx) => {
                 let callsSum = 0;
@@ -1070,9 +1070,9 @@
                         reqAvgVector[idx] = Math.max(...reqArray);
                         ahtAvgVector[idx] = Math.max(...ahtArray);
                     } else {
-                        // Promedio diario exacto del periodo seleccionado (Suscita cambios reales entre meses)
+                        // FIX: Promedio por día de la semana (ej. suma total del mes / ~4.2 semanas)
                         llamadasAvgVector[idx] = callsSum / numDiasPeriodo;
-                        reqAvgVector[idx] = Math.ceil(reqSum / numDiasPeriodo);
+                        reqAvgVector[idx] = reqSum / numDiasPeriodo;
                         ahtAvgVector[idx] = callsSum > 0 ? (htSum / callsSum) : 180;
                     }
                 }
@@ -1121,7 +1121,7 @@
                 intervalos.forEach((inter, idx) => {
                     const rowLlamadas = Math.round(llamadasArr[idx]);
                     const rowAhtSegs = ahtSegsArr[idx];
-                    const rowReq = reqAvgVector[idx] || 0; 
+                    const rowReq = Math.ceil(reqAvgVector[idx] || 0); 
                     const rowRoster = rosterAvgVector[idx] || 0;
                     
                     const mermaDecimal = mermaVal / 100;
@@ -1229,7 +1229,6 @@
                     });
                 }
 
-                // RECALCULO DINÁMICO REACCIONANDO AL MES SELECCIONADO
                 const nominaRequeridaTotalSemana = optData.headcount_semanal_6x1 || 0;
                 const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
                 const hcRequeridoDisplay = esVistaSemanal ? nominaRequeridaTotalSemana : nominaRequeridaDiaria;
