@@ -490,7 +490,6 @@
 
         // FUNCION NUEVA PARA CAMBIAR ENTRE INBOUND Y OUTBOUND
         function setModeWFM(mode) {
-            // Si el usuario ya está en ese modo, no hacemos nada
             if (forecastMode === mode) return; 
 
             forecastMode = mode;
@@ -510,8 +509,38 @@
                 document.getElementById('lblProjectedSl').innerText = "Coverage de Productividad";
             }
             
-            // Disparar el recálculo en automático al cambiar de tab
-            procesarWFM();
+            // Magia pura: Solo lee de la caché rápida, no recalcula de cero
+            fetchLatestData(mode);
+        }
+
+        // Esta función va a la caché correcta en milisegundos
+        async function fetchLatestData(mode) {
+            try {
+                const response = await fetch('/api/latest?mode=' + mode + '&t=' + new Date().getTime());
+                if (response.ok) {
+                    const data = await response.json();
+                    if (Array.isArray(data) && data.length > 0) {
+                        globalData = data;
+                        inicializarFiltrosMultiples();
+                        debouncedActualizarGrafica();
+                    } else {
+                        // Si no hay caché, blanqueamos y pedimos que le den al botón
+                        limpiarPantalla(mode);
+                    }
+                }
+            } catch (e) {
+                console.log("Error cargando pronóstico automático.");
+            }
+        }
+
+        function limpiarPantalla(mode) {
+            document.getElementById('kpiCalls').innerText = "0";
+            document.getElementById('kpiAht').innerText = "00:00:00";
+            document.getElementById('kpiHcRequerido').innerText = "0 HC";
+            document.getElementById('kpiHcRoster').innerText = "0 HC";
+            document.getElementById('intervalTableBody').innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-500 font-medium font-sans">Presiona RUN PLAN para generar la proyección de ${mode.toUpperCase()} por primera vez.</td></tr>`;
+            if(optChartInstance) optChartInstance.destroy();
+            if(gapChartInstance) gapChartInstance.destroy();
         }
 
         function toggleSidebar() {
@@ -691,18 +720,8 @@
                 await fetchWFMConfig();
             }
 
-            try {
-                const response = await fetch('/api/latest?t=' + new Date().getTime());
-                if (response.ok) {
-                    globalData = await response.json();
-                    if (Array.isArray(globalData) && globalData.length > 0) {
-                        inicializarFiltrosMultiples();
-                        debouncedActualizarGrafica();
-                    }
-                }
-            } catch (e) {
-                console.log("Error cargando pronóstico automático.");
-            }
+            // Arranca leyendo la caché del modo inicial
+            fetchLatestData(forecastMode);
         });
 
         function getProp(row, keys, def = '') {
@@ -1031,7 +1050,7 @@
                 document.getElementById('kpiHcRequerido').innerText = "0 HC";
                 document.getElementById('kpiHcRoster').innerText = "0 HC";
                 const tbody = document.getElementById('intervalTableBody');
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-500">Sin datos</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-500 font-sans font-medium">Sin datos</td></tr>';
                 return;
             }
 
