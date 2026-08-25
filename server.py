@@ -110,21 +110,15 @@ def format_aht_str(seconds):
     secs = int(round(seconds))
     return f"{secs // 3600:02d}:{(secs % 3600) // 60:02d}:{secs % 60:02d}"
 
-# === FIX: AGRUPADOR DE INTERVALOS A BLOQUES DE 30 MINUTOS ===
 def clean_interval_str(val):
     try:
         if pd.isna(val): return "00:00"
         val_str = str(val).strip()
-        if hasattr(val, 'hour') and hasattr(val, 'minute'):
-            hh, mm = val.hour, val.minute
+        if hasattr(val, 'hour') and hasattr(val, 'minute'): hh, mm = val.hour, val.minute
         else:
             m = re.search(r'(\d{1,2}):(\d{2})', val_str)
-            if m:
-                hh, mm = int(m.group(1)), int(m.group(2))
-            else:
-                return "00:00"
-                
-        # Redondeo exacto WFM
+            if m: hh, mm = int(m.group(1)), int(m.group(2))
+            else: return "00:00"
         if mm < 15: mm_round = 0
         elif mm < 45: mm_round = 30
         else:
@@ -231,48 +225,67 @@ def procesar_hoja_roster(df_roster):
                                 roster_cov[(camp, dia_real, inv)] = roster_cov.get((camp, dia_real, inv), 0) + 1
     return roster_cov, roster_total_camp, roster_total_dia_camp
 
+def extraer_features_calendario(fecha, baseline):
+    day_of_week = fecha.weekday()
+    day_of_month = fecha.day
+    is_weekend = 1.0 if day_of_week >= 5 else 0.0
+    is_quincena = 1.0 if day_of_month in [1, 15, 16, 30, 31] else 0.0
+    dow_encoded = [1.0 if day_of_week == i else 0.0 for i in range(7)]
+    return [baseline, float(day_of_month), is_weekend, is_quincena] + dow_encoded
 
-# === EL NUEVO MOTOR MATEMATICO (ESTANDAR WFM: WEIGHTED MOVING AVERAGE) ===
-def calcular_pronostico_wfm(vols, fechas, n_preds):
-    df = pd.DataFrame({'vol': vols, 'fecha': fechas})
-    df['dow'] = df['fecha'].dt.weekday
+def entrenar_ridge_ml(X, y, l2_reg=10.0):
+    X_b = np.c_[np.ones((X.shape[0], 1)), X]
+    mean = np.mean(X_b[:, 1:], axis=0)
+    std = np.std(X_b[:, 1:], axis=0) + 1e-8
+    X_norm = X_b.copy()
+    X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
+    I = np.eye(X_norm.shape[1])
+    I[0, 0] = 0.0
+    try: weights = np.linalg.inv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
+    except: weights = np.linalg.pinv(X_norm.T @ X_norm + l2_reg * I) @ X_norm.T @ y
+    return weights, mean, std
+
+def predecir_ridge_ml(weights, mean, std, X_new):
+    n_rows = X_new.shape[0] if hasattr(X_new, 'shape') else len(X_new)
+    X_b = np.c_[np.ones((n_rows, 1)), X_new]
+    X_norm = X_b.copy()
+    X_norm[:, 1:] = (X_b[:, 1:] - mean) / std
+    return float((X_norm @ weights)[0])
+
+def holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.1, gamma=0.3, n_preds=30):
+    n = len(series)
+    avg_hist = np.mean(series) if n > 0 else 100.0
+    if n < season_len * 2: return [avg_hist] * n_preds
+        
+    level = np.mean(series[:season_len])
+    trend = (np.mean(series[season_len:2*season_len]) - np.mean(series[:season_len])) / season_len
+    seasonals = [series[i] - level for i in range(season_len)]
     
-    dow_avg = {}
-    for i in range(7):
-        # Filtramos solo los dias > 0 para evitar festivos o fallas de sistema que bajen el promedio
-        vols_dow = df[(df['dow'] == i) & (df['vol'] > 0)]['vol']
-        if len(vols_dow) >= 4:
-            # Promedio ponderado: Las ultimas semanas pesan mas (40%, 30%, 20%, 10%)
-            weights = [0.1, 0.2, 0.3, 0.4]
-            last_4 = vols_dow.tail(4).values
-            dow_avg[i] = sum(last_4[j] * weights[j] for j in range(4))
-        elif len(vols_dow) > 0:
-            dow_avg[i] = vols_dow.mean()
-        else:
-            global_avg = np.mean(vols)
-            dow_avg[i] = global_avg if global_avg > 0 else 100.0
-
-    trend_mult = 1.0
-    if len(vols) >= 28:
-        # Analiza la tendencia de los ultimos 14 dias contra los 14 dias previos
-        recent_14 = np.mean(vols[-14:])
-        prev_14 = np.mean(vols[-28:-14])
-        if prev_14 > 0:
-            drift = recent_14 / prev_14
-            # Bloqueador Estricto: El sistema jamas bajara mas de 15% ni subira mas de 15% del promedio
-            trend_mult = max(0.85, min(1.15, drift))
-            
+    for i in range(n):
+        val = series[i]
+        last_level, last_trend = level, trend
+        st_prev = seasonals[i % season_len]
+        level = alpha * (val - st_prev) + (1 - alpha) * (last_level + last_trend)
+        trend = beta * (level - last_level) + (1 - beta) * last_trend
+        seasonals[i % season_len] = gamma * (val - level) + (1 - gamma) * st_prev
+        
     preds = []
-    for d in range(n_preds):
-        target_date = fechas[-1] + timedelta(days=d+1)
-        wd = target_date.weekday()
-        
-        # Volumen Final = El promedio ponderado de ese dia de la semana * La tendencia mensual
-        pred_vol = dow_avg[wd] * trend_mult
-        preds.append(max(10.0, pred_vol))
-        
-    return preds, trend_mult
-# ======================================================================
+    phi = 0.90 
+    for m in range(1, n_preds + 1):
+        damped_trend = sum(trend * (phi**i) for i in range(1, m+1))
+        p = level + damped_trend + seasonals[(n + m - 1) % season_len]
+        preds.append(max(avg_hist * 0.4, float(p)))
+    return preds
+
+def calc_mae(y_true, y_pred): return float(np.mean(np.abs(np.array(y_true) - np.array(y_pred))))
+def grid_search_auto_hw(series, n_preds=30): return holt_winters_fit_predict(series, season_len=7, alpha=0.2, beta=0.05, gamma=0.3, n_preds=n_preds)
+
+def limpiar_outliers_iqr(series_list):
+    if len(series_list) < 14: return list(series_list)
+    arr = np.array(series_list)
+    q25, q75 = np.percentile(arr, 25), np.percentile(arr, 75)
+    iqr = q75 - q25
+    return np.clip(arr, q25 - 1.5 * iqr, q75 + 1.5 * iqr).tolist()
 
 def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=45):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
@@ -320,12 +333,9 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     if col_aht: df_raw[col_aht] = [parse_aht_to_seconds(x) for x in df_raw[col_aht]]
     else: df_raw['AHT_Calc'] = 180.0; col_aht = 'AHT_Calc'
 
-    # AQUI SE APLICA EL REDONDEO Y REPARTO DE 15 A 30 MINUTOS
     df_raw['Inter_Clean'] = df_raw[col_inter].apply(clean_interval_str)
-    
     df_raw['Total_Segundos_Handle'] = df_raw[col_calls] * df_raw[col_aht]
 
-    # Agrupamos sumando perfectamente todo el volumen por cada bloque de 30 mins
     df = df_raw.groupby([col_fecha, col_camp, 'Inter_Clean']).agg({col_calls: 'sum', 'Total_Segundos_Handle': 'sum'}).reset_index()
     df[col_aht] = np.where(df[col_calls] > 0, df['Total_Segundos_Handle'] / df[col_calls], 180.0)
     df = df.drop(columns=['Total_Segundos_Handle'])
@@ -350,7 +360,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         vols_reales = sub[col_calls].tolist()
         fechas_completas, vols_completos = [], []
         
-        # Rellena los dias faltantes con el ultimo valor conocido
         for i in range(len(fechas_reales)):
             if i > 0:
                 dias_diff = (fechas_reales[i] - fechas_reales[i-1]).days
@@ -361,7 +370,73 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             fechas_completas.append(fechas_reales[i])
             vols_completos.append(vols_reales[i])
             
-        preds_finales, factor_ajuste = calcular_pronostico_wfm(vols_completos, fechas_completas, dias_futuros)
+        fechas_list = fechas_completas
+        vols = limpiar_outliers_iqr(vols_completos)
+        n = len(vols)
+        
+        baseline_actual = np.mean(vols[-56:]) if n >= 56 else (np.mean(vols) if n > 0 else 100.0)
+        if math.isnan(baseline_actual) or baseline_actual <= 0: baseline_actual = 100.0
+            
+        dow_avg = {}
+        for i in range(7):
+            vols_dow = [vols[j] for j in range(n) if fechas_list[j].weekday() == i]
+            dow_avg[i] = np.mean(vols_dow[-8:]) if len(vols_dow) >= 8 else baseline_actual
+            if math.isnan(dow_avg[i]) or dow_avg[i] <= 0: dow_avg[i] = baseline_actual
+
+        peso_hw, peso_ridge, factor_ajuste = 0.50, 0.50, 1.0
+        modelo_entrenado = None
+
+        if n >= 21:
+            train_vols, val_vols = vols[:-7], vols[-7:]
+            hw_val_preds = grid_search_auto_hw(train_vols, n_preds=7)
+            
+            X_train_bt, y_train_bt = [], []
+            for i in range(14, len(train_vols)):
+                f = fechas_list[i]
+                base_movil = np.mean(train_vols[i-14:i])
+                X_train_bt.append(extraer_features_calendario(f, base_movil))
+                y_train_bt.append(train_vols[i])
+            
+            if len(X_train_bt) > 5:
+                w_bt, m_bt, s_bt = entrenar_ridge_ml(np.array(X_train_bt), np.array(y_train_bt), l2_reg=10.0)
+                modelo_entrenado = {'weights': w_bt, 'mean': m_bt, 'std': s_bt}
+                ridge_val_preds = []
+                for i in range(7):
+                    f_idx = len(train_vols) + i
+                    base_movil = np.mean(train_vols[-14+i:] + val_vols[:i])
+                    feat = extraer_features_calendario(fechas_list[f_idx], base_movil)
+                    pred_r = predecir_ridge_ml(w_bt, m_bt, s_bt, np.array([feat]))
+                    ridge_val_preds.append(max(0, pred_r))
+                
+                err_hw, err_ridge = calc_mae(val_vols, hw_val_preds) + 1e-5, calc_mae(val_vols, ridge_val_preds) + 1e-5
+                peso_hw = (1.0 / err_hw) / ((1.0 / err_hw) + (1.0 / err_ridge))
+                peso_ridge = (1.0 / err_ridge) / ((1.0 / err_hw) + (1.0 / err_ridge))
+
+            ultimos_14, previos_14 = sum(vols[-14:]), sum(vols[-28:-14]) if n >= 28 else sum(vols[:-14])
+            if previos_14 > 0: factor_ajuste = max(0.85, min(1.15, ultimos_14 / previos_14))
+
+        hw_preds = grid_search_auto_hw(vols, n_preds=dias_futuros)
+        preds_finales = []
+        
+        for d in range(dias_futuros):
+            fecha_futura = fecha_inicio_forecast + timedelta(days=d)
+            vol_estacional = dow_avg.get(fecha_futura.weekday(), baseline_actual)
+            vol_hw = hw_preds[d] if d < len(hw_preds) else baseline_actual
+            
+            if modelo_entrenado:
+                feat = extraer_features_calendario(fecha_futura, baseline_actual)
+                vol_ridge = predecir_ridge_ml(modelo_entrenado['weights'], modelo_entrenado['mean'], modelo_entrenado['std'], np.array([feat]))
+                vol_ml = (vol_ridge * peso_ridge) + (vol_hw * peso_hw)
+                vol_final = (vol_ml * 0.70) + (vol_estacional * 0.30)
+            else: vol_final = vol_estacional
+                
+            # === PISO DINAMICO ESTACIONAL ===
+            # Le prohíbe al ML bajar del 85% o subir del 135% del promedio de ESE DIA DE LA SEMANA.
+            piso_seguro = vol_estacional * 0.85
+            techo_seguro = vol_estacional * 1.35
+            
+            vol_final = max(piso_seguro, min(techo_seguro, vol_final))
+            preds_finales.append(vol_final)
 
         predicciones_futuras[camp] = preds_finales
         factores_ui[camp] = round(factor_ajuste, 2)
@@ -382,8 +457,9 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
     mapa_perfil = {(r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean']): {'weight': r['weight'], 'aht': r['avg_aht']} for _, r in perfil_intradia.iterrows()}
 
-    # === OBLIGAR AL MAPA A TENER EXACTAMENTE LOS 48 INTERVALOS DE 30 MINS ===
-    todos_los_intervalos_crudos = [f"{int(h):02d}:{int(m):02d}" for h in range(24) for m in (0, 30)]
+    todos_los_intervalos_crudos = df['Inter_Clean'].unique().tolist()
+    if not todos_los_intervalos_crudos: todos_los_intervalos_crudos = [f"{int(h):02d}:{int(m):02d}" for h in range(24) for m in (0, 30)]
+    todos_los_intervalos_crudos.sort()
 
     intervalos_operativos_por_camp = {camp: [i for i in todos_los_intervalos_crudos if esta_en_ventana_servicio(camp, i)] for camp in campanas_unicas}
 
@@ -410,7 +486,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             elif len(intervalos_validos) > 0: pesos_norm = [1.0 / len(intervalos_validos)] * len(intervalos_validos)
             else: pesos_norm = []
 
-            # ALGORITMO HARE-NIEMEYER (Reparto perfecto de decimales para no perder ni 1 llamada)
             exact_calls = [vol_diario * p for p in pesos_norm]
             floor_calls = [int(math.floor(c)) for c in exact_calls]
             remainders = [(exact_calls[i] - floor_calls[i], i) for i in range(len(exact_calls))]
