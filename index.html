@@ -698,7 +698,7 @@
             formData.append('target_sl', document.getElementById('targetSl').value);
             formData.append('target_time', document.getElementById('targetTime').value);
             formData.append('merma', document.getElementById('merma').value);
-            formData.append('dias', document.getElementById('dias') ? document.getElementById('dias').value : 130);
+            formData.append('dias', document.getElementById('dias') ? document.getElementById('dias').value : 45);
             
             try {
                 const response = await fetch('/api/process', { method: 'POST', body: formData });
@@ -1021,7 +1021,9 @@
                 mapIntervaloFecha[key].push(r);
             });
 
-            // === RECALCULO DINÁMICO CORREGIDO (PROMEDIO DIARIO REAL DEL MES FILTRADO) ===
+            // === RECALCULO DINÁMICO CORREGIDO (PROMEDIO DIARIO DEL PERIODO) ===
+            // Aquí sumamos los agentes requeridos diarios y luego promediamos por el número de fechas filtradas,
+            // garantizando que si filtras un mes de 30 días, el vector de agentes no se sume x30, sino que se promedie
             const numDiasPeriodo = Math.max(1, fechasFiltradas.length);
 
             todosIntervalos.forEach((inter, idx) => {
@@ -1051,7 +1053,7 @@
                     rosterAvgVector[idx] = Math.round(rosterSum / numDiasPeriodo);
 
                     if (usarPicos) {
-                        // En modo picos, usa el pico diario real del periodo
+                        // En modo picos, usa el pico de llamadas del periodo
                         let callsArray = [];
                         let reqArray = [];
                         let ahtArray = [];
@@ -1227,7 +1229,7 @@
                     });
                 }
 
-                // RECALCULO DINÁMICO CORREGIDO DE LA PLANTILLA SEGÚN EL MES SELECCIONADO
+                // RECALCULO DINÁMICO REACCIONANDO AL MES SELECCIONADO
                 const nominaRequeridaTotalSemana = optData.headcount_semanal_6x1 || 0;
                 const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
                 const hcRequeridoDisplay = esVistaSemanal ? nominaRequeridaTotalSemana : nominaRequeridaDiaria;
@@ -1460,7 +1462,7 @@
                 }
             });
 
-            const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
+            const blob = new Blob([csvRows.join(String.fromCharCode(10))], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.setAttribute('href', url);
@@ -1490,7 +1492,7 @@
                 ];
                 csvRows.push(values.join(","));
             });
-            const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
+            const blob = new Blob([csvRows.join(String.fromCharCode(10))], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.setAttribute('href', url);
