@@ -36,7 +36,6 @@ VENTANAS_SERVICIO = {
     'retenciones liverpool': {'inicio': 9 * 60, 'fin': 20 * 60}
 }
 
-# --- BUSCADOR UNIVERSAL DE ARCHIVO EXCEL ---
 def buscar_archivo_excel():
     if os.path.exists(EXCEL_DEFAULT):
         return EXCEL_DEFAULT
@@ -551,9 +550,14 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             w_info = pesos_campana.get(camp, {'w_hw': 0.65, 'w_ridge': 0.35, 'factor_ajuste': 1.0})
             vol_hw = hw_forecasts[camp][d] if d < len(hw_forecasts[camp]) else vol_ridge
             
-            volumen_predicho_diario = (w_info['w_hw'] * vol_hw + w_info['w_ridge'] * vol_ridge) * w_info['factor_ajuste']
+            # --- FIX: EVITAR DECAIMIENTO EXPONENCIAL ---
+            # El historial puro alimenta al modelo
+            vol_puro = (w_info['w_hw'] * vol_hw + w_info['w_ridge'] * vol_ridge)
+            historial_volumenes[camp].append(vol_puro)
             
-            historial_volumenes[camp].append(volumen_predicho_diario)
+            # Solo el output final se ajusta por la alerta de quiebre
+            volumen_predicho_diario = vol_puro * w_info['factor_ajuste']
+            # -------------------------------------------
 
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
 
@@ -645,7 +649,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                     indices_nocturnos.append(j)
 
         if len(indices_nocturnos) > 0:
-            # === NUEVO CANDADO: Solo forzar turno nocturno si hay llamadas en la madrugada ===
             if sum([llamadas_arr[idx] for idx in indices_nocturnos]) > 0:
                 agentes_noc_hc = 1
                 while agentes_noc_hc <= 200:
@@ -847,7 +850,7 @@ def get_latest_forecast():
         except Exception as e:
             return jsonify({'error': f'Error procesando Excel: {str(e)}'}), 500
             
-    return jsonify({'error': 'No se encontró ningún archivo Excel en el servidor.'}), 404
+    return jsonify({'error': 'No se encontro ningun archivo Excel en el servidor.'}), 404
 
 @app.route('/api/optimize-schedules', methods=['POST'])
 def api_optimize_schedules():
