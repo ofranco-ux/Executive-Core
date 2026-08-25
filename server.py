@@ -218,6 +218,10 @@ def procesar_hoja_roster(df_roster):
                                 roster_cov[(camp, dia_real, inv)] = roster_cov.get((camp, dia_real, inv), 0) + 1
     return roster_cov, roster_total_camp, roster_total_dia_camp
 
+
+# ==============================================================
+# PROCESAR INBOUND
+# ==============================================================
 def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=45):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     sheet_calls = xls_file.sheet_names[0]
@@ -226,7 +230,14 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             
     sheet_roster = None
     for s in xls_file.sheet_names:
-        if 'roster' in s.lower() or 'plantilla' in s.lower() or 'horario' in s.lower(): sheet_roster = s; break
+        s_lower = s.lower()
+        if ('roster' in s_lower or 'plantilla' in s_lower or 'horario' in s_lower) and 'out' not in s_lower and 'salida' not in s_lower: 
+            sheet_roster = s
+            break
+            
+    if not sheet_roster:
+        for s in xls_file.sheet_names:
+            if 'roster' in s.lower() or 'plantilla' in s.lower(): sheet_roster = s; break
 
     roster_coverage, roster_total_camp, roster_total_dia_camp = {}, {}, {}
     if sheet_roster:
@@ -408,7 +419,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     return data_processed
 
 # ==============================================================
-# NUEVO MÓDULO OUTBOUND
+# PROCESAR OUTBOUND
 # ==============================================================
 def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
@@ -424,7 +435,10 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
 
     sheet_roster = None
     for s in xls_file.sheet_names:
-        if 'roster' in s.lower() or 'plantilla' in s.lower() or 'horario' in s.lower(): sheet_roster = s; break
+        s_lower = s.lower()
+        if ('plantilla' in s_lower or 'roster' in s_lower) and ('out' in s_lower or 'salida' in s_lower):
+            sheet_roster = s
+            break
 
     roster_coverage, roster_total_camp, roster_total_dia_camp = {}, {}, {}
     if sheet_roster:
