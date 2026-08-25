@@ -249,6 +249,7 @@
                 </div>
             </div>
 
+            <!-- ALERTA REFORECAST -->
             <div id="reforecastAlert" class="hidden glass-panel border-l-4 border-l-brand-accentAmber p-4 rounded-xl mb-4 flex items-center gap-4 bg-brand-accentAmber/10 shadow-[0_0_15px_rgba(251,191,36,0.15)]">
                 <div class="text-2xl drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]">⚠️</div>
                 <div>
@@ -701,6 +702,14 @@
             
             try {
                 const response = await fetch('/api/process', { method: 'POST', body: formData });
+                
+                // === ESCUDO ANTI-RENDER CRASH ===
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") === -1) {
+                    const errorText = await response.text();
+                    throw new Error("El servidor de Render está saturado o reiniciándose (Error 502/504 HTML). Por favor, espera 1 minuto y vuelve a dar clic en 'Run Plan'.");
+                }
+
                 globalData = await response.json();
                 
                 if (response.ok && Array.isArray(globalData)) {
