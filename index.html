@@ -197,11 +197,10 @@
                 </button>
             </div>
 
-            <!-- Panel para cuando está en Vista General -->
             <div id="contInfoGeneral" class="hidden pt-6">
                 <div class="p-4 bg-brand-primary/10 border border-brand-primary/30 rounded-xl">
                     <p class="text-[11px] text-brand-primary font-bold uppercase tracking-widest mb-2">Vista Consolidada Activa</p>
-                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>Para garantizar una suma pura y exacta, la simulación algorítmica de mallas se calcula dentro de cada canal individual.</p>
+                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>Para garantizar una suma pura y exacta, el sistema suma matemáticamente el requerimiento base de cada canal.</p>
                 </div>
             </div>
 
@@ -343,7 +342,7 @@
                 </div>
             </div>
 
-            <!-- MÓDULO 2: OPTIMIZACIÓN DE HORARIOS (Oculto en Consolidado) -->
+            <!-- MÓDULO 2: OPTIMIZACIÓN DE HORARIOS -->
             <div id="modOptimizacion" class="glass-panel p-6 rounded-2xl relative transition-all duration-300 hidden">
                 <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
                     <div>
@@ -375,7 +374,6 @@
                     </div>
                 </div>
 
-                <!-- AQUI REGRESA LA GRÁFICA DE MALLAS -->
                 <div class="h-64 mb-6 relative">
                     <canvas id="optChart"></canvas>
                 </div>
@@ -542,10 +540,9 @@
                 btnGen.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-[#070B14] shadow-md";
                 contParametros.style.display = 'none';
                 contInfoGen.style.display = 'block';
+                modOptimizacion.classList.add('hidden'); // Ocultar Mallas
                 
-                // ESCONDEMOS EL OPTIMIZADOR EN GENERAL
-                modOptimizacion.classList.add('hidden');
-                
+                // Ocultar tarjetas 1 y 2
                 cardCalls.classList.add('hidden');
                 cardAht.classList.add('hidden');
                 kpiContainer.classList.remove('lg:grid-cols-4');
@@ -555,10 +552,9 @@
             } else {
                 contParametros.style.display = 'block';
                 contInfoGen.style.display = 'none';
+                modOptimizacion.classList.remove('hidden'); // Mostrar Mallas
                 
-                // MOSTRAMOS EL OPTIMIZADOR EN CANALES INDIVIDUALES
-                modOptimizacion.classList.remove('hidden');
-                
+                // Mostrar tarjetas 1 y 2
                 cardCalls.classList.remove('hidden');
                 cardAht.classList.remove('hidden');
                 kpiContainer.classList.remove('lg:grid-cols-2');
@@ -1184,7 +1180,7 @@
             const esVistaSemanal = fechasFiltradas.length > 1;
 
             // =======================================================
-            // 🛑 LÓGICA VISTA CONSOLIDADA (PURA Y RAPIDA)
+            // 🛑 LÓGICA VISTA CONSOLIDADA (PURA Y RAPIDA O(N))
             // =======================================================
             if (forecastMode === 'general') {
                 const channels = ['Inbound', 'Outbound', 'Chat'];
@@ -1208,25 +1204,34 @@
                             }
                         });
 
-                        let maxReq = 0;
+                        const reqByInterFecha = {}; 
+                        for (let i = 0; i < dfC.length; i++) {
+                            const r = dfC[i];
+                            const inter = String(getProp(r, ['Intervalo'], '00:00'));
+                            const fecha = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
+                            const rVal = Number(getProp(r, ['Agentes_Requeridos'], 0)) || 0;
+                            
+                            if (!reqByInterFecha[inter]) reqByInterFecha[inter] = {};
+                            if (!reqByInterFecha[inter][fecha]) reqByInterFecha[inter][fecha] = 0;
+                            reqByInterFecha[inter][fecha] += rVal;
+                        }
+
+                        let maxReqOverall = 0;
                         todosIntervalos.forEach(inter => {
-                            let reqArr = [];
-                            fechasFiltradas.forEach(fStr => {
-                                const subRows = dfC.filter(r => String(getProp(r, ['Fecha'], '')).startsWith(fStr) && getProp(r, ['Intervalo'], '00:00') === inter);
-                                let sR = 0;
-                                subRows.forEach(b => sR += (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0));
-                                reqArr.push(sR);
-                            });
-                            let interReq = 0;
-                            if (usarPicos) {
-                                interReq = reqArr.length > 0 ? Math.max(...reqArr) : 0;
-                            } else {
-                                interReq = reqArr.length > 0 ? (reqArr.reduce((a,b)=>a+b,0) / reqArr.length) : 0;
+                            const fechasDict = reqByInterFecha[inter] || {};
+                            const reqArr = Object.values(fechasDict);
+                            if(reqArr.length > 0) {
+                                let interReq = 0;
+                                if (usarPicos) {
+                                    interReq = Math.max(...reqArr);
+                                } else {
+                                    interReq = reqArr.reduce((a,b) => a+b, 0) / reqArr.length;
+                                }
+                                if (interReq > maxReqOverall) maxReqOverall = interReq;
                             }
-                            if (interReq > maxReq) maxReq = interReq;
                         });
                         
-                        req = Math.ceil(maxReq);
+                        req = Math.ceil(maxReqOverall);
                     }
 
                     totalReqGlobal += req;
@@ -1258,7 +1263,7 @@
 
                 document.getElementById('tableHeaderRow').innerHTML = `
                     <th class="py-3.5 px-4 text-left">Canal Operativo</th>
-                    <th class="py-3.5 px-4 text-brand-primary">HC Requerido (Pico)</th>
+                    <th class="py-3.5 px-4 text-brand-primary">HC Requerido</th>
                     <th class="py-3.5 px-4 text-brand-accentEmerald">HC Disponible</th>
                     <th class="py-3.5 px-4 text-center">Delta (Gap)</th>
                 `;
@@ -1309,7 +1314,7 @@
                     }
                 });
 
-                return; // EXIT EARLY, NO BACKEND CALLS needed for General view
+                return; // SALIDA INSTANTÁNEA (NO USA BACKEND)
             }
 
             // =======================================================
@@ -1600,7 +1605,6 @@
                 if (slOptimoVal >= targetSlObj) slEl.className = "text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)] block";
                 else slEl.className = "text-3xl font-black font-mono-num text-brand-accentRose drop-shadow-[0_0_8px_rgba(251,113,133,0.3)] block";
 
-                // AQUI REGRESA LA GRÁFICA DE MALLAS PARA LAS VISTAS INDIVIDUALES
                 if (optChartInstance) optChartInstance.destroy();
                 const ctxOpt = document.getElementById('optChart').getContext('2d');
                 const labelCurvaCob = usarNocturno ? "Malla Sugerida (Mixta)" : `Malla Sugerida (${durJornada}h)`;
