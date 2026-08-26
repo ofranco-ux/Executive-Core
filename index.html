@@ -96,10 +96,11 @@
                 <div class="flex items-center gap-3">
                     <h1 class="text-2xl font-bold text-white tracking-tight">Workforce Capacity Forecast</h1>
                     
-                    <!-- NUEVO: TABS INBOUND / OUTBOUND -->
+                    <!-- NUEVO: TABS INBOUND / OUTBOUND / CHAT -->
                     <div class="bg-[#1E293B] rounded-xl p-1 flex items-center shadow-inner border border-[#334155] ml-4">
                         <button id="btnTabInbound" onclick="setModeWFM('inbound')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-primary text-white shadow-md">🎯 Inbound</button>
                         <button id="btnTabOutbound" onclick="setModeWFM('outbound')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200">🚀 Outbound</button>
+                        <button id="btnTabChat" onclick="setModeWFM('chat')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200">💬 Chat</button>
                     </div>
 
                     <span id="tagModoOps" class="hidden text-[10px] bg-brand-primary/20 text-brand-primary border border-brand-primary/40 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider drop-shadow-md">Vista Operaciones</span>
@@ -140,6 +141,12 @@
                     <div class="flex flex-col group" id="contTargetTime">
                         <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-white transition-colors">Target ASA (s)</label>
                         <input type="number" id="targetTime" value="20" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-white font-mono-num font-bold focus:border-white focus:ring-1 focus:ring-white focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
+                    </div>
+                    
+                    <!-- NUEVO: Campo de Concurrencia (oculto por defecto) -->
+                    <div class="flex flex-col group hidden col-span-2" id="contConcurrencia">
+                        <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentCyan transition-colors">Concurrencia (Chats por Agente)</label>
+                        <input type="number" id="concurrencia" value="3" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentCyan font-mono-num font-bold focus:border-brand-accentCyan focus:ring-1 focus:ring-brand-accentCyan focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
                     </div>
                 </div>
 
@@ -444,7 +451,7 @@
         let debounceTimer;
         let totalesFiltros = { M: 0, S: 0, C: 0, F: 0, I: 0 }; 
         let currentMode = 'wfm';
-        let forecastMode = 'inbound'; // NUEVO: Alternar Inbound / Outbound
+        let forecastMode = 'inbound'; // MODOS: inbound, outbound, chat
         let isSidebarVisible = true; 
 
         const mesesMap = {
@@ -488,32 +495,53 @@
             return `W${formatDt(startOfWeek)} - ${formatDt(endOfWeek)}`;
         }
 
-        // FUNCION NUEVA PARA CAMBIAR ENTRE INBOUND Y OUTBOUND
         function setModeWFM(mode) {
             if (forecastMode === mode) return; 
 
             forecastMode = mode;
+            
+            const btnIn = document.getElementById('btnTabInbound');
+            const btnOut = document.getElementById('btnTabOutbound');
+            const btnChat = document.getElementById('btnTabChat');
+
+            // Resetear todos a inactivos
+            const inactiveClass = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200";
+            btnIn.className = inactiveClass;
+            btnOut.className = inactiveClass;
+            btnChat.className = inactiveClass;
+
             if(mode === 'inbound') {
-                document.getElementById('btnTabInbound').className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-primary text-white shadow-md";
-                document.getElementById('btnTabOutbound').className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200";
+                btnIn.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-primary text-white shadow-md";
                 document.getElementById('contTargetSl').style.display = 'block';
                 document.getElementById('contTargetTime').style.display = 'block';
+                document.getElementById('contConcurrencia').classList.add('hidden');
                 document.getElementById('colHeaderCapacity').innerText = "Capacidad SLA";
                 document.getElementById('lblProjectedSl').innerText = "Projected SL (Con Malla)";
-            } else {
-                document.getElementById('btnTabOutbound').className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-accentViolet text-white shadow-md";
-                document.getElementById('btnTabInbound').className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200";
+                document.getElementById('kpiCallsTitle').innerText = "Demanda Total";
+                document.getElementById('colHeaderCalls').innerText = "Llamadas (FCST)";
+            } else if (mode === 'outbound') {
+                btnOut.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-accentViolet text-white shadow-md";
                 document.getElementById('contTargetSl').style.display = 'none';
                 document.getElementById('contTargetTime').style.display = 'none';
+                document.getElementById('contConcurrencia').classList.add('hidden');
                 document.getElementById('colHeaderCapacity').innerText = "Productividad Neta";
                 document.getElementById('lblProjectedSl').innerText = "Coverage de Productividad";
+                document.getElementById('kpiCallsTitle').innerText = "Contactos / Llamadas";
+                document.getElementById('colHeaderCalls').innerText = "Contactos (FCST)";
+            } else if (mode === 'chat') {
+                btnChat.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-accentCyan text-[#0B1121] shadow-md";
+                document.getElementById('contTargetSl').style.display = 'none';
+                document.getElementById('contTargetTime').style.display = 'none';
+                document.getElementById('contConcurrencia').classList.remove('hidden');
+                document.getElementById('colHeaderCapacity').innerText = "Capacidad Concurrente";
+                document.getElementById('lblProjectedSl').innerText = "Coverage Requerido";
+                document.getElementById('kpiCallsTitle').innerText = "Mensajes / Chats Totales";
+                document.getElementById('colHeaderCalls').innerText = "Mensajes (FCST)";
             }
             
-            // Magia pura: Solo lee de la caché rápida, no recalcula de cero
             fetchLatestData(mode);
         }
 
-        // Esta función va a la caché correcta en milisegundos
         async function fetchLatestData(mode) {
             try {
                 const response = await fetch('/api/latest?mode=' + mode + '&t=' + new Date().getTime());
@@ -524,7 +552,6 @@
                         inicializarFiltrosMultiples();
                         debouncedActualizarGrafica();
                     } else {
-                        // Si no hay caché, blanqueamos y pedimos que le den al botón
                         limpiarPantalla(mode);
                     }
                 }
@@ -680,12 +707,13 @@
         function maxCallsForAgents(agentsNetos, aht, targetTime, targetSl) {
             if (agentsNetos <= 0 || aht <= 0) return 0;
             
-            // LA MAGIA PARA OUTBOUND
             if (forecastMode === 'outbound') {
                 return Math.floor(agentsNetos * (1800 / aht));
+            } else if (forecastMode === 'chat') {
+                const concurrencia = parseFloat(document.getElementById('concurrencia').value) || 3.0;
+                return Math.floor(agentsNetos * (1800 / aht) * concurrencia);
             }
 
-            // MANTENEMOS ERLANG PARA INBOUND
             let low = 0;
             let high = agentsNetos * (1800 / aht); 
             let maxCalls = 0;
@@ -720,7 +748,6 @@
                 await fetchWFMConfig();
             }
 
-            // Arranca leyendo la caché del modo inicial
             fetchLatestData(forecastMode);
         });
 
@@ -758,11 +785,16 @@
             if (forecastMode === 'inbound') {
                 formData.append('target_sl', document.getElementById('targetSl').value);
                 formData.append('target_time', document.getElementById('targetTime').value);
+            } else if (forecastMode === 'chat') {
+                formData.append('concurrencia', document.getElementById('concurrencia').value);
             }
+            
             formData.append('merma', document.getElementById('merma').value);
             formData.append('dias', document.getElementById('dias') ? document.getElementById('dias').value : 45);
             
-            const url = forecastMode === 'inbound' ? '/api/process' : '/api/process_outbound';
+            let url = '/api/process';
+            if (forecastMode === 'outbound') url = '/api/process_outbound';
+            if (forecastMode === 'chat') url = '/api/process_chat';
 
             try {
                 const response = await fetch(url, { method: 'POST', body: formData });
@@ -779,7 +811,7 @@
                     inicializarFiltrosMultiples();
                     debouncedActualizarGrafica();
                 } else {
-                    alert("Error: " + (globalData.error || "Asegúrate de que 'historico.xlsx' esté cargado en tu servidor."));
+                    alert("Error: " + (globalData.error || "Asegúrate de que 'historico.xlsx' esté cargado y tenga la pestaña correcta."));
                 }
             } catch (e) {
                 alert("Error de conexión: " + e.message);
@@ -1050,16 +1082,15 @@
                 document.getElementById('kpiHcRequerido').innerText = "0 HC";
                 document.getElementById('kpiHcRoster').innerText = "0 HC";
                 const tbody = document.getElementById('intervalTableBody');
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-500 font-sans font-medium">Sin datos</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-500">Sin datos</td></tr>';
                 return;
             }
 
-            const totCalls = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
+            const totCalls = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0), 0);
             document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
-            document.getElementById('kpiCallsTitle').innerText = "Demanda Total";
             
             const sumLlamadasAht = dfFiltered.reduce((acc, row) => {
-                const calls = Number(getProp(row, ['Llamadas', 'Recibidas'], 0)) || 0;
+                const calls = Number(getProp(row, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
                 let ahtSegs = Number(getProp(row, ['AHT_Segundos'], 180));
                 return acc + (calls * ahtSegs);
             }, 0);
@@ -1097,7 +1128,7 @@
                     const subRows = mapIntervaloFecha[`${fStr}_${inter}`] || [];
                     if (subRows.length > 0) {
                         subRows.forEach(b => {
-                            const c = Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0;
+                            const c = Number(getProp(b, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
                             const r = Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0;
                             const ht = Number(getProp(b, ['AHT_Segundos'], 180)) || 180;
                             const ros = Number(getProp(b, ['HC_Actual_Roster'], 0)) || 0;
@@ -1119,9 +1150,9 @@
                         let ahtArray = [];
                         fechasFiltradas.forEach(fStr => {
                             const subRows = mapIntervaloFecha[`${fStr}_${inter}`] || [];
-                            let sc = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0), 0);
+                            let sc = subRows.reduce((a, b) => a + (Number(getProp(b, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0), 0);
                             let sr = subRows.reduce((a, b) => a + (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0), 0);
-                            let sht = subRows.reduce((a, b) => a + ((Number(getProp(b, ['Llamadas', 'Recibidas'], 0)) || 0) * (Number(getProp(b, ['AHT_Segundos'], 180)) || 180)), 0);
+                            let sht = subRows.reduce((a, b) => a + ((Number(getProp(b, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0) * (Number(getProp(b, ['AHT_Segundos'], 180)) || 180)), 0);
                             callsArray.push(sc);
                             reqArray.push(sr);
                             ahtArray.push(sc > 0 ? sht / sc : 180);
@@ -1164,7 +1195,7 @@
                         merma: mermaVal,
                         duracion_jornada: durJornada,
                         es_nocturno: usarNocturno,
-                        es_outbound: forecastMode === 'outbound'
+                        es_outbound: forecastMode !== 'inbound' // Outbound o Chat usan lógica no-Erlang para el schedule SL
                     })
                 });
 
@@ -1249,7 +1280,7 @@
                                 pointHoverRadius: 6
                             },
                             { 
-                                label: 'Llamadas (FCST)', 
+                                label: forecastMode === 'inbound' ? 'Llamadas (FCST)' : (forecastMode === 'outbound' ? 'Contactos (FCST)' : 'Mensajes (FCST)'), 
                                 data: llamadasArr.map(x => Math.round(x)), 
                                 backgroundColor: '#38BDF8',
                                 borderColor: 'transparent',
@@ -1325,7 +1356,7 @@
                 const slEl = document.getElementById('compSlOptimo');
                 slEl.innerText = slOptimoVal.toFixed(1) + '%';
                 
-                if (forecastMode === 'outbound') {
+                if (forecastMode !== 'inbound') {
                     if (slOptimoVal >= 95) slEl.className = "text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)] block";
                     else slEl.className = "text-3xl font-black font-mono-num text-brand-accentRose drop-shadow-[0_0_8px_rgba(251,113,133,0.3)] block";
                 } else {
@@ -1540,7 +1571,7 @@
                 alert("No hay datos cargados para exportar.");
                 return;
             }
-            const headers = ["Campana", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Llamadas", "AHT_HH_MM_SS", "Agentes_Requeridos_HC", "HC_Actual_Roster", "Factor_Reforecast"];
+            const headers = ["Campana", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Volumen", "AHT_HH_MM_SS", "Agentes_Requeridos_HC", "HC_Actual_Roster", "Factor_Reforecast"];
             const csvRows = [headers.join(",")];
             globalData.forEach(row => {
                 const values = [
@@ -1549,7 +1580,7 @@
                     getProp(row, ['Fecha'], ''),
                     getProp(row, ['Día_Semana', 'Dia_Semana'], ''),
                     getProp(row, ['Intervalo'], '00:00'),
-                    getProp(row, ['Llamadas', 'Recibidas'], 0),
+                    getProp(row, ['Llamadas', 'Recibidas', 'Recibidos'], 0),
                     formatAHT(getProp(row, ['AHT_Segundos'], 180)),
                     getProp(row, ['Agentes_Requeridos'], 0),
                     getProp(row, ['HC_Actual_Roster'], 0),
