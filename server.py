@@ -623,7 +623,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
 # ==============================================================
 # PROCESAR CHAT (NUEVO)
 # ==============================================================
-def procesar_archivo_chat(file_source, merma=0.20, concurrencia=3.0, dias_futuros=45):
+def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0.20, concurrencia=3.0, dias_futuros=45):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     
     sheet_chat = None
@@ -790,15 +790,14 @@ def procesar_archivo_chat(file_source, merma=0.20, concurrencia=3.0, dias_futuro
                 aht_real = info_p.get('aht', 0.0)
                 aht = aht_real if (aht_real > 0 and not pd.isna(aht_real)) else aht_global_campana.get(camp, 600.0)
 
-                # =========================================================
-                # 🛑 FIX WFM: TOPE ASÍNCRONO O MILISEGUNDOS
-                # =========================================================
                 if aht > 3600:
                     aht = 600.0 
 
-                # MAGIA CHAT: Divide la carga entre la Concurrencia
-                req_ftes = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
-                req_hc = (req_ftes / max(1.0, concurrencia)) / factor_asistencia if req_ftes > 0 else 0.0
+                a_erlang_raw = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
+                a_erlang_adj = a_erlang_raw / max(1.0, concurrencia)
+                
+                req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang_adj, aht, target_time, target_sl) if calls_float > 0 else 0
+                req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
                 
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
                 tot_camp = roster_total_camp.get(str(camp), 0)
@@ -826,7 +825,7 @@ def procesar_archivo_chat(file_source, merma=0.20, concurrencia=3.0, dias_futuro
     return data_processed
 # ==============================================================
 
-def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht_vec=None, req_vec=None, target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, es_nocturno=False, es_outbound=False):
+def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht_vec=None, req_vec=None, target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, es_nocturno=False, es_outbound=False, es_chat=False, concurrencia=3.0):
     m = len(intervalos)
     if m == 0: return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0, [0]*m
 
@@ -865,6 +864,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                         sl_v = 100.0 if (c * aht_s)/1800.0 <= cob_temp_ftes else ((cob_temp_ftes * 1800.0) / (max(1, c * aht_s))) * 100.0
                     else:
                         a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
+                        if es_chat: a_erl = a_erl / max(1.0, concurrencia)
                         sl_v = erlang_c_sl_optimizado(a_erl, cob_temp_ftes, aht_s, target_time) if c > 0 else 100.0
                         
                     sl_acum += (c * sl_v); llamadas_noc += c
@@ -886,7 +886,12 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             cov = np.minimum(req_hc_base, current_cob)
             return (np.sum(cov) / max(1, np.sum(req_hc_base))) * 100.0
         else:
-            sl_acum = sum([c * erlang_c_sl_optimizado((c * aht_arr[i]) / 1800.0, current_cob[i] * factor_asistencia, aht_arr[i], target_time) for i, c in enumerate(llamadas_arr) if c > 0])
+            sl_acum = 0.0
+            for i, c in enumerate(llamadas_arr):
+                if c > 0:
+                    a_erl = (c * aht_arr[i]) / 1800.0
+                    if es_chat: a_erl = a_erl / max(1.0, concurrencia)
+                    sl_acum += c * erlang_c_sl_optimizado(a_erl, current_cob[i] * factor_asistencia, aht_arr[i], target_time)
             return sl_acum / tot_llamadas
 
     if len(valid_starts) > 0:
@@ -919,7 +924,14 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         sl_optimo_vector = [100.0 if req_hc_base[i] <= cob_hc[i] else (cob_hc[i]/req_hc_base[i])*100.0 if req_hc_base[i]>0 else 100.0 for i in range(m)]
         sl_optimo_global = calc_current_global_sl(cob_hc)
     else:
-        sl_optimo_vector = [float(erlang_c_sl_optimizado((llamadas_arr[i] * aht_arr[i]) / 1800.0 if (llamadas_arr[i] > 0 and aht_arr[i] > 0) else 0.0, cob_hc[i] * factor_asistencia, aht_arr[i], target_time) if llamadas_arr[i] > 0 else 100.0) for i in range(m)]
+        sl_optimo_vector = []
+        for i in range(m):
+            if llamadas_arr[i] > 0:
+                a_erl = (llamadas_arr[i] * aht_arr[i]) / 1800.0
+                if es_chat: a_erl = a_erl / max(1.0, concurrencia)
+                sl_optimo_vector.append(float(erlang_c_sl_optimizado(a_erl, cob_hc[i] * factor_asistencia, aht_arr[i], target_time)))
+            else:
+                sl_optimo_vector.append(100.0)
         sl_optimo_global = float(np.sum(llamadas_arr * np.array(sl_optimo_vector)) / tot_llamadas) if tot_llamadas > 0 else 100.0
 
     cobertura_hc_entera = [int(x) for x in np.round(cob_hc)]
@@ -964,7 +976,7 @@ def api_optimize_schedules():
         body = request.get_json(force=True)
         turnos, cob_optima, total_diario, total_hc, eficiencia, sl_vec, sl_global, staff_level, req_hc_pooled = resolver_turnos_optimos(
             body.get('intervalos', []), body.get('campanas', []), body.get('llamadas', []), body.get('ahts', []), body.get('requeridos', []),
-            float(body.get('target_sl', 80.0)), float(body.get('target_time', 20.0)), float(body.get('merma', 30.0)) / 100.0, float(body.get('duracion_jornada', 8.0)), bool(body.get('es_nocturno', False)), bool(body.get('es_outbound', False))
+            float(body.get('target_sl', 80.0)), float(body.get('target_time', 20.0)), float(body.get('merma', 30.0)) / 100.0, float(body.get('duracion_jornada', 8.0)), bool(body.get('es_nocturno', False)), bool(body.get('es_outbound', False)), bool(body.get('es_chat', False)), float(body.get('concurrencia', 3.0))
         )
         return jsonify({
             'turnos': turnos, 'cobertura_optima': [int(x) for x in cob_optima], 'total_agentes_diarios': int(total_diario),
@@ -1009,6 +1021,8 @@ def process_chat_data():
     try:
         data = procesar_archivo_chat(
             excel_path, 
+            float(clean_num(request.form.get('target_sl'), 80.0)),
+            float(clean_num(request.form.get('target_time'), 20.0)),
             float(clean_num(request.form.get('merma'), 20.0)) / 100.0, 
             float(clean_num(request.form.get('concurrencia'), 3.0)), 
             int(clean_num(request.form.get('dias'), 45))
