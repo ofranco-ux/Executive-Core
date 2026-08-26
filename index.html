@@ -96,10 +96,13 @@
                 <div class="flex items-center gap-3">
                     <h1 class="text-2xl font-bold text-white tracking-tight">Workforce Capacity Forecast</h1>
                     
+                    <!-- PESTAÑAS WFM INCLUYENDO GENERAL -->
                     <div class="bg-[#1E293B] rounded-xl p-1 flex items-center shadow-inner border border-[#334155] ml-4">
                         <button id="btnTabInbound" onclick="setModeWFM('inbound')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-primary text-white shadow-md">🎯 Inbound</button>
                         <button id="btnTabOutbound" onclick="setModeWFM('outbound')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200">🚀 Outbound</button>
                         <button id="btnTabChat" onclick="setModeWFM('chat')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200">💬 Chat</button>
+                        <div class="w-px h-6 bg-[#334155] mx-1"></div>
+                        <button id="btnTabGeneral" onclick="setModeWFM('general')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200">🌐 Consolidado</button>
                     </div>
 
                     <span id="tagModoOps" class="hidden text-[10px] bg-brand-primary/20 text-brand-primary border border-brand-primary/40 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider drop-shadow-md">Vista Operaciones</span>
@@ -125,73 +128,84 @@
                 <span class="text-brand-accentCyan drop-shadow-sm">◀</span> Ocultar Parámetros
             </button>
 
-            <div class="flex items-center justify-between pb-4 border-b border-[#1F2937] relative z-10 mt-4">
-                <h2 class="text-xs font-extrabold text-white uppercase tracking-widest flex items-center gap-2">
-                    <span class="text-slate-300">⚙️</span> KEY ASSUMPTIONS
-                </h2>
+            <div id="contParametrosSimulacion">
+                <div class="flex items-center justify-between pb-4 border-b border-[#1F2937] relative z-10 mt-4">
+                    <h2 class="text-xs font-extrabold text-white uppercase tracking-widest flex items-center gap-2">
+                        <span class="text-slate-300">⚙️</span> KEY ASSUMPTIONS
+                    </h2>
+                </div>
+
+                <div class="space-y-4 pt-2 relative z-10">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="flex flex-col group" id="contTargetSl">
+                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentEmerald transition-colors">Target SL (%)</label>
+                            <input type="number" id="targetSl" value="80" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentEmerald font-mono-num font-bold focus:border-brand-accentEmerald focus:ring-1 focus:ring-brand-accentEmerald focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
+                        </div>
+                        <div class="flex flex-col group" id="contTargetTime">
+                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-white transition-colors">Target ASA (s)</label>
+                            <input type="number" id="targetTime" value="20" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-white font-mono-num font-bold focus:border-white focus:ring-1 focus:ring-white focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
+                        </div>
+                        
+                        <div class="flex flex-col group hidden col-span-2" id="contConcurrencia">
+                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentCyan transition-colors">Concurrencia (Chats por Agente)</label>
+                            <input type="number" id="concurrencia" value="4" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentCyan font-mono-num font-bold focus:border-brand-accentCyan focus:ring-1 focus:ring-brand-accentCyan focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="flex flex-col group">
+                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentRose transition-colors">Shrinkage (%)</label>
+                            <input type="number" id="merma" value="30" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentRose font-mono-num font-bold focus:border-brand-accentRose focus:ring-1 focus:ring-brand-accentRose focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
+                        </div>
+                        <div class="flex flex-col group">
+                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentAmber transition-colors">Jornada (Hrs)</label>
+                            <input type="number" id="duracionJornada" value="6" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentAmber font-mono-num font-bold focus:border-brand-accentAmber focus:ring-1 focus:ring-brand-accentAmber focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col group pt-1">
+                        <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-white transition-colors">Horizonte (Días)</label>
+                        <input type="number" id="dias" value="130" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-white font-mono-num font-bold focus:border-brand-primary focus:ring-1 focus:ring-brand-primary focus:outline-none transition-all shadow-inner"/>
+                    </div>
+
+                    <div class="pt-6 space-y-6">
+                        <label class="flex items-center justify-between cursor-pointer group">
+                            <div class="flex items-center gap-3">
+                                <span class="text-brand-accentAmber text-lg drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]">🌙</span>
+                                <span class="text-[13px] text-white font-bold transition-colors tracking-wide">Turno Nocturno</span>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" id="chkNocturno" onchange="debouncedActualizarGrafica()" class="sr-only peer" checked>
+                                <div class="w-[42px] h-[22px] bg-[#1E293B] border border-[#334155] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[16px] after:w-[16px] after:transition-all peer-checked:bg-[#A78BFA] peer-checked:border-brand-accentViolet peer-checked:shadow-[0_0_10px_rgba(167,139,250,0.5)]"></div>
+                            </div>
+                        </label>
+                        
+                        <label class="flex items-center justify-between cursor-pointer group">
+                            <div class="flex items-center gap-3">
+                                <span class="text-brand-accentRose text-lg drop-shadow-[0_0_5px_rgba(251,113,133,0.5)]">🔥</span>
+                                <span class="text-[13px] text-white font-bold transition-colors tracking-wide">Staffing x Picos</span>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" id="chkPicos" onchange="debouncedActualizarGrafica()" class="sr-only peer" checked>
+                                <div class="w-[42px] h-[22px] bg-[#1E293B] border border-[#334155] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[16px] after:w-[16px] after:transition-all peer-checked:bg-[#FB7185] peer-checked:border-brand-accentRose peer-checked:shadow-[0_0_10px_rgba(251,113,133,0.5)]"></div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <button id="btnProcesar" onclick="procesarWFM()" class="w-full bg-gradient-to-r from-[#3B82F6] to-[#22D3EE] hover:from-[#2563EB] hover:to-[#06B6D4] text-white font-extrabold py-4 px-4 rounded-[14px] text-[13px] transition-all shadow-[0_4px_15px_-3px_rgba(34,211,238,0.4)] hover:shadow-[0_8px_25px_-5px_rgba(34,211,238,0.6)] uppercase tracking-wider mt-8 relative z-10">
+                    ▶ RUN PLAN
+                </button>
             </div>
 
-            <div class="space-y-4 pt-2 relative z-10">
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="flex flex-col group" id="contTargetSl">
-                        <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentEmerald transition-colors">Target SL (%)</label>
-                        <input type="number" id="targetSl" value="80" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentEmerald font-mono-num font-bold focus:border-brand-accentEmerald focus:ring-1 focus:ring-brand-accentEmerald focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
-                    </div>
-                    <div class="flex flex-col group" id="contTargetTime">
-                        <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-white transition-colors">Target ASA (s)</label>
-                        <input type="number" id="targetTime" value="20" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-white font-mono-num font-bold focus:border-white focus:ring-1 focus:ring-white focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
-                    </div>
-                    
-                    <div class="flex flex-col group hidden col-span-2" id="contConcurrencia">
-                        <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentCyan transition-colors">Concurrencia (Chats por Agente)</label>
-                        <input type="number" id="concurrencia" value="3" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentCyan font-mono-num font-bold focus:border-brand-accentCyan focus:ring-1 focus:ring-brand-accentCyan focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="flex flex-col group">
-                        <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentRose transition-colors">Shrinkage (%)</label>
-                        <input type="number" id="merma" value="30" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentRose font-mono-num font-bold focus:border-brand-accentRose focus:ring-1 focus:ring-brand-accentRose focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
-                    </div>
-                    <div class="flex flex-col group">
-                        <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentAmber transition-colors">Jornada (Hrs)</label>
-                        <input type="number" id="duracionJornada" value="6.5" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentAmber font-mono-num font-bold focus:border-brand-accentAmber focus:ring-1 focus:ring-brand-accentAmber focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
-                    </div>
-                </div>
-
-                <div class="flex flex-col group pt-1">
-                    <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-white transition-colors">Horizonte (Días)</label>
-                    <input type="number" id="dias" value="130" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-white font-mono-num font-bold focus:border-brand-primary focus:ring-1 focus:ring-brand-primary focus:outline-none transition-all shadow-inner"/>
-                </div>
-
-                <div class="pt-6 space-y-6">
-                    <label class="flex items-center justify-between cursor-pointer group">
-                        <div class="flex items-center gap-3">
-                            <span class="text-brand-accentAmber text-lg drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]">🌙</span>
-                            <span class="text-[13px] text-white font-bold transition-colors tracking-wide">Turno Nocturno</span>
-                        </div>
-                        <div class="relative">
-                            <input type="checkbox" id="chkNocturno" onchange="debouncedActualizarGrafica()" class="sr-only peer" checked>
-                            <div class="w-[42px] h-[22px] bg-[#1E293B] border border-[#334155] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[16px] after:w-[16px] after:transition-all peer-checked:bg-[#A78BFA] peer-checked:border-brand-accentViolet peer-checked:shadow-[0_0_10px_rgba(167,139,250,0.5)]"></div>
-                        </div>
-                    </label>
-                    
-                    <label class="flex items-center justify-between cursor-pointer group">
-                        <div class="flex items-center gap-3">
-                            <span class="text-brand-accentRose text-lg drop-shadow-[0_0_5px_rgba(251,113,133,0.5)]">🔥</span>
-                            <span class="text-[13px] text-white font-bold transition-colors tracking-wide">Staffing x Picos</span>
-                        </div>
-                        <div class="relative">
-                            <input type="checkbox" id="chkPicos" onchange="debouncedActualizarGrafica()" class="sr-only peer" checked>
-                            <div class="w-[42px] h-[22px] bg-[#1E293B] border border-[#334155] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[16px] after:w-[16px] after:transition-all peer-checked:bg-[#FB7185] peer-checked:border-brand-accentRose peer-checked:shadow-[0_0_10px_rgba(251,113,133,0.5)]"></div>
-                        </div>
-                    </label>
+            <!-- Panel para cuando está en Vista General -->
+            <div id="contInfoGeneral" class="hidden pt-6">
+                <div class="p-4 bg-brand-primary/10 border border-brand-primary/30 rounded-xl">
+                    <p class="text-[11px] text-brand-primary font-bold uppercase tracking-widest mb-2">Vista Consolidada Activa</p>
+                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>El módulo de generación de mallas y los parámetros de SLA individuales están deshabilitados en esta vista macro.</p>
                 </div>
             </div>
 
-            <button id="btnProcesar" onclick="procesarWFM()" class="w-full bg-gradient-to-r from-[#3B82F6] to-[#22D3EE] hover:from-[#2563EB] hover:to-[#06B6D4] text-white font-extrabold py-4 px-4 rounded-[14px] text-[13px] transition-all shadow-[0_4px_15px_-3px_rgba(34,211,238,0.4)] hover:shadow-[0_8px_25px_-5px_rgba(34,211,238,0.6)] uppercase tracking-wider mt-8 relative z-10">
-                ▶ RUN PLAN
-            </button>
         </aside>
 
         <!-- DASHBOARD PRINCIPAL -->
@@ -449,7 +463,7 @@
         let debounceTimer;
         let totalesFiltros = { M: 0, S: 0, C: 0, F: 0, I: 0 }; 
         let currentMode = 'wfm';
-        let forecastMode = 'inbound'; // MODOS: inbound, outbound, chat
+        let forecastMode = 'inbound'; // MODOS: inbound, outbound, chat, general
         let isSidebarVisible = true; 
 
         const mesesMap = {
@@ -501,39 +515,60 @@
             const btnIn = document.getElementById('btnTabInbound');
             const btnOut = document.getElementById('btnTabOutbound');
             const btnChat = document.getElementById('btnTabChat');
+            const btnGen = document.getElementById('btnTabGeneral');
 
             const inactiveClass = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200";
             btnIn.className = inactiveClass;
             btnOut.className = inactiveClass;
             btnChat.className = inactiveClass;
+            btnGen.className = inactiveClass;
 
-            if(mode === 'inbound') {
-                btnIn.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-primary text-white shadow-md";
-                document.getElementById('contTargetSl').style.display = 'block';
-                document.getElementById('contTargetTime').style.display = 'block';
-                document.getElementById('contConcurrencia').classList.add('hidden');
-                document.getElementById('colHeaderCapacity').innerText = "Capacidad SLA";
-                document.getElementById('lblProjectedSl').innerText = "Projected SL (Con Malla)";
-                document.getElementById('kpiCallsTitle').innerText = "Demanda Total";
-                document.getElementById('colHeaderCalls').innerText = "Llamadas (FCST)";
-            } else if (mode === 'outbound') {
-                btnOut.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-accentViolet text-white shadow-md";
-                document.getElementById('contTargetSl').style.display = 'none';
-                document.getElementById('contTargetTime').style.display = 'none';
-                document.getElementById('contConcurrencia').classList.add('hidden');
-                document.getElementById('colHeaderCapacity').innerText = "Productividad Neta";
-                document.getElementById('lblProjectedSl').innerText = "Coverage de Productividad";
-                document.getElementById('kpiCallsTitle').innerText = "Contactos / Llamadas";
-                document.getElementById('colHeaderCalls').innerText = "Contactos (FCST)";
-            } else if (mode === 'chat') {
-                btnChat.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-accentCyan text-[#0B1121] shadow-md";
-                document.getElementById('contTargetSl').style.display = 'block';
-                document.getElementById('contTargetTime').style.display = 'block';
-                document.getElementById('contConcurrencia').classList.remove('hidden');
-                document.getElementById('colHeaderCapacity').innerText = "Capacidad SLA";
-                document.getElementById('lblProjectedSl').innerText = "Projected SL (Con Malla)";
-                document.getElementById('kpiCallsTitle').innerText = "Mensajes / Chats Totales";
-                document.getElementById('colHeaderCalls').innerText = "Mensajes (FCST)";
+            const modOptimizacion = document.getElementById('modOptimizacion');
+            const contParametros = document.getElementById('contParametrosSimulacion');
+            const contInfoGen = document.getElementById('contInfoGeneral');
+
+            if(mode === 'general') {
+                btnGen.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-[#070B14] shadow-md";
+                contParametros.style.display = 'none';
+                contInfoGen.style.display = 'block';
+                modOptimizacion.style.display = 'none';
+                
+                document.getElementById('colHeaderCapacity').innerText = "--";
+                document.getElementById('kpiCallsTitle').innerText = "Interacciones Globales";
+                document.getElementById('colHeaderCalls').innerText = "Volumen (Mix)";
+            } else {
+                contParametros.style.display = 'block';
+                contInfoGen.style.display = 'none';
+                modOptimizacion.style.display = 'block';
+
+                if(mode === 'inbound') {
+                    btnIn.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-primary text-white shadow-md";
+                    document.getElementById('contTargetSl').style.display = 'block';
+                    document.getElementById('contTargetTime').style.display = 'block';
+                    document.getElementById('contConcurrencia').classList.add('hidden');
+                    document.getElementById('colHeaderCapacity').innerText = "Capacidad SLA";
+                    document.getElementById('lblProjectedSl').innerText = "Projected SL (Con Malla)";
+                    document.getElementById('kpiCallsTitle').innerText = "Demanda Total";
+                    document.getElementById('colHeaderCalls').innerText = "Llamadas (FCST)";
+                } else if (mode === 'outbound') {
+                    btnOut.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-accentViolet text-white shadow-md";
+                    document.getElementById('contTargetSl').style.display = 'none';
+                    document.getElementById('contTargetTime').style.display = 'none';
+                    document.getElementById('contConcurrencia').classList.add('hidden');
+                    document.getElementById('colHeaderCapacity').innerText = "Productividad Neta";
+                    document.getElementById('lblProjectedSl').innerText = "Coverage de Productividad";
+                    document.getElementById('kpiCallsTitle').innerText = "Contactos / Llamadas";
+                    document.getElementById('colHeaderCalls').innerText = "Contactos (FCST)";
+                } else if (mode === 'chat') {
+                    btnChat.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-accentCyan text-[#0B1121] shadow-md";
+                    document.getElementById('contTargetSl').style.display = 'block';
+                    document.getElementById('contTargetTime').style.display = 'block';
+                    document.getElementById('contConcurrencia').classList.remove('hidden');
+                    document.getElementById('colHeaderCapacity').innerText = "Capacidad SLA";
+                    document.getElementById('lblProjectedSl').innerText = "Projected SL (Con Malla)";
+                    document.getElementById('kpiCallsTitle').innerText = "Mensajes / Chats Totales";
+                    document.getElementById('colHeaderCalls').innerText = "Mensajes (FCST)";
+                }
             }
             
             fetchLatestData(mode);
@@ -541,15 +576,35 @@
 
         async function fetchLatestData(mode) {
             try {
-                const response = await fetch('/api/latest?mode=' + mode + '&t=' + new Date().getTime());
-                if (response.ok) {
-                    const data = await response.json();
-                    if (Array.isArray(data) && data.length > 0) {
-                        globalData = data;
+                if (mode === 'general') {
+                    const [inRes, outRes, chatRes] = await Promise.all([
+                        fetch('/api/latest?mode=inbound&t=' + new Date().getTime()),
+                        fetch('/api/latest?mode=outbound&t=' + new Date().getTime()),
+                        fetch('/api/latest?mode=chat&t=' + new Date().getTime())
+                    ]);
+                    const inData = inRes.ok ? await inRes.json() : [];
+                    const outData = outRes.ok ? await outRes.json() : [];
+                    const chatData = chatRes.ok ? await chatRes.json() : [];
+                    
+                    globalData = [...(Array.isArray(inData)?inData:[]), ...(Array.isArray(outData)?outData:[]), ...(Array.isArray(chatData)?chatData:[])];
+                    
+                    if (globalData.length > 0) {
                         inicializarFiltrosMultiples();
                         debouncedActualizarGrafica();
                     } else {
                         limpiarPantalla(mode);
+                    }
+                } else {
+                    const response = await fetch('/api/latest?mode=' + mode + '&t=' + new Date().getTime());
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (Array.isArray(data) && data.length > 0) {
+                            globalData = data;
+                            inicializarFiltrosMultiples();
+                            debouncedActualizarGrafica();
+                        } else {
+                            limpiarPantalla(mode);
+                        }
                     }
                 }
             } catch (e) {
@@ -659,7 +714,7 @@
                 
                 setTimeout(() => { if (gapChartInstance) gapChartInstance.resize(); }, 100);
             } else {
-                if (modOpt) modOpt.style.display = 'block';
+                if (modOpt && forecastMode !== 'general') modOpt.style.display = 'block';
                 if (tag) tag.classList.add('hidden');
                 
                 if (isSidebarVisible) {
@@ -1041,6 +1096,89 @@
             debouncedActualizarGrafica();
         }
 
+        function renderGeneralView(intervalos, llamadasArr, ahtArr, rosterArr, reqArr) {
+            const tbody = document.getElementById('intervalTableBody');
+            tbody.innerHTML = '';
+            
+            intervalos.forEach((inter, idx) => {
+                const rowLlamadas = Math.round(llamadasArr[idx]);
+                const rowAht = Math.round(ahtArr[idx]);
+                const rowReq = Math.ceil(reqArr[idx] || 0);
+                const rowRoster = Math.round(rosterArr[idx] || 0);
+                const gap = rowRoster - rowReq;
+                
+                let gapHtml = '';
+                if (gap > 0) gapHtml = `<span class="bg-[#34D399]/20 text-[#34D399] px-2 py-0.5 rounded-md font-bold">+${gap}</span>`;
+                else if (gap < 0) gapHtml = `<span class="bg-[#FB7185]/20 text-[#FB7185] px-2 py-0.5 rounded-md font-bold">${gap}</span>`;
+                else gapHtml = `<span class="text-slate-500 font-bold">0</span>`;
+
+                const tr = document.createElement('tr');
+                tr.className = `cursor-pointer transition-all duration-200 hover:bg-[#1E293B]`;
+                tr.innerHTML = `
+                    <td class="py-2.5 px-4 font-bold text-slate-200 flex items-center gap-2">
+                        <span class="text-[10px] text-brand-accentCyan drop-shadow-[0_0_2px_rgba(34,211,238,0.8)]">●</span> ${inter}
+                    </td>
+                    <td class="py-2.5 px-4 text-slate-300 font-medium">${rowLlamadas.toLocaleString()}</td>
+                    <td class="py-2.5 px-4 text-slate-300 font-medium">${formatAHT(rowAht)}</td>
+                    <td class="py-2.5 px-4 text-brand-primary font-black text-sm">${rowReq}</td>
+                    <td class="py-2.5 px-4 text-brand-accentEmerald font-black text-sm">${rowRoster}</td>
+                    <td class="py-2.5 px-4 text-brand-accentAmber font-black text-sm">--</td>
+                    <td class="py-2.5 px-4 text-center">${gapHtml}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            if (gapChartInstance) gapChartInstance.destroy();
+            const ctxGap = document.getElementById('gapChart').getContext('2d');
+            gapChartInstance = new Chart(ctxGap, {
+                type: 'bar',
+                data: {
+                    labels: intervalos,
+                    datasets: [
+                        { label: 'HC Requerido Global', type: 'line', data: reqArr, borderColor: '#A78BFA', backgroundColor: '#A78BFA', borderWidth: 3, tension: 0.4 },
+                        { label: 'HC Disponible Global', type: 'line', data: rosterArr, borderColor: '#FBBF24', backgroundColor: '#FBBF24', borderWidth: 3, tension: 0.4 },
+                        { label: 'Interacciones', data: llamadasArr.map(x=>Math.round(x)), backgroundColor: '#38BDF8', borderWidth: 0, borderRadius: 4 }
+                    ]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { 
+                        legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 }, usePointStyle: true, boxWidth: 8 } },
+                        tooltip: { backgroundColor: '#111827', titleColor: '#F8FAFC', bodyColor: '#cbd5e1', borderColor: '#1F2937', borderWidth: 1, padding: 12, boxPadding: 6, usePointStyle: true }
+                    }, 
+                    scales: { 
+                        x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 12 } }, 
+                        y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true } 
+                    } 
+                }
+            });
+
+            const maxReq = Math.max(...reqArr, 0);
+            const maxRoster = Math.max(...rosterArr, 0);
+
+            document.getElementById('kpiHcRequerido').innerText = Math.ceil(maxReq).toLocaleString() + ' HC';
+            document.getElementById('kpiHcRosterTitle').innerText = "HC Disponible (Pico)";
+            document.getElementById('kpiHcRoster').innerText = Math.ceil(maxRoster).toLocaleString() + ' HC';
+            
+            document.getElementById('kpiHcRequeridoSub').innerText = "Máximo HC simultáneo requerido";
+            document.getElementById('kpiHcRosterSub').innerText = "Máximo HC simultáneo disponible";
+            
+            const gapTotal = Math.ceil(maxRoster) - Math.ceil(maxReq);
+            const gapEl = document.getElementById('kpiHcGap');
+            if (gapTotal > 0) {
+                gapEl.innerText = `+${gapTotal} Sobran`;
+                gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
+            } else if (gapTotal < 0) {
+                gapEl.innerText = `${gapTotal} Faltan`;
+                gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
+            } else {
+                gapEl.innerText = `✓ Balanceado`;
+                gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
+            }
+        }
+
         async function actualizarGrafica() {
             const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
             const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
@@ -1183,6 +1321,11 @@
             });
 
             document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
+
+            if (forecastMode === 'general') {
+                renderGeneralView(todosIntervalos, llamadasAvgVector, ahtAvgVector, rosterAvgVector, reqAvgVector);
+                return;
+            }
 
             try {
                 const concurrenciaVal = forecastMode === 'chat' ? parseFloat(document.getElementById('concurrencia').value) || 3.0 : 3.0;
@@ -1373,7 +1516,7 @@
                 const slEl = document.getElementById('compSlOptimo');
                 slEl.innerText = slOptimoVal.toFixed(1) + '%';
                 
-                if (forecastMode === 'outbound') {
+                if (forecastMode !== 'inbound') {
                     if (slOptimoVal >= 95) slEl.className = "text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)] block";
                     else slEl.className = "text-3xl font-black font-mono-num text-brand-accentRose drop-shadow-[0_0_8px_rgba(251,113,133,0.3)] block";
                 } else {
