@@ -532,8 +532,8 @@
                 contInfoGen.style.display = 'block';
                 modOptimizacion.style.display = 'block';
                 
-                document.getElementById('colHeaderCapacity').innerText = "--";
-                document.getElementById('lblProjectedSl').innerText = "SL Global Proyectado";
+                document.getElementById('colHeaderCapacity').innerText = "Capacidad Total";
+                document.getElementById('lblProjectedSl').innerText = "Coverage Proyectado";
                 document.getElementById('kpiCallsTitle').innerText = "Interacciones Globales";
                 document.getElementById('colHeaderCalls').innerText = "Volumen (Mix)";
             } else {
@@ -622,7 +622,7 @@
             document.getElementById('kpiAht').innerText = "00:00:00";
             document.getElementById('kpiHcRequerido').innerText = "0 HC";
             document.getElementById('kpiHcRoster').innerText = "0 HC";
-            document.getElementById('intervalTableBody').innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-500 font-medium font-sans">Presiona RUN PLAN para generar la proyección de ${mode.toUpperCase()} por primera vez.</td></tr>`;
+            document.getElementById('intervalTableBody').innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-500 font-medium font-sans">Presiona RUN PLAN para generar la proyección por primera vez.</td></tr>`;
             if(optChartInstance) optChartInstance.destroy();
             if(gapChartInstance) gapChartInstance.destroy();
         }
@@ -1244,59 +1244,55 @@
 
             try {
                 const concurrenciaVal = parseFloat(document.getElementById('concurrencia').value) || 3.0;
-                ejecutarOptimizadorHorarios(todosIntervalos, llamadasAvgVector, ahtAvgVector, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, concurrenciaVal, dfFiltered, numDiasPeriodo, fechasFiltradas, usarPicos);
+                ejecutarOptimizadorHorarios(todosIntervalos, llamadasAvgVector, ahtAvgVector, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, concurrenciaVal, dfFiltered);
             } catch (e) {
                 console.log("Error al preparar optimizador:", e);
             }
         }
 
-        async function ejecutarOptimizadorHorarios(intervalos, llamadasArr, ahtSegsArr, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, concurrenciaVal, dfFiltered, numDiasPeriodo, fechasFiltradas, usarPicos) {
+        async function ejecutarOptimizadorHorarios(intervalos, llamadasArr, ahtSegsArr, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, concurrenciaVal, dfFiltered) {
             if (!intervalos || intervalos.length === 0) return;
 
             try {
                 let optData = {};
+                let totalGeneralReqHc = 0;
                 let finalCobOptima = new Array(intervalos.length).fill(0);
 
                 if (forecastMode === 'general') {
-                    let finalHcSemanal = 0;
-                    let finalHcDiario = 0;
                     
-                    async function processChannel(canalStr, esOutbound, esChat) {
-                        const dfCanal = dfFiltered.filter(r => r.Canal === canalStr);
-                        if(dfCanal.length === 0) return;
+                    const getCanalData = async (canalStr, esOutbound, esChat) => {
+                        const dfC = dfFiltered.filter(r => r.Canal === canalStr);
+                        if(dfC.length === 0) return;
                         
-                        const reqVector = [];
-                        const llamVector = [];
-                        const ahtVector = [];
-                        
-                        intervalos.forEach((inter) => {
-                            let reqSum = 0, callSum = 0, htSum = 0;
-                            let reqArr = [], callArr = [], ahtArr = [];
-                            fechasFiltradas.forEach(fStr => {
-                                const rows = dfCanal.filter(r => String(getProp(r, ['Fecha'], '')).startsWith(fStr) && getProp(r, ['Intervalo']) === inter);
-                                let sumR = 0, sumC = 0, sumHt = 0;
+                        const fechasC = [...new Set(dfC.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
+                        const nDias = fechasC.length;
+                        if(nDias === 0) return;
+
+                        const c_llam = [], c_aht = [], c_req = [];
+                        intervalos.forEach(inter => {
+                            let cS = 0, rS = 0, htS = 0;
+                            let cArr = [], rArr = [], aArr = [];
+                            fechasC.forEach(fStr => {
+                                const rows = dfC.filter(r => String(getProp(r, ['Fecha'], '')).startsWith(fStr) && getProp(r, ['Intervalo'], '00:00') === inter);
+                                let sC = 0, sR = 0, sHt = 0;
                                 rows.forEach(b => {
                                     const c = Number(getProp(b, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
                                     const r = Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0;
                                     const ht = Number(getProp(b, ['AHT_Segundos'], 180)) || 180;
-                                    sumC += c; sumR += r; sumHt += (c * ht);
+                                    sC += c; sR += r; sHt += (c * ht);
                                 });
-                                reqSum += sumR; callSum += sumC; htSum += sumHt;
-                                reqArr.push(sumR); callArr.push(sumC); ahtArr.push(sumC > 0 ? sumHt/sumC : 180);
+                                cS += sC; rS += sR; htS += sHt;
+                                cArr.push(sC); rArr.push(sR); aArr.push(sC > 0 ? sHt/sC : 180);
                             });
-                            
-                            if (numDiasPeriodo > 0) {
-                                if (usarPicos) {
-                                    reqVector.push(Math.max(...reqArr, 0));
-                                    llamVector.push(Math.max(...callArr, 0));
-                                    ahtVector.push(Math.max(...ahtArr, 180));
-                                } else {
-                                    reqVector.push(reqSum / numDiasPeriodo);
-                                    llamVector.push(callSum / numDiasPeriodo);
-                                    ahtVector.push(callSum > 0 ? htSum / callSum : 180);
-                                }
+                            const usarPicos = document.getElementById('chkPicos') ? document.getElementById('chkPicos').checked : false;
+                            if (usarPicos) {
+                                c_llam.push(Math.max(...cArr, 0));
+                                c_req.push(Math.max(...rArr, 0));
+                                c_aht.push(Math.max(...aArr, 180));
                             } else {
-                                reqVector.push(0); llamVector.push(0); ahtVector.push(180);
+                                c_llam.push(cS / nDias);
+                                c_req.push(rS / nDias);
+                                c_aht.push(cS > 0 ? htS / cS : 180);
                             }
                         });
 
@@ -1305,10 +1301,10 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 intervalos: intervalos,
-                                campanas: Array.from(selectedCampanas),
-                                llamadas: llamVector,
-                                ahts: ahtVector,
-                                requeridos: reqVector, 
+                                campanas: [], 
+                                llamadas: c_llam,
+                                ahts: c_aht,
+                                requeridos: c_req, 
                                 target_sl: targetSlObj,
                                 target_time: targetTimeObj,
                                 merma: mermaVal,
@@ -1319,32 +1315,30 @@
                                 concurrencia: concurrenciaVal
                             })
                         });
-                        if(res.ok) {
+                        if (res.ok) {
                             const data = await res.json();
-                            finalHcSemanal += (data.headcount_semanal_6x1 || 0);
-                            finalHcDiario += (data.total_agentes_diarios || 0);
-                            if(data.cobertura_optima) {
+                            totalGeneralReqHc += esVistaSemanal ? (data.headcount_semanal_6x1 || 0) : (data.total_agentes_diarios || 0);
+                            if (data.cobertura_optima) {
                                 for(let i=0; i<intervalos.length; i++) {
-                                    finalCobOptima[i] += data.cobertura_optima[i];
+                                    finalCobOptima[i] += (data.cobertura_optima[i] || 0);
                                 }
                             }
                         }
-                    }
+                    };
 
-                    await processChannel('Inbound', false, false);
-                    await processChannel('Outbound', true, false);
-                    await processChannel('Chat', false, true);
+                    await getCanalData('Inbound', false, false);
+                    await getCanalData('Outbound', true, false);
+                    await getCanalData('Chat', false, true);
 
                     optData = {
-                        headcount_semanal_6x1: finalHcSemanal,
-                        total_agentes_diarios: finalHcDiario,
+                        headcount_semanal_6x1: totalGeneralReqHc,
+                        total_agentes_diarios: totalGeneralReqHc,
                         cobertura_optima: finalCobOptima,
                         sl_optimo_global: 0,
                         turnos: []
                     };
 
                 } else {
-                    const forceOutboundLogic = forecastMode === 'outbound';
                     const res = await fetch('/api/optimize-schedules', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -1359,15 +1353,16 @@
                             merma: mermaVal,
                             duracion_jornada: durJornada,
                             es_nocturno: usarNocturno,
-                            es_outbound: forceOutboundLogic,
+                            es_outbound: forecastMode === 'outbound',
                             es_chat: forecastMode === 'chat',
                             concurrencia: concurrenciaVal
                         })
                     });
+
                     if (!res.ok) throw new Error("Error procesando optimizador en backend");
                     optData = await res.json() || {};
                 }
-                
+
                 const capacidadRosterVector = []; 
                 const capacidadSugeridaVector = []; 
                 
@@ -1382,12 +1377,15 @@
                     
                     const mermaDecimal = mermaVal / 100;
                     const agentesConectadosRoster = rowRoster * (1 - mermaDecimal);
-                    const capacidadRoster = maxCallsForAgents(agentesConectadosRoster, rowAhtSegs, targetTimeObj, targetSlObj);
+                    let capacidadRoster = 0;
+                    let capacidadSugerida = 0;
+                    if (forecastMode !== 'general') {
+                        capacidadRoster = maxCallsForAgents(agentesConectadosRoster, rowAhtSegs, targetTimeObj, targetSlObj);
+                        const rowMallaSugerida = optData.cobertura_optima ? (optData.cobertura_optima[idx] || 0) : 0;
+                        const agentesConectadosSugeridos = rowMallaSugerida * (1 - mermaDecimal);
+                        capacidadSugerida = maxCallsForAgents(agentesConectadosSugeridos, rowAhtSegs, targetTimeObj, targetSlObj);
+                    }
                     capacidadRosterVector.push(capacidadRoster);
-
-                    const rowMallaSugerida = optData.cobertura_optima ? optData.cobertura_optima[idx] : 0;
-                    const agentesConectadosSugeridos = rowMallaSugerida * (1 - mermaDecimal);
-                    const capacidadSugerida = maxCallsForAgents(agentesConectadosSugeridos, rowAhtSegs, targetTimeObj, targetSlObj);
                     capacidadSugeridaVector.push(capacidadSugerida);
                     
                     const gap = rowRoster - rowReq;
@@ -1465,9 +1463,12 @@
                     }
                 });
 
-                const nominaRequeridaTotalSemana = optData.headcount_semanal_6x1 || 0;
-                const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
-                const hcRequeridoDisplay = esVistaSemanal ? nominaRequeridaTotalSemana : nominaRequeridaDiaria;
+                let hcRequeridoDisplay = 0;
+                if (forecastMode === 'general') {
+                    hcRequeridoDisplay = totalGeneralReqHc;
+                } else {
+                    hcRequeridoDisplay = esVistaSemanal ? (optData.headcount_semanal_6x1 || 0) : (optData.total_agentes_diarios || 0);
+                }
                 
                 document.getElementById('kpiHcRequeridoTitle').innerText = forecastMode === 'general' ? "HC Requerido (Consolidado)" : "HC Requerido Total";
                 document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay.toLocaleString() + ' HC';
@@ -1513,30 +1514,92 @@
                     slEl.className = "text-3xl font-black font-mono-num text-slate-500 block";
                 }
 
+                if (optChartInstance) optChartInstance.destroy();
+                const ctxOpt = document.getElementById('optChart').getContext('2d');
+                const labelCurvaCob = usarNocturno ? "Malla Sugerida (Mixta)" : `Malla Sugerida (${durJornada}h)`;
+
+                optChartInstance = new Chart(ctxOpt, {
+                    type: 'line',
+                    data: {
+                        labels: intervalos,
+                        datasets: [
+                            { 
+                                label: 'HC Requerido (Motor)', 
+                                data: reqAvgVector, 
+                                borderColor: '#22D3EE', 
+                                backgroundColor: 'rgba(34, 211, 238, 0.1)', 
+                                fill: true, 
+                                tension: 0.4, 
+                                borderWidth: 3,
+                                pointRadius: 0,
+                                pointHoverRadius: 6
+                            },
+                            { 
+                                label: 'Plantilla Actual (Roster)', 
+                                data: rosterAvgVector, 
+                                borderColor: '#34D399', 
+                                backgroundColor: '#34D399', 
+                                fill: false, 
+                                tension: 0.4, 
+                                borderWidth: 2, 
+                                borderDash: [5, 5],
+                                pointRadius: 0,
+                                pointHoverRadius: 6
+                            },
+                            { 
+                                label: labelCurvaCob, 
+                                data: (optData.cobertura_optima && optData.cobertura_optima.length > 0 ? optData.cobertura_optima : new Array(intervalos.length).fill(0)), 
+                                borderColor: '#3B82F6', 
+                                backgroundColor: '#3B82F6', 
+                                fill: false, 
+                                tension: 0.4, 
+                                borderWidth: 3, 
+                                borderDash: [4, 4],
+                                pointRadius: 0,
+                                pointHoverRadius: 6
+                            }
+                        ]
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: { 
+                            legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 }, usePointStyle: true, boxWidth: 8 } },
+                            tooltip: { backgroundColor: '#111827', titleColor: '#F8FAFC', bodyColor: '#cbd5e1', borderColor: '#1F2937', borderWidth: 1, padding: 12, boxPadding: 6, usePointStyle: true }
+                        }, 
+                        scales: { 
+                            x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 12 } }, 
+                            y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true } 
+                        } 
+                    }
+                });
+
                 const optTbody = document.getElementById('optShiftsTableBody');
                 optTbody.innerHTML = '';
                 
-                const totalDiarioMalla = optData.total_agentes_diarios || 1;
                 let turnosBase = optData.turnos || [];
-                let accumulatedNomina = 0;
-                
-                globalTurnosOptimos = turnosBase.map((t, index) => {
-                    let nominaTurno;
-                    if (index === turnosBase.length - 1) {
-                        nominaTurno = hcRequeridoDisplay - accumulatedNomina;
-                    } else {
-                        nominaTurno = Math.round((t.agentes_a_programar / totalDiarioMalla) * hcRequeridoDisplay);
-                        accumulatedNomina += nominaTurno;
-                    }
-                    nominaTurno = Math.max(0, nominaTurno);
-                    return { ...t, nomina_a_contratar: nominaTurno };
-                });
-
-                globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
-
-                if (globalTurnosOptimos.length === 0) {
-                    optTbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500 font-sans font-medium">La vista consolidada no grafica la matriz de mallas.</td></tr>';
+                if (forecastMode === 'general' || turnosBase.length === 0) {
+                    optTbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-500 font-sans font-medium">${forecastMode === 'general' ? 'La vista consolidada no grafica la matriz de mallas. Ve a cada canal para exportar su plan.' : 'No se requieren agentes dentro de la ventana de servicio.'}</td></tr>`;
+                    globalTurnosOptimos = [];
                 } else {
+                    const totalDiarioMalla = optData.total_agentes_diarios || 1;
+                    let accumulatedNomina = 0;
+                    
+                    globalTurnosOptimos = turnosBase.map((t, index) => {
+                        let nominaTurno;
+                        if (index === turnosBase.length - 1) {
+                            nominaTurno = hcRequeridoDisplay - accumulatedNomina;
+                        } else {
+                            nominaTurno = Math.round((t.agentes_a_programar / totalDiarioMalla) * hcRequeridoDisplay);
+                            accumulatedNomina += nominaTurno;
+                        }
+                        nominaTurno = Math.max(0, nominaTurno);
+                        return { ...t, nomina_a_contratar: nominaTurno };
+                    });
+
+                    globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
+                    
                     let offsetDiurno = 0;
                     let offsetNocturno = 0;
 
