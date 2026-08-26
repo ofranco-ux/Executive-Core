@@ -197,10 +197,11 @@
                 </button>
             </div>
 
+            <!-- Panel para cuando está en Vista General -->
             <div id="contInfoGeneral" class="hidden pt-6">
                 <div class="p-4 bg-brand-primary/10 border border-brand-primary/30 rounded-xl">
                     <p class="text-[11px] text-brand-primary font-bold uppercase tracking-widest mb-2">Vista Consolidada Activa</p>
-                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>Los parámetros individuales están bloqueados, pero el Optimizador de Mallas sigue activo calculando tu suma total.</p>
+                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>Los parámetros individuales están bloqueados, pero el Optimizador de Mallas sigue activo sumando de forma pura tus requerimientos.</p>
                 </div>
             </div>
 
@@ -531,8 +532,8 @@
                 contInfoGen.style.display = 'block';
                 modOptimizacion.style.display = 'block';
                 
-                document.getElementById('colHeaderCapacity').innerText = "Capacidad Total";
-                document.getElementById('lblProjectedSl').innerText = "SL Global Proyectado";
+                document.getElementById('colHeaderCapacity').innerText = "Capacidad (Mix)";
+                document.getElementById('lblProjectedSl').innerText = "Coverage Proyectado";
                 document.getElementById('kpiCallsTitle').innerText = "Interacciones Globales";
                 document.getElementById('colHeaderCalls').innerText = "Volumen (Mix)";
             } else {
@@ -585,7 +586,11 @@
                     const outData = outRes.ok ? await outRes.json() : [];
                     const chatData = chatRes.ok ? await chatRes.json() : [];
                     
-                    globalData = [...(Array.isArray(inData)?inData:[]), ...(Array.isArray(outData)?outData:[]), ...(Array.isArray(chatData)?chatData:[])];
+                    const inDataTagged = inData.map(d => ({...d, Canal: 'Inbound'}));
+                    const outDataTagged = outData.map(d => ({...d, Canal: 'Outbound'}));
+                    const chatDataTagged = chatData.map(d => ({...d, Canal: 'Chat'}));
+                    
+                    globalData = [...inDataTagged, ...outDataTagged, ...chatDataTagged];
                     
                     if (globalData.length > 0) {
                         inicializarFiltrosMultiples();
@@ -758,7 +763,9 @@
         function maxCallsForAgents(agentsNetos, aht, targetTime, targetSl) {
             if (agentsNetos <= 0 || aht <= 0) return 0;
             
-            if (forecastMode === 'outbound') {
+            if (forecastMode === 'general') {
+                return Math.floor(agentsNetos * (1800 / aht));
+            } else if (forecastMode === 'outbound') {
                 return Math.floor(agentsNetos * (1800 / aht));
             } else if (forecastMode === 'chat') {
                 const concurrencia = parseFloat(document.getElementById('concurrencia').value) || 3.0;
@@ -1250,6 +1257,8 @@
             if (!intervalos || intervalos.length === 0) return;
 
             try {
+                const forceOutboundLogic = forecastMode === 'outbound' || forecastMode === 'general';
+
                 const res = await fetch('/api/optimize-schedules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1264,7 +1273,7 @@
                         merma: mermaVal,
                         duracion_jornada: durJornada,
                         es_nocturno: usarNocturno,
-                        es_outbound: forecastMode === 'outbound',
+                        es_outbound: forceOutboundLogic, 
                         es_chat: forecastMode === 'chat',
                         concurrencia: concurrenciaVal
                     })
@@ -1313,7 +1322,7 @@
                         <td class="py-2.5 px-4 text-slate-300 font-medium">${formatAHT(rowAhtSegs)}</td>
                         <td class="py-2.5 px-4 text-brand-primary font-black text-sm">${rowReq}</td>
                         <td class="py-2.5 px-4 text-brand-accentEmerald font-black text-sm">${rowRoster}</td>
-                        <td class="py-2.5 px-4 text-brand-accentAmber font-black text-sm">${capacidadRoster}</td>
+                        <td class="py-2.5 px-4 text-brand-accentAmber font-black text-sm">${forecastMode === 'general' ? '--' : capacidadRoster}</td>
                         <td class="py-2.5 px-4 text-center">${gapHtml}</td>
                     `;
                     tbody.appendChild(tr);
@@ -1381,26 +1390,27 @@
                     }
                 });
 
-                const uniqueCampaigns = [...new Set(dfFiltered.map(r => r.Campaña))];
+                // ========================================================
+                // 🛑 FIX WFM: TOTAL ROSTER EVITANDO DUPLICADOS ENTRE CANALES
+                // Agrupamos por Campaña + Nombre de Canal para evitar que 
+                // "Coppel" Inbound sobreescriba a "Coppel" Chat.
+                // ========================================================
+                const uniqueCampChannel = [...new Set(dfFiltered.map(r => r.Campaña + '|' + (r.Canal || '')))];
                 let totalRosterHC = 0;
                 
-                if (esVistaSemanal) {
-                    uniqueCampaigns.forEach(c => {
-                        const row = dfFiltered.find(r => r.Campaña === c);
-                        if (row) totalRosterHC += (row.Total_Roster_Campana || 0);
-                    });
-                } else {
-                    uniqueCampaigns.forEach(c => {
-                        const row = dfFiltered.find(r => r.Campaña === c);
-                        if (row) totalRosterHC += (row.Total_Roster_Dia || 0);
-                    });
-                }
+                uniqueCampChannel.forEach(cc => {
+                    const row = dfFiltered.find(r => (r.Campaña + '|' + (r.Canal || '')) === cc);
+                    if (row) {
+                        if (esVistaSemanal) totalRosterHC += (row.Total_Roster_Campana || 0);
+                        else totalRosterHC += (row.Total_Roster_Dia || 0);
+                    }
+                });
 
                 const nominaRequeridaTotalSemana = optData.headcount_semanal_6x1 || 0;
                 const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
                 const hcRequeridoDisplay = esVistaSemanal ? nominaRequeridaTotalSemana : nominaRequeridaDiaria;
                 
-                document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido Total";
+                document.getElementById('kpiHcRequeridoTitle').innerText = forecastMode === 'general' ? "HC Requerido (Consolidado)" : "HC Requerido Total";
                 document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay.toLocaleString() + ' HC';
                 document.getElementById('optHeadcount').innerText = hcRequeridoDisplay.toLocaleString();
                 
@@ -1431,14 +1441,17 @@
 
                 const slOptimoVal = parseFloat(optData.sl_optimo_global || 0);
                 const slEl = document.getElementById('compSlOptimo');
-                slEl.innerText = slOptimoVal.toFixed(1) + '%';
+                slEl.innerText = forecastMode === 'general' ? '--' : (slOptimoVal.toFixed(1) + '%');
                 
-                if (forecastMode === 'outbound') {
+                if (forecastMode !== 'inbound') {
                     if (slOptimoVal >= 95) slEl.className = "text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)] block";
                     else slEl.className = "text-3xl font-black font-mono-num text-brand-accentRose drop-shadow-[0_0_8px_rgba(251,113,133,0.3)] block";
                 } else {
                     if (slOptimoVal >= targetSlObj) slEl.className = "text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)] block";
                     else slEl.className = "text-3xl font-black font-mono-num text-brand-accentRose drop-shadow-[0_0_8px_rgba(251,113,133,0.3)] block";
+                }
+                if(forecastMode === 'general'){
+                    slEl.className = "text-3xl font-black font-mono-num text-slate-500 block";
                 }
 
                 const optTbody = document.getElementById('optShiftsTableBody');
@@ -1648,11 +1661,12 @@
                 alert("No hay datos cargados para exportar.");
                 return;
             }
-            const headers = ["Campana", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Volumen", "AHT_HH_MM_SS", "Agentes_Requeridos_HC", "HC_Actual_Roster", "Factor_Reforecast"];
+            const headers = ["Campana", "Canal", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Volumen", "AHT_HH_MM_SS", "Agentes_Requeridos_HC", "HC_Actual_Roster", "Factor_Reforecast"];
             const csvRows = [headers.join(",")];
             globalData.forEach(row => {
                 const values = [
                     getProp(row, ['Campaña', 'Campana'], 'General'),
+                    getProp(row, ['Canal'], 'N/A'),
                     getProp(row, ['Mes'], ''),
                     getProp(row, ['Fecha'], ''),
                     getProp(row, ['Día_Semana', 'Dia_Semana'], ''),
