@@ -197,10 +197,11 @@
                 </button>
             </div>
 
+            <!-- Panel para cuando está en Vista General -->
             <div id="contInfoGeneral" class="hidden pt-6">
                 <div class="p-4 bg-brand-primary/10 border border-brand-primary/30 rounded-xl">
                     <p class="text-[11px] text-brand-primary font-bold uppercase tracking-widest mb-2">Vista Consolidada Activa</p>
-                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>Para garantizar una suma pura y exacta, el sistema suma matemáticamente el requerimiento base de cada canal.</p>
+                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>Para garantizar una suma pura y exacta, el sistema procesa matemáticamente el requerimiento base de cada canal y consolida los totales.</p>
                 </div>
             </div>
 
@@ -540,7 +541,7 @@
                 btnGen.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-[#070B14] shadow-md";
                 contParametros.style.display = 'none';
                 contInfoGen.style.display = 'block';
-                modOptimizacion.classList.add('hidden'); // Ocultar Mallas
+                modOptimizacion.classList.add('hidden'); // Ocultar Mallas en Consolidado
                 
                 // Ocultar tarjetas 1 y 2
                 cardCalls.classList.add('hidden');
@@ -1183,138 +1184,199 @@
             // 🛑 LÓGICA VISTA CONSOLIDADA (PURA Y RAPIDA O(N))
             // =======================================================
             if (forecastMode === 'general') {
-                const channels = ['Inbound', 'Outbound', 'Chat'];
-                let totalReqGlobal = 0;
-                let totalDispGlobal = 0;
-                const tableRows = [];
-                const chartDataReq = [];
-                const chartDataDisp = [];
+                const btn = document.getElementById('btnProcesar');
+                if(btn) { btn.disabled = true; btn.innerText = "⏳ SUMANDO CANALES..."; }
 
-                channels.forEach(ch => {
-                    const dfC = dfFiltered.filter(r => r.Canal === ch);
-                    let disp = 0;
-                    let req = 0;
+                const concurrenciaVal = parseFloat(document.getElementById('concurrencia').value) || 3.0;
 
-                    if (dfC.length > 0) {
-                        const uniqueCampChannel = [...new Set(dfC.map(r => r.Campaña))];
-                        uniqueCampChannel.forEach(camp => {
-                            const row = dfC.find(r => r.Campaña === camp);
-                            if (row) {
-                                disp += esVistaSemanal ? (row.Total_Roster_Campana || 0) : (row.Total_Roster_Dia || 0);
-                            }
+                const getCanalData = async (canalStr, esOutbound, esChat) => {
+                    const dfC = dfFiltered.filter(r => r.Canal === canalStr);
+                    if (dfC.length === 0) return { req: 0, disp: 0 };
+
+                    const fechasC = [...new Set(dfC.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
+                    const nDias = fechasC.length;
+                    if(nDias === 0) return { req: 0, disp: 0 };
+
+                    const mapIntFech = {};
+                    dfC.forEach(r => {
+                        const fStr = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
+                        const iStr = String(getProp(r, ['Intervalo'], '00:00'));
+                        const key = `${fStr}_${iStr}`;
+                        if (!mapIntFech[key]) mapIntFech[key] = [];
+                        mapIntFech[key].push(r);
+                    });
+
+                    const llamVector = [];
+                    const ahtVector = [];
+                    const reqVector = [];
+
+                    todosIntervalos.forEach(inter => {
+                        let callSum = 0, reqSum = 0, htSum = 0;
+                        let cArr = [], rArr = [], aArr = [];
+
+                        fechasC.forEach(fStr => {
+                            const subRows = mapIntFech[`${fStr}_${inter}`] || [];
+                            let sC = 0, sR = 0, sHt = 0;
+                            subRows.forEach(b => {
+                                const c = Number(getProp(b, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
+                                const r = Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0;
+                                const ht = Number(getProp(b, ['AHT_Segundos'], 180)) || 180;
+                                sC += c; sR += r; sHt += (c * ht);
+                            });
+                            callSum += sC; reqSum += sR; htSum += sHt;
+                            cArr.push(sC); rArr.push(sR); aArr.push(sC > 0 ? sHt/sC : 180);
                         });
 
-                        const reqByInterFecha = {}; 
-                        for (let i = 0; i < dfC.length; i++) {
-                            const r = dfC[i];
-                            const inter = String(getProp(r, ['Intervalo'], '00:00'));
-                            const fecha = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
-                            const rVal = Number(getProp(r, ['Agentes_Requeridos'], 0)) || 0;
-                            
-                            if (!reqByInterFecha[inter]) reqByInterFecha[inter] = {};
-                            if (!reqByInterFecha[inter][fecha]) reqByInterFecha[inter][fecha] = 0;
-                            reqByInterFecha[inter][fecha] += rVal;
+                        if (usarPicos) {
+                            llamVector.push(cArr.length ? Math.max(...cArr) : 0);
+                            reqVector.push(rArr.length ? Math.max(...rArr) : 0);
+                            ahtVector.push(aArr.length ? Math.max(...aArr) : 180);
+                        } else {
+                            llamVector.push(callSum / nDias);
+                            reqVector.push(reqSum / nDias);
+                            ahtVector.push(callSum > 0 ? htSum / callSum : 180);
                         }
+                    });
 
-                        let maxReqOverall = 0;
-                        todosIntervalos.forEach(inter => {
-                            const fechasDict = reqByInterFecha[inter] || {};
-                            const reqArr = Object.values(fechasDict);
-                            if(reqArr.length > 0) {
-                                let interReq = 0;
-                                if (usarPicos) {
-                                    interReq = Math.max(...reqArr);
-                                } else {
-                                    interReq = reqArr.reduce((a,b) => a+b, 0) / reqArr.length;
-                                }
-                                if (interReq > maxReqOverall) maxReqOverall = interReq;
-                            }
+                    let hcReq = 0;
+                    try {
+                        const res = await fetch('/api/optimize-schedules', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                intervalos: todosIntervalos,
+                                campanas: [], 
+                                llamadas: llamVector,
+                                ahts: ahtVector,
+                                requeridos: reqVector, 
+                                target_sl: targetSlObj,
+                                target_time: targetTimeObj,
+                                merma: mermaVal,
+                                duracion_jornada: durJornada,
+                                es_nocturno: usarNocturno,
+                                es_outbound: esOutbound,
+                                es_chat: esChat,
+                                concurrencia: concurrenciaVal
+                            })
                         });
                         
-                        req = Math.ceil(maxReqOverall);
+                        if (res.ok) {
+                            const data = await res.json();
+                            hcReq = esVistaSemanal ? (data.headcount_semanal_6x1 || 0) : (data.total_agentes_diarios || 0);
+                        }
+                    } catch (err) {
+                        console.error("Error optimizando canal: ", canalStr, err);
                     }
 
-                    totalReqGlobal += req;
-                    totalDispGlobal += disp;
+                    const uniqueCampChannel = [...new Set(dfC.map(r => r.Campaña + '|' + (r.Canal || '')))];
+                    let hcDisp = 0;
+                    uniqueCampChannel.forEach(cc => {
+                        const row = dfC.find(r => (r.Campaña + '|' + (r.Canal || '')) === cc);
+                        if (row) {
+                            hcDisp += esVistaSemanal ? (row.Total_Roster_Campana || 0) : (row.Total_Roster_Dia || 0);
+                        }
+                    });
 
-                    let icon = ch === 'Inbound' ? '🎯 Inbound' : (ch === 'Outbound' ? '🚀 Outbound' : '💬 Chat');
-                    tableRows.push({ name: icon, req, disp });
-                    chartDataReq.push(req);
-                    chartDataDisp.push(disp);
-                });
+                    return { req: hcReq, disp: hcDisp };
+                };
 
-                document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido (Consolidado)";
-                document.getElementById('kpiHcRequerido').innerText = totalReqGlobal.toLocaleString() + ' HC';
-                document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Disponible" : "Plantilla de Hoy";
-                document.getElementById('kpiHcRoster').innerText = totalDispGlobal.toLocaleString() + ' HC';
+                Promise.all([
+                    getCanalData('Inbound', false, false),
+                    getCanalData('Outbound', true, false),
+                    getCanalData('Chat', false, true)
+                ]).then(results => {
+                    if(btn) { btn.disabled = false; btn.innerText = "▶ RUN PLAN"; }
 
-                const gapTotal = totalDispGlobal - totalReqGlobal;
-                const gapEl = document.getElementById('kpiHcGap');
-                if (gapTotal > 0) {
-                    gapEl.innerText = `+${gapTotal} Sobran`;
-                    gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
-                } else if (gapTotal < 0) {
-                    gapEl.innerText = `${gapTotal} Faltan`;
-                    gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
-                } else {
-                    gapEl.innerText = `✓ Balanceado`;
-                    gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
-                }
+                    const hcReqInbound = results[0] ? results[0].req : 0;
+                    const hcDispInbound = results[0] ? results[0].disp : 0;
+                    
+                    const hcReqOutbound = results[1] ? results[1].req : 0;
+                    const hcDispOutbound = results[1] ? results[1].disp : 0;
+                    
+                    const hcReqChat = results[2] ? results[2].req : 0;
+                    const hcDispChat = results[2] ? results[2].disp : 0;
 
-                document.getElementById('tableHeaderRow').innerHTML = `
-                    <th class="py-3.5 px-4 text-left">Canal Operativo</th>
-                    <th class="py-3.5 px-4 text-brand-primary">HC Requerido</th>
-                    <th class="py-3.5 px-4 text-brand-accentEmerald">HC Disponible</th>
-                    <th class="py-3.5 px-4 text-center">Delta (Gap)</th>
-                `;
+                    const totalReqGlobal = hcReqInbound + hcReqOutbound + hcReqChat;
+                    const totalDispGlobal = hcDispInbound + hcDispOutbound + hcDispChat;
 
-                const tbody = document.getElementById('intervalTableBody');
-                tbody.innerHTML = '';
-                
-                tableRows.push({ name: '🌐 TOTAL', req: totalReqGlobal, disp: totalDispGlobal });
+                    document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido (Consolidado)";
+                    document.getElementById('kpiHcRequerido').innerText = totalReqGlobal.toLocaleString() + ' HC';
+                    document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Disponible" : "Plantilla de Hoy";
+                    document.getElementById('kpiHcRoster').innerText = totalDispGlobal.toLocaleString() + ' HC';
 
-                tableRows.forEach(ch => {
-                    const gap = ch.disp - ch.req;
-                    let gapHtml = '';
-                    if (gap > 0) gapHtml = `<span class="bg-[#34D399]/20 text-[#34D399] px-2 py-0.5 rounded-md font-bold">+${gap}</span>`;
-                    else if (gap < 0) gapHtml = `<span class="bg-[#FB7185]/20 text-[#FB7185] px-2 py-0.5 rounded-md font-bold">${gap}</span>`;
-                    else gapHtml = `<span class="text-slate-500 font-bold">0</span>`;
+                    const gapTotal = totalDispGlobal - totalReqGlobal;
+                    const gapEl = document.getElementById('kpiHcGap');
+                    if (gapTotal > 0) {
+                        gapEl.innerText = `+${gapTotal} Sobran`;
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
+                    } else if (gapTotal < 0) {
+                        gapEl.innerText = `${gapTotal} Faltan`;
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
+                    } else {
+                        gapEl.innerText = `✓ Balanceado`;
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
+                    }
 
-                    let rowClass = "hover:bg-[#1E293B] transition-colors";
-                    if (ch.name === '🌐 TOTAL') rowClass = "bg-[#1E293B] font-bold border-t border-[#334155]";
-
-                    tbody.innerHTML += `
-                        <tr class="${rowClass}">
-                            <td class="py-3.5 px-4 font-bold text-white text-left">${ch.name}</td>
-                            <td class="py-3.5 px-4 text-brand-primary font-black text-sm">${ch.req.toLocaleString()}</td>
-                            <td class="py-3.5 px-4 text-brand-accentEmerald font-black text-sm">${ch.disp.toLocaleString()}</td>
-                            <td class="py-3.5 px-4 text-center">${gapHtml}</td>
-                        </tr>
+                    document.getElementById('tableHeaderRow').innerHTML = `
+                        <th class="py-3.5 px-4 text-left">Canal Operativo</th>
+                        <th class="py-3.5 px-4 text-brand-primary">HC Requerido</th>
+                        <th class="py-3.5 px-4 text-brand-accentEmerald">HC Disponible</th>
+                        <th class="py-3.5 px-4 text-center">Delta (Gap)</th>
                     `;
+
+                    const tbody = document.getElementById('intervalTableBody');
+                    tbody.innerHTML = '';
+                    
+                    const tableRows = [
+                        { name: '🎯 Inbound', req: hcReqInbound, disp: hcDispInbound },
+                        { name: '🚀 Outbound', req: hcReqOutbound, disp: hcDispOutbound },
+                        { name: '💬 Chat', req: hcReqChat, disp: hcDispChat },
+                        { name: '🌐 TOTAL', req: totalReqGlobal, disp: totalDispGlobal }
+                    ];
+
+                    tableRows.forEach(ch => {
+                        const gap = ch.disp - ch.req;
+                        let gapHtml = '';
+                        if (gap > 0) gapHtml = `<span class="bg-[#34D399]/20 text-[#34D399] px-2 py-0.5 rounded-md font-bold">+${gap}</span>`;
+                        else if (gap < 0) gapHtml = `<span class="bg-[#FB7185]/20 text-[#FB7185] px-2 py-0.5 rounded-md font-bold">${gap}</span>`;
+                        else gapHtml = `<span class="text-slate-500 font-bold">0</span>`;
+
+                        let rowClass = "hover:bg-[#1E293B] transition-colors";
+                        if (ch.name === '🌐 TOTAL') rowClass = "bg-[#1E293B] font-bold border-t border-[#334155]";
+
+                        tbody.innerHTML += `
+                            <tr class="${rowClass}">
+                                <td class="py-3.5 px-4 font-bold text-white text-left">${ch.name}</td>
+                                <td class="py-3.5 px-4 text-brand-primary font-black text-sm">${ch.req.toLocaleString()}</td>
+                                <td class="py-3.5 px-4 text-brand-accentEmerald font-black text-sm">${ch.disp.toLocaleString()}</td>
+                                <td class="py-3.5 px-4 text-center">${gapHtml}</td>
+                            </tr>
+                        `;
+                    });
+
+                    document.getElementById('contGapChart').classList.add('hidden');
+                    document.getElementById('contGeneralChart').classList.remove('hidden');
+
+                    if(generalChartInstance) generalChartInstance.destroy();
+                    const ctxGen = document.getElementById('generalChart').getContext('2d');
+                    generalChartInstance = new Chart(ctxGen, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Inbound', 'Outbound', 'Chat'],
+                            datasets: [
+                                { label: 'HC Requerido', data: [hcReqInbound, hcReqOutbound, hcReqChat], backgroundColor: '#A78BFA', borderRadius: 4 },
+                                { label: 'HC Disponible', data: [hcDispInbound, hcDispOutbound, hcDispChat], backgroundColor: '#34D399', borderRadius: 4 }
+                            ]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            plugins: { legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } } },
+                            scales: { x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 11, weight: 'bold' } } }, y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono' } }, beginAtZero: true } }
+                        }
+                    });
                 });
 
-                document.getElementById('contGapChart').classList.add('hidden');
-                document.getElementById('contGeneralChart').classList.remove('hidden');
-
-                if(generalChartInstance) generalChartInstance.destroy();
-                const ctxGen = document.getElementById('generalChart').getContext('2d');
-                generalChartInstance = new Chart(ctxGen, {
-                    type: 'bar',
-                    data: {
-                        labels: ['Inbound', 'Outbound', 'Chat'],
-                        datasets: [
-                            { label: 'HC Requerido', data: chartDataReq, backgroundColor: '#A78BFA', borderRadius: 4 },
-                            { label: 'HC Disponible', data: chartDataDisp, backgroundColor: '#34D399', borderRadius: 4 }
-                        ]
-                    },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        plugins: { legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } } },
-                        scales: { x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 11, weight: 'bold' } } }, y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono' } }, beginAtZero: true } }
-                    }
-                });
-
-                return; // SALIDA INSTANTÁNEA (NO USA BACKEND)
+                return; 
             }
 
             // =======================================================
