@@ -233,13 +233,14 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     sheet_roster = None
     for s in xls_file.sheet_names:
         s_lower = s.lower()
-        if ('roster' in s_lower or 'plantilla' in s_lower or 'horario' in s_lower) and 'out' not in s_lower and 'salida' not in s_lower and 'chat' not in s_lower and 'mensaje' not in s_lower: 
+        if ('roster' in s_lower or 'plantilla' in s_lower or 'platilla' in s_lower or 'horario' in s_lower) and 'out' not in s_lower and 'salida' not in s_lower and 'chat' not in s_lower and 'mensaje' not in s_lower: 
             sheet_roster = s
             break
             
     if not sheet_roster:
         for s in xls_file.sheet_names:
-            if 'roster' in s.lower() or 'plantilla' in s.lower(): sheet_roster = s; break
+            if 'roster' in s.lower() or 'plantilla' in s.lower() or 'platilla' in s_lower: 
+                sheet_roster = s; break
 
     roster_coverage, roster_total_camp, roster_total_dia_camp = {}, {}, {}
     if sheet_roster:
@@ -438,7 +439,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
     sheet_roster = None
     for s in xls_file.sheet_names:
         s_lower = s.lower()
-        if ('plantilla' in s_lower or 'roster' in s_lower) and ('out' in s_lower or 'salida' in s_lower):
+        if ('plantilla' in s_lower or 'platilla' in s_lower or 'roster' in s_lower) and ('out' in s_lower or 'salida' in s_lower):
             sheet_roster = s
             break
 
@@ -590,7 +591,6 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
                 aht_real = info_p.get('aht', 0.0)
                 aht = aht_real if (aht_real > 0 and not pd.isna(aht_real)) else aht_global_campana.get(camp, 180.0)
 
-                # MAGIA OUTBOUND
                 req_ftes = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
                 
@@ -638,7 +638,7 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
     sheet_roster = None
     for s in xls_file.sheet_names:
         s_lower = s.lower()
-        if ('plantilla' in s_lower or 'roster' in s_lower) and ('chat' in s_lower or 'mensaje' in s_lower):
+        if ('plantilla' in s_lower or 'platilla' in s_lower or 'roster' in s_lower) and ('chat' in s_lower or 'mensaje' in s_lower):
             sheet_roster = s
             break
 
@@ -790,20 +790,12 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
                 aht_real = info_p.get('aht', 0.0)
                 aht = aht_real if (aht_real > 0 and not pd.isna(aht_real)) else aht_global_campana.get(camp, 600.0)
 
-                # =========================================================
-                # 🛑 FIX WFM: TOPE ASÍNCRONO Y CONCURRENCIA
-                # =========================================================
                 if aht > 3600:
                     aht = 600.0 
 
-                # 1. Aplicamos la concurrencia directamente al AHT para 
-                # obtener el "AHT Efectivo" por interacción.
                 aht_efectivo = aht / max(1.0, concurrencia)
-
-                # 2. Calculamos los Erlangs puros usando el AHT Efectivo
                 a_erlang_raw = (calls_float * aht_efectivo) / 1800.0 if (aht_efectivo > 0 and calls_float > 0) else 0.0
                 
-                # 3. Calculamos agentes con Erlang-C y aplicamos merma
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang_raw, aht_efectivo, target_time, target_sl) if calls_float > 0 else 0
                 req_hc = req_ftes / factor_asistencia if req_ftes > 0 else 0.0
                 
@@ -840,7 +832,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     try:
         llamadas_arr = np.array([float(x) if (x is not None and str(x).lower() != 'nan') else 0.0 for x in llamadas_vec], dtype=float)
         aht_arr = np.array([float(x) if (x is not None and str(x).lower() != 'nan') else 180.0 for x in aht_vec], dtype=float)
-        req_hc_base = np.array([int(x) if (x is not None and str(x).lower() != 'nan') else 0 for x in req_vec], dtype=int)
+        req_hc_base = np.array([int(x) if (x is not None and str(x).lower() != 'nan') else 0 for x in req_vec], dtype=float)
     except:
         llamadas_arr = np.zeros(m)
         aht_arr = np.full(m, 180.0)
@@ -900,7 +892,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                 if c > 0:
                     aht_real = aht_arr[i]
                     aht_efectivo = aht_real / max(1.0, concurrencia) if es_chat else aht_real
-                    
                     a_erl = (c * aht_efectivo) / 1800.0
                     sl_acum += c * erlang_c_sl_optimizado(a_erl, current_cob[i] * factor_asistencia, aht_efectivo, target_time)
             return sl_acum / tot_llamadas
