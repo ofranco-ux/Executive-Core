@@ -201,7 +201,7 @@
             <div id="contInfoGeneral" class="hidden pt-6">
                 <div class="p-4 bg-brand-primary/10 border border-brand-primary/30 rounded-xl">
                     <p class="text-[11px] text-brand-primary font-bold uppercase tracking-widest mb-2">Vista Consolidada Activa</p>
-                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>Los parámetros individuales están bloqueados, pero el Optimizador de Mallas sigue activo sumando de forma pura tus requerimientos.</p>
+                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>Los parámetros individuales están bloqueados, pero el Optimizador de Mallas sigue activo sumando de forma pura tus requerimientos por canal.</p>
                 </div>
             </div>
 
@@ -532,8 +532,8 @@
                 contInfoGen.style.display = 'block';
                 modOptimizacion.style.display = 'block';
                 
-                document.getElementById('colHeaderCapacity').innerText = "Capacidad (Mix)";
-                document.getElementById('lblProjectedSl').innerText = "Coverage Proyectado";
+                document.getElementById('colHeaderCapacity').innerText = "--";
+                document.getElementById('lblProjectedSl').innerText = "SL Global Proyectado";
                 document.getElementById('kpiCallsTitle').innerText = "Interacciones Globales";
                 document.getElementById('colHeaderCalls').innerText = "Volumen (Mix)";
             } else {
@@ -603,7 +603,8 @@
                     if (response.ok) {
                         const data = await response.json();
                         if (Array.isArray(data) && data.length > 0) {
-                            globalData = data;
+                            const canalName = mode === 'inbound' ? 'Inbound' : (mode === 'outbound' ? 'Outbound' : 'Chat');
+                            globalData = data.map(d => ({...d, Canal: canalName}));
                             inicializarFiltrosMultiples();
                             debouncedActualizarGrafica();
                         } else {
@@ -621,7 +622,7 @@
             document.getElementById('kpiAht').innerText = "00:00:00";
             document.getElementById('kpiHcRequerido').innerText = "0 HC";
             document.getElementById('kpiHcRoster').innerText = "0 HC";
-            document.getElementById('intervalTableBody').innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-500 font-medium font-sans">Presiona RUN PLAN para generar la proyección por primera vez.</td></tr>`;
+            document.getElementById('intervalTableBody').innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-500 font-medium font-sans">Presiona RUN PLAN para generar la proyección de ${mode.toUpperCase()} por primera vez.</td></tr>`;
             if(optChartInstance) optChartInstance.destroy();
             if(gapChartInstance) gapChartInstance.destroy();
         }
@@ -763,9 +764,7 @@
         function maxCallsForAgents(agentsNetos, aht, targetTime, targetSl) {
             if (agentsNetos <= 0 || aht <= 0) return 0;
             
-            if (forecastMode === 'general') {
-                return Math.floor(agentsNetos * (1800 / aht));
-            } else if (forecastMode === 'outbound') {
+            if (forecastMode === 'outbound' || forecastMode === 'general') {
                 return Math.floor(agentsNetos * (1800 / aht));
             } else if (forecastMode === 'chat') {
                 const concurrencia = parseFloat(document.getElementById('concurrencia').value) || 3.0;
@@ -1171,10 +1170,10 @@
             }, 0);
 
             const avgAhtSegs = totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0;
+            document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
 
             const fechasFiltradas = [...new Set(dfFiltered.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
             const todosIntervalos = [...new Set(dfFiltered.map(r => String(getProp(r, ['Intervalo'], '00:00'))))].sort();
-            
             const esVistaSemanal = fechasFiltradas.length > 1;
 
             const llamadasAvgVector = todosIntervalos.map(() => 0);
@@ -1243,45 +1242,131 @@
                 }
             });
 
-            document.getElementById('kpiAht').innerText = formatAHT(avgAhtSegs);
-
             try {
-                const concurrenciaVal = forecastMode === 'chat' ? parseFloat(document.getElementById('concurrencia').value) || 3.0 : 3.0;
-                ejecutarOptimizadorHorarios(todosIntervalos, llamadasAvgVector, ahtAvgVector, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, concurrenciaVal, dfFiltered);
+                const concurrenciaVal = parseFloat(document.getElementById('concurrencia').value) || 3.0;
+                ejecutarOptimizadorHorarios(todosIntervalos, llamadasAvgVector, ahtAvgVector, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, concurrenciaVal, dfFiltered, numDiasPeriodo, fechasFiltradas, usarPicos);
             } catch (e) {
                 console.log("Error al preparar optimizador:", e);
             }
         }
 
-        async function ejecutarOptimizadorHorarios(intervalos, llamadasArr, ahtSegsArr, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, concurrenciaVal, dfFiltered) {
+        async function ejecutarOptimizadorHorarios(intervalos, llamadasArr, ahtSegsArr, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, concurrenciaVal, dfFiltered, numDiasPeriodo, fechasFiltradas, usarPicos) {
             if (!intervalos || intervalos.length === 0) return;
 
             try {
-                const forceOutboundLogic = forecastMode === 'outbound' || forecastMode === 'general';
+                let optData = {};
+                let finalCobOptima = new Array(intervalos.length).fill(0);
 
-                const res = await fetch('/api/optimize-schedules', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        intervalos: intervalos,
-                        campanas: Array.from(selectedCampanas),
-                        llamadas: llamadasArr,
-                        ahts: ahtSegsArr,
-                        requeridos: reqAvgVector, 
-                        target_sl: targetSlObj,
-                        target_time: targetTimeObj,
-                        merma: mermaVal,
-                        duracion_jornada: durJornada,
-                        es_nocturno: usarNocturno,
-                        es_outbound: forceOutboundLogic, 
-                        es_chat: forecastMode === 'chat',
-                        concurrencia: concurrenciaVal
-                    })
-                });
+                if (forecastMode === 'general') {
+                    let finalHcSemanal = 0;
+                    let finalHcDiario = 0;
+                    
+                    async function processChannel(canalStr, esOutbound, esChat) {
+                        const dfCanal = dfFiltered.filter(r => r.Canal === canalStr);
+                        if(dfCanal.length === 0) return;
+                        
+                        const reqVector = [];
+                        const llamVector = [];
+                        const ahtVector = [];
+                        
+                        intervalos.forEach((inter) => {
+                            let reqSum = 0, callSum = 0, htSum = 0;
+                            let reqArr = [], callArr = [], ahtArr = [];
+                            fechasFiltradas.forEach(fStr => {
+                                const rows = dfCanal.filter(r => String(getProp(r, ['Fecha'], '')).startsWith(fStr) && getProp(r, ['Intervalo']) === inter);
+                                let sumR = 0, sumC = 0, sumHt = 0;
+                                rows.forEach(b => {
+                                    const c = Number(getProp(b, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
+                                    const r = Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0;
+                                    const ht = Number(getProp(b, ['AHT_Segundos'], 180)) || 180;
+                                    sumC += c; sumR += r; sumHt += (c * ht);
+                                });
+                                reqSum += sumR; callSum += sumC; htSum += sumHt;
+                                reqArr.push(sumR); callArr.push(sumC); ahtArr.push(sumC > 0 ? sumHt/sumC : 180);
+                            });
+                            
+                            if (numDiasPeriodo > 0) {
+                                if (usarPicos) {
+                                    reqVector.push(Math.max(...reqArr, 0));
+                                    llamVector.push(Math.max(...callArr, 0));
+                                    ahtVector.push(Math.max(...ahtArr, 180));
+                                } else {
+                                    reqVector.push(reqSum / numDiasPeriodo);
+                                    llamVector.push(callSum / numDiasPeriodo);
+                                    ahtVector.push(callSum > 0 ? htSum / callSum : 180);
+                                }
+                            } else {
+                                reqVector.push(0); llamVector.push(0); ahtVector.push(180);
+                            }
+                        });
 
-                if (!res.ok) throw new Error("Error procesando optimizador en backend");
+                        const res = await fetch('/api/optimize-schedules', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                intervalos: intervalos,
+                                campanas: Array.from(selectedCampanas),
+                                llamadas: llamVector,
+                                ahts: ahtVector,
+                                requeridos: reqVector, 
+                                target_sl: targetSlObj,
+                                target_time: targetTimeObj,
+                                merma: mermaVal,
+                                duracion_jornada: durJornada,
+                                es_nocturno: usarNocturno,
+                                es_outbound: esOutbound,
+                                es_chat: esChat,
+                                concurrencia: concurrenciaVal
+                            })
+                        });
+                        if(res.ok) {
+                            const data = await res.json();
+                            finalHcSemanal += (data.headcount_semanal_6x1 || 0);
+                            finalHcDiario += (data.total_agentes_diarios || 0);
+                            if(data.cobertura_optima) {
+                                for(let i=0; i<intervalos.length; i++) {
+                                    finalCobOptima[i] += data.cobertura_optima[i];
+                                }
+                            }
+                        }
+                    }
 
-                const optData = await res.json() || {};
+                    await processChannel('Inbound', false, false);
+                    await processChannel('Outbound', true, false);
+                    await processChannel('Chat', false, true);
+
+                    optData = {
+                        headcount_semanal_6x1: finalHcSemanal,
+                        total_agentes_diarios: finalHcDiario,
+                        cobertura_optima: finalCobOptima,
+                        sl_optimo_global: 0,
+                        turnos: []
+                    };
+
+                } else {
+                    const forceOutboundLogic = forecastMode === 'outbound';
+                    const res = await fetch('/api/optimize-schedules', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            intervalos: intervalos,
+                            campanas: Array.from(selectedCampanas),
+                            llamadas: llamadasArr,
+                            ahts: ahtSegsArr,
+                            requeridos: reqAvgVector, 
+                            target_sl: targetSlObj,
+                            target_time: targetTimeObj,
+                            merma: mermaVal,
+                            duracion_jornada: durJornada,
+                            es_nocturno: usarNocturno,
+                            es_outbound: forceOutboundLogic,
+                            es_chat: forecastMode === 'chat',
+                            concurrencia: concurrenciaVal
+                        })
+                    });
+                    if (!res.ok) throw new Error("Error procesando optimizador en backend");
+                    optData = await res.json() || {};
+                }
                 
                 const capacidadRosterVector = []; 
                 const capacidadSugeridaVector = []; 
@@ -1336,45 +1421,24 @@
                 if (forecastMode === 'outbound') legendInteractions = 'Contactos (FCST)';
                 if (forecastMode === 'chat') legendInteractions = 'Mensajes (FCST)';
 
+                let datasetsToRender = [];
+                if (forecastMode === 'general') {
+                    datasetsToRender = [
+                        { label: 'HC Requerido Global', type: 'line', data: reqAvgVector, borderColor: '#A78BFA', backgroundColor: '#A78BFA', borderWidth: 3, tension: 0.4 },
+                        { label: 'HC Disponible Global', type: 'line', data: rosterAvgVector, borderColor: '#FBBF24', backgroundColor: '#FBBF24', borderWidth: 3, tension: 0.4 },
+                        { label: legendInteractions, data: llamadasArr.map(x=>Math.round(x)), backgroundColor: '#38BDF8', borderWidth: 0, borderRadius: 4, barPercentage: 0.7 }
+                    ];
+                } else {
+                    datasetsToRender = [
+                        { label: 'Capacidad Malla Sugerida', type: 'line', data: capacidadSugeridaVector, borderColor: '#A78BFA', backgroundColor: '#A78BFA', borderWidth: 3, tension: 0.4, borderDash: [4, 4] },
+                        { label: 'Capacidad Roster Actual', type: 'line', data: capacidadRosterVector, borderColor: '#FBBF24', backgroundColor: '#FBBF24', borderWidth: 3, tension: 0.4 },
+                        { label: legendInteractions, data: llamadasArr.map(x => Math.round(x)), backgroundColor: '#38BDF8', borderColor: 'transparent', borderWidth: 0, borderRadius: 4, barPercentage: 0.7 }
+                    ];
+                }
+
                 gapChartInstance = new Chart(ctxGap, {
                     type: 'bar',
-                    data: {
-                        labels: intervalos,
-                        datasets: [
-                            { 
-                                label: 'Capacidad Malla Sugerida', 
-                                type: 'line',
-                                data: capacidadSugeridaVector, 
-                                borderColor: '#A78BFA',
-                                backgroundColor: '#A78BFA',
-                                borderWidth: 3,
-                                tension: 0.4,
-                                pointRadius: 0,
-                                pointHoverRadius: 6,
-                                borderDash: [4, 4] 
-                            },
-                            { 
-                                label: 'Capacidad Roster Actual', 
-                                type: 'line',
-                                data: capacidadRosterVector, 
-                                borderColor: '#FBBF24',
-                                backgroundColor: '#FBBF24',
-                                borderWidth: 3,
-                                tension: 0.4,
-                                pointRadius: 0,
-                                pointHoverRadius: 6
-                            },
-                            { 
-                                label: legendInteractions, 
-                                data: llamadasArr.map(x => Math.round(x)), 
-                                backgroundColor: '#38BDF8',
-                                borderColor: 'transparent',
-                                borderWidth: 0,
-                                borderRadius: 4,
-                                barPercentage: 0.7
-                            }
-                        ]
-                    },
+                    data: { labels: intervalos, datasets: datasetsToRender },
                     options: { 
                         responsive: true, 
                         maintainAspectRatio: false, 
@@ -1390,11 +1454,6 @@
                     }
                 });
 
-                // ========================================================
-                // 🛑 FIX WFM: TOTAL ROSTER EVITANDO DUPLICADOS ENTRE CANALES
-                // Agrupamos por Campaña + Nombre de Canal para evitar que 
-                // "Coppel" Inbound sobreescriba a "Coppel" Chat.
-                // ========================================================
                 const uniqueCampChannel = [...new Set(dfFiltered.map(r => r.Campaña + '|' + (r.Canal || '')))];
                 let totalRosterHC = 0;
                 
@@ -1476,7 +1535,7 @@
                 globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
 
                 if (globalTurnosOptimos.length === 0) {
-                    optTbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500 font-sans font-medium">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
+                    optTbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500 font-sans font-medium">La vista consolidada no grafica la matriz de mallas.</td></tr>';
                 } else {
                     let offsetDiurno = 0;
                     let offsetNocturno = 0;
@@ -1530,67 +1589,6 @@
                         }
                     });
                 }
-
-                if (optChartInstance) optChartInstance.destroy();
-                const ctxOpt = document.getElementById('optChart').getContext('2d');
-                const labelCurvaCob = usarNocturno ? "Malla Sugerida (Mixta)" : `Malla Sugerida (${durJornada}h)`;
-
-                optChartInstance = new Chart(ctxOpt, {
-                    type: 'line',
-                    data: {
-                        labels: intervalos,
-                        datasets: [
-                            { 
-                                label: 'HC Requerido (Motor)', 
-                                data: reqAvgVector, 
-                                borderColor: '#22D3EE', 
-                                backgroundColor: 'rgba(34, 211, 238, 0.1)', 
-                                fill: true, 
-                                tension: 0.4, 
-                                borderWidth: 3,
-                                pointRadius: 0,
-                                pointHoverRadius: 6
-                            },
-                            { 
-                                label: 'Plantilla Actual (Roster)', 
-                                data: rosterAvgVector, 
-                                borderColor: '#34D399', 
-                                backgroundColor: '#34D399', 
-                                fill: false, 
-                                tension: 0.4, 
-                                borderWidth: 2, 
-                                borderDash: [5, 5],
-                                pointRadius: 0,
-                                pointHoverRadius: 6
-                            },
-                            { 
-                                label: labelCurvaCob, 
-                                data: (optData.cobertura_optima || []), 
-                                borderColor: '#3B82F6', 
-                                backgroundColor: '#3B82F6', 
-                                fill: false, 
-                                tension: 0.4, 
-                                borderWidth: 3, 
-                                borderDash: [4, 4],
-                                pointRadius: 0,
-                                pointHoverRadius: 6
-                            }
-                        ]
-                    },
-                    options: { 
-                        responsive: true, 
-                        maintainAspectRatio: false, 
-                        interaction: { mode: 'index', intersect: false },
-                        plugins: { 
-                            legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 }, usePointStyle: true, boxWidth: 8 } },
-                            tooltip: { backgroundColor: '#111827', titleColor: '#F8FAFC', bodyColor: '#cbd5e1', borderColor: '#1F2937', borderWidth: 1, padding: 12, boxPadding: 6, usePointStyle: true }
-                        }, 
-                        scales: { 
-                            x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 12 } }, 
-                            y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true } 
-                        } 
-                    }
-                });
 
             } catch (e) {
                 console.log("Error al optimizar turnos en frontend:", e);
