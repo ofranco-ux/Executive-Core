@@ -790,9 +790,15 @@ def procesar_archivo_chat(file_source, merma=0.20, concurrencia=3.0, dias_futuro
                 aht_real = info_p.get('aht', 0.0)
                 aht = aht_real if (aht_real > 0 and not pd.isna(aht_real)) else aht_global_campana.get(camp, 600.0)
 
+                # =========================================================
+                # 🛑 FIX WFM: TOPE ASÍNCRONO O MILISEGUNDOS
+                # =========================================================
+                if aht > 3600:
+                    aht = 600.0 
+
                 # MAGIA CHAT: Divide la carga entre la Concurrencia
                 req_ftes = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
-                req_hc = math.ceil((req_ftes / max(1.0, concurrencia)) / factor_asistencia) if req_ftes > 0 else 0
+                req_hc = (req_ftes / max(1.0, concurrencia)) / factor_asistencia if req_ftes > 0 else 0.0
                 
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
                 tot_camp = roster_total_camp.get(str(camp), 0)
