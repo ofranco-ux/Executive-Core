@@ -197,11 +197,21 @@ def procesar_hoja_roster(df_roster):
                 'jueves': 'Jueves', 'viernes': 'Viernes', 'sábado': 'Sábado', 'sabado': 'Sábado', 'domingo': 'Domingo'}
     roster_cov, roster_total_camp, roster_total_dia_camp = {}, {}, {}
     col_camp = encontrar_columna(df_roster, ['campaña', 'campana', 'skill', 'servicio'])
+    
+    # 🛑 NUEVO CANDADO: Buscamos si existe la columna de Agente o ID para filtrar filas vacías
+    col_agente = encontrar_columna(df_roster, ['agente', 'nombre', 'asesor', 'ejecutivo', 'id'])
+    
     if not col_camp: return roster_cov, roster_total_camp, roster_total_dia_camp
         
     for idx, row in df_roster.iterrows():
+        # Verificación Anti-Fantasmas
+        if col_agente:
+            agente_val = str(row[col_agente]).strip()
+            if agente_val.lower() == 'nan' or agente_val == '': continue
+            
         camp = str(row[col_camp]).strip().title()
         if camp == 'Nan' or camp == '': continue
+        
         roster_total_camp[camp] = roster_total_camp.get(camp, 0) + 1
         for col in df_roster.columns:
             c_lower = str(col).lower().strip()
@@ -591,6 +601,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
                 aht_real = info_p.get('aht', 0.0)
                 aht = aht_real if (aht_real > 0 and not pd.isna(aht_real)) else aht_global_campana.get(camp, 180.0)
 
+                # MAGIA OUTBOUND
                 req_ftes = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
                 
@@ -628,7 +639,7 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
     
     sheet_chat = None
     for s in xls_file.sheet_names:
-        if 'chat' in s.lower() or 'mensaje' in s.lower(): 
+        if ('chat' in s.lower() or 'mensaje' in s.lower()) and ('plantilla' not in s.lower() and 'roster' not in s.lower() and 'platilla' not in s.lower()): 
             sheet_chat = s
             break
             
