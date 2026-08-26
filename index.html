@@ -201,7 +201,7 @@
             <div id="contInfoGeneral" class="hidden pt-6">
                 <div class="p-4 bg-brand-primary/10 border border-brand-primary/30 rounded-xl">
                     <p class="text-[11px] text-brand-primary font-bold uppercase tracking-widest mb-2">Vista Consolidada Activa</p>
-                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>Los parámetros individuales están bloqueados, pero el Optimizador de Mallas sigue activo sumando de forma pura tus requerimientos por canal.</p>
+                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>Para garantizar la exactitud, el sistema procesa la suma pura de los requerimientos de cada canal en paralelo usando tus filtros activos.</p>
                 </div>
             </div>
 
@@ -344,7 +344,7 @@
             </div>
 
             <!-- MÓDULO 2: OPTIMIZACIÓN DE HORARIOS -->
-            <div id="modOptimizacion" class="glass-panel p-6 rounded-2xl relative transition-all duration-300">
+            <div id="modOptimizacion" class="glass-panel p-6 rounded-2xl relative transition-all duration-300 hidden">
                 <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
                     <div>
                         <h3 id="optModuleTitle" class="text-[15px] font-extrabold text-white flex items-center gap-2 tracking-wide">
@@ -403,7 +403,7 @@
                 </div>
             </div>
 
-            <!-- MÓDULO 3: MATRIZ GAP -->
+            <!-- MÓDULO 3: MATRIZ GAP Y GRAFICA GENERAL -->
             <div class="glass-panel p-6 rounded-2xl border-t-2 border-t-brand-accentAmber shadow-[0_4px_15px_-5px_rgba(251,191,36,0.15)] relative overflow-hidden">
                 <div class="flex justify-between items-center mb-6 relative z-10">
                     <h3 class="text-[15px] font-extrabold text-white flex items-center gap-2 tracking-wide">
@@ -414,14 +414,20 @@
                     </button>
                 </div>
                 
-                <div class="h-64 mb-6 relative bg-[#0F172A] p-2 rounded-xl border border-[#1F2937] shadow-inner">
+                <!-- GRAFICA DE INTERVALOS (INBOUND/OUTBOUND/CHAT) -->
+                <div class="h-64 mb-6 relative bg-[#0F172A] p-2 rounded-xl border border-[#1F2937] shadow-inner" id="contGapChart">
                     <canvas id="gapChart"></canvas>
+                </div>
+
+                <!-- GRAFICA GENERAL DE CANALES (SOLO VISTA CONSOLIDADA) -->
+                <div class="h-64 mb-6 relative bg-[#0F172A] p-4 rounded-xl border border-[#1F2937] shadow-inner hidden" id="contGeneralChart">
+                    <canvas id="generalChart"></canvas>
                 </div>
 
                 <div class="overflow-x-auto max-h-80 border border-[#1F2937] rounded-xl bg-[#0F172A] shadow-inner">
                     <table class="w-full text-left text-xs text-slate-300">
-                        <thead class="bg-[#111827] text-slate-400 font-bold text-[10px] uppercase tracking-wider sticky top-0 border-b border-[#334155] z-10 shadow-sm">
-                            <tr>
+                        <thead class="bg-[#111827] text-slate-400 font-bold text-[10px] uppercase tracking-wider sticky top-0 border-b border-[#334155] z-10 shadow-sm" id="tableHeaderContainer">
+                            <tr id="tableHeaderRow">
                                 <th class="py-3.5 px-4">Intervalo</th>
                                 <th class="py-3.5 px-4" id="colHeaderCalls">Llamadas (FCST)</th>
                                 <th class="py-3.5 px-4">AHT (HH:MM:SS)</th>
@@ -445,6 +451,7 @@
         let globalData = [];
         let optChartInstance = null;
         let gapChartInstance = null; 
+        let generalChartInstance = null;
         let globalTurnosOptimos = [];
         
         let allMesesOptions = [];
@@ -530,12 +537,9 @@
                 btnGen.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-[#070B14] shadow-md";
                 contParametros.style.display = 'none';
                 contInfoGen.style.display = 'block';
-                modOptimizacion.style.display = 'block';
+                modOptimizacion.style.display = 'none'; 
                 
-                document.getElementById('colHeaderCapacity').innerText = "Capacidad Total";
-                document.getElementById('lblProjectedSl').innerText = "Coverage Proyectado";
                 document.getElementById('kpiCallsTitle').innerText = "Interacciones Globales";
-                document.getElementById('colHeaderCalls').innerText = "Volumen (Mix)";
             } else {
                 contParametros.style.display = 'block';
                 contInfoGen.style.display = 'none';
@@ -546,28 +550,22 @@
                     document.getElementById('contTargetSl').style.display = 'block';
                     document.getElementById('contTargetTime').style.display = 'block';
                     document.getElementById('contConcurrencia').classList.add('hidden');
-                    document.getElementById('colHeaderCapacity').innerText = "Capacidad SLA";
                     document.getElementById('lblProjectedSl').innerText = "Projected SL (Con Malla)";
                     document.getElementById('kpiCallsTitle').innerText = "Demanda Total";
-                    document.getElementById('colHeaderCalls').innerText = "Llamadas (FCST)";
                 } else if (mode === 'outbound') {
                     btnOut.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-accentViolet text-white shadow-md";
                     document.getElementById('contTargetSl').style.display = 'none';
                     document.getElementById('contTargetTime').style.display = 'none';
                     document.getElementById('contConcurrencia').classList.add('hidden');
-                    document.getElementById('colHeaderCapacity').innerText = "Productividad Neta";
                     document.getElementById('lblProjectedSl').innerText = "Coverage de Productividad";
                     document.getElementById('kpiCallsTitle').innerText = "Contactos / Llamadas";
-                    document.getElementById('colHeaderCalls').innerText = "Contactos (FCST)";
                 } else if (mode === 'chat') {
                     btnChat.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-accentCyan text-[#0B1121] shadow-md";
                     document.getElementById('contTargetSl').style.display = 'block';
                     document.getElementById('contTargetTime').style.display = 'block';
                     document.getElementById('contConcurrencia').classList.remove('hidden');
-                    document.getElementById('colHeaderCapacity').innerText = "Capacidad SLA";
                     document.getElementById('lblProjectedSl').innerText = "Projected SL (Con Malla)";
                     document.getElementById('kpiCallsTitle').innerText = "Mensajes / Chats Totales";
-                    document.getElementById('colHeaderCalls').innerText = "Mensajes (FCST)";
                 }
             }
             
@@ -655,6 +653,7 @@
             setTimeout(() => { 
                 if (optChartInstance) optChartInstance.resize(); 
                 if (gapChartInstance) gapChartInstance.resize(); 
+                if (generalChartInstance) generalChartInstance.resize();
             }, 150);
         }
 
@@ -719,7 +718,7 @@
                 
                 setTimeout(() => { if (gapChartInstance) gapChartInstance.resize(); }, 100);
             } else {
-                if (modOpt) modOpt.style.display = 'block';
+                if (modOpt && forecastMode !== 'general') modOpt.style.display = 'block';
                 if (tag) tag.classList.add('hidden');
                 
                 if (isSidebarVisible) {
@@ -741,6 +740,7 @@
                 setTimeout(() => { 
                     if (optChartInstance) optChartInstance.resize(); 
                     if (gapChartInstance) gapChartInstance.resize(); 
+                    if (generalChartInstance) generalChartInstance.resize();
                 }, 100);
             }
         }
@@ -1244,29 +1244,32 @@
 
             try {
                 const concurrenciaVal = parseFloat(document.getElementById('concurrencia').value) || 3.0;
-                ejecutarOptimizadorHorarios(todosIntervalos, llamadasAvgVector, ahtAvgVector, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, concurrenciaVal, dfFiltered);
+                ejecutarOptimizadorHorarios(todosIntervalos, llamadasAvgVector, ahtAvgVector, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, concurrenciaVal, dfFiltered, numDiasPeriodo, fechasFiltradas, usarPicos);
             } catch (e) {
                 console.log("Error al preparar optimizador:", e);
             }
         }
 
-        async function ejecutarOptimizadorHorarios(intervalos, llamadasArr, ahtSegsArr, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, concurrenciaVal, dfFiltered) {
+        async function ejecutarOptimizadorHorarios(intervalos, llamadasArr, ahtSegsArr, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, concurrenciaVal, dfFiltered, numDiasPeriodo, fechasFiltradas, usarPicos) {
             if (!intervalos || intervalos.length === 0) return;
 
             try {
-                let optData = {};
-                let totalGeneralReqHc = 0;
-                let finalCobOptima = new Array(intervalos.length).fill(0);
 
+                // =======================================================
+                // 🛑 LÓGICA VISTA CONSOLIDADA (EJECUCIÓN PARALELA)
+                // =======================================================
                 if (forecastMode === 'general') {
-                    
+                    const btn = document.getElementById('btnProcesar');
+                    btn.disabled = true;
+                    btn.innerText = "⏳ SUMANDO CANALES...";
+
                     const getCanalData = async (canalStr, esOutbound, esChat) => {
                         const dfC = dfFiltered.filter(r => r.Canal === canalStr);
-                        if(dfC.length === 0) return;
+                        if(dfC.length === 0) return { req: 0, disp: 0 };
                         
                         const fechasC = [...new Set(dfC.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
                         const nDias = fechasC.length;
-                        if(nDias === 0) return;
+                        if(nDias === 0) return { req: 0, disp: 0 };
 
                         const c_llam = [], c_aht = [], c_req = [];
                         intervalos.forEach(inter => {
@@ -1284,7 +1287,7 @@
                                 cS += sC; rS += sR; htS += sHt;
                                 cArr.push(sC); rArr.push(sR); aArr.push(sC > 0 ? sHt/sC : 180);
                             });
-                            const usarPicos = document.getElementById('chkPicos') ? document.getElementById('chkPicos').checked : false;
+                            
                             if (usarPicos) {
                                 c_llam.push(Math.max(...cArr, 0));
                                 c_req.push(Math.max(...rArr, 0));
@@ -1296,6 +1299,7 @@
                             }
                         });
 
+                        let hcReq = 0;
                         const res = await fetch('/api/optimize-schedules', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -1315,57 +1319,195 @@
                                 concurrencia: concurrenciaVal
                             })
                         });
+                        
                         if (res.ok) {
                             const data = await res.json();
-                            totalGeneralReqHc += esVistaSemanal ? (data.headcount_semanal_6x1 || 0) : (data.total_agentes_diarios || 0);
-                            if (data.cobertura_optima) {
-                                for(let i=0; i<intervalos.length; i++) {
-                                    finalCobOptima[i] += (data.cobertura_optima[i] || 0);
-                                }
-                            }
+                            hcReq = esVistaSemanal ? (data.headcount_semanal_6x1 || 0) : (data.total_agentes_diarios || 0);
                         }
+                        
+                        const uniqueCampChannel = [...new Set(dfC.map(r => r.Campaña + '|' + (r.Canal || '')))];
+                        let hcDisp = 0;
+                        uniqueCampChannel.forEach(cc => {
+                            const row = dfC.find(r => (r.Campaña + '|' + (r.Canal || '')) === cc);
+                            if (row) {
+                                hcDisp += esVistaSemanal ? (row.Total_Roster_Campana || 0) : (row.Total_Roster_Dia || 0);
+                            }
+                        });
+
+                        return { req: hcReq, disp: hcDisp };
                     };
 
-                    await getCanalData('Inbound', false, false);
-                    await getCanalData('Outbound', true, false);
-                    await getCanalData('Chat', false, true);
+                    // Ejecución en paralelo ultra rápida
+                    const results = await Promise.all([
+                        getCanalData('Inbound', false, false),
+                        getCanalData('Outbound', true, false),
+                        getCanalData('Chat', false, true)
+                    ]);
 
-                    optData = {
-                        headcount_semanal_6x1: totalGeneralReqHc,
-                        total_agentes_diarios: totalGeneralReqHc,
-                        cobertura_optima: finalCobOptima,
-                        sl_optimo_global: 0,
-                        turnos: []
-                    };
+                    btn.disabled = false;
+                    btn.innerText = "▶ RUN PLAN";
 
-                } else {
-                    const res = await fetch('/api/optimize-schedules', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            intervalos: intervalos,
-                            campanas: Array.from(selectedCampanas),
-                            llamadas: llamadasArr,
-                            ahts: ahtSegsArr,
-                            requeridos: reqAvgVector, 
-                            target_sl: targetSlObj,
-                            target_time: targetTimeObj,
-                            merma: mermaVal,
-                            duracion_jornada: durJornada,
-                            es_nocturno: usarNocturno,
-                            es_outbound: forecastMode === 'outbound',
-                            es_chat: forecastMode === 'chat',
-                            concurrencia: concurrenciaVal
-                        })
+                    const hcReqInbound = results[0] ? results[0].req : 0;
+                    const hcDispInbound = results[0] ? results[0].disp : 0;
+                    
+                    const hcReqOutbound = results[1] ? results[1].req : 0;
+                    const hcDispOutbound = results[1] ? results[1].disp : 0;
+                    
+                    const hcReqChat = results[2] ? results[2].req : 0;
+                    const hcDispChat = results[2] ? results[2].disp : 0;
+
+                    const totalReq = hcReqInbound + hcReqOutbound + hcReqChat;
+                    const totalDisp = hcDispInbound + hcDispOutbound + hcDispChat;
+
+                    // Update KPIs
+                    document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido (Consolidado)";
+                    document.getElementById('kpiHcRequerido').innerText = totalReq.toLocaleString() + ' HC';
+                    document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Disponible" : "Plantilla de Hoy";
+                    document.getElementById('kpiHcRoster').innerText = totalDisp.toLocaleString() + ' HC';
+                    document.getElementById('compSlOptimo').innerText = '--';
+                    
+                    // Update Gap Badge
+                    const gapTotal = totalDisp - totalReq;
+                    const gapEl = document.getElementById('kpiHcGap');
+                    if (gapTotal > 0) {
+                        gapEl.innerText = `+${gapTotal} Sobran`;
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
+                    } else if (gapTotal < 0) {
+                        gapEl.innerText = `${gapTotal} Faltan`;
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
+                    } else {
+                        gapEl.innerText = `✓ Balanceado`;
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
+                    }
+
+                    // Configurar Tabla Dinámica (Solo Resumen)
+                    document.getElementById('tableHeaderRow').innerHTML = `
+                        <th class="py-3.5 px-4 text-left">Canal Operativo</th>
+                        <th class="py-3.5 px-4 text-brand-primary">HC Requerido</th>
+                        <th class="py-3.5 px-4 text-brand-accentEmerald">HC Disponible</th>
+                        <th class="py-3.5 px-4 text-center">Delta (Gap)</th>
+                    `;
+
+                    const tbody = document.getElementById('intervalTableBody');
+                    tbody.innerHTML = '';
+                    
+                    const channels = [
+                        { name: '🎯 Inbound', req: hcReqInbound, disp: hcDispInbound },
+                        { name: '🚀 Outbound', req: hcReqOutbound, disp: hcDispOutbound },
+                        { name: '💬 Chat', req: hcReqChat, disp: hcDispChat },
+                        { name: '🌐 TOTAL', req: totalReq, disp: totalDisp }
+                    ];
+
+                    channels.forEach(ch => {
+                        const gap = ch.disp - ch.req;
+                        let gapHtml = '';
+                        if (gap > 0) gapHtml = `<span class="bg-[#34D399]/20 text-[#34D399] px-2 py-0.5 rounded-md font-bold">+${gap}</span>`;
+                        else if (gap < 0) gapHtml = `<span class="bg-[#FB7185]/20 text-[#FB7185] px-2 py-0.5 rounded-md font-bold">${gap}</span>`;
+                        else gapHtml = `<span class="text-slate-500 font-bold">0</span>`;
+
+                        let rowClass = "hover:bg-[#1E293B] transition-colors";
+                        if (ch.name === '🌐 TOTAL') rowClass = "bg-[#1E293B] font-bold border-t border-[#334155]";
+
+                        tbody.innerHTML += `
+                            <tr class="${rowClass}">
+                                <td class="py-3.5 px-4 font-bold text-white text-left">${ch.name}</td>
+                                <td class="py-3.5 px-4 text-brand-primary font-black text-sm">${ch.req.toLocaleString()}</td>
+                                <td class="py-3.5 px-4 text-brand-accentEmerald font-black text-sm">${ch.disp.toLocaleString()}</td>
+                                <td class="py-3.5 px-4 text-center">${gapHtml}</td>
+                            </tr>
+                        `;
                     });
 
-                    if (!res.ok) throw new Error("Error procesando optimizador en backend");
-                    optData = await res.json() || {};
+                    // Mostrar Grafica General
+                    document.getElementById('contGapChart').classList.add('hidden');
+                    document.getElementById('contGeneralChart').classList.remove('hidden');
+
+                    if(generalChartInstance) generalChartInstance.destroy();
+                    const ctxGen = document.getElementById('generalChart').getContext('2d');
+                    generalChartInstance = new Chart(ctxGen, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Inbound', 'Outbound', 'Chat'],
+                            datasets: [
+                                {
+                                    label: 'HC Requerido',
+                                    data: [hcReqInbound, hcReqOutbound, hcReqChat],
+                                    backgroundColor: '#A78BFA',
+                                    borderRadius: 4
+                                },
+                                {
+                                    label: 'HC Disponible',
+                                    data: [hcDispInbound, hcDispOutbound, hcDispChat],
+                                    backgroundColor: '#34D399',
+                                    borderRadius: 4
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } },
+                                tooltip: { backgroundColor: '#111827', titleColor: '#F8FAFC', bodyColor: '#cbd5e1', borderColor: '#1F2937', borderWidth: 1 }
+                            },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 11, weight: 'bold' } } },
+                                y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono' } }, beginAtZero: true }
+                            }
+                        }
+                    });
+
+                    return; // SALIDA TEMPRANA PARA VISTA CONSOLIDADA
                 }
 
+                // =======================================================
+                // 🛑 LÓGICA VISTAS INDIVIDUALES
+                // =======================================================
+                document.getElementById('contGapChart').classList.remove('hidden');
+                document.getElementById('contGeneralChart').classList.add('hidden');
+
+                const forceOutboundLogic = forecastMode === 'outbound';
+                const res = await fetch('/api/optimize-schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        intervalos: intervalos,
+                        campanas: Array.from(selectedCampanas),
+                        llamadas: llamadasArr,
+                        ahts: ahtSegsArr,
+                        requeridos: reqAvgVector, 
+                        target_sl: targetSlObj,
+                        target_time: targetTimeObj,
+                        merma: mermaVal,
+                        duracion_jornada: durJornada,
+                        es_nocturno: usarNocturno,
+                        es_outbound: forceOutboundLogic,
+                        es_chat: forecastMode === 'chat',
+                        concurrencia: concurrenciaVal
+                    })
+                });
+
+                if (!res.ok) throw new Error("Error procesando optimizador en backend");
+                const optData = await res.json() || {};
+                
                 const capacidadRosterVector = []; 
                 const capacidadSugeridaVector = []; 
                 
+                let legendInteractions = 'Llamadas (FCST)';
+                if (forecastMode === 'outbound') legendInteractions = 'Contactos (FCST)';
+                if (forecastMode === 'chat') legendInteractions = 'Mensajes (FCST)';
+                let capHeader = forecastMode === 'outbound' ? 'Productividad Neta' : 'Capacidad SLA';
+
+                document.getElementById('tableHeaderRow').innerHTML = `
+                    <th class="py-3.5 px-4 text-left">Intervalo</th>
+                    <th class="py-3.5 px-4">${legendInteractions}</th>
+                    <th class="py-3.5 px-4">AHT (HH:MM:SS)</th>
+                    <th class="py-3.5 px-4 text-brand-primary">Req. (HC)</th>
+                    <th class="py-3.5 px-4 text-brand-accentEmerald">Avail. (HC)</th>
+                    <th class="py-3.5 px-4 text-brand-accentAmber">${capHeader}</th>
+                    <th class="py-3.5 px-4 text-center">Gap</th>
+                `;
+
                 const tbody = document.getElementById('intervalTableBody');
                 tbody.innerHTML = '';
 
@@ -1377,15 +1519,12 @@
                     
                     const mermaDecimal = mermaVal / 100;
                     const agentesConectadosRoster = rowRoster * (1 - mermaDecimal);
-                    let capacidadRoster = 0;
-                    let capacidadSugerida = 0;
-                    if (forecastMode !== 'general') {
-                        capacidadRoster = maxCallsForAgents(agentesConectadosRoster, rowAhtSegs, targetTimeObj, targetSlObj);
-                        const rowMallaSugerida = optData.cobertura_optima ? (optData.cobertura_optima[idx] || 0) : 0;
-                        const agentesConectadosSugeridos = rowMallaSugerida * (1 - mermaDecimal);
-                        capacidadSugerida = maxCallsForAgents(agentesConectadosSugeridos, rowAhtSegs, targetTimeObj, targetSlObj);
-                    }
+                    const capacidadRoster = maxCallsForAgents(agentesConectadosRoster, rowAhtSegs, targetTimeObj, targetSlObj);
                     capacidadRosterVector.push(capacidadRoster);
+
+                    const rowMallaSugerida = optData.cobertura_optima ? optData.cobertura_optima[idx] : 0;
+                    const agentesConectadosSugeridos = rowMallaSugerida * (1 - mermaDecimal);
+                    const capacidadSugerida = maxCallsForAgents(agentesConectadosSugeridos, rowAhtSegs, targetTimeObj, targetSlObj);
                     capacidadSugeridaVector.push(capacidadSugerida);
                     
                     const gap = rowRoster - rowReq;
@@ -1398,14 +1537,14 @@
                     tr.onclick = () => toggleTableInterval(inter);
                     tr.className = `cursor-pointer transition-all duration-200 hover:bg-[#1E293B]`;
                     tr.innerHTML = `
-                        <td class="py-2.5 px-4 font-bold text-slate-200 flex items-center gap-2">
+                        <td class="py-2.5 px-4 font-bold text-slate-200 flex items-center gap-2 text-left">
                             <span class="text-[10px] text-brand-accentCyan drop-shadow-[0_0_2px_rgba(34,211,238,0.8)]">●</span> ${inter}
                         </td>
                         <td class="py-2.5 px-4 text-slate-300 font-medium">${rowLlamadas.toLocaleString()}</td>
                         <td class="py-2.5 px-4 text-slate-300 font-medium">${formatAHT(rowAhtSegs)}</td>
                         <td class="py-2.5 px-4 text-brand-primary font-black text-sm">${rowReq}</td>
                         <td class="py-2.5 px-4 text-brand-accentEmerald font-black text-sm">${rowRoster}</td>
-                        <td class="py-2.5 px-4 text-brand-accentAmber font-black text-sm">${forecastMode === 'general' ? '--' : capacidadRoster}</td>
+                        <td class="py-2.5 px-4 text-brand-accentAmber font-black text-sm">${capacidadRoster}</td>
                         <td class="py-2.5 px-4 text-center">${gapHtml}</td>
                     `;
                     tbody.appendChild(tr);
@@ -1414,29 +1553,45 @@
                 if (gapChartInstance) gapChartInstance.destroy();
                 const ctxGap = document.getElementById('gapChart').getContext('2d');
                 
-                let legendInteractions = 'Interacciones (Mix)';
-                if (forecastMode === 'inbound') legendInteractions = 'Llamadas (FCST)';
-                if (forecastMode === 'outbound') legendInteractions = 'Contactos (FCST)';
-                if (forecastMode === 'chat') legendInteractions = 'Mensajes (FCST)';
-
-                let datasetsToRender = [];
-                if (forecastMode === 'general') {
-                    datasetsToRender = [
-                        { label: 'HC Requerido Global', type: 'line', data: reqAvgVector, borderColor: '#A78BFA', backgroundColor: '#A78BFA', borderWidth: 3, tension: 0.4 },
-                        { label: 'HC Disponible Global', type: 'line', data: rosterAvgVector, borderColor: '#FBBF24', backgroundColor: '#FBBF24', borderWidth: 3, tension: 0.4 },
-                        { label: legendInteractions, data: llamadasArr.map(x=>Math.round(x)), backgroundColor: '#38BDF8', borderWidth: 0, borderRadius: 4, barPercentage: 0.7 }
-                    ];
-                } else {
-                    datasetsToRender = [
-                        { label: 'Capacidad Malla Sugerida', type: 'line', data: capacidadSugeridaVector, borderColor: '#A78BFA', backgroundColor: '#A78BFA', borderWidth: 3, tension: 0.4, borderDash: [4, 4] },
-                        { label: 'Capacidad Roster Actual', type: 'line', data: capacidadRosterVector, borderColor: '#FBBF24', backgroundColor: '#FBBF24', borderWidth: 3, tension: 0.4 },
-                        { label: legendInteractions, data: llamadasArr.map(x => Math.round(x)), backgroundColor: '#38BDF8', borderColor: 'transparent', borderWidth: 0, borderRadius: 4, barPercentage: 0.7 }
-                    ];
-                }
-
                 gapChartInstance = new Chart(ctxGap, {
                     type: 'bar',
-                    data: { labels: intervalos, datasets: datasetsToRender },
+                    data: {
+                        labels: intervalos,
+                        datasets: [
+                            { 
+                                label: 'Capacidad Malla Sugerida', 
+                                type: 'line',
+                                data: capacidadSugeridaVector, 
+                                borderColor: '#A78BFA',
+                                backgroundColor: '#A78BFA',
+                                borderWidth: 3,
+                                tension: 0.4,
+                                pointRadius: 0,
+                                pointHoverRadius: 6,
+                                borderDash: [4, 4] 
+                            },
+                            { 
+                                label: 'Capacidad Roster Actual', 
+                                type: 'line',
+                                data: capacidadRosterVector, 
+                                borderColor: '#FBBF24',
+                                backgroundColor: '#FBBF24',
+                                borderWidth: 3,
+                                tension: 0.4,
+                                pointRadius: 0,
+                                pointHoverRadius: 6
+                            },
+                            { 
+                                label: legendInteractions, 
+                                data: llamadasArr.map(x => Math.round(x)), 
+                                backgroundColor: '#38BDF8',
+                                borderColor: 'transparent',
+                                borderWidth: 0,
+                                borderRadius: 4,
+                                barPercentage: 0.7
+                            }
+                        ]
+                    },
                     options: { 
                         responsive: true, 
                         maintainAspectRatio: false, 
@@ -1463,14 +1618,11 @@
                     }
                 });
 
-                let hcRequeridoDisplay = 0;
-                if (forecastMode === 'general') {
-                    hcRequeridoDisplay = totalGeneralReqHc;
-                } else {
-                    hcRequeridoDisplay = esVistaSemanal ? (optData.headcount_semanal_6x1 || 0) : (optData.total_agentes_diarios || 0);
-                }
+                const nominaRequeridaDiaria = optData.total_agentes_diarios || 0;
+                const nominaRequeridaTotalSemana = optData.headcount_semanal_6x1 || 0;
+                const hcRequeridoDisplay = esVistaSemanal ? nominaRequeridaTotalSemana : nominaRequeridaDiaria;
                 
-                document.getElementById('kpiHcRequeridoTitle').innerText = forecastMode === 'general' ? "HC Requerido (Consolidado)" : "HC Requerido Total";
+                document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido Total";
                 document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay.toLocaleString() + ' HC';
                 document.getElementById('optHeadcount').innerText = hcRequeridoDisplay.toLocaleString();
                 
@@ -1501,105 +1653,40 @@
 
                 const slOptimoVal = parseFloat(optData.sl_optimo_global || 0);
                 const slEl = document.getElementById('compSlOptimo');
-                slEl.innerText = forecastMode === 'general' ? '--' : (slOptimoVal.toFixed(1) + '%');
+                slEl.innerText = slOptimoVal.toFixed(1) + '%';
                 
-                if (forecastMode !== 'inbound') {
+                if (forecastMode === 'outbound') {
                     if (slOptimoVal >= 95) slEl.className = "text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)] block";
                     else slEl.className = "text-3xl font-black font-mono-num text-brand-accentRose drop-shadow-[0_0_8px_rgba(251,113,133,0.3)] block";
                 } else {
                     if (slOptimoVal >= targetSlObj) slEl.className = "text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)] block";
                     else slEl.className = "text-3xl font-black font-mono-num text-brand-accentRose drop-shadow-[0_0_8px_rgba(251,113,133,0.3)] block";
                 }
-                if(forecastMode === 'general'){
-                    slEl.className = "text-3xl font-black font-mono-num text-slate-500 block";
-                }
-
-                if (optChartInstance) optChartInstance.destroy();
-                const ctxOpt = document.getElementById('optChart').getContext('2d');
-                const labelCurvaCob = usarNocturno ? "Malla Sugerida (Mixta)" : `Malla Sugerida (${durJornada}h)`;
-
-                optChartInstance = new Chart(ctxOpt, {
-                    type: 'line',
-                    data: {
-                        labels: intervalos,
-                        datasets: [
-                            { 
-                                label: 'HC Requerido (Motor)', 
-                                data: reqAvgVector, 
-                                borderColor: '#22D3EE', 
-                                backgroundColor: 'rgba(34, 211, 238, 0.1)', 
-                                fill: true, 
-                                tension: 0.4, 
-                                borderWidth: 3,
-                                pointRadius: 0,
-                                pointHoverRadius: 6
-                            },
-                            { 
-                                label: 'Plantilla Actual (Roster)', 
-                                data: rosterAvgVector, 
-                                borderColor: '#34D399', 
-                                backgroundColor: '#34D399', 
-                                fill: false, 
-                                tension: 0.4, 
-                                borderWidth: 2, 
-                                borderDash: [5, 5],
-                                pointRadius: 0,
-                                pointHoverRadius: 6
-                            },
-                            { 
-                                label: labelCurvaCob, 
-                                data: (optData.cobertura_optima && optData.cobertura_optima.length > 0 ? optData.cobertura_optima : new Array(intervalos.length).fill(0)), 
-                                borderColor: '#3B82F6', 
-                                backgroundColor: '#3B82F6', 
-                                fill: false, 
-                                tension: 0.4, 
-                                borderWidth: 3, 
-                                borderDash: [4, 4],
-                                pointRadius: 0,
-                                pointHoverRadius: 6
-                            }
-                        ]
-                    },
-                    options: { 
-                        responsive: true, 
-                        maintainAspectRatio: false, 
-                        interaction: { mode: 'index', intersect: false },
-                        plugins: { 
-                            legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 }, usePointStyle: true, boxWidth: 8 } },
-                            tooltip: { backgroundColor: '#111827', titleColor: '#F8FAFC', bodyColor: '#cbd5e1', borderColor: '#1F2937', borderWidth: 1, padding: 12, boxPadding: 6, usePointStyle: true }
-                        }, 
-                        scales: { 
-                            x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 12 } }, 
-                            y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true } 
-                        } 
-                    }
-                });
 
                 const optTbody = document.getElementById('optShiftsTableBody');
                 optTbody.innerHTML = '';
                 
+                const totalDiarioMalla = optData.total_agentes_diarios || 1;
                 let turnosBase = optData.turnos || [];
-                if (forecastMode === 'general' || turnosBase.length === 0) {
-                    optTbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-500 font-sans font-medium">${forecastMode === 'general' ? 'La vista consolidada no grafica la matriz de mallas. Ve a cada canal para exportar su plan.' : 'No se requieren agentes dentro de la ventana de servicio.'}</td></tr>`;
-                    globalTurnosOptimos = [];
-                } else {
-                    const totalDiarioMalla = optData.total_agentes_diarios || 1;
-                    let accumulatedNomina = 0;
-                    
-                    globalTurnosOptimos = turnosBase.map((t, index) => {
-                        let nominaTurno;
-                        if (index === turnosBase.length - 1) {
-                            nominaTurno = hcRequeridoDisplay - accumulatedNomina;
-                        } else {
-                            nominaTurno = Math.round((t.agentes_a_programar / totalDiarioMalla) * hcRequeridoDisplay);
-                            accumulatedNomina += nominaTurno;
-                        }
-                        nominaTurno = Math.max(0, nominaTurno);
-                        return { ...t, nomina_a_contratar: nominaTurno };
-                    });
+                let accumulatedNomina = 0;
+                
+                globalTurnosOptimos = turnosBase.map((t, index) => {
+                    let nominaTurno;
+                    if (index === turnosBase.length - 1) {
+                        nominaTurno = hcRequeridoDisplay - accumulatedNomina;
+                    } else {
+                        nominaTurno = Math.round((t.agentes_a_programar / totalDiarioMalla) * hcRequeridoDisplay);
+                        accumulatedNomina += nominaTurno;
+                    }
+                    nominaTurno = Math.max(0, nominaTurno);
+                    return { ...t, nomina_a_contratar: nominaTurno };
+                });
 
-                    globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
-                    
+                globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
+
+                if (globalTurnosOptimos.length === 0) {
+                    optTbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500 font-sans font-medium">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
+                } else {
                     let offsetDiurno = 0;
                     let offsetNocturno = 0;
 
