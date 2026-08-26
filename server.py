@@ -790,14 +790,22 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
                 aht_real = info_p.get('aht', 0.0)
                 aht = aht_real if (aht_real > 0 and not pd.isna(aht_real)) else aht_global_campana.get(camp, 600.0)
 
+                # =========================================================
+                # 🛑 FIX WFM: TOPE ASÍNCRONO Y CONCURRENCIA
+                # =========================================================
                 if aht > 3600:
                     aht = 600.0 
 
-                a_erlang_raw = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
-                a_erlang_adj = a_erlang_raw / max(1.0, concurrencia)
+                # 1. Aplicamos la concurrencia directamente al AHT para 
+                # obtener el "AHT Efectivo" por interacción.
+                aht_efectivo = aht / max(1.0, concurrencia)
+
+                # 2. Calculamos los Erlangs puros usando el AHT Efectivo
+                a_erlang_raw = (calls_float * aht_efectivo) / 1800.0 if (aht_efectivo > 0 and calls_float > 0) else 0.0
                 
-                req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang_adj, aht, target_time, target_sl) if calls_float > 0 else 0
-                req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
+                # 3. Calculamos agentes con Erlang-C y aplicamos merma
+                req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang_raw, aht_efectivo, target_time, target_sl) if calls_float > 0 else 0
+                req_hc = req_ftes / factor_asistencia if req_ftes > 0 else 0.0
                 
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
                 tot_camp = roster_total_camp.get(str(camp), 0)
@@ -858,14 +866,15 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                 cob_temp_ftes = agentes_noc_hc * factor_asistencia
                 sl_acum, llamadas_noc = 0.0, 0.0
                 for idx in indices_nocturnos:
-                    c, aht_s = llamadas_arr[idx], aht_arr[idx]
+                    c = llamadas_arr[idx]
+                    aht_real = aht_arr[idx]
+                    aht_efectivo = aht_real / max(1.0, concurrencia) if es_chat else aht_real
                     
                     if es_outbound:
-                        sl_v = 100.0 if (c * aht_s)/1800.0 <= cob_temp_ftes else ((cob_temp_ftes * 1800.0) / (max(1, c * aht_s))) * 100.0
+                        sl_v = 100.0 if (c * aht_efectivo)/1800.0 <= cob_temp_ftes else ((cob_temp_ftes * 1800.0) / (max(1, c * aht_efectivo))) * 100.0
                     else:
-                        a_erl = (c * aht_s) / 1800.0 if (c > 0 and aht_s > 0) else 0.0
-                        if es_chat: a_erl = a_erl / max(1.0, concurrencia)
-                        sl_v = erlang_c_sl_optimizado(a_erl, cob_temp_ftes, aht_s, target_time) if c > 0 else 100.0
+                        a_erl = (c * aht_efectivo) / 1800.0 if (c > 0 and aht_efectivo > 0) else 0.0
+                        sl_v = erlang_c_sl_optimizado(a_erl, cob_temp_ftes, aht_efectivo, target_time) if c > 0 else 100.0
                         
                     sl_acum += (c * sl_v); llamadas_noc += c
                 if (sl_acum / llamadas_noc if llamadas_noc > 0 else 100.0) >= target_sl_dinamico: break
@@ -889,9 +898,11 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             sl_acum = 0.0
             for i, c in enumerate(llamadas_arr):
                 if c > 0:
-                    a_erl = (c * aht_arr[i]) / 1800.0
-                    if es_chat: a_erl = a_erl / max(1.0, concurrencia)
-                    sl_acum += c * erlang_c_sl_optimizado(a_erl, current_cob[i] * factor_asistencia, aht_arr[i], target_time)
+                    aht_real = aht_arr[i]
+                    aht_efectivo = aht_real / max(1.0, concurrencia) if es_chat else aht_real
+                    
+                    a_erl = (c * aht_efectivo) / 1800.0
+                    sl_acum += c * erlang_c_sl_optimizado(a_erl, current_cob[i] * factor_asistencia, aht_efectivo, target_time)
             return sl_acum / tot_llamadas
 
     if len(valid_starts) > 0:
@@ -927,9 +938,11 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         sl_optimo_vector = []
         for i in range(m):
             if llamadas_arr[i] > 0:
-                a_erl = (llamadas_arr[i] * aht_arr[i]) / 1800.0
-                if es_chat: a_erl = a_erl / max(1.0, concurrencia)
-                sl_optimo_vector.append(float(erlang_c_sl_optimizado(a_erl, cob_hc[i] * factor_asistencia, aht_arr[i], target_time)))
+                aht_real = aht_arr[i]
+                aht_efectivo = aht_real / max(1.0, concurrencia) if es_chat else aht_real
+
+                a_erl = (llamadas_arr[i] * aht_efectivo) / 1800.0
+                sl_optimo_vector.append(float(erlang_c_sl_optimizado(a_erl, cob_hc[i] * factor_asistencia, aht_efectivo, target_time)))
             else:
                 sl_optimo_vector.append(100.0)
         sl_optimo_global = float(np.sum(llamadas_arr * np.array(sl_optimo_vector)) / tot_llamadas) if tot_llamadas > 0 else 100.0
