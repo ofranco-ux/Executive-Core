@@ -539,11 +539,11 @@
 
             if(mode === 'general') {
                 btnGen.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-[#070B14] shadow-md";
+                
+                // Estos parámetros de vista general aplican a todos los modos
                 contParametros.style.display = 'none';
                 contInfoGen.style.display = 'block';
-                modOptimizacion.classList.add('hidden'); // Ocultar Mallas en Consolidado
                 
-                // Ocultar tarjetas 1 y 2
                 cardCalls.classList.add('hidden');
                 cardAht.classList.add('hidden');
                 kpiContainer.classList.remove('lg:grid-cols-4');
@@ -553,9 +553,7 @@
             } else {
                 contParametros.style.display = 'block';
                 contInfoGen.style.display = 'none';
-                modOptimizacion.classList.remove('hidden'); // Mostrar Mallas
                 
-                // Mostrar tarjetas 1 y 2
                 cardCalls.classList.remove('hidden');
                 cardAht.classList.remove('hidden');
                 kpiContainer.classList.remove('lg:grid-cols-2');
@@ -582,6 +580,17 @@
                     document.getElementById('contConcurrencia').classList.remove('hidden');
                     document.getElementById('lblProjectedSl').innerText = "Projected SL (Con Malla)";
                     document.getElementById('kpiCallsTitle').innerText = "Mensajes / Chats Totales";
+                }
+            }
+
+            // ✨ ESTA ES LA REGLA DE ORO PARA EL MODOPTIMIZACION ✨
+            if (currentMode === 'ops' || currentMode === 'operaciones') {
+                if (modOptimizacion) modOptimizacion.classList.add('hidden');
+            } else {
+                if (mode === 'general') {
+                    if (modOptimizacion) modOptimizacion.classList.add('hidden');
+                } else {
+                    if (modOptimizacion) modOptimizacion.classList.remove('hidden');
                 }
             }
             
@@ -780,7 +789,7 @@
         function maxCallsForAgents(agentsNetos, aht, targetTime, targetSl) {
             if (agentsNetos <= 0 || aht <= 0) return 0;
             
-            if (forecastMode === 'outbound') {
+            if (forecastMode === 'outbound' || forecastMode === 'general') {
                 return Math.floor(agentsNetos * (1800 / aht));
             } else if (forecastMode === 'chat') {
                 const concurrencia = parseFloat(document.getElementById('concurrencia').value) || 3.0;
@@ -1327,14 +1336,14 @@
                     const tbody = document.getElementById('intervalTableBody');
                     tbody.innerHTML = '';
                     
-                    const tableRows = [
+                    const channels = [
                         { name: '🎯 Inbound', req: hcReqInbound, disp: hcDispInbound },
                         { name: '🚀 Outbound', req: hcReqOutbound, disp: hcDispOutbound },
                         { name: '💬 Chat', req: hcReqChat, disp: hcDispChat },
                         { name: '🌐 TOTAL', req: totalReqGlobal, disp: totalDispGlobal }
                     ];
 
-                    tableRows.forEach(ch => {
+                    channels.forEach(ch => {
                         const gap = ch.disp - ch.req;
                         let gapHtml = '';
                         if (gap > 0) gapHtml = `<span class="bg-[#34D399]/20 text-[#34D399] px-2 py-0.5 rounded-md font-bold">+${gap}</span>`;
@@ -1364,16 +1373,35 @@
                         data: {
                             labels: ['Inbound', 'Outbound', 'Chat'],
                             datasets: [
-                                { label: 'HC Requerido', data: [hcReqInbound, hcReqOutbound, hcReqChat], backgroundColor: '#A78BFA', borderRadius: 4 },
-                                { label: 'HC Disponible', data: [hcDispInbound, hcDispOutbound, hcDispChat], backgroundColor: '#34D399', borderRadius: 4 }
+                                {
+                                    label: 'HC Requerido',
+                                    data: [hcReqInbound, hcReqOutbound, hcReqChat],
+                                    backgroundColor: '#A78BFA',
+                                    borderRadius: 4
+                                },
+                                {
+                                    label: 'HC Disponible',
+                                    data: [hcDispInbound, hcDispOutbound, hcDispChat],
+                                    backgroundColor: '#34D399',
+                                    borderRadius: 4
+                                }
                             ]
                         },
                         options: {
-                            responsive: true, maintainAspectRatio: false,
-                            plugins: { legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } } },
-                            scales: { x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 11, weight: 'bold' } } }, y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono' } }, beginAtZero: true } }
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } },
+                                tooltip: { backgroundColor: '#111827', titleColor: '#F8FAFC', bodyColor: '#cbd5e1', borderColor: '#1F2937', borderWidth: 1 }
+                            },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 11, weight: 'bold' } } },
+                                y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono' } }, beginAtZero: true }
+                            }
                         }
                     });
+
+                    return; // SALIDA TEMPRANA PARA VISTA CONSOLIDADA
                 });
 
                 return; 
