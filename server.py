@@ -890,7 +890,17 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     SHIFT_BLOCKS = int(round(float(duracion_jornada) * 2))
     label_jornada_diurna = f"{float(duracion_jornada):.1f} hrs".replace('.0', '')
 
-    valid_starts = [j for j in range(m) if parse_time_str(intervalos[j]) is not None]
+    valid_starts = []
+    for j in range(m):
+        m_in = parse_time_str(intervalos[j])
+        if m_in is not None:
+            if es_nocturno:
+                # Regla de negocio estricta: Diurnos dentro de 07:00 a 22:00
+                m_out = m_in + duracion_minutos
+                if m_in >= (7 * 60) and m_out <= (22 * 60):
+                    valid_starts.append(j)
+            else:
+                valid_starts.append(j)
 
     def calc_current_global_sl(current_cob):
         if tot_llamadas <= 0: return 100.0
