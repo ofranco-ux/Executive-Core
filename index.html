@@ -200,7 +200,7 @@
             <div id="contInfoGeneral" class="hidden pt-6">
                 <div class="p-4 bg-brand-primary/10 border border-brand-primary/30 rounded-xl">
                     <p class="text-[11px] text-brand-primary font-bold uppercase tracking-widest mb-2">Vista Consolidada Activa</p>
-                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>Para garantizar una suma pura y exacta, el sistema procesa matemáticamente el requerimiento base de cada canal y consolida los totales.</p>
+                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>Para garantizar una suma pura y exacta, el sistema procesa matemáticamente el requerimiento base de cada canal y consolidará los totales.</p>
                 </div>
             </div>
 
@@ -960,23 +960,29 @@
 
         function inicializarFiltrosMultiples() {
             allMesesOptions = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).sort(ordenarMesesCronologicamente);
-            selectedMeses = new Set(allMesesOptions);
-            renderMenuOptions('Mes', allMesesOptions, selectedMeses);
-
             allSemanasOptions = [...new Set(globalData.map(i => getWeekNumber(getProp(i, ['Fecha'], ''))))].filter(Boolean).sort();
-            selectedSemanas = new Set(allSemanasOptions);
-            renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
-
             allCampanasOptions = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).sort();
-            selectedCampanas = new Set(allCampanasOptions);
-            renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
-
             allFechasOptions = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
-            selectedFechas = new Set(allFechasOptions);
-            renderMenuOptions('Fecha', allFechasOptions, selectedFechas);
-
             allIntervalosOptions = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
-            selectedIntervalos = new Set(allIntervalosOptions);
+
+            // Conservar selecciones actuales si existen, filtrando datos que ya no existan en el nuevo forecast
+            selectedMeses = selectedMeses.size > 0 ? new Set([...selectedMeses].filter(x => allMesesOptions.includes(x))) : new Set(allMesesOptions);
+            selectedSemanas = selectedSemanas.size > 0 ? new Set([...selectedSemanas].filter(x => allSemanasOptions.includes(x))) : new Set(allSemanasOptions);
+            selectedCampanas = selectedCampanas.size > 0 ? new Set([...selectedCampanas].filter(x => allCampanasOptions.includes(x))) : new Set(allCampanasOptions);
+            selectedFechas = selectedFechas.size > 0 ? new Set([...selectedFechas].filter(x => allFechasOptions.includes(x))) : new Set(allFechasOptions);
+            selectedIntervalos = selectedIntervalos.size > 0 ? new Set([...selectedIntervalos].filter(x => allIntervalosOptions.includes(x))) : new Set(allIntervalosOptions);
+            
+            // Si la retención dejó los sets vacíos, reiniciamos a todas las opciones disponibles
+            if(selectedMeses.size === 0) selectedMeses = new Set(allMesesOptions);
+            if(selectedSemanas.size === 0) selectedSemanas = new Set(allSemanasOptions);
+            if(selectedCampanas.size === 0) selectedCampanas = new Set(allCampanasOptions);
+            if(selectedFechas.size === 0) selectedFechas = new Set(allFechasOptions);
+            if(selectedIntervalos.size === 0) selectedIntervalos = new Set(allIntervalosOptions);
+
+            renderMenuOptions('Mes', allMesesOptions, selectedMeses);
+            renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
+            renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
+            renderMenuOptions('Fecha', allFechasOptions, selectedFechas);
             renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
             
             calcularTotalesFiltros();
