@@ -198,13 +198,11 @@ def procesar_hoja_roster(df_roster):
     roster_cov, roster_total_camp, roster_total_dia_camp = {}, {}, {}
     col_camp = encontrar_columna(df_roster, ['campaña', 'campana', 'skill', 'servicio'])
     
-    # 🛑 NUEVO CANDADO: Buscamos si existe la columna de Agente o ID para filtrar filas vacías
     col_agente = encontrar_columna(df_roster, ['agente', 'nombre', 'asesor', 'ejecutivo', 'id'])
     
     if not col_camp: return roster_cov, roster_total_camp, roster_total_dia_camp
         
     for idx, row in df_roster.iterrows():
-        # Verificación Anti-Fantasmas
         if col_agente:
             agente_val = str(row[col_agente]).strip()
             if agente_val.lower() == 'nan' or agente_val == '': continue
@@ -230,10 +228,6 @@ def procesar_hoja_roster(df_roster):
                                 roster_cov[(camp, dia_real, inv)] = roster_cov.get((camp, dia_real, inv), 0) + 1
     return roster_cov, roster_total_camp, roster_total_dia_camp
 
-
-# ==============================================================
-# PROCESAR INBOUND
-# ==============================================================
 def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=45):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     sheet_calls = xls_file.sheet_names[0]
@@ -431,9 +425,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     except: pass
     return data_processed
 
-# ==============================================================
-# PROCESAR OUTBOUND
-# ==============================================================
 def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     
@@ -601,7 +592,6 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
                 aht_real = info_p.get('aht', 0.0)
                 aht = aht_real if (aht_real > 0 and not pd.isna(aht_real)) else aht_global_campana.get(camp, 180.0)
 
-                # MAGIA OUTBOUND
                 req_ftes = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
                 
@@ -630,10 +620,6 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
     except: pass
     return data_processed
 
-
-# ==============================================================
-# PROCESAR CHAT (NUEVO)
-# ==============================================================
 def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0.20, concurrencia=3.0, dias_futuros=45):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     
@@ -834,7 +820,6 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
         with open(CACHE_FILE_CHAT, 'w', encoding='utf-8') as f: json.dump(data_processed, f)
     except: pass
     return data_processed
-# ==============================================================
 
 def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht_vec=None, req_vec=None, target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, es_nocturno=False, es_outbound=False, es_chat=False, concurrencia=3.0):
     m = len(intervalos)
@@ -895,7 +880,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         m_in = parse_time_str(intervalos[j])
         if m_in is not None:
             if es_nocturno:
-                # Regla de negocio estricta: Diurnos dentro de 07:00 a 22:00
                 m_out = m_in + duracion_minutos
                 if m_in >= (7 * 60) and m_out <= (22 * 60):
                     valid_starts.append(j)
@@ -984,6 +968,7 @@ def get_latest_forecast():
     elif mode == 'chat': target_cache = CACHE_FILE_CHAT
     else: target_cache = CACHE_FILE_IN
     
+    # 1. Intentar cargar los datos guardados
     if os.path.exists(target_cache):
         try:
             with open(target_cache, 'r', encoding='utf-8') as f:
@@ -993,6 +978,35 @@ def get_latest_forecast():
         except Exception as e:
             print(f"Error leyendo caché: {e}")
             pass
+            
+    # 2. AUTO-RECOVERY: Recalcular según el canal si el archivo se borró
+    excel_path = buscar_archivo_excel()
+    if excel_path:
+        try:
+            sl, tt, merma, dias, concurrencia = 80.0, 20.0, 0.30, 130, 3.0
+            if os.path.exists(CONFIG_FILE):
+                try:
+                    with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                        cfg = json.load(f)
+                        sl = float(cfg.get('targetSl', 80.0))
+                        tt = float(cfg.get('targetTime', 20.0))
+                        merma = float(cfg.get('merma', 30.0)) / 100.0
+                except: pass
+            
+            # Ruteo dinámico por tipo de canal
+            if mode == 'outbound':
+                data = procesar_archivo_outbound(excel_path, merma=merma, dias_futuros=dias)
+            elif mode == 'chat':
+                data = procesar_archivo_chat(excel_path, target_sl=sl, target_time=tt, merma=merma, concurrencia=concurrencia, dias_futuros=dias)
+            else:
+                data = procesar_archivo_excel(excel_path, target_sl=sl, target_time=tt, merma=merma, dias_futuros=dias)
+                
+            gc.collect()
+            return jsonify(data), 200
+        except Exception as e:
+            print(f"Error en auto-recovery ({mode}): {e}")
+            pass
+
     return jsonify([]), 200
 
 @app.route('/api/optimize-schedules', methods=['POST'])
