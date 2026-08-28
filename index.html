@@ -197,7 +197,6 @@
                 </button>
             </div>
 
-            <!-- Panel para cuando está en Vista General -->
             <div id="contInfoGeneral" class="hidden pt-6">
                 <div class="p-4 bg-brand-primary/10 border border-brand-primary/30 rounded-xl">
                     <p class="text-[11px] text-brand-primary font-bold uppercase tracking-widest mb-2">Vista Consolidada Activa</p>
@@ -469,7 +468,7 @@
         let debounceTimer;
         let totalesFiltros = { M: 0, S: 0, C: 0, F: 0, I: 0 }; 
         let currentMode = 'wfm';
-        let forecastMode = 'inbound'; // MODOS: inbound, outbound, chat, general
+        let forecastMode = 'inbound';
         let isSidebarVisible = true; 
 
         const mesesMap = {
@@ -540,7 +539,6 @@
             if(mode === 'general') {
                 btnGen.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-[#070B14] shadow-md";
                 
-                // Estos parámetros de vista general aplican a todos los modos
                 contParametros.style.display = 'none';
                 contInfoGen.style.display = 'block';
                 
@@ -1783,32 +1781,58 @@
                             demandaPorDia[mapDias[dia]] += req;
                         }
                     });
-                    
-                    window.globalDiasOrdenados = [0, 1, 2, 3, 4, 5, 6].sort((a, b) => demandaPorDia[a] - demandaPorDia[b]);
 
-                    let offsetDiurno = 0;
-                    let offsetNocturno = 0;
+                    let minDemanda = Math.max(1, Math.min(...demandaPorDia.filter(v => v > 0)));
+                    for(let d=0; d<7; d++) {
+                        if(demandaPorDia[d] === 0) demandaPorDia[d] = minDemanda;
+                    }
+
+                    let totalDiurno = 0, totalNocturno = 0;
+                    globalTurnosOptimos.forEach(t => {
+                        if (t.duracion.includes('Nocturno')) totalNocturno += t.nomina_a_contratar;
+                        else totalDiurno += t.nomina_a_contratar;
+                    });
+
+                    let restsGlobalesDiurno = [0, 0, 0, 0, 0, 0, 0];
+                    let restsGlobalesNocturno = [0, 0, 0, 0, 0, 0, 0];
 
                     globalTurnosOptimos.forEach(t => {
                         const hcTurno = t.nomina_a_contratar;
-                        if (hcTurno <= 0) return;
+                        if (hcTurno <= 0) {
+                            t.distribucion = [0,0,0,0,0,0,0];
+                            return;
+                        }
                         
                         const shiftStr = `${t.horario_entrada} - ${t.horario_salida}`;
                         const esTurnoNocturno = t.duracion.includes('Nocturno');
 
                         let distribucion = [0, 0, 0, 0, 0, 0, 0];
+                        const maxRestsPerDay = Math.ceil(hcTurno / 7);
                         
+                        let restsTracker = esTurnoNocturno ? restsGlobalesNocturno : restsGlobalesDiurno;
+                        let totalActivo = esTurnoNocturno ? totalNocturno : totalDiurno;
+
                         for (let i = 0; i < hcTurno; i++) {
-                            if (esTurnoNocturno) {
-                                let diaElegido = window.globalDiasOrdenados[offsetNocturno % 7];
-                                distribucion[diaElegido]++;
-                                offsetNocturno++;
-                            } else {
-                                let diaElegido = window.globalDiasOrdenados[offsetDiurno % 7];
-                                distribucion[diaElegido]++;
-                                offsetDiurno++;
+                            let bestDay = -1;
+                            let maxSurplus = -Infinity;
+                            
+                            for (let d = 0; d < 7; d++) {
+                                if (distribucion[d] < maxRestsPerDay) {
+                                    let ratio = (totalActivo - restsTracker[d]) / demandaPorDia[d];
+                                    if (ratio > maxSurplus) {
+                                        maxSurplus = ratio;
+                                        bestDay = d;
+                                    }
+                                }
+                            }
+                            
+                            if (bestDay !== -1) {
+                                distribucion[bestDay]++;
+                                restsTracker[bestDay]++;
                             }
                         }
+
+                        t.distribucion = distribucion;
 
                         for (let i = 0; i < 7; i++) {
                             const hcDescanso = distribucion[i];
@@ -1856,34 +1880,16 @@
             
             const headers = ["HC", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
             const csvRows = [headers.join(",")];
-            
-            const diasOrdenados = window.globalDiasOrdenados || [0, 1, 2, 3, 4, 5, 6];
-            let offsetDiurno = 0;
-            let offsetNocturno = 0;
 
             globalTurnosOptimos.forEach(t => {
                 const hcTurno = t.nomina_a_contratar;
-                if (hcTurno <= 0) return;
+                if (hcTurno <= 0 || !t.distribucion) return;
                 
                 const shiftStr = `${t.horario_entrada} - ${t.horario_salida}`;
                 const esTurnoNocturno = t.duracion.includes('Nocturno');
-
-                let distribucion = [0, 0, 0, 0, 0, 0, 0];
-                
-                for (let i = 0; i < hcTurno; i++) {
-                    if (esTurnoNocturno) {
-                        let diaElegido = diasOrdenados[offsetNocturno % 7];
-                        distribucion[diaElegido]++;
-                        offsetNocturno++;
-                    } else {
-                        let diaElegido = diasOrdenados[offsetDiurno % 7];
-                        distribucion[diaElegido]++;
-                        offsetDiurno++;
-                    }
-                }
                 
                 for (let i = 0; i < 7; i++) {
-                    const hcDescanso = distribucion[i];
+                    const hcDescanso = t.distribucion[i];
                     if (hcDescanso > 0) {
                         let row = [hcDescanso];
                         for (let d = 0; d < 7; d++) {
