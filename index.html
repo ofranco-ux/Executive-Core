@@ -594,6 +594,24 @@
             fetchLatestData(mode);
         }
 
+        function applySavedFilters() {
+            if (window.savedFilters && (currentMode === 'ops' || currentMode === 'operaciones')) {
+                const f = window.savedFilters;
+                if (f.meses && f.meses.length > 0) selectedMeses = new Set(f.meses.filter(x => allMesesOptions.includes(x)));
+                if (f.semanas && f.semanas.length > 0) selectedSemanas = new Set(f.semanas.filter(x => allSemanasOptions.includes(x)));
+                if (f.campanas && f.campanas.length > 0) selectedCampanas = new Set(f.campanas.filter(x => allCampanasOptions.includes(x)));
+                if (f.fechas && f.fechas.length > 0) selectedFechas = new Set(f.fechas.filter(x => allFechasOptions.includes(x)));
+                if (f.intervalos && f.intervalos.length > 0) selectedIntervalos = new Set(f.intervalos.filter(x => allIntervalosOptions.includes(x)));
+
+                renderMenuOptions('Mes', allMesesOptions, selectedMeses);
+                renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
+                renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
+                renderMenuOptions('Fecha', allFechasOptions, selectedFechas);
+                renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
+                actualizarTextosBotones();
+            }
+        }
+
         async function fetchLatestData(mode) {
             try {
                 if (mode === 'general') {
@@ -614,6 +632,7 @@
                     
                     if (globalData.length > 0) {
                         inicializarFiltrosMultiples();
+                        applySavedFilters(); 
                         debouncedActualizarGrafica();
                     } else {
                         limpiarPantalla(mode);
@@ -626,6 +645,7 @@
                             const canalName = mode === 'inbound' ? 'Inbound' : (mode === 'outbound' ? 'Outbound' : 'Chat');
                             globalData = data.map(d => ({...d, Canal: canalName}));
                             inicializarFiltrosMultiples();
+                            applySavedFilters();
                             debouncedActualizarGrafica();
                         } else {
                             limpiarPantalla(mode);
@@ -697,7 +717,7 @@
         }
 
         async function saveWFMConfig() {
-            if(currentMode === 'ops') return; 
+            if(currentMode === 'ops' || currentMode === 'operaciones') return; 
             
             const config = {
                 targetSl: document.getElementById('targetSl').value,
@@ -705,7 +725,15 @@
                 merma: document.getElementById('merma').value,
                 duracionJornada: document.getElementById('duracionJornada').value,
                 chkNocturno: document.getElementById('chkNocturno').checked,
-                chkPicos: document.getElementById('chkPicos').checked
+                chkPicos: document.getElementById('chkPicos').checked,
+                opsView: {
+                    tab: forecastMode,
+                    meses: Array.from(selectedMeses),
+                    semanas: Array.from(selectedSemanas),
+                    campanas: Array.from(selectedCampanas),
+                    fechas: Array.from(selectedFechas),
+                    intervalos: Array.from(selectedIntervalos)
+                }
             };
 
             try {
@@ -839,7 +867,21 @@
             const mode = urlParams.get('mode') || urlParams.get('role') || 'wfm';
             switchMode(mode);
 
-            if(mode === 'ops') {
+            if (mode === 'ops' || mode === 'operaciones') {
+                try {
+                    const response = await fetch('/api/config?t=' + new Date().getTime());
+                    if (response.ok) {
+                        const config = await response.json();
+                        if (config.opsView) {
+                            window.savedFilters = config.opsView;
+                            if (forecastMode !== config.opsView.tab) {
+                                setModeWFM(config.opsView.tab);
+                                return;
+                            }
+                        }
+                    }
+                } catch(e) {}
+            } else {
                 await fetchWFMConfig();
             }
 
@@ -906,6 +948,7 @@
                 if (response.ok && Array.isArray(globalData)) {
                     inicializarFiltrosMultiples();
                     debouncedActualizarGrafica();
+                    await saveWFMConfig();
                 } else {
                     alert("Error: " + (globalData.error || "Asegúrate de que 'historico.xlsx' esté cargado y tenga la pestaña correcta."));
                 }
