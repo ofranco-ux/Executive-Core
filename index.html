@@ -701,15 +701,20 @@
 
         async function fetchWFMConfig() {
             try {
-                const response = await fetch('/api/config');
+                const response = await fetch('/api/config?t=' + new Date().getTime());
                 if (response.ok) {
                     const config = await response.json();
+                    
                     if(config.targetSl) document.getElementById('targetSl').value = config.targetSl;
                     if(config.targetTime) document.getElementById('targetTime').value = config.targetTime;
                     if(config.merma) document.getElementById('merma').value = config.merma;
                     if(config.duracionJornada) document.getElementById('duracionJornada').value = config.duracionJornada;
                     if(config.chkNocturno !== undefined) document.getElementById('chkNocturno').checked = config.chkNocturno;
                     if(config.chkPicos !== undefined) document.getElementById('chkPicos').checked = config.chkPicos;
+
+                    if (config.opsView) {
+                        window.savedFilters = config.opsView;
+                    }
                 }
             } catch (e) {
                 console.log("No hay config WFM previa, usando valores default.");
@@ -867,22 +872,15 @@
             const mode = urlParams.get('mode') || urlParams.get('role') || 'wfm';
             switchMode(mode);
 
-            if (mode === 'ops' || mode === 'operaciones') {
-                try {
-                    const response = await fetch('/api/config?t=' + new Date().getTime());
-                    if (response.ok) {
-                        const config = await response.json();
-                        if (config.opsView) {
-                            window.savedFilters = config.opsView;
-                            if (forecastMode !== config.opsView.tab) {
-                                setModeWFM(config.opsView.tab);
-                                return;
-                            }
-                        }
-                    }
-                } catch(e) {}
-            } else {
-                await fetchWFMConfig();
+            // Cargamos la configuración matemática (Vital para el Consolidado en Ops)
+            await fetchWFMConfig();
+
+            // Si es vista Operaciones y existe foto guardada, aplicamos la pestaña
+            if ((mode === 'ops' || mode === 'operaciones') && window.savedFilters) {
+                if (forecastMode !== window.savedFilters.tab) {
+                    setModeWFM(window.savedFilters.tab);
+                    return; 
+                }
             }
 
             fetchLatestData(forecastMode);
