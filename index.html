@@ -1780,8 +1780,20 @@
                 if (globalTurnosOptimos.length === 0) {
                     optTbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500 font-sans font-medium">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
                 } else {
-                    let offsetDiurno = 0;
-                    let offsetNocturno = 0;
+                    // --- NUEVA LÓGICA DE DISTRIBUCIÓN (CALCULO DE DEMANDA) ---
+                    let demandaPorDia = [0, 0, 0, 0, 0, 0, 0];
+                    const mapDias = { 'lunes': 0, 'martes': 1, 'miércoles': 2, 'miercoles': 2, 'jueves': 3, 'viernes': 4, 'sábado': 5, 'sabado': 5, 'domingo': 6 };
+                    
+                    dfFiltered.forEach(r => {
+                        let dia = getProp(r, ['Día_Semana', 'Dia_Semana'], '').toLowerCase();
+                        let req = Number(getProp(r, ['Agentes_Requeridos'], 0)) || 0;
+                        if (mapDias[dia] !== undefined) {
+                            demandaPorDia[mapDias[dia]] += req;
+                        }
+                    });
+                    
+                    // Guardamos el orden global para que exportarTurnosCSV respete la misma lógica
+                    window.globalDiasOrdenados = [0, 1, 2, 3, 4, 5, 6].sort((a, b) => demandaPorDia[a] - demandaPorDia[b]);
 
                     globalTurnosOptimos.forEach(t => {
                         const hcTurno = t.nomina_a_contratar;
@@ -1792,14 +1804,10 @@
 
                         let distribucion = [0, 0, 0, 0, 0, 0, 0];
                         
+                        // En lugar del contador secuencial, le damos prioridad a los días más "vacíos"
                         for (let i = 0; i < hcTurno; i++) {
-                            if (esTurnoNocturno) {
-                                distribucion[offsetNocturno % 7]++;
-                                offsetNocturno++;
-                            } else {
-                                distribucion[offsetDiurno % 7]++;
-                                offsetDiurno++;
-                            }
+                            let diaElegido = window.globalDiasOrdenados[i % 7];
+                            distribucion[diaElegido]++;
                         }
 
                         for (let i = 0; i < 7; i++) {
@@ -1849,8 +1857,8 @@
             const headers = ["HC", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
             const csvRows = [headers.join(",")];
             
-            let offsetDiurno = 0;
-            let offsetNocturno = 0;
+            // Reutilizamos el orden de los días calculados en la UI
+            const diasOrdenados = window.globalDiasOrdenados || [0, 1, 2, 3, 4, 5, 6];
 
             globalTurnosOptimos.forEach(t => {
                 const hcTurno = t.nomina_a_contratar;
@@ -1861,14 +1869,10 @@
 
                 let distribucion = [0, 0, 0, 0, 0, 0, 0];
                 
+                // Mismo algoritmo de distribución inteligente
                 for (let i = 0; i < hcTurno; i++) {
-                    if (esTurnoNocturno) {
-                        distribucion[offsetNocturno % 7]++;
-                        offsetNocturno++;
-                    } else {
-                        distribucion[offsetDiurno % 7]++;
-                        offsetDiurno++;
-                    }
+                    let diaElegido = diasOrdenados[i % 7];
+                    distribucion[diaElegido]++;
                 }
                 
                 for (let i = 0; i < 7; i++) {
