@@ -1226,6 +1226,30 @@
                 return matchMes && matchSem && matchCamp && matchFecha && matchInter;
             });
 
+            const reforecastAlert = document.getElementById('reforecastAlert');
+            const reforecastMsg = document.getElementById('reforecastMsg');
+            let campanasModificadas = {};
+            
+            dfFiltered.forEach(r => {
+                const f = parseFloat(getProp(r, ['Factor_Correccion'], 1.0));
+                if (f !== 1.0 && !isNaN(f)) {
+                    const c = String(getProp(r, ['Campaña', 'Campana'], 'General'));
+                    campanasModificadas[c] = f;
+                }
+            });
+
+            if (Object.keys(campanasModificadas).length > 0 && reforecastAlert && currentMode !== 'ops' && currentMode !== 'operaciones') {
+                reforecastAlert.classList.remove('hidden');
+                let detalles = Object.entries(campanasModificadas).map(([camp, factor]) => {
+                    let pct = Math.round((factor - 1) * 100);
+                    let signo = pct > 0 ? '+' : '';
+                    return `<span class="text-brand-accentAmber font-bold">${camp} (${signo}${pct}%)</span>`;
+                }).join(', ');
+                reforecastMsg.innerHTML = `El algoritmo detectó un quiebre de tendencia reciente. Ajuste aplicado a: ${detalles}.`;
+            } else if (reforecastAlert) {
+                reforecastAlert.classList.add('hidden');
+            }
+
             if (!dfFiltered || dfFiltered.length === 0) {
                 document.getElementById('kpiCalls').innerText = "0";
                 document.getElementById('kpiAht').innerText = "00:00:00";
@@ -1240,7 +1264,6 @@
             const esVistaSemanal = fechasFiltradas.length > 1;
             const concurrenciaVal = parseFloat(document.getElementById('concurrencia').value) || 3.0;
 
-            // --- LÓGICA VISTA CONSOLIDADA (SILOS) ---
             if (forecastMode === 'general') {
                 const btn = document.getElementById('btnProcesar');
                 if(btn) { btn.disabled = true; btn.innerText = "⏳ SUMANDO CANALES..."; }
@@ -1432,7 +1455,6 @@
                 return; 
             }
 
-            // --- LÓGICA VISTAS INDIVIDUALES (SILOS) ---
             const totCalls = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0), 0);
             document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
             
@@ -1470,13 +1492,11 @@
             let coberturaOptimaSilos = new Array(intervalos.length).fill(0);
             let turnosSilosMap = {};
             
-            // Vectores globales pre-calculados (solo para gráficas de barras en la UI)
             let llamadasAgrupadasGlobal = new Array(intervalos.length).fill(0);
             let reqAgrupadoGlobal = new Array(intervalos.length).fill(0);
             let ahtAgrupadoGlobal = new Array(intervalos.length).fill(0);
             let rosterAgrupadoGlobal = new Array(intervalos.length).fill(0);
 
-            // Bucle campaña por campaña (Silos)
             const optimizacionPromises = campanas.map(async (camp) => {
                 const dfCamp = dfFiltered.filter(r => r.Campaña === camp);
                 let llamVec = [], ahtVec = [], reqVec = [];
@@ -1562,7 +1582,6 @@
                 }
             });
 
-            // Promediamos el roster global ya que sumamos todos los dias de todas las campanas en el bucle
             rosterAgrupadoGlobal = rosterAgrupadoGlobal.map(val => Math.round(val / numDiasPeriodo));
 
             let legendInteractions = forecastMode === 'outbound' ? 'Contactos (FCST)' : forecastMode === 'chat' ? 'Mensajes (FCST)' : 'Llamadas (FCST)';
@@ -1723,9 +1742,18 @@
             optTbody.innerHTML = '';
             
             let turnosBase = Object.values(turnosSilosMap);
-            
-            globalTurnosOptimos = turnosBase.map(t => {
-                let nominaTurno = Math.max(0, t.agentes_a_programar);
+            let accumulatedNomina = 0;
+            let totalDiarioSilosReal = turnosBase.reduce((sum, t) => sum + t.agentes_a_programar, 0) || 1;
+
+            globalTurnosOptimos = turnosBase.map((t, index) => {
+                let nominaTurno;
+                if (index === turnosBase.length - 1) {
+                    nominaTurno = hcRequeridoDisplay - accumulatedNomina;
+                } else {
+                    nominaTurno = Math.round((t.agentes_a_programar / totalDiarioSilosReal) * hcRequeridoDisplay);
+                    accumulatedNomina += nominaTurno;
+                }
+                nominaTurno = Math.max(0, nominaTurno);
                 return { ...t, nomina_a_contratar: nominaTurno };
             });
 
