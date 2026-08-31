@@ -154,7 +154,7 @@
                     <div class="grid grid-cols-2 gap-4">
                         <div class="flex flex-col group">
                             <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentRose transition-colors">Shrinkage (%)</label>
-                            <input type="number" id="merma" value="30" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentRose font-mono-num font-bold focus:border-brand-accentRose focus:ring-1 focus:ring-brand-accentRose focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
+                            <input type="number" id="merma" value="30" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentRose font-mono-num font-bold focus:border-brand-accentRose focus:ring-1 focus:ring-brand-accentRose focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
                         </div>
                         <div class="flex flex-col group">
                             <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentAmber transition-colors">Jornada (Hrs)</label>
@@ -185,7 +185,7 @@
                                 <span class="text-[13px] text-white font-bold transition-colors tracking-wide">Staffing x Picos</span>
                             </div>
                             <div class="relative">
-                                <input type="checkbox" id="chkPicos" onchange="guardarEstadoPicos(); debouncedActualizarGrafica()" class="sr-only peer" checked>
+                                <input type="checkbox" id="chkPicos" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()" class="sr-only peer" checked>
                                 <div class="w-[42px] h-[22px] bg-[#1E293B] border border-[#334155] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[16px] after:w-[16px] after:transition-all peer-checked:bg-[#FB7185] peer-checked:border-brand-accentRose peer-checked:shadow-[0_0_10px_rgba(251,113,133,0.5)]"></div>
                             </div>
                         </label>
@@ -200,7 +200,7 @@
             <div id="contInfoGeneral" class="hidden pt-6">
                 <div class="p-4 bg-brand-primary/10 border border-brand-primary/30 rounded-xl">
                     <p class="text-[11px] text-brand-primary font-bold uppercase tracking-widest mb-2">Vista Consolidada Activa</p>
-                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>Para garantizar una suma pura y exacta, el sistema procesa matemáticamente el requerimiento base de cada canal y consolidará los totales considerando su propia configuración de picos.</p>
+                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>Para garantizar una suma pura y exacta, el sistema procesa matemáticamente el requerimiento base de cada canal y consolidará los totales considerando su propia configuración de picos y merma.</p>
                 </div>
             </div>
 
@@ -453,8 +453,9 @@
         let generalChartInstance = null;
         let globalTurnosOptimos = [];
         
-        // --- NUEVA VARIABLE DE ESTADO INDEPENDIENTE ---
+        // --- VARIABLES DE ESTADO INDEPENDIENTE ---
         let configPicos = { inbound: true, outbound: true, chat: true };
+        let configMerma = { inbound: 30, outbound: 30, chat: 30 };
 
         let allMesesOptions = [];
         let allSemanasOptions = [];
@@ -479,10 +480,11 @@
             "julio": 7, "agosto": 8, "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12
         };
 
-        // --- FUNCION PARA GUARDAR ESTADO AL HACER CLIC ---
-        function guardarEstadoPicos() {
+        // --- FUNCION PARA GUARDAR ESTADO AL HACER CLIC / CAMBIAR VALOR ---
+        function guardarEstadoParametros() {
             if (forecastMode !== 'general') {
                 configPicos[forecastMode] = document.getElementById('chkPicos').checked;
+                configMerma[forecastMode] = document.getElementById('merma').value;
             }
         }
 
@@ -601,10 +603,16 @@
                 }
             }
             
-            // --- RESTAURAR ESTADO DEL CHECKBOX ---
-            if (mode !== 'general' && configPicos[mode] !== undefined) {
-                const chk = document.getElementById('chkPicos');
-                if (chk) chk.checked = configPicos[mode];
+            // --- RESTAURAR ESTADO INDEPENDIENTE ---
+            if (mode !== 'general') {
+                if (configPicos[mode] !== undefined) {
+                    const chk = document.getElementById('chkPicos');
+                    if (chk) chk.checked = configPicos[mode];
+                }
+                if (configMerma[mode] !== undefined) {
+                    const mermaInput = document.getElementById('merma');
+                    if (mermaInput) mermaInput.value = configMerma[mode];
+                }
             }
 
             fetchLatestData(mode);
@@ -723,13 +731,24 @@
                     
                     if(config.targetSl) document.getElementById('targetSl').value = config.targetSl;
                     if(config.targetTime) document.getElementById('targetTime').value = config.targetTime;
-                    if(config.merma) document.getElementById('merma').value = config.merma;
+                    
+                    if(config.merma) {
+                        if (typeof config.merma === 'object') {
+                            configMerma = config.merma;
+                            document.getElementById('merma').value = configMerma[forecastMode] || 30;
+                        } else {
+                            document.getElementById('merma').value = config.merma;
+                            configMerma = { inbound: config.merma, outbound: config.merma, chat: config.merma };
+                        }
+                    }
+
                     if(config.duracionJornada) document.getElementById('duracionJornada').value = config.duracionJornada;
                     if(config.chkNocturno !== undefined) document.getElementById('chkNocturno').checked = config.chkNocturno;
                     if(config.chkPicos !== undefined) {
                         document.getElementById('chkPicos').checked = config.chkPicos;
-                        guardarEstadoPicos(); // Actualizar el estado inicial
                     }
+
+                    guardarEstadoParametros(); // Forzamos inicializar el estado
 
                     if (config.opsView) {
                         window.savedFilters = config.opsView;
@@ -746,7 +765,7 @@
             const config = {
                 targetSl: document.getElementById('targetSl').value,
                 targetTime: document.getElementById('targetTime').value,
-                merma: document.getElementById('merma').value,
+                merma: configMerma, // Ahora guardamos el objeto completo
                 duracionJornada: document.getElementById('duracionJornada').value,
                 chkNocturno: document.getElementById('chkNocturno').checked,
                 chkPicos: document.getElementById('chkPicos').checked,
@@ -1192,13 +1211,13 @@
         async function actualizarGrafica() {
             const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
             const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
-            const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
             const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 6.5;
             
             const usarNocturno = document.getElementById('chkNocturno') ? document.getElementById('chkNocturno').checked : false;
             
-            // Estado global para fallbacks
+            // Estados globales para fallbacks
             const usarPicosGlobal = document.getElementById('chkPicos') ? document.getElementById('chkPicos').checked : false;
+            const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
 
             const dfFiltered = globalData.filter(item => {
                 const m = String(getProp(item, ['Mes'], ''));
@@ -1281,9 +1300,10 @@
                     const ahtVector = [];
                     const reqVector = [];
 
-                    // --- RECUPERAR ESTADO INDEPENDIENTE ---
+                    // --- RECUPERAR ESTADO INDEPENDIENTE PARA CONSOLIDADO ---
                     const canalKey = canalStr.toLowerCase();
                     const aplicarPicosCanal = configPicos[canalKey] !== undefined ? configPicos[canalKey] : usarPicosGlobal;
+                    const mermaCanal = configMerma[canalKey] !== undefined ? parseFloat(configMerma[canalKey]) : mermaVal;
 
                     todosIntervalos.forEach(inter => {
                         let callSum = 0, reqSum = 0, htSum = 0;
@@ -1326,7 +1346,7 @@
                                 requeridos: reqVector, 
                                 target_sl: targetSlObj,
                                 target_time: targetTimeObj,
-                                merma: mermaVal,
+                                merma: mermaCanal, // <-- USAMOS LA MERMA ESPECÍFICA DEL CANAL
                                 duracion_jornada: durJornada,
                                 es_nocturno: usarNocturno,
                                 es_outbound: esOutbound,
@@ -1503,6 +1523,7 @@
 
             // --- RECUPERAR ESTADO INDEPENDIENTE (NO GLOBAL) ---
             const aplicarPicosActual = forecastMode !== 'general' ? (configPicos[forecastMode] !== undefined ? configPicos[forecastMode] : usarPicosGlobal) : usarPicosGlobal;
+            const mermaActual = forecastMode !== 'general' ? (configMerma[forecastMode] !== undefined ? parseFloat(configMerma[forecastMode]) : mermaVal) : mermaVal;
 
             todosIntervalos.forEach((inter, idx) => {
                 let callsSum = 0;
@@ -1530,7 +1551,7 @@
                 if (numDiasPeriodo > 0) {
                     rosterAvgVector[idx] = Math.round(rosterSum / numDiasPeriodo);
 
-                    if (aplicarPicosActual) { // SE USA EL CAMBIO AQUI
+                    if (aplicarPicosActual) { 
                         let callsArray = [];
                         let reqArray = [];
                         let ahtArray = [];
@@ -1556,7 +1577,7 @@
 
             try {
                 const concurrenciaVal = parseFloat(document.getElementById('concurrencia').value) || 3.0;
-                ejecutarOptimizadorHorarios(todosIntervalos, llamadasAvgVector, ahtAvgVector, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaVal, durJornada, usarNocturno, esVistaSemanal, concurrenciaVal, dfFiltered);
+                ejecutarOptimizadorHorarios(todosIntervalos, llamadasAvgVector, ahtAvgVector, rosterAvgVector, reqAvgVector, targetTimeObj, targetSlObj, mermaActual, durJornada, usarNocturno, esVistaSemanal, concurrenciaVal, dfFiltered);
             } catch (e) {
                 console.log("Error al preparar optimizador:", e);
             }
