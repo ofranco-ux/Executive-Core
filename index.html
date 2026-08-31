@@ -185,7 +185,7 @@
                                 <span class="text-[13px] text-white font-bold transition-colors tracking-wide">Staffing x Picos</span>
                             </div>
                             <div class="relative">
-                                <input type="checkbox" id="chkPicos" onchange="debouncedActualizarGrafica()" class="sr-only peer" checked>
+                                <input type="checkbox" id="chkPicos" onchange="guardarEstadoPicos(); debouncedActualizarGrafica()" class="sr-only peer" checked>
                                 <div class="w-[42px] h-[22px] bg-[#1E293B] border border-[#334155] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[16px] after:w-[16px] after:transition-all peer-checked:bg-[#FB7185] peer-checked:border-brand-accentRose peer-checked:shadow-[0_0_10px_rgba(251,113,133,0.5)]"></div>
                             </div>
                         </label>
@@ -200,7 +200,7 @@
             <div id="contInfoGeneral" class="hidden pt-6">
                 <div class="p-4 bg-brand-primary/10 border border-brand-primary/30 rounded-xl">
                     <p class="text-[11px] text-brand-primary font-bold uppercase tracking-widest mb-2">Vista Consolidada Activa</p>
-                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>Para garantizar una suma pura y exacta, el sistema procesa matemáticamente el requerimiento base de cada canal y consolidará los totales.</p>
+                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>Para garantizar una suma pura y exacta, el sistema procesa matemáticamente el requerimiento base de cada canal y consolidará los totales considerando su propia configuración de picos.</p>
                 </div>
             </div>
 
@@ -453,6 +453,9 @@
         let generalChartInstance = null;
         let globalTurnosOptimos = [];
         
+        // --- NUEVA VARIABLE DE ESTADO INDEPENDIENTE ---
+        let configPicos = { inbound: true, outbound: true, chat: true };
+
         let allMesesOptions = [];
         let allSemanasOptions = [];
         let allCampanasOptions = [];
@@ -475,6 +478,13 @@
             "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
             "julio": 7, "agosto": 8, "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12
         };
+
+        // --- FUNCION PARA GUARDAR ESTADO AL HACER CLIC ---
+        function guardarEstadoPicos() {
+            if (forecastMode !== 'general') {
+                configPicos[forecastMode] = document.getElementById('chkPicos').checked;
+            }
+        }
 
         function ordenarMesesCronologicamente(a, b) {
             const partsA = a.toLowerCase().trim().split(' ');
@@ -591,6 +601,12 @@
                 }
             }
             
+            // --- RESTAURAR ESTADO DEL CHECKBOX ---
+            if (mode !== 'general' && configPicos[mode] !== undefined) {
+                const chk = document.getElementById('chkPicos');
+                if (chk) chk.checked = configPicos[mode];
+            }
+
             fetchLatestData(mode);
         }
 
@@ -710,7 +726,10 @@
                     if(config.merma) document.getElementById('merma').value = config.merma;
                     if(config.duracionJornada) document.getElementById('duracionJornada').value = config.duracionJornada;
                     if(config.chkNocturno !== undefined) document.getElementById('chkNocturno').checked = config.chkNocturno;
-                    if(config.chkPicos !== undefined) document.getElementById('chkPicos').checked = config.chkPicos;
+                    if(config.chkPicos !== undefined) {
+                        document.getElementById('chkPicos').checked = config.chkPicos;
+                        guardarEstadoPicos(); // Actualizar el estado inicial
+                    }
 
                     if (config.opsView) {
                         window.savedFilters = config.opsView;
@@ -1176,8 +1195,10 @@
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
             const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 6.5;
             
-            const usarPicos = document.getElementById('chkPicos') ? document.getElementById('chkPicos').checked : false;
             const usarNocturno = document.getElementById('chkNocturno') ? document.getElementById('chkNocturno').checked : false;
+            
+            // Estado global para fallbacks
+            const usarPicosGlobal = document.getElementById('chkPicos') ? document.getElementById('chkPicos').checked : false;
 
             const dfFiltered = globalData.filter(item => {
                 const m = String(getProp(item, ['Mes'], ''));
@@ -1260,6 +1281,10 @@
                     const ahtVector = [];
                     const reqVector = [];
 
+                    // --- RECUPERAR ESTADO INDEPENDIENTE ---
+                    const canalKey = canalStr.toLowerCase();
+                    const aplicarPicosCanal = configPicos[canalKey] !== undefined ? configPicos[canalKey] : usarPicosGlobal;
+
                     todosIntervalos.forEach(inter => {
                         let callSum = 0, reqSum = 0, htSum = 0;
                         let cArr = [], rArr = [], aArr = [];
@@ -1277,7 +1302,7 @@
                             cArr.push(sC); rArr.push(sR); aArr.push(sC > 0 ? sHt/sC : 180);
                         });
 
-                        if (usarPicos) {
+                        if (aplicarPicosCanal) {
                             llamVector.push(cArr.length ? Math.max(...cArr) : 0);
                             reqVector.push(rArr.length ? Math.max(...rArr) : 0);
                             ahtVector.push(aArr.length ? Math.max(...aArr) : 180);
@@ -1476,6 +1501,9 @@
 
             const numDiasPeriodo = fechasFiltradas.length;
 
+            // --- RECUPERAR ESTADO INDEPENDIENTE (NO GLOBAL) ---
+            const aplicarPicosActual = forecastMode !== 'general' ? (configPicos[forecastMode] !== undefined ? configPicos[forecastMode] : usarPicosGlobal) : usarPicosGlobal;
+
             todosIntervalos.forEach((inter, idx) => {
                 let callsSum = 0;
                 let reqSum = 0;
@@ -1502,7 +1530,7 @@
                 if (numDiasPeriodo > 0) {
                     rosterAvgVector[idx] = Math.round(rosterSum / numDiasPeriodo);
 
-                    if (usarPicos) {
+                    if (aplicarPicosActual) { // SE USA EL CAMBIO AQUI
                         let callsArray = [];
                         let reqArray = [];
                         let ahtArray = [];
