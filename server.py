@@ -904,7 +904,16 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     if len(valid_starts) > 0:
         for _ in range(5000):
             current_sl = calc_current_global_sl(cob_hc)
-            if current_sl >= target_sl_dinamico: break
+            
+            # REGLA ANTIGAP: Validar que no haya huecos en 0 si hay requerimiento
+            hay_huecos = False
+            for i in range(m):
+                if req_hc_base[i] > 0 and cob_hc[i] < 1:
+                    hay_huecos = True
+                    break
+                    
+            if current_sl >= target_sl_dinamico and not hay_huecos: 
+                break
 
             deficit = req_hc_base - cob_hc
             best_start_idx, best_cov, best_pen = -1, -1, 999999
