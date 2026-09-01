@@ -908,15 +908,20 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             if primer_idx_req == -1: primer_idx_req = i
             ultimo_idx_req = i
 
+    # NUEVO: Para Outbound, garantizar que la ventana de servicio (del primer al último contacto) nunca baje de 1
+    if es_outbound and primer_idx_req != -1:
+        for i in range(primer_idx_req, ultimo_idx_req + 1):
+            req_hc_base[i] = max(1.0, req_hc_base[i])
+
     if len(valid_starts) > 0:
         for _ in range(5000):
             current_sl = calc_current_global_sl(cob_hc)
             
-            # REGLA ANTIGAP estricta para la ventana operativa
+            # REGLA ANTIGAP estricta (Para Inbound/Chat solo aplica donde el HC requerido > 0)
             hay_huecos = False
             if primer_idx_req != -1:
                 for i in range(primer_idx_req, ultimo_idx_req + 1):
-                    if cob_hc[i] < 1:
+                    if req_hc_base[i] > 0 and cob_hc[i] < 1:
                         hay_huecos = True
                         break
                         
@@ -942,7 +947,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                         pen_local = 0
                         for offset in range(SHIFT_BLOCKS):
                             idx_eval = (s_idx + offset) % m
-                            if primer_idx_req <= idx_eval <= ultimo_idx_req and cob_hc[idx_eval] < 1:
+                            if primer_idx_req <= idx_eval <= ultimo_idx_req and req_hc_base[idx_eval] > 0 and cob_hc[idx_eval] < 1:
                                 huecos_tapados += 1
                             if deficit[idx_eval] < 0:
                                 pen_local += abs(deficit[idx_eval])
@@ -966,7 +971,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             else: cob_hc[best_start_idx:] += 1; cob_hc[:(best_start_idx + SHIFT_BLOCKS) - m] += 1
 
     if es_outbound:
-        sl_optimo_vector = [100.0 if req_hc_base[i] <= cob_hc[i] else (cob_hc[i]/max(1, req_hc_base[i]))*100.0 for i in range(m)]
+        sl_optimo_vector = [100.0 if req_hc_base[i] <= cob_hc[i] else (cob_hc[i]/max(1.0, req_hc_base[i]))*100.0 for i in range(m)]
         sl_optimo_global = min(100.0, (np.sum(cob_hc) / max(1.0, np.sum(req_hc_base))) * 100.0)
     else:
         sl_optimo_vector = []
