@@ -1351,7 +1351,16 @@
                             });
                             if (res.ok) {
                                 const data = await res.json();
-                                return esVistaSemanal ? (data.headcount_semanal_6x1 || 0) : (data.total_agentes_diarios || 0);
+                                let hcSilo = 0;
+                                if (esVistaSemanal && data.turnos) {
+                                    data.turnos.forEach(t => {
+                                        const esNocturno = t.duracion.includes('Nocturno');
+                                        const factor = esNocturno ? (7.0 / 5.0) : (7.0 / 6.0);
+                                        hcSilo += Math.ceil(t.agentes_a_programar * factor);
+                                    });
+                                    return hcSilo;
+                                }
+                                return data.total_agentes_diarios || 0;
                             }
                         } catch(e) {}
                         return 0;
@@ -1592,27 +1601,18 @@
                 if (res.cobertura_optima) res.cobertura_optima.forEach((v, i) => coberturaOptimaSilos[i] += v);
                 if (res.turnos) {
                     res.turnos.forEach(t => {
+                        const esNocturno = t.duracion.includes('Nocturno');
+                        const factor = esNocturno ? (7.0 / 5.0) : (7.0 / 6.0);
+                        const nominaTurno = Math.ceil(t.agentes_a_programar * factor);
+                        
                         const key = t.horario_entrada + '|' + t.horario_salida + '|' + t.duracion;
-                        if (!turnosSilosMap[key]) turnosSilosMap[key] = { ...t, agentes_a_programar: 0 };
+                        if (!turnosSilosMap[key]) turnosSilosMap[key] = { ...t, agentes_a_programar: 0, nomina_a_contratar: 0 };
+                        
                         turnosSilosMap[key].agentes_a_programar += t.agentes_a_programar;
+                        turnosSilosMap[key].nomina_a_contratar += nominaTurno;
                     });
                 }
             });
-
-            // 1. GENERAR MALLA SEGURA (Anti-huecos)
-            let turnosBase = Object.values(turnosSilosMap);
-            globalTurnosOptimos = turnosBase.map(t => {
-                const esNocturno = t.duracion.includes('Nocturno');
-                const factor = esNocturno ? (7.0 / 5.0) : (7.0 / 6.0);
-                // Math.ceil garantiza que un turno de 1 persona contrate 2, asegurando que 1 trabaje mientras el otro descansa
-                let nominaTurno = Math.ceil(t.agentes_a_programar * factor);
-                return { ...t, nomina_a_contratar: Math.max(0, nominaTurno) };
-            });
-
-            globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
-            
-            // Recalculamos el HC Requerido Real basado en esta malla segura
-            const totalMallaHC = globalTurnosOptimos.reduce((sum, t) => sum + t.nomina_a_contratar, 0);
 
             rosterAgrupadoGlobal = rosterAgrupadoGlobal.map(val => Math.round(val / numDiasPeriodo));
 
@@ -1706,6 +1706,13 @@
                 if (row) totalRosterHC += esVistaSemanal ? (row.Total_Roster_Campana || 0) : (row.Total_Roster_Dia || 0);
             });
 
+            let turnosBase = Object.values(turnosSilosMap);
+            globalTurnosOptimos = turnosBase.map(t => {
+                return { ...t, nomina_a_contratar: Math.max(0, t.nomina_a_contratar) };
+            });
+            globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
+            
+            const totalMallaHC = globalTurnosOptimos.reduce((sum, t) => sum + t.nomina_a_contratar, 0);
             const hcRequeridoDisplay = esVistaSemanal ? totalMallaHC : totalAgentesDiariosSilos;
             
             document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido Total";
