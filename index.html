@@ -174,7 +174,7 @@
                                 <span class="text-[13px] text-white font-bold transition-colors tracking-wide">Turno Nocturno</span>
                             </div>
                             <div class="relative">
-                                <input type="checkbox" id="chkNocturno" onchange="debouncedActualizarGrafica()" class="sr-only peer" checked>
+                                <input type="checkbox" id="chkNocturno" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()" class="sr-only peer" checked>
                                 <div class="w-[42px] h-[22px] bg-[#1E293B] border border-[#334155] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[16px] after:w-[16px] after:transition-all peer-checked:bg-[#A78BFA] peer-checked:border-brand-accentViolet peer-checked:shadow-[0_0_10px_rgba(167,139,250,0.5)]"></div>
                             </div>
                         </label>
@@ -455,6 +455,8 @@
         
         let configPicos = { inbound: true, outbound: true, chat: true };
         let configMerma = { inbound: 30, outbound: 30, chat: 30 };
+        // NUEVO: Memoria independiente para Turno Nocturno (Por default Outbound apagado)
+        let configNocturno = { inbound: true, outbound: false, chat: false };
 
         let allMesesOptions = [];
         let allSemanasOptions = [];
@@ -483,6 +485,7 @@
             if (forecastMode !== 'general') {
                 configPicos[forecastMode] = document.getElementById('chkPicos').checked;
                 configMerma[forecastMode] = document.getElementById('merma').value;
+                configNocturno[forecastMode] = document.getElementById('chkNocturno').checked;
             }
         }
 
@@ -609,6 +612,10 @@
                 if (configMerma[mode] !== undefined) {
                     const mermaInput = document.getElementById('merma');
                     if (mermaInput) mermaInput.value = configMerma[mode];
+                }
+                if (configNocturno[mode] !== undefined) {
+                    const chkNoc = document.getElementById('chkNocturno');
+                    if (chkNoc) chkNoc.checked = configNocturno[mode];
                 }
             }
 
@@ -740,7 +747,17 @@
                     }
 
                     if(config.duracionJornada) document.getElementById('duracionJornada').value = config.duracionJornada;
-                    if(config.chkNocturno !== undefined) document.getElementById('chkNocturno').checked = config.chkNocturno;
+                    
+                    if(config.chkNocturno !== undefined) {
+                        if (typeof config.chkNocturno === 'object') {
+                            configNocturno = config.chkNocturno;
+                            document.getElementById('chkNocturno').checked = configNocturno[forecastMode] || false;
+                        } else {
+                            document.getElementById('chkNocturno').checked = config.chkNocturno;
+                            configNocturno = { inbound: config.chkNocturno, outbound: config.chkNocturno, chat: config.chkNocturno };
+                        }
+                    }
+                    
                     if(config.chkPicos !== undefined) {
                         document.getElementById('chkPicos').checked = config.chkPicos;
                     }
@@ -764,7 +781,7 @@
                 targetTime: document.getElementById('targetTime').value,
                 merma: configMerma,
                 duracionJornada: document.getElementById('duracionJornada').value,
-                chkNocturno: document.getElementById('chkNocturno').checked,
+                chkNocturno: configNocturno,
                 chkPicos: document.getElementById('chkPicos').checked,
                 opsView: {
                     tab: forecastMode,
@@ -1205,8 +1222,8 @@
             const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
             const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
             const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 6.5;
-            const usarNocturno = document.getElementById('chkNocturno') ? document.getElementById('chkNocturno').checked : false;
             
+            const usarNocturnoGlobal = document.getElementById('chkNocturno') ? document.getElementById('chkNocturno').checked : false;
             const usarPicosGlobal = document.getElementById('chkPicos') ? document.getElementById('chkPicos').checked : false;
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
 
@@ -1279,6 +1296,7 @@
                     const canalKey = canalStr.toLowerCase();
                     const aplicarPicosCanal = configPicos[canalKey] !== undefined ? configPicos[canalKey] : usarPicosGlobal;
                     const mermaCanal = configMerma[canalKey] !== undefined ? parseFloat(configMerma[canalKey]) : mermaVal;
+                    const usarNocturnoCanal = configNocturno[canalKey] !== undefined ? configNocturno[canalKey] : usarNocturnoGlobal;
 
                     const promises = campanas.map(async (camp) => {
                         const dfCamp = dfC.filter(r => r.Campaña === camp);
@@ -1326,7 +1344,7 @@
                                     target_time: targetTimeObj,
                                     merma: mermaCanal,
                                     duracion_jornada: durJornada,
-                                    es_nocturno: usarNocturno,
+                                    es_nocturno: usarNocturnoCanal,
                                     es_outbound: esOutbound,
                                     es_chat: esChat,
                                     concurrencia: concurrenciaVal
@@ -1465,13 +1483,13 @@
             document.getElementById('kpiAht').innerText = formatAHT(totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0);
 
             try {
-                ejecutarOptimizadorHorarios(todosIntervalos, dfFiltered, targetTimeObj, targetSlObj, durJornada, usarNocturno, esVistaSemanal, concurrenciaVal);
+                ejecutarOptimizadorHorarios(todosIntervalos, dfFiltered, targetTimeObj, targetSlObj, durJornada, esVistaSemanal, concurrenciaVal);
             } catch (e) {
                 console.log("Error al preparar optimizador:", e);
             }
         }
 
-        async function ejecutarOptimizadorHorarios(intervalos, dfFiltered, targetTimeObj, targetSlObj, durJornada, usarNocturno, esVistaSemanal, concurrenciaVal) {
+        async function ejecutarOptimizadorHorarios(intervalos, dfFiltered, targetTimeObj, targetSlObj, durJornada, esVistaSemanal, concurrenciaVal) {
             if (!intervalos || intervalos.length === 0) return;
 
             document.getElementById('contGapChart').classList.remove('hidden');
@@ -1482,6 +1500,7 @@
             
             const aplicarPicosActual = configPicos[forecastMode] !== undefined ? configPicos[forecastMode] : document.getElementById('chkPicos').checked;
             const mermaActual = configMerma[forecastMode] !== undefined ? parseFloat(configMerma[forecastMode]) : parseFloat(document.getElementById('merma').value);
+            const usarNocturnoActual = configNocturno[forecastMode] !== undefined ? configNocturno[forecastMode] : document.getElementById('chkNocturno').checked;
 
             const campanas = [...new Set(dfFiltered.map(r => r.Campaña))];
             const fechasPeriodo = [...new Set(dfFiltered.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0]))].filter(Boolean);
@@ -1556,7 +1575,7 @@
                             target_time: targetTimeObj,
                             merma: mermaActual,
                             duracion_jornada: durJornada,
-                            es_nocturno: usarNocturno,
+                            es_nocturno: usarNocturnoActual,
                             es_outbound: forceOutboundLogic,
                             es_chat: esChatLogic,
                             concurrencia: concurrenciaVal
@@ -1698,7 +1717,7 @@
             }
 
             if (esVistaSemanal) {
-                document.getElementById('lblHeadcountType').innerText = usarNocturno ? 'Required HC (Mixto)' : 'Required HC';
+                document.getElementById('lblHeadcountType').innerText = usarNocturnoActual ? 'Required HC (Mixto)' : 'Required HC';
                 document.getElementById('kpiHcRequeridoSub').innerText = "Suma individual de todas las campañas en silos";
             } else {
                 document.getElementById('lblHeadcountType').innerText = 'Required HC (Diario)';
@@ -1713,7 +1732,7 @@
 
             if (optChartInstance) optChartInstance.destroy();
             const ctxOpt = document.getElementById('optChart').getContext('2d');
-            const labelCurvaCob = usarNocturno ? "Malla Sugerida (Mixta)" : `Malla Sugerida (${durJornada}h)`;
+            const labelCurvaCob = usarNocturnoActual ? "Malla Sugerida (Mixta)" : `Malla Sugerida (${durJornada}h)`;
 
             optChartInstance = new Chart(ctxOpt, {
                 type: 'line',
