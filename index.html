@@ -319,7 +319,7 @@
                     </div>
                     <div class="relative z-10 mt-2">
                         <p id="kpiHcRequerido" class="text-3xl font-black font-mono-num text-brand-accentViolet drop-shadow-[0_0_8px_rgba(167,139,250,0.3)]">0 HC</p>
-                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium">Plantilla total sugerida para el periodo</p>
+                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium">Suma individual de todas las campañas en silos</p>
                     </div>
                 </div>
 
@@ -1320,11 +1320,11 @@
 
                             if (aplicarPicosCanal) {
                                 llamVec.push(cArr.length ? Math.max(...cArr) : 0);
-                                reqVec.push(rArr.length ? Math.max(...rArr) : 0);
+                                reqVec.push(rArr.length ? Math.ceil(Math.max(...rArr)) : 0);
                                 ahtVec.push(aArr.length ? Math.max(...aArr) : 180);
                             } else {
                                 llamVec.push(callSum / nDias);
-                                reqVec.push(reqSum / nDias);
+                                reqVec.push(Math.ceil(reqSum / nDias));
                                 ahtVec.push(callSum > 0 ? htSum/callSum : 180);
                             }
                         });
@@ -1525,6 +1525,9 @@
             let ahtAgrupadoGlobal = new Array(intervalos.length).fill(0);
             let rosterAgrupadoGlobal = new Array(intervalos.length).fill(0);
 
+            let globalDiurno = 0;
+            let globalNocturno = 0;
+
             const optimizacionPromises = campanas.map(async (camp) => {
                 const dfCamp = dfFiltered.filter(r => r.Campaña === camp);
                 let llamVec = [], ahtVec = [], reqVec = [];
@@ -1562,7 +1565,7 @@
                     }
 
                     llamVec.push(valLlam);
-                    reqVec.push(valReq);
+                    reqVec.push(Math.ceil(valReq));
                     ahtVec.push(valAht);
                     
                     llamadasAgrupadasGlobal[idx] += valLlam;
@@ -1599,24 +1602,29 @@
             resultadosSilos.forEach(res => {
                 if (!res) return;
                 totalAgentesDiariosSilos += (res.total_agentes_diarios || 0);
-                
-                let hcDiurnoCamp = 0, hcNocturnoCamp = 0;
+                if (res.cobertura_optima) res.cobertura_optima.forEach((v, i) => coberturaOptimaSilos[i] += v);
                 if (res.turnos) {
                     res.turnos.forEach(t => {
-                        if (t.duracion.includes('Nocturno')) hcNocturnoCamp += t.agentes_a_programar;
-                        else hcDiurnoCamp += t.agentes_a_programar;
+                        const esNocturno = t.duracion.includes('Nocturno');
+                        if (esNocturno) globalNocturno += t.agentes_a_programar;
+                        else globalDiurno += t.agentes_a_programar;
                         
                         const key = t.horario_entrada + '|' + t.horario_salida + '|' + t.duracion;
                         if (!turnosSilosMap[key]) turnosSilosMap[key] = { ...t, agentes_a_programar: 0, nomina_a_contratar: 0 };
+                        
                         turnosSilosMap[key].agentes_a_programar += t.agentes_a_programar;
                     });
                 }
-                
-                let totalSemanalCamp = Math.ceil(hcDiurnoCamp * (7.0 / 6.0)) + Math.ceil(hcNocturnoCamp * (7.0 / 5.0));
-                totalAgentesSemanalesSilos += totalSemanalCamp;
-
-                if (res.cobertura_optima) res.cobertura_optima.forEach((v, i) => coberturaOptimaSilos[i] += v);
             });
+
+            // Se calcula el HC Semanal de forma pura para la tarjeta principal (Sin inflar nóminas individuales)
+            totalAgentesSemanalesSilos = Math.ceil(globalDiurno * (7.0 / 6.0)) + Math.ceil(globalNocturno * (7.0 / 5.0));
+
+            const hcRequeridoDisplay = esVistaSemanal ? totalAgentesSemanalesSilos : totalAgentesDiariosSilos;
+            
+            document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido Total";
+            document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay.toLocaleString() + ' HC';
+            document.getElementById('optHeadcount').innerText = hcRequeridoDisplay.toLocaleString();
 
             rosterAgrupadoGlobal = rosterAgrupadoGlobal.map(val => Math.round(val / numDiasPeriodo));
 
@@ -1710,12 +1718,6 @@
                 if (row) totalRosterHC += esVistaSemanal ? (row.Total_Roster_Campana || 0) : (row.Total_Roster_Dia || 0);
             });
 
-            const hcRequeridoDisplay = esVistaSemanal ? totalAgentesSemanalesSilos : totalAgentesDiariosSilos;
-            
-            document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido Total";
-            document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay.toLocaleString() + ' HC';
-            document.getElementById('optHeadcount').innerText = hcRequeridoDisplay.toLocaleString();
-            
             document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Disponible" : "Plantilla de Hoy";
             document.getElementById('kpiHcRosterSub').innerText = esVistaSemanal ? "Total de agentes contratados en Roster" : "Descuenta descansos (DD-DD) del día";
             document.getElementById('kpiHcRoster').innerText = totalRosterHC.toLocaleString() + ' HC';
