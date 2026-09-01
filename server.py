@@ -876,15 +876,12 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     label_jornada_diurna = f"{float(duracion_jornada):.1f} hrs".replace('.0', '')
 
     valid_starts = []
+    horas_permitidas = [7*60, 8*60, 9*60, 10*60, 13*60, 14*60, 15*60, 16*60]
+    
     for j in range(m):
         m_in = parse_time_str(intervalos[j])
-        if m_in is not None and m_in % 60 == 0:
-            if es_nocturno:
-                m_out = m_in + duracion_minutos
-                if m_in >= (7 * 60) and m_out <= (22 * 60):
-                    valid_starts.append(j)
-            else:
-                valid_starts.append(j)
+        if m_in is not None and m_in in horas_permitidas:
+            valid_starts.append(j)
 
     def calc_current_global_sl(current_cob):
         if tot_llamadas <= 0: return 100.0
@@ -900,7 +897,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                     sl_acum += c * erlang_c_sl_optimizado(a_erl, current_cob[i] * factor_asistencia, aht_efectivo, target_time)
             return sl_acum / tot_llamadas
 
-    # Identificar la ventana operativa (desde el primer requerimiento hasta el último)
     primer_idx_req = -1
     ultimo_idx_req = -1
     for i in range(m):
@@ -908,7 +904,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             if primer_idx_req == -1: primer_idx_req = i
             ultimo_idx_req = i
 
-    # NUEVO: Para Outbound, garantizar que la ventana de servicio (del primer al último contacto) nunca baje de 1
     if es_outbound and primer_idx_req != -1:
         for i in range(primer_idx_req, ultimo_idx_req + 1):
             req_hc_base[i] = max(1.0, req_hc_base[i])
@@ -917,7 +912,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         for _ in range(5000):
             current_sl = calc_current_global_sl(cob_hc)
             
-            # REGLA ANTIGAP estricta (Para Inbound/Chat solo aplica donde el HC requerido > 0)
             hay_huecos = False
             if primer_idx_req != -1:
                 for i in range(primer_idx_req, ultimo_idx_req + 1):
