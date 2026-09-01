@@ -728,21 +728,36 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                     if req_hc_base[i] > 0 and cob_hc[i] < 1:
                         hay_ceros = True
                         break
+                        
+            # Regla de freno estricto: Si ya pasamos la meta y no hay huecos en ceros, nos detenemos.
+            if current_sl >= target_sl_dinamico and not hay_ceros: 
+                break
 
             deficit = req_hc_base - cob_hc
-            best_start_idx, best_cov, best_pen = -1, -1, 999999
+            best_start_idx = -1
+            best_score = -999999
+            best_pen_fallback = 999999
             
             for s_idx in valid_starts:
                 if s_idx + SHIFT_BLOCKS <= m: sub_def = deficit[s_idx : s_idx + SHIFT_BLOCKS]
                 else: sub_def = np.concatenate((deficit[s_idx:], deficit[:(s_idx + SHIFT_BLOCKS) - m]))
                 
-                cov, pen = np.sum(np.maximum(0, sub_def)), np.sum(np.maximum(0, -sub_def))
-                if cov > best_cov or (cov == best_cov and pen < best_pen): 
-                    best_cov, best_pen, best_start_idx = cov, pen, s_idx
+                cov = np.sum(np.maximum(0, sub_def))
+                pen = np.sum(np.maximum(0, -sub_def))
+                
+                # Penalización agresiva por sobrestaffing para abrazar la curva
+                score = cov - (pen * 0.75) 
+                
+                if score > best_score: 
+                    best_score = score
+                    best_start_idx = s_idx
+                    best_pen_fallback = pen
 
-            if best_start_idx == -1 or best_cov <= 0:
+            # Evitar contratar gente si la penalización (sobrestaff) es mucho mayor al déficit que cubrimos
+            if best_start_idx == -1 or best_score <= 0:
                 if hay_ceros:
                     best_cov_huecos = -1
+                    best_pen_local = 999999
                     for s_idx in valid_starts:
                         huecos_tapados = 0
                         pen_local = 0
@@ -753,20 +768,14 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                             if deficit[idx_eval] < 0:
                                 pen_local += abs(deficit[idx_eval])
                         
-                        if huecos_tapados > best_cov_huecos or (huecos_tapados == best_cov_huecos and pen_local < best_pen):
+                        if huecos_tapados > best_cov_huecos or (huecos_tapados == best_cov_huecos and pen_local < best_pen_local):
                             best_cov_huecos = huecos_tapados
-                            best_pen = pen_local
+                            best_pen_local = pen_local
                             best_start_idx = s_idx
                     
                     if best_start_idx == -1 or best_cov_huecos <= 0:
                         break
                 else:
-                    break
-                
-            # NUEVA REGLA PARA EVITAR SOBRESTAFF PERO ABRAZAR LA CURVA
-            if current_sl >= target_sl_dinamico and not hay_ceros:
-                # Nos detenemos si el turno genera más sobrestaff (pen) que la cobertura de déficit (cov)
-                if best_pen >= best_cov:
                     break
                 
             min_in = parse_time_str(intervalos[best_start_idx])
