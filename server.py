@@ -197,7 +197,6 @@ def procesar_hoja_roster(df_roster):
                 'jueves': 'Jueves', 'viernes': 'Viernes', 'sábado': 'Sábado', 'sabado': 'Sábado', 'domingo': 'Domingo'}
     roster_cov, roster_total_camp, roster_total_dia_camp = {}, {}, {}
     col_camp = encontrar_columna(df_roster, ['campaña', 'campana', 'skill', 'servicio'])
-    
     col_agente = encontrar_columna(df_roster, ['agente', 'nombre', 'asesor', 'ejecutivo', 'id'])
     
     if not col_camp: return roster_cov, roster_total_camp, roster_total_dia_camp
@@ -313,10 +312,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         avg_julio = sub[(sub[col_fecha].dt.month == 7)][col_calls].mean()
         avg_agosto = sub[(sub[col_fecha].dt.month == 8)][col_calls].mean()
         
-        if avg_julio > 0 and avg_agosto > 0:
-            trend_rate = avg_agosto / avg_julio
-        else:
-            trend_rate = 1.0
+        if avg_julio > 0 and avg_agosto > 0: trend_rate = avg_agosto / avg_julio
+        else: trend_rate = 1.0
             
         trend_rate = max(0.92, min(1.08, trend_rate))
 
@@ -399,7 +396,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 a_erlang = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls_float > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
-                if req_hc == 1: req_hc = 2
+                if req_hc > 0 and req_hc < 2: req_hc = 2
 
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
                 tot_camp = roster_total_camp.get(str(camp), 0)
@@ -595,7 +592,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
 
                 req_ftes = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
-                if req_hc == 1: req_hc = 2
+                if req_hc > 0 and req_hc < 2: req_hc = 2
 
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
                 tot_camp = roster_total_camp.get(str(camp), 0)
@@ -796,9 +793,8 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
                 a_erlang_raw = (calls_float * aht_efectivo) / 1800.0 if (aht_efectivo > 0 and calls_float > 0) else 0.0
                 
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang_raw, aht_efectivo, target_time, target_sl) if calls_float > 0 else 0
-                req_hc = req_ftes / factor_asistencia if req_ftes > 0 else 0.0
-                req_hc_entero = math.ceil(req_hc)
-                if req_hc_entero == 1: req_hc_entero = 2
+                req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0.0
+                if req_hc > 0 and req_hc < 2: req_hc = 2
 
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
                 tot_camp = roster_total_camp.get(str(camp), 0)
@@ -813,7 +809,7 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
                     'Llamadas': calls_int,
                     'AHT': format_aht_str(aht),
                     'AHT_Segundos': int(round(aht)),
-                    'Agentes_Requeridos': req_hc_entero,
+                    'Agentes_Requeridos': req_hc,
                     'HC_Actual_Roster': hc_roster,
                     'Total_Roster_Campana': tot_camp,
                     'Total_Roster_Dia': tot_camp_dia,
@@ -838,67 +834,62 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         aht_arr = np.full(m, 180.0)
         req_hc_base = np.zeros(m)
     
-    primer_idx_req = -1
-    ultimo_idx_req = -1
-    for i in range(m):
-        if req_hc_base[i] > 0:
-            req_hc_base[i] = max(2.0, req_hc_base[i]) 
-            if primer_idx_req == -1: primer_idx_req = i
-            ultimo_idx_req = i
-            
     tot_llamadas = float(np.sum(llamadas_arr))
     factor_asistencia = max(0.01, 1.0 - merma)
     target_sl_dinamico = float(target_sl) if not es_outbound else 100.0 
     req_hc_pooled = req_hc_base.tolist()
-    cob_hc = np.zeros(m, dtype=float)
-    x_turnos_dict = {}
-
-    agentes_nocturnos_totales_hc = 0
-    agentes_diurnos_totales_hc = 0
-
-    if es_nocturno:
-        label_jornada_noc = "9.0 hrs (Nocturno 5x2)"
-        indices_nocturnos = [j for j in range(m) if parse_time_str(intervalos[j]) is not None and (parse_time_str(intervalos[j]) >= (22 * 60) or parse_time_str(intervalos[j]) < (7 * 60))]
-
-        if len(indices_nocturnos) > 0 and sum([llamadas_arr[idx] for idx in indices_nocturnos]) > 0:
-            agentes_noc_hc = 1
-            while agentes_noc_hc <= 200:
-                cob_temp_ftes = agentes_noc_hc * factor_asistencia
-                sl_acum, llamadas_noc = 0.0, 0.0
-                for idx in indices_nocturnos:
-                    c = llamadas_arr[idx]
-                    aht_real = aht_arr[idx]
-                    aht_efectivo = aht_real / max(1.0, concurrencia) if es_chat else aht_real
-                    
-                    if es_outbound:
-                        sl_v = 100.0 if (c * aht_efectivo)/1800.0 <= cob_temp_ftes else ((cob_temp_ftes * 1800.0) / (max(1, c * aht_efectivo))) * 100.0
-                    else:
-                        a_erl = (c * aht_efectivo) / 1800.0 if (c > 0 and aht_efectivo > 0) else 0.0
-                        sl_v = erlang_c_sl_optimizado(a_erl, cob_temp_ftes, aht_efectivo, target_time) if c > 0 else 100.0
-                        
-                    sl_acum += (c * sl_v); llamadas_noc += c
-                if (sl_acum / llamadas_noc if llamadas_noc > 0 else 100.0) >= target_sl_dinamico: break
-                agentes_noc_hc += 1
-            x_turnos_dict[("22:00", "07:00", label_jornada_noc)] = agentes_noc_hc
-            agentes_nocturnos_totales_hc = agentes_noc_hc
-            for idx in indices_nocturnos: cob_hc[idx] += agentes_noc_hc
 
     duracion_minutos = int(round(float(duracion_jornada) * 60))
     SHIFT_BLOCKS = int(round(float(duracion_jornada) * 2))
     label_jornada_diurna = f"{float(duracion_jornada):.1f} hrs".replace('.0', '')
 
-    valid_starts = []
+    valid_shifts = []
     horas_permitidas = [7*60, 8*60, 9*60, 10*60, 13*60, 14*60, 15*60, 16*60]
     
     for j in range(m):
         m_in = parse_time_str(intervalos[j])
         if m_in is not None and m_in in horas_permitidas:
-            if es_nocturno:
-                m_out = m_in + duracion_minutos
-                if m_in >= (7 * 60) and m_out <= (22 * 60):
-                    valid_starts.append(j)
-            else:
-                valid_starts.append(j)
+            shift_arr = np.zeros(m)
+            for step in range(SHIFT_BLOCKS):
+                if j + step < m:
+                    shift_arr[j + step] = 1
+            
+            m_out = (m_in + duracion_minutos) % 1440
+            end_str = f"{(int(m_out // 60)):02d}:{(int(m_out % 60)):02d}"
+            
+            valid_shifts.append({
+                'arr': shift_arr,
+                'start': intervalos[j],
+                'end': end_str,
+                'label': label_jornada_diurna,
+                'is_nocturno': False
+            })
+
+    if es_nocturno:
+        for j in range(m):
+            m_in = parse_time_str(intervalos[j])
+            if m_in == 22 * 60:
+                shift_arr = np.zeros(m)
+                dur_noc_int = 18 
+                for step in range(dur_noc_int):
+                    shift_arr[(j + step) % m] = 1
+                valid_shifts.append({
+                    'arr': shift_arr,
+                    'start': "22:00",
+                    'end': "07:00",
+                    'label': "9.0 hrs (Nocturno 5x2)",
+                    'is_nocturno': True
+                })
+
+    cob_hc = np.zeros(m)
+    shift_counts = [0] * len(valid_shifts)
+    
+    primer_idx_req = -1
+    ultimo_idx_req = -1
+    for i in range(m):
+        if req_hc_base[i] > 0:
+            if primer_idx_req == -1: primer_idx_req = i
+            ultimo_idx_req = i
 
     def calc_current_global_sl(current_cob):
         if tot_llamadas <= 0: return 100.0
@@ -914,80 +905,43 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                     sl_acum += c * erlang_c_sl_optimizado(a_erl, current_cob[i] * factor_asistencia, aht_efectivo, target_time)
             return sl_acum / tot_llamadas
 
-    if es_outbound and primer_idx_req != -1:
-        for i in range(primer_idx_req, ultimo_idx_req + 1):
-            req_hc_base[i] = max(2.0, req_hc_base[i])
+    while True:
+        deficit = req_hc_base - cob_hc
+        if np.max(deficit) <= 0:
+            break 
 
-    if len(valid_starts) > 0:
-        for _ in range(5000):
-            current_sl = calc_current_global_sl(cob_hc)
-            
-            hay_ceros = False
-            if primer_idx_req != -1:
-                for i in range(primer_idx_req, ultimo_idx_req + 1):
-                    if req_hc_base[i] > 0 and cob_hc[i] < 2:
-                        hay_ceros = True
-                        break
-                        
-            if current_sl >= target_sl_dinamico and not hay_ceros: 
-                break
-
-            deficit = req_hc_base - cob_hc
-            best_start_idx = -1
-            best_score = -999999
-            best_pen_fallback = 999999
-            
-            for s_idx in valid_starts:
-                if s_idx + SHIFT_BLOCKS <= m: sub_def = deficit[s_idx : s_idx + SHIFT_BLOCKS]
-                else: sub_def = np.concatenate((deficit[s_idx:], deficit[:(s_idx + SHIFT_BLOCKS) - m]))
-                
-                cov = np.sum(np.maximum(0, sub_def))
-                pen = np.sum(np.maximum(0, -sub_def))
-                
-                score = cov - (pen * 0.75) 
-                
-                if score > best_score: 
-                    best_score = score
-                    best_start_idx = s_idx
-                    best_pen_fallback = pen
-
-            if best_start_idx == -1 or best_score <= 0:
-                if hay_ceros:
-                    best_cov_huecos = -1
-                    best_pen_local = 999999
-                    for s_idx in valid_starts:
-                        huecos_tapados = 0
-                        pen_local = 0
-                        for offset in range(SHIFT_BLOCKS):
-                            idx_eval = (s_idx + offset) % m
-                            if primer_idx_req <= idx_eval <= ultimo_idx_req and req_hc_base[idx_eval] > 0 and cob_hc[idx_eval] < 2:
-                                huecos_tapados += 1
-                            if deficit[idx_eval] < 0:
-                                pen_local += abs(deficit[idx_eval])
-                        
-                        if huecos_tapados > best_cov_huecos or (huecos_tapados == best_cov_huecos and pen_local < best_pen_local):
-                            best_cov_huecos = huecos_tapados
-                            best_pen_local = pen_local
-                            best_start_idx = s_idx
-                    
-                    if best_start_idx == -1 or best_cov_huecos <= 0:
-                        break
-                else:
+        current_sl = calc_current_global_sl(cob_hc)
+        
+        hay_ceros_criticos = False
+        if primer_idx_req != -1:
+            for i in range(primer_idx_req, ultimo_idx_req + 1):
+                if req_hc_base[i] > 0 and cob_hc[i] < 1:
+                    hay_ceros_criticos = True
                     break
-                
-            if current_sl >= target_sl_dinamico and not hay_ceros:
-                if best_pen_fallback >= best_cov:
-                    break
-                
-            min_in = parse_time_str(intervalos[best_start_idx])
-            if min_in is None: min_in = 0 
+
+        if current_sl >= target_sl_dinamico and not hay_ceros_criticos:
+            break
+
+        best_idx = -1
+        best_score = -999999
+
+        for i, sh in enumerate(valid_shifts):
+            arr = sh['arr']
             
-            min_out = (min_in + duracion_minutos) % (24 * 60)
-            key_turno = (f"{(int(min_in // 60)):02d}:{(int(min_in % 60)):02d}", f"{(int(min_out // 60)):02d}:{(int(min_out % 60)):02d}", label_jornada_diurna)
-            x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + 1
+            covered_hc = np.sum(np.minimum(arr, np.maximum(0, deficit)))
+            overstaffing = np.sum(arr * (deficit < 0))
             
-            if best_start_idx + SHIFT_BLOCKS <= m: cob_hc[best_start_idx : best_start_idx + SHIFT_BLOCKS] += 2
-            else: cob_hc[best_start_idx:] += 2; cob_hc[:(best_start_idx + SHIFT_BLOCKS) - m] += 2
+            score = covered_hc - (overstaffing * 0.4) 
+
+            if score > best_score and covered_hc > 0:
+                best_score = score
+                best_idx = i
+                
+        if best_idx == -1:
+            break 
+            
+        shift_counts[best_idx] += 1
+        cob_hc += valid_shifts[best_idx]['arr']
 
     if es_outbound:
         sl_optimo_vector = [100.0 if req_hc_base[i] <= cob_hc[i] else (cob_hc[i]/max(1.0, req_hc_base[i]))*100.0 for i in range(m)]
@@ -1007,12 +961,21 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     cobertura_hc_entera = [int(x) for x in np.round(cob_hc)]
     turnos_sugeridos = []
     total_agentes_diarios_hc = 0
+    agentes_diurnos_totales_hc = 0
+    agentes_nocturnos_totales_hc = 0
 
-    for (h_in, h_out, label_dur), qty in x_turnos_dict.items():
+    for i, qty in enumerate(shift_counts):
         if qty > 0:
-            turnos_sugeridos.append({'horario_entrada': h_in, 'horario_salida': h_out, 'agentes_a_programar': int(qty), 'duracion': label_dur})
+            sh = valid_shifts[i]
+            turnos_sugeridos.append({
+                'horario_entrada': sh['start'], 
+                'horario_salida': sh['end'], 
+                'agentes_a_programar': int(qty), 
+                'duracion': sh['label']
+            })
             total_agentes_diarios_hc += int(qty)
-            if "Nocturno" not in label_dur: agentes_diurnos_totales_hc += int(qty)
+            if sh['is_nocturno']: agentes_nocturnos_totales_hc += int(qty)
+            else: agentes_diurnos_totales_hc += int(qty)
 
     turnos_sugeridos = sorted(turnos_sugeridos, key=lambda x: parse_time_str(x['horario_entrada']) or 0)
     hc_nocturno = math.ceil(agentes_nocturnos_totales_hc * (7.0 / 5.0))
