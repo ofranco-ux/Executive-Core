@@ -878,7 +878,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     valid_starts = []
     for j in range(m):
         m_in = parse_time_str(intervalos[j])
-        # La condicion m_in % 60 == 0 fuerza a que los turnos empiecen solo en horas cerradas (ej. 07:00, 08:00)
         if m_in is not None and m_in % 60 == 0:
             if es_nocturno:
                 m_out = m_in + duracion_minutos
@@ -890,8 +889,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     def calc_current_global_sl(current_cob):
         if tot_llamadas <= 0: return 100.0
         if es_outbound:
-            cov = np.minimum(req_hc_base, current_cob)
-            return (np.sum(cov) / max(1, np.sum(req_hc_base))) * 100.0
+            return (np.sum(current_cob) / max(1.0, np.sum(req_hc_base))) * 100.0
         else:
             sl_acum = 0.0
             for i, c in enumerate(llamadas_arr):
@@ -902,17 +900,26 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                     sl_acum += c * erlang_c_sl_optimizado(a_erl, current_cob[i] * factor_asistencia, aht_efectivo, target_time)
             return sl_acum / tot_llamadas
 
+    # Identificar la ventana operativa (desde el primer requerimiento hasta el último)
+    primer_idx_req = -1
+    ultimo_idx_req = -1
+    for i in range(m):
+        if req_hc_base[i] > 0:
+            if primer_idx_req == -1: primer_idx_req = i
+            ultimo_idx_req = i
+
     if len(valid_starts) > 0:
         for _ in range(5000):
             current_sl = calc_current_global_sl(cob_hc)
             
-            # REGLA ANTIGAP: Validar que no haya huecos en 0 si hay requerimiento
+            # REGLA ANTIGAP estricta para la ventana operativa
             hay_huecos = False
-            for i in range(m):
-                if req_hc_base[i] > 0 and cob_hc[i] < 1:
-                    hay_huecos = True
-                    break
-                    
+            if primer_idx_req != -1:
+                for i in range(primer_idx_req, ultimo_idx_req + 1):
+                    if cob_hc[i] < 1:
+                        hay_huecos = True
+                        break
+                        
             if current_sl >= target_sl_dinamico and not hay_huecos: 
                 break
 
@@ -920,12 +927,33 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             best_start_idx, best_cov, best_pen = -1, -1, 999999
             
             for s_idx in valid_starts:
-                sub_def = deficit[s_idx : s_idx + SHIFT_BLOCKS] if s_idx + SHIFT_BLOCKS <= m else np.concatenate((deficit[s_idx:], deficit[:(s_idx + SHIFT_BLOCKS) - m]))
+                if s_idx + SHIFT_BLOCKS <= m: sub_def = deficit[s_idx : s_idx + SHIFT_BLOCKS]
+                else: sub_def = np.concatenate((deficit[s_idx:], deficit[:(s_idx + SHIFT_BLOCKS) - m]))
+                
                 cov, pen = np.sum(np.maximum(0, sub_def)), np.sum(np.maximum(0, -sub_def))
                 if cov > best_cov or (cov == best_cov and pen < best_pen): 
                     best_cov, best_pen, best_start_idx = cov, pen, s_idx
 
-            if best_start_idx == -1 or best_cov <= 0: break
+            if best_start_idx == -1 or best_cov <= 0:
+                if hay_huecos:
+                    best_cov_huecos = -1
+                    for s_idx in valid_starts:
+                        huecos_tapados = 0
+                        pen_local = 0
+                        for offset in range(SHIFT_BLOCKS):
+                            idx_eval = (s_idx + offset) % m
+                            if primer_idx_req <= idx_eval <= ultimo_idx_req and cob_hc[idx_eval] < 1:
+                                huecos_tapados += 1
+                            if deficit[idx_eval] < 0:
+                                pen_local += abs(deficit[idx_eval])
+                        
+                        if huecos_tapados > best_cov_huecos or (huecos_tapados == best_cov_huecos and pen_local < best_pen):
+                            best_cov_huecos = huecos_tapados
+                            best_pen = pen_local
+                            best_start_idx = s_idx
+                
+                if best_start_idx == -1 or (best_cov <= 0 and best_cov_huecos <= 0):
+                    break
                 
             min_in = parse_time_str(intervalos[best_start_idx])
             if min_in is None: min_in = 0 
@@ -938,15 +966,14 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             else: cob_hc[best_start_idx:] += 1; cob_hc[:(best_start_idx + SHIFT_BLOCKS) - m] += 1
 
     if es_outbound:
-        sl_optimo_vector = [100.0 if req_hc_base[i] <= cob_hc[i] else (cob_hc[i]/req_hc_base[i])*100.0 if req_hc_base[i]>0 else 100.0 for i in range(m)]
-        sl_optimo_global = calc_current_global_sl(cob_hc)
+        sl_optimo_vector = [100.0 if req_hc_base[i] <= cob_hc[i] else (cob_hc[i]/max(1, req_hc_base[i]))*100.0 for i in range(m)]
+        sl_optimo_global = min(100.0, (np.sum(cob_hc) / max(1.0, np.sum(req_hc_base))) * 100.0)
     else:
         sl_optimo_vector = []
         for i in range(m):
             if llamadas_arr[i] > 0:
                 aht_real = aht_arr[i]
                 aht_efectivo = aht_real / max(1.0, concurrencia) if es_chat else aht_real
-
                 a_erl = (llamadas_arr[i] * aht_efectivo) / 1800.0
                 sl_optimo_vector.append(float(erlang_c_sl_optimizado(a_erl, cob_hc[i] * factor_asistencia, aht_efectivo, target_time)))
             else:
