@@ -878,7 +878,8 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     valid_starts = []
     for j in range(m):
         m_in = parse_time_str(intervalos[j])
-        if m_in is not None:
+        # La condicion m_in % 60 == 0 fuerza a que los turnos empiecen solo en horas cerradas (ej. 07:00, 08:00)
+        if m_in is not None and m_in % 60 == 0:
             if es_nocturno:
                 m_out = m_in + duracion_minutos
                 if m_in >= (7 * 60) and m_out <= (22 * 60):
