@@ -399,7 +399,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 a_erlang = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls_float > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
-                
+                if req_hc == 1: req_hc = 2
+
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
                 tot_camp = roster_total_camp.get(str(camp), 0)
                 tot_camp_dia = roster_total_dia_camp.get((str(camp), nombre_dia.capitalize()), 0)
@@ -594,7 +595,8 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
 
                 req_ftes = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
-                
+                if req_hc == 1: req_hc = 2
+
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
                 tot_camp = roster_total_camp.get(str(camp), 0)
                 tot_camp_dia = roster_total_dia_camp.get((str(camp), nombre_dia.capitalize()), 0)
@@ -795,7 +797,9 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
                 
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang_raw, aht_efectivo, target_time, target_sl) if calls_float > 0 else 0
                 req_hc = req_ftes / factor_asistencia if req_ftes > 0 else 0.0
-                
+                req_hc_entero = math.ceil(req_hc)
+                if req_hc_entero == 1: req_hc_entero = 2
+
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
                 tot_camp = roster_total_camp.get(str(camp), 0)
                 tot_camp_dia = roster_total_dia_camp.get((str(camp), nombre_dia.capitalize()), 0)
@@ -809,7 +813,7 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
                     'Llamadas': calls_int,
                     'AHT': format_aht_str(aht),
                     'AHT_Segundos': int(round(aht)),
-                    'Agentes_Requeridos': req_hc,
+                    'Agentes_Requeridos': req_hc_entero,
                     'HC_Actual_Roster': hc_roster,
                     'Total_Roster_Campana': tot_camp,
                     'Total_Roster_Dia': tot_camp_dia,
@@ -834,6 +838,14 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         aht_arr = np.full(m, 180.0)
         req_hc_base = np.zeros(m)
     
+    primer_idx_req = -1
+    ultimo_idx_req = -1
+    for i in range(m):
+        if req_hc_base[i] > 0:
+            req_hc_base[i] = max(2.0, req_hc_base[i]) 
+            if primer_idx_req == -1: primer_idx_req = i
+            ultimo_idx_req = i
+            
     tot_llamadas = float(np.sum(llamadas_arr))
     factor_asistencia = max(0.01, 1.0 - merma)
     target_sl_dinamico = float(target_sl) if not es_outbound else 100.0 
@@ -902,16 +914,9 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                     sl_acum += c * erlang_c_sl_optimizado(a_erl, current_cob[i] * factor_asistencia, aht_efectivo, target_time)
             return sl_acum / tot_llamadas
 
-    primer_idx_req = -1
-    ultimo_idx_req = -1
-    for i in range(m):
-        if req_hc_base[i] > 0:
-            if primer_idx_req == -1: primer_idx_req = i
-            ultimo_idx_req = i
-
     if es_outbound and primer_idx_req != -1:
         for i in range(primer_idx_req, ultimo_idx_req + 1):
-            req_hc_base[i] = max(1.0, req_hc_base[i])
+            req_hc_base[i] = max(2.0, req_hc_base[i])
 
     if len(valid_starts) > 0:
         for _ in range(5000):
@@ -920,41 +925,49 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             hay_ceros = False
             if primer_idx_req != -1:
                 for i in range(primer_idx_req, ultimo_idx_req + 1):
-                    if req_hc_base[i] > 0 and cob_hc[i] < 1:
+                    if req_hc_base[i] > 0 and cob_hc[i] < 2:
                         hay_ceros = True
                         break
                         
-            # Si se cumple el SL Global y ya no hay huecos en 0, detenemos el motor matemático de inmediato
             if current_sl >= target_sl_dinamico and not hay_ceros: 
                 break
 
             deficit = req_hc_base - cob_hc
-            best_start_idx, best_cov, best_pen = -1, -1, 999999
+            best_start_idx = -1
+            best_score = -999999
+            best_pen_fallback = 999999
             
             for s_idx in valid_starts:
                 if s_idx + SHIFT_BLOCKS <= m: sub_def = deficit[s_idx : s_idx + SHIFT_BLOCKS]
                 else: sub_def = np.concatenate((deficit[s_idx:], deficit[:(s_idx + SHIFT_BLOCKS) - m]))
                 
-                cov, pen = np.sum(np.maximum(0, sub_def)), np.sum(np.maximum(0, -sub_def))
-                if cov > best_cov or (cov == best_cov and pen < best_pen): 
-                    best_cov, best_pen, best_start_idx = cov, pen, s_idx
+                cov = np.sum(np.maximum(0, sub_def))
+                pen = np.sum(np.maximum(0, -sub_def))
+                
+                score = cov - (pen * 0.75) 
+                
+                if score > best_score: 
+                    best_score = score
+                    best_start_idx = s_idx
+                    best_pen_fallback = pen
 
-            if best_start_idx == -1 or best_cov <= 0:
+            if best_start_idx == -1 or best_score <= 0:
                 if hay_ceros:
                     best_cov_huecos = -1
+                    best_pen_local = 999999
                     for s_idx in valid_starts:
                         huecos_tapados = 0
                         pen_local = 0
                         for offset in range(SHIFT_BLOCKS):
                             idx_eval = (s_idx + offset) % m
-                            if primer_idx_req <= idx_eval <= ultimo_idx_req and req_hc_base[idx_eval] > 0 and cob_hc[idx_eval] < 1:
+                            if primer_idx_req <= idx_eval <= ultimo_idx_req and req_hc_base[idx_eval] > 0 and cob_hc[idx_eval] < 2:
                                 huecos_tapados += 1
                             if deficit[idx_eval] < 0:
                                 pen_local += abs(deficit[idx_eval])
                         
-                        if huecos_tapados > best_cov_huecos or (huecos_tapados == best_cov_huecos and pen_local < best_pen):
+                        if huecos_tapados > best_cov_huecos or (huecos_tapados == best_cov_huecos and pen_local < best_pen_local):
                             best_cov_huecos = huecos_tapados
-                            best_pen = pen_local
+                            best_pen_local = pen_local
                             best_start_idx = s_idx
                     
                     if best_start_idx == -1 or best_cov_huecos <= 0:
@@ -962,9 +975,8 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                 else:
                     break
                 
-            # PENALIZACIÓN ESTRICTA: El motor prefiere no contratar si el turno genera mucho más sobrestaffing que beneficio
             if current_sl >= target_sl_dinamico and not hay_ceros:
-                if best_pen >= best_cov:
+                if best_pen_fallback >= best_cov:
                     break
                 
             min_in = parse_time_str(intervalos[best_start_idx])
@@ -974,8 +986,8 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             key_turno = (f"{(int(min_in // 60)):02d}:{(int(min_in % 60)):02d}", f"{(int(min_out // 60)):02d}:{(int(min_out % 60)):02d}", label_jornada_diurna)
             x_turnos_dict[key_turno] = x_turnos_dict.get(key_turno, 0) + 1
             
-            if best_start_idx + SHIFT_BLOCKS <= m: cob_hc[best_start_idx : best_start_idx + SHIFT_BLOCKS] += 1
-            else: cob_hc[best_start_idx:] += 1; cob_hc[:(best_start_idx + SHIFT_BLOCKS) - m] += 1
+            if best_start_idx + SHIFT_BLOCKS <= m: cob_hc[best_start_idx : best_start_idx + SHIFT_BLOCKS] += 2
+            else: cob_hc[best_start_idx:] += 2; cob_hc[:(best_start_idx + SHIFT_BLOCKS) - m] += 2
 
     if es_outbound:
         sl_optimo_vector = [100.0 if req_hc_base[i] <= cob_hc[i] else (cob_hc[i]/max(1.0, req_hc_base[i]))*100.0 for i in range(m)]
@@ -1017,7 +1029,6 @@ def get_latest_forecast():
     elif mode == 'chat': target_cache = CACHE_FILE_CHAT
     else: target_cache = CACHE_FILE_IN
     
-    # 1. Intentar cargar los datos guardados
     if os.path.exists(target_cache):
         try:
             with open(target_cache, 'r', encoding='utf-8') as f:
@@ -1028,7 +1039,6 @@ def get_latest_forecast():
             print(f"Error leyendo caché: {e}")
             pass
             
-    # 2. AUTO-RECOVERY: Recalcular según el canal si el archivo se borró
     excel_path = buscar_archivo_excel()
     if excel_path:
         try:
@@ -1042,7 +1052,6 @@ def get_latest_forecast():
                         merma = float(cfg.get('merma', 30.0)) / 100.0
                 except: pass
             
-            # Ruteo dinámico por tipo de canal
             if mode == 'outbound':
                 data = procesar_archivo_outbound(excel_path, merma=merma, dias_futuros=dias)
             elif mode == 'chat':
