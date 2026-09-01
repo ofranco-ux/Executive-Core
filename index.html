@@ -1351,24 +1351,36 @@
                             });
                             if (res.ok) {
                                 const data = await res.json();
-                                let hcSilo = 0;
-                                if (esVistaSemanal && data.turnos) {
-                                    let hcDiurnoCamp = 0, hcNocturnoCamp = 0;
+                                let hcDiurnoCamp = 0, hcNocturnoCamp = 0;
+                                if (data.turnos) {
                                     data.turnos.forEach(t => {
                                         if (t.duracion.includes('Nocturno')) hcNocturnoCamp += t.agentes_a_programar;
                                         else hcDiurnoCamp += t.agentes_a_programar;
                                     });
-                                    hcSilo = Math.ceil(hcDiurnoCamp * (7.0 / 6.0)) + Math.ceil(hcNocturnoCamp * (7.0 / 5.0));
-                                    return hcSilo;
                                 }
-                                return data.total_agentes_diarios || 0;
+                                return {
+                                    diurno: hcDiurnoCamp,
+                                    nocturno: hcNocturnoCamp,
+                                    diario: data.total_agentes_diarios || 0
+                                };
                             }
                         } catch(e) {}
-                        return 0;
+                        return null;
                     });
 
                     const reqResults = await Promise.all(promises);
-                    const hcReq = reqResults.reduce((a, b) => a + b, 0);
+                    let totalDiurno = 0, totalNocturno = 0, totalDiario = 0;
+                    reqResults.forEach(r => {
+                        if (r) {
+                            totalDiurno += r.diurno;
+                            totalNocturno += r.nocturno;
+                            totalDiario += r.diario;
+                        }
+                    });
+
+                    let hcReq = esVistaSemanal ? 
+                        (Math.ceil(totalDiurno * (7.0 / 6.0)) + Math.ceil(totalNocturno * (7.0 / 5.0))) : 
+                        totalDiario;
 
                     let hcDisp = 0;
                     const uniqueCampChannel = [...new Set(dfC.map(r => r.Campaña + '|' + (r.Canal || '')))];
@@ -1617,7 +1629,6 @@
                 }
             });
 
-            // Se calcula el HC Semanal de forma pura para la tarjeta principal (Sin inflar nóminas individuales)
             totalAgentesSemanalesSilos = Math.ceil(globalDiurno * (7.0 / 6.0)) + Math.ceil(globalNocturno * (7.0 / 5.0));
 
             const hcRequeridoDisplay = esVistaSemanal ? totalAgentesSemanalesSilos : totalAgentesDiariosSilos;
