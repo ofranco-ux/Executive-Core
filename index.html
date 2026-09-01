@@ -1320,11 +1320,11 @@
 
                             if (aplicarPicosCanal) {
                                 llamVec.push(cArr.length ? Math.max(...cArr) : 0);
-                                reqVec.push(rArr.length ? Math.ceil(Math.max(...rArr)) : 0); // MATH CEIL APLICADO
+                                reqVec.push(rArr.length ? Math.ceil(Math.max(...rArr)) : 0);
                                 ahtVec.push(aArr.length ? Math.max(...aArr) : 180);
                             } else {
                                 llamVec.push(callSum / nDias);
-                                reqVec.push(Math.ceil(reqSum / nDias)); // MATH CEIL APLICADO
+                                reqVec.push(Math.ceil(reqSum / nDias));
                                 ahtVec.push(callSum > 0 ? htSum/callSum : 180);
                             }
                         });
@@ -1552,7 +1552,7 @@
                     }
 
                     llamVec.push(valLlam);
-                    reqVec.push(Math.ceil(valReq)); // MATH CEIL APLICADO
+                    reqVec.push(Math.ceil(valReq));
                     ahtVec.push(valAht);
                     
                     llamadasAgrupadasGlobal[idx] += valLlam;
@@ -1589,7 +1589,6 @@
             resultadosSilos.forEach(res => {
                 if (!res) return;
                 totalAgentesDiariosSilos += (res.total_agentes_diarios || 0);
-                totalAgentesSemanalesSilos += (res.headcount_semanal_6x1 || 0);
                 if (res.cobertura_optima) res.cobertura_optima.forEach((v, i) => coberturaOptimaSilos[i] += v);
                 if (res.turnos) {
                     res.turnos.forEach(t => {
@@ -1599,6 +1598,21 @@
                     });
                 }
             });
+
+            // 1. GENERAR MALLA SEGURA (Anti-huecos)
+            let turnosBase = Object.values(turnosSilosMap);
+            globalTurnosOptimos = turnosBase.map(t => {
+                const esNocturno = t.duracion.includes('Nocturno');
+                const factor = esNocturno ? (7.0 / 5.0) : (7.0 / 6.0);
+                // Math.ceil garantiza que un turno de 1 persona contrate 2, asegurando que 1 trabaje mientras el otro descansa
+                let nominaTurno = Math.ceil(t.agentes_a_programar * factor);
+                return { ...t, nomina_a_contratar: Math.max(0, nominaTurno) };
+            });
+
+            globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
+            
+            // Recalculamos el HC Requerido Real basado en esta malla segura
+            const totalMallaHC = globalTurnosOptimos.reduce((sum, t) => sum + t.nomina_a_contratar, 0);
 
             rosterAgrupadoGlobal = rosterAgrupadoGlobal.map(val => Math.round(val / numDiasPeriodo));
 
@@ -1692,7 +1706,7 @@
                 if (row) totalRosterHC += esVistaSemanal ? (row.Total_Roster_Campana || 0) : (row.Total_Roster_Dia || 0);
             });
 
-            const hcRequeridoDisplay = esVistaSemanal ? totalAgentesSemanalesSilos : totalAgentesDiariosSilos;
+            const hcRequeridoDisplay = esVistaSemanal ? totalMallaHC : totalAgentesDiariosSilos;
             
             document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido Total";
             document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay.toLocaleString() + ' HC';
@@ -1723,7 +1737,6 @@
                 document.getElementById('kpiHcRequeridoSub').innerText = "Suma individual de todas las campañas en silos";
             }
 
-            // PROMEDIO PONDERADO APLICADO AQUÍ
             let totalCallsForSL = 0;
             let weightedSLSum = 0;
 
@@ -1778,24 +1791,6 @@
             const optTbody = document.getElementById('optShiftsTableBody');
             optTbody.innerHTML = '';
             
-            let turnosBase = Object.values(turnosSilosMap);
-            let accumulatedNomina = 0;
-            let totalDiarioSilosReal = turnosBase.reduce((sum, t) => sum + t.agentes_a_programar, 0) || 1;
-
-            globalTurnosOptimos = turnosBase.map((t, index) => {
-                let nominaTurno;
-                if (index === turnosBase.length - 1) {
-                    nominaTurno = hcRequeridoDisplay - accumulatedNomina;
-                } else {
-                    nominaTurno = Math.round((t.agentes_a_programar / totalDiarioSilosReal) * hcRequeridoDisplay);
-                    accumulatedNomina += nominaTurno;
-                }
-                nominaTurno = Math.max(0, nominaTurno);
-                return { ...t, nomina_a_contratar: nominaTurno };
-            });
-
-            globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
-
             if (globalTurnosOptimos.length === 0 || hcRequeridoDisplay === 0) {
                 optTbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500 font-sans font-medium">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
             } else {
@@ -1855,6 +1850,9 @@
                         if (bestDay !== -1) {
                             distribucion[bestDay]++;
                             restsTracker[bestDay]++;
+                            if (esTurnoNocturno) {
+                                restsTracker[(bestDay + 1) % 7]++; 
+                            }
                         }
                     }
 
