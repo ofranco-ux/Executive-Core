@@ -455,7 +455,6 @@
         
         let configPicos = { inbound: true, outbound: true, chat: true };
         let configMerma = { inbound: 30, outbound: 30, chat: 30 };
-        // NUEVO: Memoria independiente para Turno Nocturno (Por default Outbound apagado)
         let configNocturno = { inbound: true, outbound: false, chat: false };
 
         let allMesesOptions = [];
@@ -875,15 +874,15 @@
                 return Math.floor(agentsNetos * (1800 / aht));
             } else if (forecastMode === 'chat') {
                 const concurrencia = parseFloat(document.getElementById('concurrencia').value) || 3.0;
+                let aht_efectivo = aht / Math.max(1.0, concurrencia); 
                 let low = 0;
-                let high = agentsNetos * (1800 / aht) * concurrencia * 5; 
+                let high = agentsNetos * (1800 / aht_efectivo) * 2; 
                 let maxCalls = 0;
                 
                 for (let i=0; i<20; i++) { 
                     let mid = (low + high) / 2;
-                    let a_erl_raw = (mid * aht) / 1800;
-                    let a_erl_adj = a_erl_raw / Math.max(1.0, concurrencia);
-                    let sl = erlang_c_sl_optimizado(a_erl_adj, agentsNetos, aht, targetTime);
+                    let a_erl_raw = (mid * aht_efectivo) / 1800;
+                    let sl = erlang_c_sl_optimizado(a_erl_raw, agentsNetos, aht_efectivo, targetTime);
                     if (sl >= targetSl) {
                         maxCalls = mid;
                         low = mid; 
@@ -1321,11 +1320,11 @@
 
                             if (aplicarPicosCanal) {
                                 llamVec.push(cArr.length ? Math.max(...cArr) : 0);
-                                reqVec.push(rArr.length ? Math.max(...rArr) : 0);
+                                reqVec.push(rArr.length ? Math.ceil(Math.max(...rArr)) : 0); // MATH CEIL APLICADO
                                 ahtVec.push(aArr.length ? Math.max(...aArr) : 180);
                             } else {
                                 llamVec.push(callSum / nDias);
-                                reqVec.push(reqSum / nDias);
+                                reqVec.push(Math.ceil(reqSum / nDias)); // MATH CEIL APLICADO
                                 ahtVec.push(callSum > 0 ? htSum/callSum : 180);
                             }
                         });
@@ -1553,7 +1552,7 @@
                     }
 
                     llamVec.push(valLlam);
-                    reqVec.push(valReq);
+                    reqVec.push(Math.ceil(valReq)); // MATH CEIL APLICADO
                     ahtVec.push(valAht);
                     
                     llamadasAgrupadasGlobal[idx] += valLlam;
@@ -1724,8 +1723,27 @@
                 document.getElementById('kpiHcRequeridoSub').innerText = "Suma individual de todas las campañas en silos";
             }
 
-            const arrSL = resultadosSilos.map(r => r ? parseFloat(r.sl_optimo_global || 0) : 0).filter(v => v > 0);
-            const slOptimoVal = arrSL.length > 0 ? (arrSL.reduce((a,b)=>a+b,0) / arrSL.length) : 0;
+            // PROMEDIO PONDERADO APLICADO AQUÍ
+            let totalCallsForSL = 0;
+            let weightedSLSum = 0;
+
+            resultadosSilos.forEach((res, idx) => {
+                if (!res) return;
+                const campName = campanas[idx];
+                const dfCamp = dfFiltered.filter(r => r.Campaña === campName);
+                const campCalls = dfCamp.reduce((acc, r) => acc + (Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0), 0);
+                
+                const sl = parseFloat(res.sl_optimo_global || 0);
+                if (campCalls > 0 && sl > 0) {
+                    weightedSLSum += (sl * campCalls);
+                    totalCallsForSL += campCalls;
+                } else if (sl > 0) {
+                    weightedSLSum += sl;
+                    totalCallsForSL += 1;
+                }
+            });
+            const slOptimoVal = totalCallsForSL > 0 ? (weightedSLSum / totalCallsForSL) : 0;
+
             const slEl = document.getElementById('compSlOptimo');
             slEl.innerText = slOptimoVal.toFixed(1) + '%';
             slEl.className = slOptimoVal >= targetSlObj ? "text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)] block" : "text-3xl font-black font-mono-num text-brand-accentRose drop-shadow-[0_0_8px_rgba(251,113,133,0.3)] block";
