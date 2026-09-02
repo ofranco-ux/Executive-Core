@@ -658,6 +658,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             
     tot_llamadas = float(np.sum(llamadas_arr))
     factor_asistencia = max(0.01, 1.0 - merma)
+    target_sl_dinamico = float(target_sl) if not es_outbound else 100.0 
     req_hc_pooled = req_hc_base.tolist()
     
     duracion_minutos = int(round(float(duracion_jornada) * 60))
@@ -699,20 +700,34 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     cob_hc = np.zeros(m, dtype=float)
     shift_counts = [0] * len(valid_shifts)
 
+    def calc_current_global_sl(current_cob):
+        if tot_llamadas <= 0: return 100.0
+        if es_outbound:
+            return (np.sum(current_cob) / max(1.0, np.sum(req_hc_base))) * 100.0
+        else:
+            sl_acum = 0.0
+            for i, c in enumerate(llamadas_arr):
+                if c > 0:
+                    aht_real = aht_arr[i]
+                    aht_efectivo = aht_real / max(1.0, concurrencia) if es_chat else aht_real
+                    a_erl = (c * aht_efectivo) / 1800.0
+                    sl_acum += c * erlang_c_sl_optimizado(a_erl, current_cob[i] * factor_asistencia, aht_efectivo, target_time)
+            return sl_acum / tot_llamadas
+
     if len(valid_shifts) > 0:
-        for _ in range(5000): 
+        while True:
             deficit = req_hc_base - cob_hc
             
-            if np.max(deficit) <= 0:
-                break
-                
             hay_ceros = False
             if primer_idx_req != -1:
                 for i in range(primer_idx_req, ultimo_idx_req + 1):
                     if req_hc_base[i] > 0 and cob_hc[i] < 2:
                         hay_ceros = True
                         break
-                        
+            
+            if np.max(deficit) <= 0:
+                break
+                
             best_idx = -1
             best_score = -999999
             
@@ -721,7 +736,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                 cov = np.sum(np.minimum(arr, np.maximum(0, deficit)))
                 pen = np.sum(arr * (deficit < 0))
                 
-                score = cov - (pen * 0.8) 
+                score = cov - (pen * 0.85)
                 
                 if score > best_score and cov > 0:
                     best_score = score
@@ -749,7 +764,8 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                 else:
                     break
                     
-            if best_idx == -1: break
+            if best_idx == -1: 
+                break
             
             shift_counts[best_idx] += 1
             cob_hc += valid_shifts[best_idx]['arr']
