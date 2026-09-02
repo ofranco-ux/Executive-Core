@@ -626,7 +626,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
                 })
 
     try:
-        with open(CACHE_FILE_OUT, 'w', encoding='utf-8') as f: json.dump(data_processed, f)
+        with open(CACHE_FILE_IN, 'w', encoding='utf-8') as f: json.dump(data_processed, f)
     except: pass
     return data_processed
 
@@ -917,8 +917,24 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
 
     if len(valid_shifts) > 0:
         for _ in range(5000): 
-            current_sl = calc_current_global_sl(cob_hc)
             deficit = req_hc_base - cob_hc
+            
+            if np.max(deficit) <= 0:
+                break
+                
+            best_idx = -1
+            best_score = -999999
+            
+            for idx, sh in enumerate(valid_shifts):
+                arr = sh['arr']
+                cov = np.sum(np.minimum(arr, np.maximum(0, deficit)))
+                pen = np.sum(arr * (deficit < 0))
+                
+                score = cov - (pen * 0.6)
+                
+                if score > best_score and cov > 0:
+                    best_score = score
+                    best_idx = idx
             
             hay_ceros = False
             if primer_idx_req != -1:
@@ -926,58 +942,32 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                     if req_hc_base[i] > 0 and cob_hc[i] < 2:
                         hay_ceros = True
                         break
+                        
+            current_sl = calc_current_global_sl(cob_hc)
             
-            if current_sl >= target_sl_dinamico and not hay_ceros:
-                break
-                
-            if np.max(deficit) <= 0:
-                break
-                
-            best_idx = -1
-            best_score = -999999
-            best_pen_fallback = 999999
-            best_cov_fallback = 0
-            
-            for idx, sh in enumerate(valid_shifts):
-                arr = sh['arr']
-                cov = np.sum(np.maximum(0, np.minimum(arr, deficit)))
-                pen = np.sum(arr * (deficit < 0))
-                
-                score = cov - (pen * 0.15)
-                
-                if score > best_score and (cov > 0 or hay_ceros):
-                    best_score = score
-                    best_idx = idx
-                    best_pen_fallback = pen
-                    best_cov_fallback = cov
-                    
-            if best_idx == -1 or best_score <= 0:
-                if hay_ceros:
-                    best_idx_hueco = -1
-                    best_pen_hueco = 999999
-                    max_huecos_tapados = 0
+            if best_score <= 0:
+                if current_sl < target_sl_dinamico or hay_ceros:
+                    best_idx_force = -1
+                    best_cov_force = -1
+                    min_pen_force = 999999
                     for idx, sh in enumerate(valid_shifts):
                         arr = sh['arr']
-                        huecos_tapados = np.sum((arr == 1) & (req_hc_base > 0) & (cob_hc < 2))
+                        cov = np.sum(np.minimum(arr, np.maximum(0, deficit)))
                         pen = np.sum(arr * (deficit < 0))
-                        
-                        if huecos_tapados > max_huecos_tapados or (huecos_tapados == max_huecos_tapados and pen < best_pen_hueco):
-                            max_huecos_tapados = huecos_tapados
-                            best_pen_hueco = pen
-                            best_idx_hueco = idx
+                        if cov > best_cov_force or (cov == best_cov_force and pen < min_pen_force):
+                            best_cov_force = cov
+                            min_pen_force = pen
+                            best_idx_force = idx
                     
-                    if best_idx_hueco != -1 and max_huecos_tapados > 0:
-                        best_idx = best_idx_hueco
+                    if best_idx_force != -1 and best_cov_force > 0:
+                        best_idx = best_idx_force
                     else:
-                        break
+                        break 
                 else:
-                    break
+                    break 
                     
-            if current_sl >= target_sl_dinamico and not hay_ceros:
-                if best_pen_fallback >= best_cov_fallback:
-                    break
-                    
-            if best_idx == -1: break
+            if best_idx == -1: 
+                break
             
             shift_counts[best_idx] += 1
             cob_hc += valid_shifts[best_idx]['arr']
