@@ -604,7 +604,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
                 a_erlang = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls_float > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
-
+                
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
                 tot_camp = roster_total_camp.get(str(camp), 0)
                 tot_camp_dia = roster_total_dia_camp.get((str(camp), nombre_dia.capitalize()), 0)
@@ -927,11 +927,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                         hay_ceros = True
                         break
             
-            total_req_sum = np.sum(req_hc_base)
-            covered_sum = np.sum(np.minimum(cob_hc, req_hc_base))
-            coverage_pct = (covered_sum / total_req_sum) if total_req_sum > 0 else 1.0
-            
-            if current_sl >= target_sl_dinamico and not hay_ceros and coverage_pct >= 0.90:
+            if current_sl >= target_sl_dinamico and not hay_ceros:
                 break
                 
             if np.max(deficit) <= 0:
@@ -939,24 +935,50 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                 
             best_idx = -1
             best_score = -999999
+            best_pen_fallback = 999999
+            best_cov_fallback = 0
             
             for idx, sh in enumerate(valid_shifts):
                 arr = sh['arr']
-                cov = np.sum(np.minimum(arr, np.maximum(0, deficit)))
+                cov = np.sum(np.maximum(0, np.minimum(arr, deficit)))
                 pen = np.sum(arr * (deficit < 0))
                 
-                score = cov - (pen * 0.35)
+                score = cov - (pen * 0.15)
                 
-                if score > best_score:
+                if score > best_score and (cov > 0 or hay_ceros):
                     best_score = score
                     best_idx = idx
+                    best_pen_fallback = pen
+                    best_cov_fallback = cov
                     
-            if best_idx == -1: 
-                break
-                
-            if current_sl >= target_sl_dinamico and not hay_ceros and best_score < 0:
-                break
-                
+            if best_idx == -1 or best_score <= 0:
+                if hay_ceros:
+                    best_idx_hueco = -1
+                    best_pen_hueco = 999999
+                    max_huecos_tapados = 0
+                    for idx, sh in enumerate(valid_shifts):
+                        arr = sh['arr']
+                        huecos_tapados = np.sum((arr == 1) & (req_hc_base > 0) & (cob_hc < 2))
+                        pen = np.sum(arr * (deficit < 0))
+                        
+                        if huecos_tapados > max_huecos_tapados or (huecos_tapados == max_huecos_tapados and pen < best_pen_hueco):
+                            max_huecos_tapados = huecos_tapados
+                            best_pen_hueco = pen
+                            best_idx_hueco = idx
+                    
+                    if best_idx_hueco != -1 and max_huecos_tapados > 0:
+                        best_idx = best_idx_hueco
+                    else:
+                        break
+                else:
+                    break
+                    
+            if current_sl >= target_sl_dinamico and not hay_ceros:
+                if best_pen_fallback >= best_cov_fallback:
+                    break
+                    
+            if best_idx == -1: break
+            
             shift_counts[best_idx] += 1
             cob_hc += valid_shifts[best_idx]['arr']
 
