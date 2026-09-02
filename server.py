@@ -78,7 +78,7 @@ def manage_config():
             try:
                 with open(CONFIG_FILE, 'r', encoding='utf-8') as f: return jsonify(json.load(f)), 200
             except: pass
-        return jsonify({'targetSl': 80, 'targetTime': 20, 'merma': 30, 'duracionJornada': 8, 'chkNocturno': False, 'chkPicos': False}), 200
+        return jsonify({'targetSl': 80, 'targetTime': 20, 'merma': 30}), 200
 
 def clean_num(val, default=0.0):
     if pd.isna(val) or val is None: return default
@@ -635,179 +635,6 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
     except: pass
     return data_processed
 
-def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht_vec=None, req_vec=None, target_sl=80.0, target_time=20.0, merma=0.20, duracion_jornada=8.0, es_nocturno=False, es_outbound=False, es_chat=False, concurrencia=3.0):
-    m = len(intervalos)
-    if m == 0: return [], [0]*m, 0, 0, 100.0, [100.0]*m, 100.0, 100.0, [0]*m
-
-    try:
-        llamadas_arr = np.array([float(x) if (x is not None and str(x).lower() != 'nan') else 0.0 for x in llamadas_vec], dtype=float)
-        aht_arr = np.array([float(x) if (x is not None and str(x).lower() != 'nan') else 180.0 for x in aht_vec], dtype=float)
-        req_hc_base = np.array([int(x) if (x is not None and str(x).lower() != 'nan') else 0 for x in req_vec], dtype=float)
-    except:
-        llamadas_arr = np.zeros(m)
-        aht_arr = np.full(m, 180.0)
-        req_hc_base = np.zeros(m)
-    
-    for i in range(m):
-        if req_hc_base[i] < 0: req_hc_base[i] = 0
-            
-    tot_llamadas = float(np.sum(llamadas_arr))
-    factor_asistencia = max(0.01, 1.0 - merma)
-    req_hc_pooled = req_hc_base.tolist()
-    
-    duracion_minutos = int(round(float(duracion_jornada) * 60))
-    SHIFT_BLOCKS = int(round(float(duracion_jornada) * 2))
-    label_jornada_diurna = f"{float(duracion_jornada):.1f} hrs".replace('.0', '')
-    
-    valid_shifts = []
-    
-    for hour in range(7, 22):
-        m_in = hour * 60
-        m_out = m_in + duracion_minutos
-        if m_out <= 22 * 60:
-            shift_arr = np.zeros(m)
-            start_idx = -1
-            for j in range(m):
-                if parse_time_str(intervalos[j]) == m_in:
-                    start_idx = j
-                    break
-            if start_idx != -1:
-                for step in range(SHIFT_BLOCKS):
-                    if (start_idx + step) < m:
-                        shift_arr[start_idx + step] = 1
-                
-                end_str = f"{(int(m_out // 60)):02d}:{(int(m_out % 60)):02d}"
-                valid_shifts.append({
-                    'arr': shift_arr,
-                    'start': f"{hour:02d}:00",
-                    'end': end_str,
-                    'label': label_jornada_diurna,
-                    'is_nocturno': False
-                })
-                
-    if es_nocturno:
-        shift_arr = np.zeros(m)
-        start_idx = -1
-        for j in range(m):
-            if parse_time_str(intervalos[j]) == 22 * 60:
-                start_idx = j
-                break
-        if start_idx != -1:
-            for step in range(18): 
-                shift_arr[(start_idx + step) % m] = 1
-            valid_shifts.append({
-                'arr': shift_arr,
-                'start': "22:00",
-                'end': "07:00",
-                'label': "9.0 hrs (Nocturno 5x2)",
-                'is_nocturno': True
-            })
-    
-    cob_hc = np.zeros(m, dtype=float)
-    shift_counts = [0] * len(valid_shifts)
-
-    if len(valid_shifts) > 0:
-        for _ in range(5000): 
-            deficit = req_hc_base - cob_hc
-            
-            if np.max(deficit) <= 0.5:
-                break
-                
-            best_idx = -1
-            best_score = -999999
-            
-            for idx, sh in enumerate(valid_shifts):
-                arr = sh['arr']
-                cov = np.sum(np.minimum(arr, np.maximum(0, deficit)))
-                over = np.sum(arr * (cob_hc + arr > req_hc_base))
-                
-                score = cov - (over * 0.85)
-                
-                if score > best_score and cov > 0.5:
-                    best_score = score
-                    best_idx = idx
-
-            if best_score <= 0:
-                hay_ceros = False
-                for i in range(m):
-                    if req_hc_base[i] > 0 and cob_hc[i] < 1:
-                        hay_ceros = True
-                        break
-                if not hay_ceros:
-                    break
-                else:
-                    best_idx_force = -1
-                    best_score_force = -999999
-                    for idx, sh in enumerate(valid_shifts):
-                        arr = sh['arr']
-                        cov_zeros = np.sum((arr == 1) & (req_hc_base > 0) & (cob_hc < 1))
-                        over = np.sum(arr * (cob_hc + arr > req_hc_base))
-                        score_f = cov_zeros - (over * 0.01)
-                        if score_f > best_score_force and cov_zeros > 0:
-                            best_score_force = score_f
-                            best_idx_force = idx
-                    if best_idx_force != -1:
-                        best_idx = best_idx_force
-                    else:
-                        break
-
-            if best_idx == -1: 
-                break
-            
-            shift_counts[best_idx] += 1
-            cob_hc += valid_shifts[best_idx]['arr']
-
-        for idx in range(len(shift_counts)):
-            if shift_counts[idx] == 1:
-                arr = valid_shifts[idx]['arr']
-                if np.max(llamadas_arr * arr) > 0:
-                    shift_counts[idx] = 2
-                    cob_hc += valid_shifts[idx]['arr']
-
-    if es_outbound:
-        sl_optimo_vector = [100.0 if req_hc_base[i] <= cob_hc[i] else (cob_hc[i]/max(1.0, req_hc_base[i]))*100.0 for i in range(m)]
-        sl_optimo_global = min(100.0, (np.sum(cob_hc) / max(1.0, np.sum(req_hc_base))) * 100.0)
-    else:
-        sl_optimo_vector = []
-        for i in range(m):
-            if llamadas_arr[i] > 0:
-                aht_real = aht_arr[i]
-                aht_efectivo = aht_real / max(1.0, concurrencia) if es_chat else aht_real
-                a_erl = (llamadas_arr[i] * aht_efectivo) / 1800.0
-                sl_optimo_vector.append(float(erlang_c_sl_optimizado(a_erl, cob_hc[i] * factor_asistencia, aht_efectivo, target_time)))
-            else:
-                sl_optimo_vector.append(100.0)
-        sl_optimo_global = float(np.sum(llamadas_arr * np.array(sl_optimo_vector)) / tot_llamadas) if tot_llamadas > 0 else 100.0
-
-    cobertura_hc_entera = [int(x) for x in np.round(cob_hc)]
-    turnos_sugeridos = []
-    total_agentes_diarios_hc = 0
-    agentes_diurnos_totales_hc = 0
-    agentes_nocturnos_totales_hc = 0
-
-    for i, qty in enumerate(shift_counts):
-        if qty > 0:
-            sh = valid_shifts[i]
-            turnos_sugeridos.append({
-                'horario_entrada': sh['start'], 
-                'horario_salida': sh['end'], 
-                'agentes_a_programar': int(qty), 
-                'duracion': sh['label']
-            })
-            total_agentes_diarios_hc += int(qty)
-            if sh['is_nocturno']: agentes_nocturnos_totales_hc += int(qty)
-            else: agentes_diurnos_totales_hc += int(qty)
-
-    turnos_sugeridos = sorted(turnos_sugeridos, key=lambda x: parse_time_str(x['horario_entrada']) or 0)
-    
-    hc_nocturno = sum([math.ceil(count * (7.0/5.0)) for idx, count in enumerate(shift_counts) if valid_shifts[idx]['is_nocturno'] and count > 0])
-    hc_diurno = sum([math.ceil(count * (7.0/6.0)) for idx, count in enumerate(shift_counts) if not valid_shifts[idx]['is_nocturno'] and count > 0])
-    
-    total_req_hc_pooled = float(np.sum(req_hc_pooled))
-    total_prog_hc = float(np.sum(cob_hc))
-
-    return turnos_sugeridos, cobertura_hc_entera, total_agentes_diarios_hc, int(hc_nocturno + hc_diurno), float(min(100.0, (total_req_hc_pooled / total_prog_hc) * 100.0)) if total_prog_hc > 0 else 100.0, sl_optimo_vector, sl_optimo_global, float((total_prog_hc / total_req_hc_pooled) * 100.0) if total_req_hc_pooled > 0 else 100.0, req_hc_pooled
-
 @app.route('/api/latest', methods=['GET'])
 def get_latest_forecast():
     mode = request.args.get('mode', 'inbound')
@@ -852,21 +679,6 @@ def get_latest_forecast():
             pass
 
     return jsonify([]), 200
-
-@app.route('/api/optimize-schedules', methods=['POST'])
-def api_optimize_schedules():
-    try:
-        body = request.get_json(force=True)
-        turnos, cob_optima, total_diario, total_hc, eficiencia, sl_vec, sl_global, staff_level, req_hc_pooled = resolver_turnos_optimos(
-            body.get('intervalos', []), body.get('campanas', []), body.get('llamadas', []), body.get('ahts', []), body.get('requeridos', []),
-            float(body.get('target_sl', 80.0)), float(body.get('target_time', 20.0)), float(body.get('merma', 30.0)) / 100.0, float(body.get('duracion_jornada', 8.0)), bool(body.get('es_nocturno', False)), bool(body.get('es_outbound', False)), bool(body.get('es_chat', False)), float(body.get('concurrencia', 3.0))
-        )
-        return jsonify({
-            'turnos': turnos, 'cobertura_optima': [int(x) for x in cob_optima], 'total_agentes_diarios': int(total_diario),
-            'headcount_semanal_6x1': int(total_hc), 'eficiencia_cobertura': float(eficiencia), 'sl_optimo_vector': [float(x) for x in sl_vec],
-            'sl_optimo_global': float(sl_global), 'staffing_level_optimo': float(staff_level), 'req_hc_pooled': [int(x) for x in req_hc_pooled]
-        }), 200
-    except Exception as e: return jsonify({'error': f'Error optimizando turnos: {str(e)}'}), 500
 
 @app.route('/api/process', methods=['POST', 'GET'])
 def process_data():
