@@ -626,7 +626,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
                 })
 
     try:
-        with open(CACHE_FILE_OUT, 'w', encoding='utf-8') as f: json.dump(data_processed, f)
+        with open(CACHE_FILE_IN, 'w', encoding='utf-8') as f: json.dump(data_processed, f)
     except: pass
     return data_processed
 
@@ -849,9 +849,9 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         aht_arr = np.full(m, 180.0)
         req_hc_base = np.zeros(m)
     
-    # Limpiamos valores negativos si existen
     for i in range(m):
-        if req_hc_base[i] < 0: req_hc_base[i] = 0
+        if req_hc_base[i] > 0:
+            req_hc_base[i] = max(2.0, req_hc_base[i]) 
             
     tot_llamadas = float(np.sum(llamadas_arr))
     factor_asistencia = max(0.01, 1.0 - merma)
@@ -863,49 +863,35 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     
     valid_shifts = []
     
-    # Generador de Turnos Flexibles (Horas cerradas de 07:00 a 22:00)
-    for hour in range(7, 22):
-        m_in = hour * 60
-        m_out = m_in + duracion_minutos
-        if m_out <= 22 * 60:
-            shift_arr = np.zeros(m)
-            start_idx = -1
-            for j in range(m):
-                if parse_time_str(intervalos[j]) == m_in:
-                    start_idx = j
-                    break
-            if start_idx != -1:
-                for step in range(SHIFT_BLOCKS):
-                    if (start_idx + step) < m:
-                        shift_arr[start_idx + step] = 1
-                
-                end_str = f"{(int(m_out // 60)):02d}:{(int(m_out % 60)):02d}"
+    for j in range(m):
+        m_in = parse_time_str(intervalos[j])
+        if m_in is not None:
+            if m_in % 60 == 0:
+                if m_in >= 7 * 60 and (m_in + duracion_minutos) <= 22 * 60:
+                    shift_arr = np.zeros(m)
+                    for step in range(SHIFT_BLOCKS):
+                        shift_arr[(j + step) % m] = 1
+                    m_out = (m_in + duracion_minutos) % 1440
+                    end_str = f"{(int(m_out // 60)):02d}:{(int(m_out % 60)):02d}"
+                    valid_shifts.append({
+                        'arr': shift_arr,
+                        'start': intervalos[j],
+                        'end': end_str,
+                        'label': label_jornada_diurna,
+                        'is_nocturno': False
+                    })
+            if es_nocturno and m_in == 22 * 60:
+                shift_arr = np.zeros(m)
+                dur_noc_int = 18 
+                for step in range(dur_noc_int):
+                    shift_arr[(j + step) % m] = 1
                 valid_shifts.append({
                     'arr': shift_arr,
-                    'start': f"{hour:02d}:00",
-                    'end': end_str,
-                    'label': label_jornada_diurna,
-                    'is_nocturno': False
+                    'start': "22:00",
+                    'end': "07:00",
+                    'label': "9.0 hrs (Nocturno 5x2)",
+                    'is_nocturno': True
                 })
-                
-    # Turno Nocturno Fijo (22:00 a 07:00)
-    if es_nocturno:
-        shift_arr = np.zeros(m)
-        start_idx = -1
-        for j in range(m):
-            if parse_time_str(intervalos[j]) == 22 * 60:
-                start_idx = j
-                break
-        if start_idx != -1:
-            for step in range(18): # 9 horas (18 intervalos)
-                shift_arr[(start_idx + step) % m] = 1
-            valid_shifts.append({
-                'arr': shift_arr,
-                'start': "22:00",
-                'end': "07:00",
-                'label': "9.0 hrs (Nocturno 5x2)",
-                'is_nocturno': True
-            })
     
     cob_hc = np.zeros(m, dtype=float)
     shift_counts = [0] * len(valid_shifts)
@@ -916,34 +902,26 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             
             if np.max(deficit) <= 0:
                 break
-                
+                        
             best_idx = -1
             best_score = -999999
             
             for idx, sh in enumerate(valid_shifts):
                 arr = sh['arr']
-                # Costo-Beneficio Cúbico: Premia masivamente tapar el understaffing y penaliza suave el overstaffing
                 cov = np.sum(np.minimum(arr, np.maximum(0, deficit)))
                 over = np.sum(arr * (cob_hc + arr > req_hc_base))
                 
-                # Exigimos al menos un mínimo de cobertura real para justificar el sobrestaff
-                score = cov - (over * 0.25)
+                score = cov - (over * 0.5) 
                 
                 if score > best_score:
                     best_score = score
                     best_idx = idx
-                    
+
             if best_idx == -1 or best_score <= 0:
                 break
             
             shift_counts[best_idx] += 1
             cob_hc += valid_shifts[best_idx]['arr']
-
-        # Buddy System (Protección contra turnos solitarios)
-        for idx in range(len(shift_counts)):
-            if shift_counts[idx] == 1:
-                shift_counts[idx] = 2
-                cob_hc += valid_shifts[idx]['arr']
 
     if es_outbound:
         sl_optimo_vector = [100.0 if req_hc_base[i] <= cob_hc[i] else (cob_hc[i]/max(1.0, req_hc_base[i]))*100.0 for i in range(m)]
