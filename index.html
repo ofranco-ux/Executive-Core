@@ -863,7 +863,7 @@
             let last_term = current_term * (A / N) / (1.0 - (A / N));
             let pw = last_term / (sum_terms + last_term);
             let intensity = N - A;
-            let sl = 1.0 - (pw * Math.exp(-intensity * (target_time / AHT)));
+            let sl = 1.0 - (pw * Math.exp(-intensity * (target_time / AHT)))
             return Math.max(0.0, Math.min(100.0, sl * 100.0));
         }
 
@@ -1351,36 +1351,23 @@
                             });
                             if (res.ok) {
                                 const data = await res.json();
-                                let hcDiurnoCamp = 0, hcNocturnoCamp = 0;
-                                if (data.turnos) {
+                                let hcSilo = 0;
+                                if (esVistaSemanal && data.turnos) {
                                     data.turnos.forEach(t => {
-                                        if (t.duracion.includes('Nocturno')) hcNocturnoCamp += t.agentes_a_programar;
-                                        else hcDiurnoCamp += t.agentes_a_programar;
+                                        const esNocturno = t.duracion.includes('Nocturno');
+                                        const factor = esNocturno ? (7.0 / 5.0) : (7.0 / 6.0);
+                                        hcSilo += Math.ceil(t.agentes_a_programar * factor);
                                     });
+                                    return hcSilo;
                                 }
-                                return {
-                                    diurno: hcDiurnoCamp,
-                                    nocturno: hcNocturnoCamp,
-                                    diario: data.total_agentes_diarios || 0
-                                };
+                                return data.total_agentes_diarios || 0;
                             }
                         } catch(e) {}
-                        return null;
+                        return 0;
                     });
 
                     const reqResults = await Promise.all(promises);
-                    let totalDiurno = 0, totalNocturno = 0, totalDiario = 0;
-                    reqResults.forEach(r => {
-                        if (r) {
-                            totalDiurno += r.diurno;
-                            totalNocturno += r.nocturno;
-                            totalDiario += r.diario;
-                        }
-                    });
-
-                    let hcReq = esVistaSemanal ? 
-                        (Math.ceil(totalDiurno * (7.0 / 6.0)) + Math.ceil(totalNocturno * (7.0 / 5.0))) : 
-                        totalDiario;
+                    const hcReq = reqResults.reduce((a, b) => a + b, 0);
 
                     let hcDisp = 0;
                     const uniqueCampChannel = [...new Set(dfC.map(r => r.Campaña + '|' + (r.Canal || '')))];
@@ -1537,9 +1524,6 @@
             let ahtAgrupadoGlobal = new Array(intervalos.length).fill(0);
             let rosterAgrupadoGlobal = new Array(intervalos.length).fill(0);
 
-            let globalDiurno = 0;
-            let globalNocturno = 0;
-
             const optimizacionPromises = campanas.map(async (camp) => {
                 const dfCamp = dfFiltered.filter(r => r.Campaña === camp);
                 let llamVec = [], ahtVec = [], reqVec = [];
@@ -1614,28 +1598,17 @@
             resultadosSilos.forEach(res => {
                 if (!res) return;
                 totalAgentesDiariosSilos += (res.total_agentes_diarios || 0);
-                if (res.cobertura_optima) res.cobertura_optima.forEach((v, i) => coberturaOptimaSilos[i] += v);
+                
                 if (res.turnos) {
                     res.turnos.forEach(t => {
-                        const esNocturno = t.duracion.includes('Nocturno');
-                        if (esNocturno) globalNocturno += t.agentes_a_programar;
-                        else globalDiurno += t.agentes_a_programar;
-                        
                         const key = t.horario_entrada + '|' + t.horario_salida + '|' + t.duracion;
                         if (!turnosSilosMap[key]) turnosSilosMap[key] = { ...t, agentes_a_programar: 0, nomina_a_contratar: 0 };
-                        
                         turnosSilosMap[key].agentes_a_programar += t.agentes_a_programar;
                     });
                 }
+                
+                if (res.cobertura_optima) res.cobertura_optima.forEach((v, i) => coberturaOptimaSilos[i] += v);
             });
-
-            totalAgentesSemanalesSilos = Math.ceil(globalDiurno * (7.0 / 6.0)) + Math.ceil(globalNocturno * (7.0 / 5.0));
-
-            const hcRequeridoDisplay = esVistaSemanal ? totalAgentesSemanalesSilos : totalAgentesDiariosSilos;
-            
-            document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido Total";
-            document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay.toLocaleString() + ' HC';
-            document.getElementById('optHeadcount').innerText = hcRequeridoDisplay.toLocaleString();
 
             rosterAgrupadoGlobal = rosterAgrupadoGlobal.map(val => Math.round(val / numDiasPeriodo));
 
@@ -1729,6 +1702,23 @@
                 if (row) totalRosterHC += esVistaSemanal ? (row.Total_Roster_Campana || 0) : (row.Total_Roster_Dia || 0);
             });
 
+            let turnosBase = Object.values(turnosSilosMap);
+            globalTurnosOptimos = turnosBase.map((t) => {
+                const esNocturno = t.duracion.includes('Nocturno');
+                const factor = esNocturno ? (7.0 / 5.0) : (7.0 / 6.0);
+                let nominaTurno = Math.ceil(t.agentes_a_programar * factor);
+                return { ...t, nomina_a_contratar: Math.max(0, nominaTurno) };
+            });
+
+            globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
+            
+            const totalMallaHC = globalTurnosOptimos.reduce((sum, t) => sum + t.nomina_a_contratar, 0);
+            const hcRequeridoDisplay = esVistaSemanal ? totalMallaHC : totalAgentesDiariosSilos;
+            
+            document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido Total";
+            document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay.toLocaleString() + ' HC';
+            document.getElementById('optHeadcount').innerText = hcRequeridoDisplay.toLocaleString();
+            
             document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Disponible" : "Plantilla de Hoy";
             document.getElementById('kpiHcRosterSub').innerText = esVistaSemanal ? "Total de agentes contratados en Roster" : "Descuenta descansos (DD-DD) del día";
             document.getElementById('kpiHcRoster').innerText = totalRosterHC.toLocaleString() + ' HC';
@@ -1807,24 +1797,6 @@
 
             const optTbody = document.getElementById('optShiftsTableBody');
             optTbody.innerHTML = '';
-            
-            let turnosBase = Object.values(turnosSilosMap);
-            let accumulatedNomina = 0;
-            let totalDiarioSilosReal = turnosBase.reduce((sum, t) => sum + t.agentes_a_programar, 0) || 1;
-
-            globalTurnosOptimos = turnosBase.map((t, index) => {
-                let nominaTurno;
-                if (index === turnosBase.length - 1) {
-                    nominaTurno = hcRequeridoDisplay - accumulatedNomina;
-                } else {
-                    nominaTurno = Math.round((t.agentes_a_programar / totalDiarioSilosReal) * hcRequeridoDisplay);
-                    accumulatedNomina += nominaTurno;
-                }
-                nominaTurno = Math.max(0, nominaTurno);
-                return { ...t, nomina_a_contratar: nominaTurno };
-            });
-
-            globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
 
             if (globalTurnosOptimos.length === 0 || hcRequeridoDisplay === 0) {
                 optTbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500 font-sans font-medium">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
