@@ -859,7 +859,6 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             
     tot_llamadas = float(np.sum(llamadas_arr))
     factor_asistencia = max(0.01, 1.0 - merma)
-    target_sl_dinamico = float(target_sl) if not es_outbound else 100.0 
     req_hc_pooled = req_hc_base.tolist()
     
     duracion_minutos = int(round(float(duracion_jornada) * 60))
@@ -905,20 +904,13 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
         for _ in range(5000): 
             deficit = req_hc_base - cob_hc
             
-            if np.max(deficit) <= 0:
+            if np.max(deficit) <= 0.5:
                 break
                 
-            hay_ceros = False
-            if primer_idx_req != -1:
-                for i in range(primer_idx_req, ultimo_idx_req + 1):
-                    if req_hc_base[i] > 0 and cob_hc[i] < 2:
-                        hay_ceros = True
-                        break
-                        
             best_idx = -1
             best_reduction = -999999
             
-            current_cost = np.sum(np.maximum(0, deficit)**2) * 5.0 + np.sum(np.maximum(0, -deficit)**2) * 2.0
+            current_cost = np.sum((np.maximum(0, deficit)**3) * 10.0) + np.sum((np.maximum(0, -deficit)**2) * 1.0)
             
             for idx, sh in enumerate(valid_shifts):
                 arr = sh['arr']
@@ -926,7 +918,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                 new_under = np.maximum(0, req_hc_base - new_cob)
                 new_over = np.maximum(0, new_cob - req_hc_base)
                 
-                new_cost = np.sum(new_under**2) * 5.0 + np.sum(new_over**2) * 2.0
+                new_cost = np.sum((new_under**3) * 10.0) + np.sum((new_over**2) * 1.0)
                 reduction = current_cost - new_cost
                 
                 if reduction > best_reduction:
@@ -934,20 +926,19 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
                     best_idx = idx
 
             if best_reduction <= 0:
-                if hay_ceros:
-                    best_idx_hueco = -1
-                    best_pen_hueco = 999999
-                    max_huecos_tapados = 0
+                if np.max(deficit) >= 1.0:
+                    best_idx_force = -1
+                    min_over_force = 999999
                     for idx, sh in enumerate(valid_shifts):
                         arr = sh['arr']
-                        huecos = np.sum((arr == 1) & (req_hc_base > 0) & (cob_hc < 2))
-                        pen = np.sum(arr * (cob_hc + arr - req_hc_base > 0)) 
-                        if huecos > max_huecos_tapados or (huecos == max_huecos_tapados and pen < best_pen_hueco):
-                            max_huecos_tapados = huecos
-                            best_pen_hueco = pen
-                            best_idx_hueco = idx
-                    if best_idx_hueco != -1 and max_huecos_tapados > 0:
-                        best_idx = best_idx_hueco
+                        cov = np.sum(np.minimum(arr, np.maximum(0, deficit)))
+                        if cov > 0:
+                            over_added = np.sum(arr * (cob_hc + arr - req_hc_base))
+                            if over_added < min_over_force:
+                                min_over_force = over_added
+                                best_idx_force = idx
+                    if best_idx_force != -1:
+                        best_idx = best_idx_force
                     else:
                         break
                 else:
