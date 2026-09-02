@@ -395,7 +395,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 info_p = mapa_perfil.get((camp, nombre_dia, inter), {})
                 aht_real = info_p.get('aht', 0.0)
                 
-                # AHT Smoothing rule
                 if aht_real > 0 and not pd.isna(aht_real):
                     aht = aht_real if aht_real >= (aht_global * 0.5) else aht_global
                 else:
@@ -589,20 +588,16 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
             for i in range(diff):
                 if i < len(remainders): floor_calls[remainders[i][1]] += 1
 
-            aht_global = aht_global_campana.get(camp, 180.0)
             for idx_inter, inter in enumerate(intervalos_validos):
                 calls_int = floor_calls[idx_inter]
                 calls_float = exact_calls[idx_inter] 
 
                 info_p = mapa_perfil.get((camp, nombre_dia, inter), {})
                 aht_real = info_p.get('aht', 0.0)
-                
-                if aht_real > 0 and not pd.isna(aht_real):
-                    aht = aht_real if aht_real >= (aht_global * 0.5) else aht_global
-                else:
-                    aht = aht_global
+                aht = aht_real if (aht_real > 0 and not pd.isna(aht_real)) else aht_global_campana.get(camp, 180.0)
 
-                req_ftes = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
+                a_erlang = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
+                req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls_float > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
                 
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
@@ -626,7 +621,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
                 })
 
     try:
-        with open(CACHE_FILE_OUT, 'w', encoding='utf-8') as f: json.dump(data_processed, f)
+        with open(CACHE_FILE_IN, 'w', encoding='utf-8') as f: json.dump(data_processed, f)
     except: pass
     return data_processed
 
@@ -853,12 +848,12 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     ultimo_idx_req = -1
     for i in range(m):
         if req_hc_base[i] > 0:
+            req_hc_base[i] = max(2.0, req_hc_base[i]) 
             if primer_idx_req == -1: primer_idx_req = i
             ultimo_idx_req = i
             
     tot_llamadas = float(np.sum(llamadas_arr))
     factor_asistencia = max(0.01, 1.0 - merma)
-    target_sl_dinamico = float(target_sl) if not es_outbound else 100.0 
     req_hc_pooled = req_hc_base.tolist()
     
     duracion_minutos = int(round(float(duracion_jornada) * 60))
@@ -900,82 +895,30 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     cob_hc = np.zeros(m, dtype=float)
     shift_counts = [0] * len(valid_shifts)
 
-    def calc_current_global_sl(current_cob):
-        if tot_llamadas <= 0: return 100.0
-        if es_outbound:
-            return (np.sum(current_cob) / max(1.0, np.sum(req_hc_base))) * 100.0
-        else:
-            sl_acum = 0.0
-            for i, c in enumerate(llamadas_arr):
-                if c > 0:
-                    aht_real = aht_arr[i]
-                    aht_efectivo = aht_real / max(1.0, concurrencia) if es_chat else aht_real
-                    a_erl = (c * aht_efectivo) / 1800.0
-                    sl_acum += c * erlang_c_sl_optimizado(a_erl, current_cob[i] * factor_asistencia, aht_efectivo, target_time)
-            return sl_acum / tot_llamadas
-            
     if len(valid_shifts) > 0:
         for _ in range(5000): 
-            current_sl = calc_current_global_sl(cob_hc)
-            
-            hay_ceros = False
-            if primer_idx_req != -1:
-                for i in range(primer_idx_req, ultimo_idx_req + 1):
-                    if req_hc_base[i] > 0 and cob_hc[i] < 2:
-                        hay_ceros = True
-                        break
-            
             deficit = req_hc_base - cob_hc
             
-            if current_sl >= target_sl_dinamico and not hay_ceros and np.max(deficit) <= 0:
+            if np.max(deficit) <= 0:
                 break
                 
             best_idx = -1
             best_score = -999999
-            best_pen_fallback = 999999
-            best_cov_fallback = 0
             
             for idx, sh in enumerate(valid_shifts):
                 arr = sh['arr']
                 cov = np.sum(np.maximum(0, np.minimum(arr, deficit)))
                 pen = np.sum(arr * (deficit < 0))
                 
-                score = cov - (pen * 1.0)
+                score = cov - (pen * 0.01)
                 
-                if score > best_score:
+                if score > best_score and cov > 0:
                     best_score = score
                     best_idx = idx
-                    best_pen_fallback = pen
-                    best_cov_fallback = cov
                     
-            if best_idx == -1 or best_score <= 0:
-                if hay_ceros:
-                    best_idx_hueco = -1
-                    best_pen_hueco = 999999
-                    max_huecos_tapados = 0
-                    for idx, sh in enumerate(valid_shifts):
-                        arr = sh['arr']
-                        huecos_tapados = np.sum((arr == 1) & (req_hc_base > 0) & (cob_hc < 2))
-                        pen = np.sum(arr * (deficit < 0))
-                        
-                        if huecos_tapados > max_huecos_tapados or (huecos_tapados == max_huecos_tapados and pen < best_pen_hueco):
-                            max_huecos_tapados = huecos_tapados
-                            best_pen_hueco = pen
-                            best_idx_hueco = idx
-                    
-                    if best_idx_hueco != -1 and max_huecos_tapados > 0:
-                        best_idx = best_idx_hueco
-                    else:
-                        break
-                else:
-                    break
-                    
-            if current_sl >= target_sl_dinamico and not hay_ceros:
-                if best_pen_fallback >= best_cov_fallback:
-                    break
-                    
-            if best_idx == -1: break
-            
+            if best_idx == -1: 
+                break 
+                
             shift_counts[best_idx] += 1
             cob_hc += valid_shifts[best_idx]['arr']
 
