@@ -1223,7 +1223,7 @@
             const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 6.5;
             
             const usarNocturnoGlobal = document.getElementById('chkNocturno') ? document.getElementById('chkNocturno').checked : false;
-            const usarPicosGlobal = document.getElementById('chkPicos') ? document.getElementById('chkPicos').checked : false;
+            const aplicarPicosActual = configPicos[forecastMode] !== undefined ? configPicos[forecastMode] : document.getElementById('chkPicos').checked;
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
 
             const dfFiltered = globalData.filter(item => {
@@ -1300,6 +1300,16 @@
                     const promises = campanas.map(async (camp) => {
                         const dfCamp = dfC.filter(r => r.Campaña === camp);
                         let llamVec=[], ahtVec=[], reqVec=[];
+                        let demandaPorDia = [0, 0, 0, 0, 0, 0, 0];
+                        const mapDias = { 'lunes': 0, 'martes': 1, 'miércoles': 2, 'miercoles': 2, 'jueves': 3, 'viernes': 4, 'sábado': 5, 'sabado': 5, 'domingo': 6 };
+                        
+                        dfCamp.forEach(r => {
+                            let dia = getProp(r, ['Día_Semana', 'Dia_Semana'], '').toLowerCase();
+                            let req = Number(getProp(r, ['Agentes_Requeridos'], 0)) || 0;
+                            if (mapDias[dia] !== undefined) {
+                                if (req > demandaPorDia[mapDias[dia]]) demandaPorDia[mapDias[dia]] = req;
+                            }
+                        });
                         
                         todosIntervalos.forEach(inter => {
                             const rowsInter = dfCamp.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === inter);
@@ -1353,17 +1363,35 @@
                             });
                             if (res.ok) {
                                 const data = await res.json();
-                                let hcDiurnoCamp = 0, hcNocturnoCamp = 0;
-                                if (data.turnos) {
+                                let totalDiario = data.total_agentes_diarios || 0;
+                                let hcSemanal = totalDiario;
+                                
+                                if (esVistaSemanal && data.turnos) {
+                                    let minDemanda = Math.max(1, Math.min(...demandaPorDia.filter(v => v > 0)));
+                                    for(let d=0; d<7; d++) { if(demandaPorDia[d] === 0) demandaPorDia[d] = minDemanda; }
+                                    let totalShiftsNeeded = demandaPorDia.reduce((a, b) => a + b, 0);
+                                    let maxDailyReq = Math.max(...demandaPorDia);
+                                    let avgDailyReq = totalShiftsNeeded / 7.0;
+                                    let weekRatio = maxDailyReq > 0 ? (avgDailyReq / maxDailyReq) : 1.0;
+
+                                    let nominaCalc = 0;
                                     data.turnos.forEach(t => {
-                                        if (t.duracion.includes('Nocturno')) hcNocturnoCamp += t.agentes_a_programar;
-                                        else hcDiurnoCamp += t.agentes_a_programar;
+                                        const isNoc = t.duracion.includes('Nocturno');
+                                        const dPerWk = isNoc ? 5.0 : 6.0;
+                                        let factor = 7.0 / dPerWk;
+                                        if (aplicarPicosCanal) {
+                                            factor = factor * weekRatio;
+                                            if (factor < 1.0) factor = 1.0;
+                                        }
+                                        let nominaT = Math.ceil(t.agentes_a_programar * factor);
+                                        if (nominaT < t.agentes_a_programar) nominaT = t.agentes_a_programar;
+                                        nominaCalc += nominaT;
                                     });
+                                    hcSemanal = nominaCalc;
                                 }
                                 return {
-                                    diurno: hcDiurnoCamp,
-                                    nocturno: hcNocturnoCamp,
-                                    diario: data.total_agentes_diarios || 0,
+                                    semanal: hcSemanal,
+                                    diario: totalDiario,
                                     maxReq: maxReqCamp
                                 };
                             }
@@ -1372,19 +1400,13 @@
                     });
 
                     const reqResults = await Promise.all(promises);
-                    let totalDiurno = 0, totalNocturno = 0, totalDiario = 0, fteBaseCanal = 0;
+                    let hcReq = 0, fteBaseCanal = 0;
                     reqResults.forEach(r => {
                         if (r) {
-                            totalDiurno += r.diurno;
-                            totalNocturno += r.nocturno;
-                            totalDiario += r.diario;
+                            hcReq += esVistaSemanal ? r.semanal : r.diario;
                             fteBaseCanal += r.maxReq;
                         }
                     });
-
-                    let hcReq = esVistaSemanal ? 
-                        (Math.ceil(totalDiurno * (7.0 / 6.0)) + Math.ceil(totalNocturno * (7.0 / 5.0))) : 
-                        totalDiario;
 
                     let hcDisp = 0;
                     const uniqueCampChannel = [...new Set(dfC.map(r => r.Campaña + '|' + (r.Canal || '')))];
@@ -1516,13 +1538,13 @@
             document.getElementById('kpiAht').innerText = formatAHT(totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0);
 
             try {
-                ejecutarOptimizadorHorarios(todosIntervalos, dfFiltered, targetTimeObj, targetSlObj, durJornada, esVistaSemanal, concurrenciaVal);
+                ejecutarOptimizadorHorarios(todosIntervalos, dfFiltered, targetTimeObj, targetSlObj, durJornada, esVistaSemanal, concurrenciaVal, aplicarPicosActual);
             } catch (e) {
                 console.log("Error al preparar optimizador:", e);
             }
         }
 
-        async function ejecutarOptimizadorHorarios(intervalos, dfFiltered, targetTimeObj, targetSlObj, durJornada, esVistaSemanal, concurrenciaVal) {
+        async function ejecutarOptimizadorHorarios(intervalos, dfFiltered, targetTimeObj, targetSlObj, durJornada, esVistaSemanal, concurrenciaVal, aplicarPicosActual) {
             if (!intervalos || intervalos.length === 0) return;
 
             document.getElementById('contGapChart').classList.remove('hidden');
@@ -1531,7 +1553,6 @@
             const forceOutboundLogic = forecastMode === 'outbound';
             const esChatLogic = forecastMode === 'chat';
             
-            const aplicarPicosActual = configPicos[forecastMode] !== undefined ? configPicos[forecastMode] : document.getElementById('chkPicos').checked;
             const mermaActual = configMerma[forecastMode] !== undefined ? parseFloat(configMerma[forecastMode]) : parseFloat(document.getElementById('merma').value);
             const usarNocturnoActual = configNocturno[forecastMode] !== undefined ? configNocturno[forecastMode] : document.getElementById('chkNocturno').checked;
 
@@ -1540,6 +1561,7 @@
             const numDiasPeriodo = fechasPeriodo.length || 1;
 
             let totalAgentesDiariosSilos = 0;
+            let totalAgentesSemanalesSilos = 0;
             let coberturaOptimaSilos = new Array(intervalos.length).fill(0);
             let turnosSilosMap = {};
             
@@ -1548,8 +1570,28 @@
             let ahtAgrupadoGlobal = new Array(intervalos.length).fill(0);
             let rosterAgrupadoGlobal = new Array(intervalos.length).fill(0);
 
-            let globalDiurno = 0;
-            let globalNocturno = 0;
+            let demandaPorDia = [0, 0, 0, 0, 0, 0, 0];
+            const mapDias = { 'lunes': 0, 'martes': 1, 'miércoles': 2, 'miercoles': 2, 'jueves': 3, 'viernes': 4, 'sábado': 5, 'sabado': 5, 'domingo': 6 };
+            
+            dfFiltered.forEach(r => {
+                let dia = getProp(r, ['Día_Semana', 'Dia_Semana'], '').toLowerCase();
+                let req = Number(getProp(r, ['Agentes_Requeridos'], 0)) || 0;
+                if (mapDias[dia] !== undefined) {
+                    if (req > demandaPorDia[mapDias[dia]]) {
+                        demandaPorDia[mapDias[dia]] = req;
+                    }
+                }
+            });
+
+            let minDemanda = Math.max(1, Math.min(...demandaPorDia.filter(v => v > 0)));
+            for(let d=0; d<7; d++) {
+                if(demandaPorDia[d] === 0) demandaPorDia[d] = minDemanda;
+            }
+
+            let totalShiftsNeeded = demandaPorDia.reduce((a, b) => a + b, 0);
+            let maxDailyReq = Math.max(...demandaPorDia);
+            let avgDailyReq = totalShiftsNeeded / 7.0;
+            let weekRatio = maxDailyReq > 0 ? (avgDailyReq / maxDailyReq) : 1.0;
 
             const optimizacionPromises = campanas.map(async (camp) => {
                 const dfCamp = dfFiltered.filter(r => r.Campaña === camp);
@@ -1631,10 +1673,6 @@
                         const key = t.horario_entrada + '|' + t.horario_salida + '|' + t.duracion;
                         if (!turnosSilosMap[key]) turnosSilosMap[key] = { ...t, agentes_a_programar: 0, nomina_a_contratar: 0 };
                         turnosSilosMap[key].agentes_a_programar += t.agentes_a_programar;
-                        
-                        const esNocturno = t.duracion.includes('Nocturno');
-                        if (esNocturno) globalNocturno += t.agentes_a_programar;
-                        else globalDiurno += t.agentes_a_programar;
                     });
                 }
                 
@@ -1645,8 +1683,17 @@
 
             globalTurnosOptimos = turnosBase.map((t) => {
                 const esNocturno = t.duracion.includes('Nocturno');
-                const factor = esNocturno ? (7.0 / 5.0) : (7.0 / 6.0);
+                const dPerWk = esNocturno ? 5.0 : 6.0;
+
+                let factor = 7.0 / dPerWk;
+                if (aplicarPicosActual) {
+                    factor = factor * weekRatio;
+                    if (factor < 1.0) factor = 1.0;
+                }
+
                 let nominaTurno = Math.ceil(t.agentes_a_programar * factor);
+                if (nominaTurno < t.agentes_a_programar) nominaTurno = t.agentes_a_programar;
+
                 return { ...t, nomina_a_contratar: Math.max(0, nominaTurno) };
             });
 
@@ -1833,24 +1880,6 @@
             if (globalTurnosOptimos.length === 0 || hcRequeridoDisplay === 0) {
                 optTbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500 font-sans font-medium">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
             } else {
-                let demandaPorDia = [0, 0, 0, 0, 0, 0, 0];
-                const mapDias = { 'lunes': 0, 'martes': 1, 'miércoles': 2, 'miercoles': 2, 'jueves': 3, 'viernes': 4, 'sábado': 5, 'sabado': 5, 'domingo': 6 };
-                
-                dfFiltered.forEach(r => {
-                    let dia = getProp(r, ['Día_Semana', 'Dia_Semana'], '').toLowerCase();
-                    let req = Number(getProp(r, ['Agentes_Requeridos'], 0)) || 0;
-                    if (mapDias[dia] !== undefined) {
-                        if (req > demandaPorDia[mapDias[dia]]) {
-                            demandaPorDia[mapDias[dia]] = req;
-                        }
-                    }
-                });
-
-                let minDemanda = Math.max(1, Math.min(...demandaPorDia.filter(v => v > 0)));
-                for(let d=0; d<7; d++) {
-                    if(demandaPorDia[d] === 0) demandaPorDia[d] = minDemanda;
-                }
-
                 let totalDiurno = 0, totalNocturno = 0;
                 globalTurnosOptimos.forEach(t => {
                     if (t.duracion.includes('Nocturno')) totalNocturno += t.nomina_a_contratar;
