@@ -1540,7 +1540,6 @@
             const numDiasPeriodo = fechasPeriodo.length || 1;
 
             let totalAgentesDiariosSilos = 0;
-            let totalAgentesSemanalesSilos = 0;
             let coberturaOptimaSilos = new Array(intervalos.length).fill(0);
             let turnosSilosMap = {};
             
@@ -1642,9 +1641,19 @@
                 if (res.cobertura_optima) res.cobertura_optima.forEach((v, i) => coberturaOptimaSilos[i] += v);
             });
 
-            totalAgentesSemanalesSilos = Math.ceil(globalDiurno * (7.0 / 6.0)) + Math.ceil(globalNocturno * (7.0 / 5.0));
+            let turnosBase = Object.values(turnosSilosMap);
 
-            const hcRequeridoDisplay = esVistaSemanal ? totalAgentesSemanalesSilos : totalAgentesDiariosSilos;
+            globalTurnosOptimos = turnosBase.map((t) => {
+                const esNocturno = t.duracion.includes('Nocturno');
+                const factor = esNocturno ? (7.0 / 5.0) : (7.0 / 6.0);
+                let nominaTurno = Math.ceil(t.agentes_a_programar * factor);
+                return { ...t, nomina_a_contratar: Math.max(0, nominaTurno) };
+            });
+
+            globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
+            
+            const totalMallaHC = globalTurnosOptimos.reduce((sum, t) => sum + t.nomina_a_contratar, 0);
+            let hcRequeridoDisplay = esVistaSemanal ? totalMallaHC : totalAgentesDiariosSilos;
             const picoFtePuro = reqAgrupadoGlobal.length ? Math.ceil(Math.max(...reqAgrupadoGlobal)) : 0;
             
             document.getElementById('kpiHcRequeridoTitle').innerText = "Nómina a Contratar (Malla)";
@@ -1800,7 +1809,7 @@
                 data: {
                     labels: intervalos,
                     datasets: [
-                        { label: 'HC Requerido (Motor)', data: reqAgrupadoGlobal, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
+                        { label: 'FTE Puro (Motor)', data: reqAgrupadoGlobal, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
                         { label: 'Plantilla Actual (Roster)', data: rosterAgrupadoGlobal, borderColor: '#34D399', backgroundColor: '#34D399', fill: false, tension: 0.4, borderWidth: 2, borderDash: [5, 5], pointRadius: 0, pointHoverRadius: 6 },
                         { label: labelCurvaCob, data: coberturaOptimaSilos, borderColor: '#3B82F6', backgroundColor: '#3B82F6', fill: false, tension: 0.4, borderWidth: 3, borderDash: [4, 4], pointRadius: 0, pointHoverRadius: 6 }
                     ]
@@ -1820,17 +1829,6 @@
 
             const optTbody = document.getElementById('optShiftsTableBody');
             optTbody.innerHTML = '';
-            
-            let turnosBase = Object.values(turnosSilosMap);
-
-            globalTurnosOptimos = turnosBase.map((t) => {
-                const esNocturno = t.duracion.includes('Nocturno');
-                const factor = esNocturno ? (7.0 / 5.0) : (7.0 / 6.0);
-                let nominaTurno = Math.ceil(t.agentes_a_programar * factor);
-                return { ...t, nomina_a_contratar: Math.max(0, nominaTurno) };
-            });
-
-            globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
 
             if (globalTurnosOptimos.length === 0 || hcRequeridoDisplay === 0) {
                 optTbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500 font-sans font-medium">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
@@ -1842,7 +1840,9 @@
                     let dia = getProp(r, ['Día_Semana', 'Dia_Semana'], '').toLowerCase();
                     let req = Number(getProp(r, ['Agentes_Requeridos'], 0)) || 0;
                     if (mapDias[dia] !== undefined) {
-                        demandaPorDia[mapDias[dia]] += req;
+                        if (req > demandaPorDia[mapDias[dia]]) {
+                            demandaPorDia[mapDias[dia]] = req;
+                        }
                     }
                 });
 
@@ -1862,60 +1862,67 @@
 
                 globalTurnosOptimos.forEach(t => {
                     const hcTurno = t.nomina_a_contratar;
-                    if (hcTurno <= 0) {
-                        t.distribucion = [0,0,0,0,0,0,0];
-                        return;
-                    }
+                    if (hcTurno <= 0) return;
                     
                     const shiftStr = `${t.horario_entrada} - ${t.horario_salida}`;
                     const esTurnoNocturno = t.duracion.includes('Nocturno');
 
-                    let distribucion = [0, 0, 0, 0, 0, 0, 0];
-                    const maxRestsPerDay = Math.ceil(hcTurno / 7);
+                    let agents = Array.from({length: hcTurno}, () => ({ rests: new Set() }));
+                    const numRestsPerAgent = esTurnoNocturno ? 2 : 1;
                     
                     let restsTracker = esTurnoNocturno ? restsGlobalesNocturno : restsGlobalesDiurno;
                     let totalActivo = esTurnoNocturno ? totalNocturno : totalDiurno;
 
-                    for (let i = 0; i < hcTurno; i++) {
+                    for (let r = 0; r < hcTurno * numRestsPerAgent; r++) {
                         let bestDay = -1;
                         let maxSurplus = -Infinity;
+                        
                         for (let d = 0; d < 7; d++) {
-                            if (distribucion[d] < maxRestsPerDay) {
-                                let ratio = (totalActivo - restsTracker[d]) / demandaPorDia[d];
-                                if (ratio > maxSurplus) {
-                                    maxSurplus = ratio;
+                            let canAssign = agents.some(a => a.rests.size < numRestsPerAgent && !a.rests.has(d));
+                            if (canAssign) {
+                                let surplus = (totalActivo - restsTracker[d]) - demandaPorDia[d];
+                                if (surplus > maxSurplus) {
+                                    maxSurplus = surplus;
                                     bestDay = d;
                                 }
                             }
                         }
+                        
                         if (bestDay !== -1) {
-                            distribucion[bestDay]++;
-                            restsTracker[bestDay]++;
+                            let agent = agents.find(a => a.rests.size < numRestsPerAgent && !a.rests.has(bestDay));
+                            if (agent) {
+                                agent.rests.add(bestDay);
+                                restsTracker[bestDay]++;
+                            }
                         }
                     }
 
-                    t.distribucion = distribucion;
+                    let grouped = {};
+                    agents.forEach(a => {
+                        let key = Array.from(a.rests).sort().join(',');
+                        if (!grouped[key]) grouped[key] = { count: 0, rests: a.rests };
+                        grouped[key].count++;
+                    });
+                    
+                    t.groupedAgents = Object.values(grouped);
 
-                    for (let i = 0; i < 7; i++) {
-                        const hcDescanso = distribucion[i];
-                        if (hcDescanso > 0) {
+                    Object.values(grouped).forEach(g => {
+                        if (g.count > 0) {
                             const tr = document.createElement('tr');
                             tr.className = 'hover:bg-[#1E293B] transition-colors';
-                            let htmlRow = `<td class="py-3.5 px-4 font-black text-brand-accentAmber text-[13px] border-r border-[#1F2937] bg-[#111827]">${hcDescanso}</td>`;
+                            let htmlRow = `<td class="py-3.5 px-4 font-black text-brand-accentAmber text-[13px] border-r border-[#1F2937] bg-[#111827]">${g.count}</td>`;
                             
                             for (let d = 0; d < 7; d++) {
-                                if (esTurnoNocturno) { 
-                                    if (d === i || d === (i + 1) % 7) htmlRow += `<td class="py-3.5 px-2 text-brand-accentRose font-bold text-[11px] tracking-wider">Descanso</td>`;
-                                    else htmlRow += `<td class="py-3.5 px-2 text-slate-300 font-mono-num font-medium text-[11px]">${shiftStr}</td>`;
-                                } else { 
-                                    if (d === i) htmlRow += `<td class="py-3.5 px-2 text-brand-accentRose font-bold text-[11px] tracking-wider">Descanso</td>`;
-                                    else htmlRow += `<td class="py-3.5 px-2 text-slate-300 font-mono-num font-medium text-[11px]">${shiftStr}</td>`;
+                                if (g.rests.has(d)) {
+                                    htmlRow += `<td class="py-3.5 px-2 text-brand-accentRose font-bold text-[11px] tracking-wider">Descanso</td>`;
+                                } else {
+                                    htmlRow += `<td class="py-3.5 px-2 text-slate-300 font-mono-num font-medium text-[11px]">${shiftStr}</td>`;
                                 }
                             }
                             tr.innerHTML = htmlRow;
                             optTbody.appendChild(tr);
                         }
-                    }
+                    });
                 });
             }
         }
@@ -1930,27 +1937,16 @@
             const csvRows = [headers.join(",")];
 
             globalTurnosOptimos.forEach(t => {
-                const hcTurno = t.nomina_a_contratar;
-                if (hcTurno <= 0 || !t.distribucion) return;
-                
                 const shiftStr = `${t.horario_entrada} - ${t.horario_salida}`;
-                const esTurnoNocturno = t.duracion.includes('Nocturno');
-                
-                for (let i = 0; i < 7; i++) {
-                    const hcDescanso = t.distribucion[i];
-                    if (hcDescanso > 0) {
-                        let row = [hcDescanso];
+                if (t.groupedAgents) {
+                    t.groupedAgents.forEach(g => {
+                        let row = [g.count];
                         for (let d = 0; d < 7; d++) {
-                            if (esTurnoNocturno) {
-                                if (d === i || d === (i+1)%7) row.push("Descanso");
-                                else row.push(shiftStr);
-                            } else {
-                                if (d === i) row.push("Descanso");
-                                else row.push(shiftStr);
-                            }
+                            if (g.rests.has(d)) row.push("Descanso");
+                            else row.push(shiftStr);
                         }
                         csvRows.push(row.join(","));
-                    }
+                    });
                 }
             });
 
