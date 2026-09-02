@@ -588,18 +588,23 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
             for i in range(diff):
                 if i < len(remainders): floor_calls[remainders[i][1]] += 1
 
+            aht_global = aht_global_campana.get(camp, 180.0)
             for idx_inter, inter in enumerate(intervalos_validos):
                 calls_int = floor_calls[idx_inter]
                 calls_float = exact_calls[idx_inter] 
 
                 info_p = mapa_perfil.get((camp, nombre_dia, inter), {})
                 aht_real = info_p.get('aht', 0.0)
-                aht = aht_real if (aht_real > 0 and not pd.isna(aht_real)) else aht_global_campana.get(camp, 180.0)
+                
+                if aht_real > 0 and not pd.isna(aht_real):
+                    aht = aht_real if aht_real >= (aht_global * 0.5) else aht_global
+                else:
+                    aht = aht_global
 
                 a_erlang = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls_float > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
-                
+
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
                 tot_camp = roster_total_camp.get(str(camp), 0)
                 tot_camp_dia = roster_total_dia_camp.get((str(camp), nombre_dia.capitalize()), 0)
@@ -621,7 +626,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
                 })
 
     try:
-        with open(CACHE_FILE_IN, 'w', encoding='utf-8') as f: json.dump(data_processed, f)
+        with open(CACHE_FILE_OUT, 'w', encoding='utf-8') as f: json.dump(data_processed, f)
     except: pass
     return data_processed
 
@@ -854,6 +859,7 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             
     tot_llamadas = float(np.sum(llamadas_arr))
     factor_asistencia = max(0.01, 1.0 - merma)
+    target_sl_dinamico = float(target_sl) if not es_outbound else 100.0 
     req_hc_pooled = req_hc_base.tolist()
     
     duracion_minutos = int(round(float(duracion_jornada) * 60))
@@ -895,10 +901,39 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
     cob_hc = np.zeros(m, dtype=float)
     shift_counts = [0] * len(valid_shifts)
 
+    def calc_current_global_sl(current_cob):
+        if tot_llamadas <= 0: return 100.0
+        if es_outbound:
+            return (np.sum(current_cob) / max(1.0, np.sum(req_hc_base))) * 100.0
+        else:
+            sl_acum = 0.0
+            for i, c in enumerate(llamadas_arr):
+                if c > 0:
+                    aht_real = aht_arr[i]
+                    aht_efectivo = aht_real / max(1.0, concurrencia) if es_chat else aht_real
+                    a_erl = (c * aht_efectivo) / 1800.0
+                    sl_acum += c * erlang_c_sl_optimizado(a_erl, current_cob[i] * factor_asistencia, aht_efectivo, target_time)
+            return sl_acum / tot_llamadas
+
     if len(valid_shifts) > 0:
         for _ in range(5000): 
+            current_sl = calc_current_global_sl(cob_hc)
             deficit = req_hc_base - cob_hc
             
+            hay_ceros = False
+            if primer_idx_req != -1:
+                for i in range(primer_idx_req, ultimo_idx_req + 1):
+                    if req_hc_base[i] > 0 and cob_hc[i] < 2:
+                        hay_ceros = True
+                        break
+            
+            total_req_sum = np.sum(req_hc_base)
+            covered_sum = np.sum(np.minimum(cob_hc, req_hc_base))
+            coverage_pct = (covered_sum / total_req_sum) if total_req_sum > 0 else 1.0
+            
+            if current_sl >= target_sl_dinamico and not hay_ceros and coverage_pct >= 0.90:
+                break
+                
             if np.max(deficit) <= 0:
                 break
                 
@@ -907,17 +942,20 @@ def resolver_turnos_optimos(intervalos, campanas_activas, llamadas_vec=None, aht
             
             for idx, sh in enumerate(valid_shifts):
                 arr = sh['arr']
-                cov = np.sum(np.maximum(0, np.minimum(arr, deficit)))
+                cov = np.sum(np.minimum(arr, np.maximum(0, deficit)))
                 pen = np.sum(arr * (deficit < 0))
                 
-                score = cov - (pen * 0.01)
+                score = cov - (pen * 0.35)
                 
-                if score > best_score and cov > 0:
+                if score > best_score:
                     best_score = score
                     best_idx = idx
                     
             if best_idx == -1: 
-                break 
+                break
+                
+            if current_sl >= target_sl_dinamico and not hay_ceros and best_score < 0:
+                break
                 
             shift_counts[best_idx] += 1
             cob_hc += valid_shifts[best_idx]['arr']
