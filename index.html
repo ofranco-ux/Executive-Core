@@ -156,39 +156,11 @@
                             <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentRose transition-colors">Shrinkage (%)</label>
                             <input type="number" id="merma" value="30" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentRose font-mono-num font-bold focus:border-brand-accentRose focus:ring-1 focus:ring-brand-accentRose focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
                         </div>
-                        <div class="flex flex-col group">
-                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentAmber transition-colors">Jornada (Hrs)</label>
-                            <input type="number" id="duracionJornada" value="6" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentAmber font-mono-num font-bold focus:border-brand-accentAmber focus:ring-1 focus:ring-brand-accentAmber focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
-                        </div>
                     </div>
 
                     <div class="flex flex-col group pt-1">
                         <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-white transition-colors">Horizonte (Días)</label>
                         <input type="number" id="dias" value="130" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-white font-mono-num font-bold focus:border-brand-primary focus:ring-1 focus:ring-brand-primary focus:outline-none transition-all shadow-inner"/>
-                    </div>
-
-                    <div class="pt-6 space-y-6">
-                        <label class="flex items-center justify-between cursor-pointer group">
-                            <div class="flex items-center gap-3">
-                                <span class="text-brand-accentAmber text-lg drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]">🌙</span>
-                                <span class="text-[13px] text-white font-bold transition-colors tracking-wide">Turno Nocturno</span>
-                            </div>
-                            <div class="relative">
-                                <input type="checkbox" id="chkNocturno" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()" class="sr-only peer" checked>
-                                <div class="w-[42px] h-[22px] bg-[#1E293B] border border-[#334155] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[16px] after:w-[16px] after:transition-all peer-checked:bg-[#A78BFA] peer-checked:border-brand-accentViolet peer-checked:shadow-[0_0_10px_rgba(167,139,250,0.5)]"></div>
-                            </div>
-                        </label>
-                        
-                        <label class="flex items-center justify-between cursor-pointer group">
-                            <div class="flex items-center gap-3">
-                                <span class="text-brand-accentRose text-lg drop-shadow-[0_0_5px_rgba(251,113,133,0.5)]">🔥</span>
-                                <span class="text-[13px] text-white font-bold transition-colors tracking-wide">Staffing x Picos</span>
-                            </div>
-                            <div class="relative">
-                                <input type="checkbox" id="chkPicos" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()" class="sr-only peer" checked>
-                                <div class="w-[42px] h-[22px] bg-[#1E293B] border border-[#334155] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[16px] after:w-[16px] after:transition-all peer-checked:bg-[#FB7185] peer-checked:border-brand-accentRose peer-checked:shadow-[0_0_10px_rgba(251,113,133,0.5)]"></div>
-                            </div>
-                        </label>
                     </div>
                 </div>
 
@@ -312,14 +284,14 @@
                 <div class="glass-panel glass-panel-hover p-5 rounded-xl border-t-2 border-t-brand-accentViolet shadow-[0_4px_15px_-5px_rgba(167,139,250,0.15)] relative overflow-hidden flex flex-col justify-between">
                     <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-accentViolet/10 rounded-full blur-xl pointer-events-none"></div>
                     <div class="flex justify-between items-start relative z-10">
-                        <p id="kpiHcRequeridoTitle" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Nómina a Contratar (Malla)</p>
+                        <p id="kpiHcRequeridoTitle" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">HC Requerido (Pico Máximo)</p>
                         <div class="p-1.5 bg-brand-accentViolet/10 rounded-lg text-brand-accentViolet border border-brand-accentViolet/20 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                         </div>
                     </div>
                     <div class="relative z-10 mt-2">
                         <p id="kpiHcRequerido" class="text-3xl font-black font-mono-num text-brand-accentViolet drop-shadow-[0_0_8px_rgba(167,139,250,0.3)]">0 HC</p>
-                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium">FTE Puro (Pico Matemático): 0 HC</p>
+                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium">FTE Puro (Matemática Erlang C)</p>
                     </div>
                 </div>
 
@@ -339,66 +311,6 @@
                         </div>
                         <p id="kpiHcRosterSub" class="text-[10px] text-slate-500 mt-1 font-medium">Total de agentes contratados en Roster</p>
                     </div>
-                </div>
-            </div>
-
-            <!-- MÓDULO 2: OPTIMIZACIÓN DE HORARIOS -->
-            <div id="modOptimizacion" class="glass-panel p-6 rounded-2xl relative transition-all duration-300 hidden">
-                <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
-                    <div>
-                        <h3 id="optModuleTitle" class="text-[15px] font-extrabold text-white flex items-center gap-2 tracking-wide">
-                            <span class="text-brand-primary drop-shadow-[0_0_5px_rgba(59,130,246,0.6)]">📈</span> Capacity Plan (Roster Semanal)
-                        </h3>
-                        <p id="subtHeadcountMod" class="text-[11px] text-slate-400 mt-1 font-medium">Distribución de días de descanso para cubrir la demanda requerida</p>
-                    </div>
-                    <button onclick="exportarTurnosCSV()" class="bg-[#1E293B] hover:bg-brand-primary/20 text-slate-200 hover:text-brand-primary border border-[#334155] hover:border-brand-primary/50 text-xs py-2 px-4 rounded-lg transition-all duration-200 font-bold shadow-md">
-                        📥 Export Plan
-                    </button>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4 mb-6">
-                    <div class="bg-[#0F172A] p-4 rounded-xl border border-[#1F2937] shadow-inner relative overflow-hidden group">
-                        <div class="absolute inset-0 bg-brand-accentEmerald/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <p id="lblProjectedSl" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Projected SL (Con Malla)</p>
-                        <div class="my-1">
-                            <span id="compSlOptimo" class="text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)] block">--%</span>
-                        </div>
-                    </div>
-
-                    <div class="bg-[#0F172A] p-4 rounded-xl border border-[#1F2937] shadow-inner relative overflow-hidden group">
-                        <div class="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <p id="lblHeadcountType" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Nómina a Contratar</p>
-                        <div class="my-1">
-                            <p id="optHeadcount" class="text-3xl font-black font-mono-num text-white drop-shadow-sm">--</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="h-64 mb-6 relative">
-                    <canvas id="optChart"></canvas>
-                </div>
-
-                <!-- TABLA ROSTER SEMANAL -->
-                <div class="overflow-x-auto overflow-y-auto max-h-[350px] border border-[#1F2937] rounded-xl bg-[#0F172A] shadow-inner">
-                    <table class="w-full text-center text-xs text-slate-300">
-                        <thead class="bg-[#111827] text-slate-400 font-bold text-[10px] uppercase tracking-wider sticky top-0 border-b border-[#334155] z-10 shadow-sm">
-                            <tr>
-                                <th class="py-3.5 px-4 border-r border-[#334155] w-16 text-brand-accentAmber">HC</th>
-                                <th class="py-3.5 px-2">Lunes</th>
-                                <th class="py-3.5 px-2">Martes</th>
-                                <th class="py-3.5 px-2">Miércoles</th>
-                                <th class="py-3.5 px-2">Jueves</th>
-                                <th class="py-3.5 px-2">Viernes</th>
-                                <th class="py-3.5 px-2">Sábado</th>
-                                <th class="py-3.5 px-2">Domingo</th>
-                            </tr>
-                        </thead>
-                        <tbody id="optShiftsTableBody" class="divide-y divide-[#1F2937] font-mono-num text-[11px]">
-                            <tr>
-                                <td colspan="8" class="text-center py-8 text-slate-500 font-sans font-medium">Selecciona filtros para procesar turnos...</td>
-                            </tr>
-                        </tbody>
-                    </table>
                 </div>
             </div>
 
@@ -448,10 +360,8 @@
 
     <script>
         let globalData = [];
-        let optChartInstance = null;
         let gapChartInstance = null; 
         let generalChartInstance = null;
-        let globalTurnosOptimos = [];
         
         let configPicos = { inbound: true, outbound: true, chat: true };
         let configMerma = { inbound: 30, outbound: 30, chat: 30 };
@@ -482,9 +392,7 @@
 
         function guardarEstadoParametros() {
             if (forecastMode !== 'general') {
-                configPicos[forecastMode] = document.getElementById('chkPicos').checked;
                 configMerma[forecastMode] = document.getElementById('merma').value;
-                configNocturno[forecastMode] = document.getElementById('chkNocturno').checked;
             }
         }
 
@@ -540,7 +448,6 @@
             btnChat.className = inactiveClass;
             btnGen.className = inactiveClass;
 
-            const modOptimizacion = document.getElementById('modOptimizacion');
             const contParametros = document.getElementById('contParametrosSimulacion');
             const contInfoGen = document.getElementById('contInfoGeneral');
             
@@ -574,47 +481,26 @@
                     document.getElementById('contTargetSl').style.display = 'block';
                     document.getElementById('contTargetTime').style.display = 'block';
                     document.getElementById('contConcurrencia').classList.add('hidden');
-                    document.getElementById('lblProjectedSl').innerText = "Projected SL (Con Malla)";
                     document.getElementById('kpiCallsTitle').innerText = "Demanda Total";
                 } else if (mode === 'outbound') {
                     btnOut.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-accentViolet text-white shadow-md";
                     document.getElementById('contTargetSl').style.display = 'none';
                     document.getElementById('contTargetTime').style.display = 'none';
                     document.getElementById('contConcurrencia').classList.add('hidden');
-                    document.getElementById('lblProjectedSl').innerText = "Coverage de Productividad";
                     document.getElementById('kpiCallsTitle').innerText = "Contactos / Llamadas";
                 } else if (mode === 'chat') {
                     btnChat.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-accentCyan text-[#0B1121] shadow-md";
                     document.getElementById('contTargetSl').style.display = 'block';
                     document.getElementById('contTargetTime').style.display = 'block';
                     document.getElementById('contConcurrencia').classList.remove('hidden');
-                    document.getElementById('lblProjectedSl').innerText = "Projected SL (Con Malla)";
                     document.getElementById('kpiCallsTitle').innerText = "Mensajes / Chats Totales";
-                }
-            }
-
-            if (currentMode === 'ops' || currentMode === 'operaciones') {
-                if (modOptimizacion) modOptimizacion.classList.add('hidden');
-            } else {
-                if (mode === 'general') {
-                    if (modOptimizacion) modOptimizacion.classList.add('hidden');
-                } else {
-                    if (modOptimizacion) modOptimizacion.classList.remove('hidden');
                 }
             }
             
             if (mode !== 'general') {
-                if (configPicos[mode] !== undefined) {
-                    const chk = document.getElementById('chkPicos');
-                    if (chk) chk.checked = configPicos[mode];
-                }
                 if (configMerma[mode] !== undefined) {
                     const mermaInput = document.getElementById('merma');
                     if (mermaInput) mermaInput.value = configMerma[mode];
-                }
-                if (configNocturno[mode] !== undefined) {
-                    const chkNoc = document.getElementById('chkNocturno');
-                    if (chkNoc) chkNoc.checked = configNocturno[mode];
                 }
             }
 
@@ -690,7 +576,6 @@
             document.getElementById('kpiHcRequerido').innerText = "0 HC";
             document.getElementById('kpiHcRoster').innerText = "0 HC";
             document.getElementById('intervalTableBody').innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-500 font-medium font-sans">Presiona RUN PLAN para generar la proyección por primera vez.</td></tr>`;
-            if(optChartInstance) optChartInstance.destroy();
             if(gapChartInstance) gapChartInstance.destroy();
         }
 
@@ -720,7 +605,6 @@
             }
             
             setTimeout(() => { 
-                if (optChartInstance) optChartInstance.resize(); 
                 if (gapChartInstance) gapChartInstance.resize(); 
                 if (generalChartInstance) generalChartInstance.resize();
             }, 150);
@@ -745,22 +629,6 @@
                         }
                     }
 
-                    if(config.duracionJornada) document.getElementById('duracionJornada').value = config.duracionJornada;
-                    
-                    if(config.chkNocturno !== undefined) {
-                        if (typeof config.chkNocturno === 'object') {
-                            configNocturno = config.chkNocturno;
-                            document.getElementById('chkNocturno').checked = configNocturno[forecastMode] || false;
-                        } else {
-                            document.getElementById('chkNocturno').checked = config.chkNocturno;
-                            configNocturno = { inbound: config.chkNocturno, outbound: config.chkNocturno, chat: config.chkNocturno };
-                        }
-                    }
-                    
-                    if(config.chkPicos !== undefined) {
-                        document.getElementById('chkPicos').checked = config.chkPicos;
-                    }
-
                     guardarEstadoParametros();
 
                     if (config.opsView) {
@@ -779,9 +647,6 @@
                 targetSl: document.getElementById('targetSl').value,
                 targetTime: document.getElementById('targetTime').value,
                 merma: configMerma,
-                duracionJornada: document.getElementById('duracionJornada').value,
-                chkNocturno: configNocturno,
-                chkPicos: document.getElementById('chkPicos').checked,
                 opsView: {
                     tab: forecastMode,
                     meses: Array.from(selectedMeses),
@@ -808,12 +673,10 @@
             const aside = document.getElementById('panelControl');
             const main = document.getElementById('dashboardMain');
             const tag = document.getElementById('tagModoOps');
-            const modOpt = document.getElementById('modOptimizacion');
             const containerShow = document.getElementById('containerShowSidebar');
 
             if (mode === 'ops' || mode === 'operaciones') {
                 if (aside) aside.style.display = 'none';
-                if (modOpt) modOpt.classList.add('hidden');
                 if (containerShow) containerShow.classList.add('hidden'); 
                 
                 if (main) {
@@ -824,7 +687,6 @@
                 
                 setTimeout(() => { if (gapChartInstance) gapChartInstance.resize(); }, 100);
             } else {
-                if (modOpt && forecastMode !== 'general') modOpt.classList.remove('hidden');
                 if (tag) tag.classList.add('hidden');
                 
                 if (isSidebarVisible) {
@@ -844,7 +706,6 @@
                 }
                 
                 setTimeout(() => { 
-                    if (optChartInstance) optChartInstance.resize(); 
                     if (gapChartInstance) gapChartInstance.resize(); 
                     if (generalChartInstance) generalChartInstance.resize();
                 }, 100);
@@ -949,12 +810,6 @@
             const mins = Math.floor((secs % 3600) / 60);
             const remainderSecs = secs % 60;
             return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(remainderSecs).padStart(2, '0')}`;
-        }
-
-        function parseMinStr(t_str) {
-            if (!t_str) return 0;
-            const parts = t_str.split(':');
-            return parseInt(parts[0]) * 60 + parseInt(parts[1]);
         }
 
         async function procesarWFM() {
@@ -1220,10 +1075,6 @@
         async function actualizarGrafica() {
             const targetSlObj = parseFloat(document.getElementById('targetSl').value) || 80;
             const targetTimeObj = parseFloat(document.getElementById('targetTime').value) || 20;
-            const durJornada = parseFloat(document.getElementById('duracionJornada').value) || 6.5;
-            
-            const usarNocturnoGlobal = document.getElementById('chkNocturno') ? document.getElementById('chkNocturno').checked : false;
-            const aplicarPicosActual = configPicos[forecastMode] !== undefined ? configPicos[forecastMode] : document.getElementById('chkPicos').checked;
             const mermaVal = parseFloat(document.getElementById('merma').value) || 30;
 
             const dfFiltered = globalData.filter(item => {
@@ -1278,134 +1129,38 @@
             const fechasFiltradas = [...new Set(dfFiltered.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
             const todosIntervalos = [...new Set(dfFiltered.map(r => String(getProp(r, ['Intervalo'], '00:00'))))].sort();
             const esVistaSemanal = fechasFiltradas.length > 1;
-            const concurrenciaVal = parseFloat(document.getElementById('concurrencia').value) || 3.0;
 
             if (forecastMode === 'general') {
                 const btn = document.getElementById('btnProcesar');
                 if(btn) { btn.disabled = true; btn.innerText = "⏳ SUMANDO CANALES..."; }
 
-                const getCanalData = async (canalStr, esOutbound, esChat) => {
+                const getCanalData = async (canalStr) => {
                     const dfC = dfFiltered.filter(r => r.Canal === canalStr);
-                    if (dfC.length === 0) return { req: 0, disp: 0, fteBase: 0 };
+                    if (dfC.length === 0) return { req: 0, disp: 0 };
 
                     const campanas = [...new Set(dfC.map(r => r.Campaña))];
                     const fechasC = [...new Set(dfC.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0]))].filter(Boolean);
                     const nDias = fechasC.length || 1;
 
-                    const canalKey = canalStr.toLowerCase();
-                    const aplicarPicosCanal = configPicos[canalKey] !== undefined ? configPicos[canalKey] : usarPicosGlobal;
-                    const mermaCanal = configMerma[canalKey] !== undefined ? parseFloat(configMerma[canalKey]) : mermaVal;
-                    const usarNocturnoCanal = configNocturno[canalKey] !== undefined ? configNocturno[canalKey] : usarNocturnoGlobal;
-
-                    const promises = campanas.map(async (camp) => {
+                    let fteBaseCanal = 0;
+                    
+                    campanas.forEach((camp) => {
                         const dfCamp = dfC.filter(r => r.Campaña === camp);
-                        let llamVec=[], ahtVec=[], reqVec=[];
-                        let demandaPorDia = [0, 0, 0, 0, 0, 0, 0];
-                        const mapDias = { 'lunes': 0, 'martes': 1, 'miércoles': 2, 'miercoles': 2, 'jueves': 3, 'viernes': 4, 'sábado': 5, 'sabado': 5, 'domingo': 6 };
+                        let reqVec = new Array(todosIntervalos.length).fill(0);
                         
-                        dfCamp.forEach(r => {
-                            let dia = getProp(r, ['Día_Semana', 'Dia_Semana'], '').toLowerCase();
-                            let req = Number(getProp(r, ['Agentes_Requeridos'], 0)) || 0;
-                            if (mapDias[dia] !== undefined) {
-                                if (req > demandaPorDia[mapDias[dia]]) demandaPorDia[mapDias[dia]] = req;
-                            }
-                        });
-                        
-                        todosIntervalos.forEach(inter => {
+                        todosIntervalos.forEach((inter, idx) => {
                             const rowsInter = dfCamp.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === inter);
-                            let callSum=0, htSum=0, reqSum=0;
-                            let cArr=[], rArr=[], aArr=[];
+                            let reqSum=0;
                             
                             fechasC.forEach(d => {
                                 const subRows = rowsInter.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0] === d);
-                                let sC=0, sHt=0, sR=0;
                                 subRows.forEach(b => {
-                                    const c = Number(getProp(b, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
-                                    sC += c; sHt += c * (Number(getProp(b, ['AHT_Segundos'], 180)) || 180);
-                                    sR += (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0);
+                                    reqSum += (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0);
                                 });
-                                callSum += sC; htSum += sHt; reqSum += sR;
-                                cArr.push(sC); rArr.push(sR); aArr.push(sC>0 ? sHt/sC : 180);
                             });
-
-                            if (aplicarPicosCanal) {
-                                llamVec.push(cArr.length ? Math.max(...cArr) : 0);
-                                reqVec.push(rArr.length ? Math.ceil(Math.max(...rArr)) : 0);
-                                ahtVec.push(aArr.length ? Math.max(...aArr) : 180);
-                            } else {
-                                llamVec.push(callSum / nDias);
-                                reqVec.push(Math.ceil(reqSum / nDias));
-                                ahtVec.push(callSum > 0 ? htSum/callSum : 180);
-                            }
+                            reqVec[idx] = Math.ceil(reqSum / nDias);
                         });
-
-                        const maxReqCamp = reqVec.length ? Math.max(...reqVec) : 0;
-
-                        try {
-                            const res = await fetch('/api/optimize-schedules', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    intervalos: todosIntervalos,
-                                    campanas: [camp],
-                                    llamadas: llamVec,
-                                    ahts: ahtVec,
-                                    requeridos: reqVec, 
-                                    target_sl: targetSlObj,
-                                    target_time: targetTimeObj,
-                                    merma: mermaCanal,
-                                    duracion_jornada: durJornada,
-                                    es_nocturno: usarNocturnoCanal,
-                                    es_outbound: esOutbound,
-                                    es_chat: esChat,
-                                    concurrencia: concurrenciaVal
-                                })
-                            });
-                            if (res.ok) {
-                                const data = await res.json();
-                                let totalDiario = data.total_agentes_diarios || 0;
-                                let hcSemanal = totalDiario;
-                                
-                                if (esVistaSemanal && data.turnos) {
-                                    let minDemanda = Math.max(1, Math.min(...demandaPorDia.filter(v => v > 0)));
-                                    for(let d=0; d<7; d++) { if(demandaPorDia[d] === 0) demandaPorDia[d] = minDemanda; }
-                                    let totalShiftsNeeded = demandaPorDia.reduce((a, b) => a + b, 0);
-                                    let maxDailyReq = Math.max(...demandaPorDia);
-                                    let avgDailyReq = totalShiftsNeeded / 7.0;
-                                    let weekRatio = maxDailyReq > 0 ? (avgDailyReq / maxDailyReq) : 1.0;
-
-                                    let nominaCalc = 0;
-                                    data.turnos.forEach(t => {
-                                        const isNoc = t.duracion.includes('Nocturno');
-                                        const dPerWk = isNoc ? 5.0 : 6.0;
-                                        let factor = 7.0 / dPerWk;
-                                        if (aplicarPicosCanal) {
-                                            factor = factor * weekRatio;
-                                            if (factor < 1.0) factor = 1.0;
-                                        }
-                                        let nominaT = Math.ceil(t.agentes_a_programar * factor);
-                                        if (nominaT < t.agentes_a_programar) nominaT = t.agentes_a_programar;
-                                        nominaCalc += nominaT;
-                                    });
-                                    hcSemanal = nominaCalc;
-                                }
-                                return {
-                                    semanal: hcSemanal,
-                                    diario: totalDiario,
-                                    maxReq: maxReqCamp
-                                };
-                            }
-                        } catch(e) {}
-                        return null;
-                    });
-
-                    const reqResults = await Promise.all(promises);
-                    let hcReq = 0, fteBaseCanal = 0;
-                    reqResults.forEach(r => {
-                        if (r) {
-                            hcReq += esVistaSemanal ? r.semanal : r.diario;
-                            fteBaseCanal += r.maxReq;
-                        }
+                        fteBaseCanal += (reqVec.length ? Math.max(...reqVec) : 0);
                     });
 
                     let hcDisp = 0;
@@ -1415,35 +1170,31 @@
                         if (row) hcDisp += esVistaSemanal ? (row.Total_Roster_Campana || 0) : (row.Total_Roster_Dia || 0);
                     });
 
-                    return { req: hcReq, disp: hcDisp, fteBase: fteBaseCanal };
+                    return { req: fteBaseCanal, disp: hcDisp };
                 };
 
                 Promise.all([
-                    getCanalData('Inbound', false, false),
-                    getCanalData('Outbound', true, false),
-                    getCanalData('Chat', false, true)
+                    getCanalData('Inbound'),
+                    getCanalData('Outbound'),
+                    getCanalData('Chat')
                 ]).then(results => {
                     if(btn) { btn.disabled = false; btn.innerText = "▶ RUN PLAN"; }
 
                     const hcReqInbound = results[0] ? results[0].req : 0;
                     const hcDispInbound = results[0] ? results[0].disp : 0;
-                    const fteBaseInbound = results[0] ? results[0].fteBase : 0;
                     
                     const hcReqOutbound = results[1] ? results[1].req : 0;
                     const hcDispOutbound = results[1] ? results[1].disp : 0;
-                    const fteBaseOutbound = results[1] ? results[1].fteBase : 0;
                     
                     const hcReqChat = results[2] ? results[2].req : 0;
                     const hcDispChat = results[2] ? results[2].disp : 0;
-                    const fteBaseChat = results[2] ? results[2].fteBase : 0;
 
                     const totalReqGlobal = hcReqInbound + hcReqOutbound + hcReqChat;
                     const totalDispGlobal = hcDispInbound + hcDispOutbound + hcDispChat;
-                    const totalFteBaseGlobal = fteBaseInbound + fteBaseOutbound + fteBaseChat;
 
-                    document.getElementById('kpiHcRequeridoTitle').innerText = "Nómina a Contratar (Consolidado)";
+                    document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido (Máximo)";
                     document.getElementById('kpiHcRequerido').innerText = totalReqGlobal.toLocaleString() + ' HC';
-                    document.getElementById('kpiHcRequeridoSub').innerHTML = `FTE Puro (Pico Matemático): <span class="text-brand-accentCyan font-bold">${totalFteBaseGlobal.toLocaleString()} HC</span>`;
+                    document.getElementById('kpiHcRequeridoSub').innerHTML = `Suma de picos Erlang C`;
                     
                     document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Disponible (Roster)" : "Plantilla de Hoy";
                     document.getElementById('kpiHcRoster').innerText = totalDispGlobal.toLocaleString() + ' HC';
@@ -1463,7 +1214,7 @@
 
                     document.getElementById('tableHeaderRow').innerHTML = `
                         <th class="py-3.5 px-4 text-left">Canal Operativo</th>
-                        <th class="py-3.5 px-4 text-brand-primary">Nómina a Contratar</th>
+                        <th class="py-3.5 px-4 text-brand-primary">FTE Base Requerido</th>
                         <th class="py-3.5 px-4 text-brand-accentEmerald">Nómina Roster</th>
                         <th class="py-3.5 px-4 text-center">Delta (Gap)</th>
                     `;
@@ -1537,72 +1288,22 @@
             }, 0);
             document.getElementById('kpiAht').innerText = formatAHT(totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0);
 
-            try {
-                ejecutarOptimizadorHorarios(todosIntervalos, dfFiltered, targetTimeObj, targetSlObj, durJornada, esVistaSemanal, concurrenciaVal, aplicarPicosActual);
-            } catch (e) {
-                console.log("Error al preparar optimizador:", e);
-            }
-        }
-
-        async function ejecutarOptimizadorHorarios(intervalos, dfFiltered, targetTimeObj, targetSlObj, durJornada, esVistaSemanal, concurrenciaVal, aplicarPicosActual) {
-            if (!intervalos || intervalos.length === 0) return;
-
-            document.getElementById('contGapChart').classList.remove('hidden');
-            document.getElementById('contGeneralChart').classList.add('hidden');
-
-            const forceOutboundLogic = forecastMode === 'outbound';
-            const esChatLogic = forecastMode === 'chat';
-            
-            const mermaActual = configMerma[forecastMode] !== undefined ? parseFloat(configMerma[forecastMode]) : parseFloat(document.getElementById('merma').value);
-            const usarNocturnoActual = configNocturno[forecastMode] !== undefined ? configNocturno[forecastMode] : document.getElementById('chkNocturno').checked;
-
             const campanas = [...new Set(dfFiltered.map(r => r.Campaña))];
-            const fechasPeriodo = [...new Set(dfFiltered.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0]))].filter(Boolean);
-            const numDiasPeriodo = fechasPeriodo.length || 1;
+            const numDiasPeriodo = fechasFiltradas.length || 1;
 
-            let totalAgentesDiariosSilos = 0;
-            let totalAgentesSemanalesSilos = 0;
-            let coberturaOptimaSilos = new Array(intervalos.length).fill(0);
-            let turnosSilosMap = {};
-            
-            let llamadasAgrupadasGlobal = new Array(intervalos.length).fill(0);
-            let reqAgrupadoGlobal = new Array(intervalos.length).fill(0);
-            let ahtAgrupadoGlobal = new Array(intervalos.length).fill(0);
-            let rosterAgrupadoGlobal = new Array(intervalos.length).fill(0);
+            let llamadasAgrupadasGlobal = new Array(todosIntervalos.length).fill(0);
+            let reqAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
+            let ahtAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
+            let rosterAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
 
-            let demandaPorDia = [0, 0, 0, 0, 0, 0, 0];
-            const mapDias = { 'lunes': 0, 'martes': 1, 'miércoles': 2, 'miercoles': 2, 'jueves': 3, 'viernes': 4, 'sábado': 5, 'sabado': 5, 'domingo': 6 };
-            
-            dfFiltered.forEach(r => {
-                let dia = getProp(r, ['Día_Semana', 'Dia_Semana'], '').toLowerCase();
-                let req = Number(getProp(r, ['Agentes_Requeridos'], 0)) || 0;
-                if (mapDias[dia] !== undefined) {
-                    if (req > demandaPorDia[mapDias[dia]]) {
-                        demandaPorDia[mapDias[dia]] = req;
-                    }
-                }
-            });
-
-            let minDemanda = Math.max(1, Math.min(...demandaPorDia.filter(v => v > 0)));
-            for(let d=0; d<7; d++) {
-                if(demandaPorDia[d] === 0) demandaPorDia[d] = minDemanda;
-            }
-
-            let totalShiftsNeeded = demandaPorDia.reduce((a, b) => a + b, 0);
-            let maxDailyReq = Math.max(...demandaPorDia);
-            let avgDailyReq = totalShiftsNeeded / 7.0;
-            let weekRatio = maxDailyReq > 0 ? (avgDailyReq / maxDailyReq) : 1.0;
-
-            const optimizacionPromises = campanas.map(async (camp) => {
+            campanas.forEach((camp) => {
                 const dfCamp = dfFiltered.filter(r => r.Campaña === camp);
-                let llamVec = [], ahtVec = [], reqVec = [];
-
-                intervalos.forEach((inter, idx) => {
+                
+                todosIntervalos.forEach((inter, idx) => {
                     const rowsInter = dfCamp.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === inter);
                     let callSum=0, htSum=0, reqSum=0;
-                    let cArr=[], rArr=[], aArr=[];
                     
-                    fechasPeriodo.forEach(d => {
+                    fechasFiltradas.forEach(d => {
                         const subRows = rowsInter.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0] === d);
                         let sC=0, sHt=0, sR=0, sRos=0;
                         subRows.forEach(b => {
@@ -1613,105 +1314,29 @@
                             sRos += (Number(getProp(b, ['HC_Actual_Roster'], 0)) || 0);
                         });
                         callSum += sC; htSum += sHt; reqSum += sR;
-                        cArr.push(sC); rArr.push(sR); aArr.push(sC > 0 ? sHt/sC : 180);
-                        
                         rosterAgrupadoGlobal[idx] += sRos;
                     });
 
-                    let valLlam = 0, valReq = 0, valAht = 180;
-                    if (aplicarPicosActual) {
-                        valLlam = cArr.length ? Math.max(...cArr) : 0;
-                        valReq = rArr.length ? Math.max(...rArr) : 0;
-                        valAht = aArr.length ? Math.max(...aArr) : 180;
-                    } else {
-                        valLlam = callSum / numDiasPeriodo;
-                        valReq = reqSum / numDiasPeriodo;
-                        valAht = callSum > 0 ? htSum/callSum : 180;
-                    }
-
-                    llamVec.push(valLlam);
-                    reqVec.push(valReq);
-                    ahtVec.push(valAht);
+                    let valLlam = callSum / numDiasPeriodo;
+                    let valReq = reqSum / numDiasPeriodo;
+                    let valAht = callSum > 0 ? htSum/callSum : 180;
                     
                     llamadasAgrupadasGlobal[idx] += valLlam;
                     reqAgrupadoGlobal[idx] += valReq;
                     if (valAht > ahtAgrupadoGlobal[idx]) ahtAgrupadoGlobal[idx] = valAht;
                 });
-
-                try {
-                    const res = await fetch('/api/optimize-schedules', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            intervalos: intervalos,
-                            campanas: [camp],
-                            llamadas: llamVec,
-                            ahts: ahtVec,
-                            requeridos: reqVec,
-                            target_sl: targetSlObj,
-                            target_time: targetTimeObj,
-                            merma: mermaActual,
-                            duracion_jornada: durJornada,
-                            es_nocturno: usarNocturnoActual,
-                            es_outbound: forceOutboundLogic,
-                            es_chat: esChatLogic,
-                            concurrencia: concurrenciaVal
-                        })
-                    });
-                    return res.ok ? await res.json() : null;
-                } catch(e) { return null; }
             });
-
-            const resultadosSilos = await Promise.all(optimizacionPromises);
-
-            resultadosSilos.forEach(res => {
-                if (!res) return;
-                totalAgentesDiariosSilos += (res.total_agentes_diarios || 0);
-                
-                if (res.turnos) {
-                    res.turnos.forEach(t => {
-                        const key = t.horario_entrada + '|' + t.horario_salida + '|' + t.duracion;
-                        if (!turnosSilosMap[key]) turnosSilosMap[key] = { ...t, agentes_a_programar: 0, nomina_a_contratar: 0 };
-                        turnosSilosMap[key].agentes_a_programar += t.agentes_a_programar;
-                    });
-                }
-                
-                if (res.cobertura_optima) res.cobertura_optima.forEach((v, i) => coberturaOptimaSilos[i] += v);
-            });
-
-            let turnosBase = Object.values(turnosSilosMap);
-
-            globalTurnosOptimos = turnosBase.map((t) => {
-                const esNocturno = t.duracion.includes('Nocturno');
-                const dPerWk = esNocturno ? 5.0 : 6.0;
-
-                let factor = 7.0 / dPerWk;
-                if (aplicarPicosActual) {
-                    factor = factor * weekRatio;
-                    if (factor < 1.0) factor = 1.0;
-                }
-
-                let nominaTurno = Math.ceil(t.agentes_a_programar * factor);
-                if (nominaTurno < t.agentes_a_programar) nominaTurno = t.agentes_a_programar;
-
-                return { ...t, nomina_a_contratar: Math.max(0, nominaTurno) };
-            });
-
-            globalTurnosOptimos.sort((a, b) => parseMinStr(a.horario_entrada) - parseMinStr(b.horario_entrada));
-            
-            const totalMallaHC = globalTurnosOptimos.reduce((sum, t) => sum + t.nomina_a_contratar, 0);
-            let hcRequeridoDisplay = esVistaSemanal ? totalMallaHC : totalAgentesDiariosSilos;
-            const picoFtePuro = reqAgrupadoGlobal.length ? Math.ceil(Math.max(...reqAgrupadoGlobal)) : 0;
-            
-            document.getElementById('kpiHcRequeridoTitle').innerText = "Nómina a Contratar (Malla)";
-            document.getElementById('kpiHcRequerido').innerText = hcRequeridoDisplay.toLocaleString() + ' HC';
-            document.getElementById('kpiHcRequeridoSub').innerHTML = `FTE Puro (Pico Matemático): <span class="text-brand-accentCyan font-bold">${picoFtePuro.toLocaleString()} HC</span>`;
-            document.getElementById('optHeadcount').innerText = hcRequeridoDisplay.toLocaleString();
 
             rosterAgrupadoGlobal = rosterAgrupadoGlobal.map(val => Math.round(val / numDiasPeriodo));
+            reqAgrupadoGlobal = reqAgrupadoGlobal.map(val => Math.ceil(val));
+            
+            const picoFtePuro = reqAgrupadoGlobal.length ? Math.max(...reqAgrupadoGlobal) : 0;
+            
+            document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido (Pico Máximo)";
+            document.getElementById('kpiHcRequerido').innerText = picoFtePuro.toLocaleString() + ' HC';
+            document.getElementById('kpiHcRequeridoSub').innerHTML = `FTE Puro (Matemática Erlang C)`;
 
             let legendInteractions = forecastMode === 'outbound' ? 'Contactos (FCST)' : forecastMode === 'chat' ? 'Mensajes (FCST)' : 'Llamadas (FCST)';
-            let capHeader = forecastMode === 'outbound' ? 'Productividad Neta' : 'Capacidad SLA';
 
             document.getElementById('tableHeaderRow').innerHTML = `
                 <th class="py-3.5 px-4 text-left">Intervalo</th>
@@ -1719,31 +1344,17 @@
                 <th class="py-3.5 px-4">AHT (HH:MM:SS)</th>
                 <th class="py-3.5 px-4 text-brand-primary">FTE Base</th>
                 <th class="py-3.5 px-4 text-brand-accentEmerald">Nómina Roster</th>
-                <th class="py-3.5 px-4 text-brand-accentAmber">${capHeader}</th>
                 <th class="py-3.5 px-4 text-center">Gap</th>
             `;
 
             const tbody = document.getElementById('intervalTableBody');
             tbody.innerHTML = '';
             
-            const capacidadRosterVector = []; 
-            const capacidadSugeridaVector = []; 
-
-            intervalos.forEach((inter, idx) => {
+            todosIntervalos.forEach((inter, idx) => {
                 const rowLlamadas = Math.round(llamadasAgrupadasGlobal[idx]);
                 const rowAhtSegs = ahtAgrupadoGlobal[idx];
-                const rowReq = Math.ceil(reqAgrupadoGlobal[idx] || 0); 
+                const rowReq = reqAgrupadoGlobal[idx] || 0; 
                 const rowRoster = rosterAgrupadoGlobal[idx] || 0;
-                
-                const mermaDecimal = mermaActual / 100;
-                const agentesConectadosRoster = rowRoster * (1 - mermaDecimal);
-                const capacidadRoster = maxCallsForAgents(agentesConectadosRoster, rowAhtSegs, targetTimeObj, targetSlObj);
-                capacidadRosterVector.push(capacidadRoster);
-
-                const rowMallaSugerida = coberturaOptimaSilos[idx] || 0;
-                const agentesConectadosSugeridos = rowMallaSugerida * (1 - mermaDecimal);
-                const capacidadSugerida = maxCallsForAgents(agentesConectadosSugeridos, rowAhtSegs, targetTimeObj, targetSlObj);
-                capacidadSugeridaVector.push(capacidadSugerida);
                 
                 const gap = rowRoster - rowReq;
                 let gapHtml = gap > 0 ? `<span class="bg-[#34D399]/20 text-[#34D399] px-2 py-0.5 rounded-md font-bold">+${gap}</span>` : 
@@ -1761,11 +1372,13 @@
                     <td class="py-2.5 px-4 text-slate-300 font-medium">${formatAHT(rowAhtSegs)}</td>
                     <td class="py-2.5 px-4 text-brand-primary font-black text-sm">${rowReq}</td>
                     <td class="py-2.5 px-4 text-brand-accentEmerald font-black text-sm">${rowRoster}</td>
-                    <td class="py-2.5 px-4 text-brand-accentAmber font-black text-sm">${capacidadRoster}</td>
                     <td class="py-2.5 px-4 text-center">${gapHtml}</td>
                 `;
                 tbody.appendChild(tr);
             });
+
+            document.getElementById('contGapChart').classList.remove('hidden');
+            document.getElementById('contGeneralChart').classList.add('hidden');
 
             if (gapChartInstance) gapChartInstance.destroy();
             const ctxGap = document.getElementById('gapChart').getContext('2d');
@@ -1773,10 +1386,10 @@
             gapChartInstance = new Chart(ctxGap, {
                 type: 'bar',
                 data: {
-                    labels: intervalos,
+                    labels: todosIntervalos,
                     datasets: [
-                        { label: 'Capacidad Malla Sugerida', type: 'line', data: capacidadSugeridaVector, borderColor: '#A78BFA', backgroundColor: '#A78BFA', borderWidth: 3, tension: 0.4, pointRadius: 0, pointHoverRadius: 6, borderDash: [4, 4] },
-                        { label: 'Capacidad Roster Actual', type: 'line', data: capacidadRosterVector, borderColor: '#FBBF24', backgroundColor: '#FBBF24', borderWidth: 3, tension: 0.4, pointRadius: 0, pointHoverRadius: 6 },
+                        { label: 'FTE Puro (Motor)', data: reqAgrupadoGlobal, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
+                        { label: 'Plantilla Actual (Roster)', data: rosterAgrupadoGlobal, borderColor: '#34D399', backgroundColor: '#34D399', fill: false, tension: 0.4, borderWidth: 2, borderDash: [5, 5], pointRadius: 0, pointHoverRadius: 6 },
                         { label: legendInteractions, data: llamadasAgrupadasGlobal.map(Math.round), backgroundColor: '#38BDF8', borderColor: 'transparent', borderWidth: 0, borderRadius: 4, barPercentage: 0.7 }
                     ]
                 },
@@ -1804,7 +1417,7 @@
             document.getElementById('kpiHcRosterSub').innerText = esVistaSemanal ? "Total de agentes contratados en Roster" : "Descuenta descansos (DD-DD) del día";
             document.getElementById('kpiHcRoster').innerText = totalRosterHC.toLocaleString() + ' HC';
             
-            const gapTotal = totalRosterHC - hcRequeridoDisplay;
+            const gapTotal = totalRosterHC - picoFtePuro;
             const gapEl = document.getElementById('kpiHcGap');
             if (gapTotal > 0) {
                 gapEl.innerText = `+${gapTotal} Sobran`;
@@ -1816,175 +1429,6 @@
                 gapEl.innerText = `✓ Balanceado`;
                 gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
             }
-
-            if (esVistaSemanal) {
-                document.getElementById('lblHeadcountType').innerText = usarNocturnoActual ? 'Required HC (Mixto)' : 'Required HC';
-            } else {
-                document.getElementById('lblHeadcountType').innerText = 'Required HC (Diario)';
-            }
-
-            let totalCallsForSL = 0;
-            let weightedSLSum = 0;
-
-            resultadosSilos.forEach((res, idx) => {
-                if (!res) return;
-                const campName = campanas[idx];
-                const dfCamp = dfFiltered.filter(r => r.Campaña === campName);
-                const campCalls = dfCamp.reduce((acc, r) => acc + (Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0), 0);
-                
-                const sl = parseFloat(res.sl_optimo_global || 0);
-                if (campCalls > 0 && sl > 0) {
-                    weightedSLSum += (sl * campCalls);
-                    totalCallsForSL += campCalls;
-                } else if (sl > 0) {
-                    weightedSLSum += sl;
-                    totalCallsForSL += 1;
-                }
-            });
-            const slOptimoVal = totalCallsForSL > 0 ? (weightedSLSum / totalCallsForSL) : 0;
-
-            const slEl = document.getElementById('compSlOptimo');
-            slEl.innerText = slOptimoVal.toFixed(1) + '%';
-            slEl.className = slOptimoVal >= targetSlObj ? "text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)] block" : "text-3xl font-black font-mono-num text-brand-accentRose drop-shadow-[0_0_8px_rgba(251,113,133,0.3)] block";
-
-            if (optChartInstance) optChartInstance.destroy();
-            const ctxOpt = document.getElementById('optChart').getContext('2d');
-            const labelCurvaCob = usarNocturnoActual ? "Malla Sugerida (Mixta)" : `Malla Sugerida (${durJornada}h)`;
-
-            optChartInstance = new Chart(ctxOpt, {
-                type: 'line',
-                data: {
-                    labels: intervalos,
-                    datasets: [
-                        { label: 'FTE Puro (Motor)', data: reqAgrupadoGlobal, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
-                        { label: 'Plantilla Actual (Roster)', data: rosterAgrupadoGlobal, borderColor: '#34D399', backgroundColor: '#34D399', fill: false, tension: 0.4, borderWidth: 2, borderDash: [5, 5], pointRadius: 0, pointHoverRadius: 6 },
-                        { label: labelCurvaCob, data: coberturaOptimaSilos, borderColor: '#3B82F6', backgroundColor: '#3B82F6', fill: false, tension: 0.4, borderWidth: 3, borderDash: [4, 4], pointRadius: 0, pointHoverRadius: 6 }
-                    ]
-                },
-                options: { 
-                    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-                    plugins: { 
-                        legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 }, usePointStyle: true, boxWidth: 8 } },
-                        tooltip: { backgroundColor: '#111827', titleColor: '#F8FAFC', bodyColor: '#cbd5e1', borderColor: '#1F2937', borderWidth: 1, padding: 12, boxPadding: 6, usePointStyle: true }
-                    }, 
-                    scales: { 
-                        x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 12 } }, 
-                        y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true } 
-                    } 
-                }
-            });
-
-            const optTbody = document.getElementById('optShiftsTableBody');
-            optTbody.innerHTML = '';
-
-            if (globalTurnosOptimos.length === 0 || hcRequeridoDisplay === 0) {
-                optTbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500 font-sans font-medium">No se requieren agentes dentro de la ventana de servicio.</td></tr>';
-            } else {
-                let totalDiurno = 0, totalNocturno = 0;
-                globalTurnosOptimos.forEach(t => {
-                    if (t.duracion.includes('Nocturno')) totalNocturno += t.nomina_a_contratar;
-                    else totalDiurno += t.nomina_a_contratar;
-                });
-
-                let restsGlobalesDiurno = [0, 0, 0, 0, 0, 0, 0];
-                let restsGlobalesNocturno = [0, 0, 0, 0, 0, 0, 0];
-
-                globalTurnosOptimos.forEach(t => {
-                    const hcTurno = t.nomina_a_contratar;
-                    if (hcTurno <= 0) return;
-                    
-                    const shiftStr = `${t.horario_entrada} - ${t.horario_salida}`;
-                    const esTurnoNocturno = t.duracion.includes('Nocturno');
-
-                    let agents = Array.from({length: hcTurno}, () => ({ rests: new Set() }));
-                    const numRestsPerAgent = esTurnoNocturno ? 2 : 1;
-                    
-                    let restsTracker = esTurnoNocturno ? restsGlobalesNocturno : restsGlobalesDiurno;
-                    let totalActivo = esTurnoNocturno ? totalNocturno : totalDiurno;
-
-                    for (let r = 0; r < hcTurno * numRestsPerAgent; r++) {
-                        let bestDay = -1;
-                        let maxSurplus = -Infinity;
-                        
-                        for (let d = 0; d < 7; d++) {
-                            let canAssign = agents.some(a => a.rests.size < numRestsPerAgent && !a.rests.has(d));
-                            if (canAssign) {
-                                let surplus = (totalActivo - restsTracker[d]) - demandaPorDia[d];
-                                if (surplus > maxSurplus) {
-                                    maxSurplus = surplus;
-                                    bestDay = d;
-                                }
-                            }
-                        }
-                        
-                        if (bestDay !== -1) {
-                            let agent = agents.find(a => a.rests.size < numRestsPerAgent && !a.rests.has(bestDay));
-                            if (agent) {
-                                agent.rests.add(bestDay);
-                                restsTracker[bestDay]++;
-                            }
-                        }
-                    }
-
-                    let grouped = {};
-                    agents.forEach(a => {
-                        let key = Array.from(a.rests).sort().join(',');
-                        if (!grouped[key]) grouped[key] = { count: 0, rests: a.rests };
-                        grouped[key].count++;
-                    });
-                    
-                    t.groupedAgents = Object.values(grouped);
-
-                    Object.values(grouped).forEach(g => {
-                        if (g.count > 0) {
-                            const tr = document.createElement('tr');
-                            tr.className = 'hover:bg-[#1E293B] transition-colors';
-                            let htmlRow = `<td class="py-3.5 px-4 font-black text-brand-accentAmber text-[13px] border-r border-[#1F2937] bg-[#111827]">${g.count}</td>`;
-                            
-                            for (let d = 0; d < 7; d++) {
-                                if (g.rests.has(d)) {
-                                    htmlRow += `<td class="py-3.5 px-2 text-brand-accentRose font-bold text-[11px] tracking-wider">Descanso</td>`;
-                                } else {
-                                    htmlRow += `<td class="py-3.5 px-2 text-slate-300 font-mono-num font-medium text-[11px]">${shiftStr}</td>`;
-                                }
-                            }
-                            tr.innerHTML = htmlRow;
-                            optTbody.appendChild(tr);
-                        }
-                    });
-                });
-            }
-        }
-
-        function exportarTurnosCSV() {
-            if (!globalTurnosOptimos || globalTurnosOptimos.length === 0) {
-                alert("No hay turnos optimizados para exportar.");
-                return;
-            }
-            
-            const headers = ["HC", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
-            const csvRows = [headers.join(",")];
-
-            globalTurnosOptimos.forEach(t => {
-                const shiftStr = `${t.horario_entrada} - ${t.horario_salida}`;
-                if (t.groupedAgents) {
-                    t.groupedAgents.forEach(g => {
-                        let row = [g.count];
-                        for (let d = 0; d < 7; d++) {
-                            if (g.rests.has(d)) row.push("Descanso");
-                            else row.push(shiftStr);
-                        }
-                        csvRows.push(row.join(","));
-                    });
-                }
-            });
-
-            const blob = new Blob([csvRows.join(String.fromCharCode(10))], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.setAttribute('href', url);
-            a.setAttribute('download', `Roster_Semanal_Sugerido_${new Date().toISOString().slice(0,10)}.csv`);
-            a.click();
         }
 
         function exportarCSV() {
