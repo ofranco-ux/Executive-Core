@@ -103,10 +103,8 @@
                         <div class="w-px h-6 bg-[#334155] mx-1"></div>
                         <button id="btnTabGeneral" onclick="setModeWFM('general')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200">🌐 Consolidado</button>
                     </div>
-
-                    <span id="tagModoOps" class="hidden text-[10px] bg-brand-primary/20 text-brand-primary border border-brand-primary/40 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider drop-shadow-md">Vista Operaciones</span>
                 </div>
-                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning (Cálculo Volumétrico + Erlang C JS)</p>
+                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning (Cálculo Silos Puros + Merma)</p>
             </div>
         </div>
 
@@ -154,11 +152,11 @@
                     <div class="grid grid-cols-2 gap-4">
                         <div class="flex flex-col group">
                             <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentRose transition-colors">Shrinkage (%)</label>
-                            <input type="number" id="merma" value="30" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentRose font-mono-num font-bold focus:border-brand-accentRose focus:ring-1 focus:ring-brand-accentRose focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
+                            <input type="number" id="merma" value="20" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentRose font-mono-num font-bold focus:border-brand-accentRose focus:ring-1 focus:ring-brand-accentRose focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
                         </div>
                         <div class="flex flex-col group">
                             <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentAmber transition-colors">Jornada (Hrs)</label>
-                            <input type="number" id="duracionJornada" value="8" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentAmber font-mono-num font-bold focus:border-brand-accentAmber focus:ring-1 focus:ring-brand-accentAmber focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
+                            <input type="number" id="duracionJornada" value="6" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentAmber font-mono-num font-bold focus:border-brand-accentAmber focus:ring-1 focus:ring-brand-accentAmber focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
                         </div>
                     </div>
 
@@ -189,7 +187,7 @@
             <div id="contInfoGeneral" class="hidden pt-6">
                 <div class="p-4 bg-brand-primary/10 border border-brand-primary/30 rounded-xl">
                     <p class="text-[11px] text-brand-primary font-bold uppercase tracking-widest mb-2">Vista Consolidada Activa</p>
-                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>El sistema está calculando el requerimiento campaña por campaña de forma independiente (silos) y sumando los resultados.</p>
+                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>El sistema calcula el requerimiento campaña por campaña de forma independiente (silos) y suma los resultados.</p>
                 </div>
             </div>
 
@@ -267,7 +265,7 @@
                 <div class="text-2xl drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]">⚠️</div>
                 <div>
                     <h4 class="text-xs uppercase tracking-widest text-brand-accentAmber font-extrabold drop-shadow-sm">Reforecast Dinámico Activado</h4>
-                    <p id="reforecastMsg" class="text-xs text-amber-100/80 mt-1 font-medium">El algoritmo detectó un quiebre de tendencia y ajustó la proyección.</p>
+                    <p id="reforecastMsg" class="text-xs text-amber-100/80 mt-1 font-medium">El algoritmo detectó un quiebre de tendencia reciente. Ajuste aplicado a las campañas correspondientes.</p>
                 </div>
             </div>
 
@@ -313,7 +311,7 @@
                     </div>
                     <div class="relative z-10 mt-2">
                         <p id="kpiHcRequerido" class="text-3xl font-black font-mono-num text-brand-accentViolet drop-shadow-[0_0_8px_rgba(167,139,250,0.3)]">0 HC</p>
-                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium leading-tight">Erlang C (Silos) + Shrinkage</p>
+                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium leading-tight">Fórmula Volumétrica + Shrinkage</p>
                     </div>
                 </div>
 
@@ -352,11 +350,6 @@
                     <canvas id="gapChart"></canvas>
                 </div>
 
-                <!-- GRAFICA GENERAL DE CANALES (SOLO VISTA CONSOLIDADA) -->
-                <div class="h-64 mb-6 relative bg-[#0F172A] p-4 rounded-xl border border-[#1F2937] shadow-inner hidden" id="contGeneralChart">
-                    <canvas id="generalChart"></canvas>
-                </div>
-
                 <div class="overflow-x-auto max-h-80 border border-[#1F2937] rounded-xl bg-[#0F172A] shadow-inner">
                     <table class="w-full text-left text-xs text-slate-300">
                         <thead class="bg-[#111827] text-slate-400 font-bold text-[10px] uppercase tracking-wider sticky top-0 border-b border-[#334155] z-10 shadow-sm" id="tableHeaderContainer">
@@ -364,8 +357,8 @@
                                 <th class="py-3.5 px-4">Intervalo</th>
                                 <th class="py-3.5 px-4" id="colHeaderCalls">Llamadas (FCST)</th>
                                 <th class="py-3.5 px-4">AHT (HH:MM:SS)</th>
-                                <th class="py-3.5 px-4 text-brand-accentCyan">HC Requerido</th>
-                                <th class="py-3.5 px-4 text-brand-accentEmerald">HC Actual</th>
+                                <th class="py-3.5 px-4 text-brand-accentCyan">FTE Requerido</th>
+                                <th class="py-3.5 px-4 text-brand-accentEmerald">FTE Actual</th>
                                 <th class="py-3.5 px-4 text-center">Gap</th>
                             </tr>
                         </thead>
@@ -410,12 +403,7 @@
 
         let globalData = [];
         let gapChartInstance = null; 
-        let generalChartInstance = null;
         
-        let configMerma = { inbound: 30, outbound: 30, chat: 30 };
-        let configNocturno = { inbound: false, outbound: false, chat: false };
-        let configJornada = { inbound: 8, outbound: 8, chat: 8 };
-
         let allMesesOptions = [];
         let allSemanasOptions = [];
         let allCampanasOptions = [];
@@ -434,28 +422,20 @@
         let forecastMode = 'inbound';
         let isSidebarVisible = true; 
 
-        const mesesMap = {
-            "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
-            "julio": 7, "agosto": 8, "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12
-        };
-
-        function guardarEstadoParametros() {
-            if (forecastMode !== 'general') {
-                configMerma[forecastMode] = document.getElementById('merma').value;
-                configNocturno[forecastMode] = document.getElementById('chkNocturno').checked;
-                configJornada[forecastMode] = document.getElementById('duracionJornada').value;
+        function getProp(row, keys, def = '') {
+            for (let k of keys) {
+                if (row[k] !== undefined && row[k] !== null) return row[k];
             }
+            return def;
         }
 
-        function ordenarMesesCronologicamente(a, b) {
-            const partsA = a.toLowerCase().trim().split(' ');
-            const partsB = b.toLowerCase().trim().split(' ');
-            const mesA = partsA[0];
-            const anoA = partsA[1] ? parseInt(partsA[1]) : 0;
-            const mesB = partsB[0];
-            const anoB = partsB[1] ? parseInt(partsB[1]) : 0;
-            if (anoA !== anoB) return anoA - anoB;
-            return (mesesMap[mesA] || 0) - (mesesMap[mesB] || 0);
+        function formatAHT(seconds) {
+            if (!seconds || seconds <= 0) return "00:00:00";
+            const secs = Math.round(seconds);
+            const hrs = Math.floor(secs / 3600);
+            const mins = Math.floor((secs % 3600) / 60);
+            const remainderSecs = secs % 60;
+            return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(remainderSecs).padStart(2, '0')}`;
         }
 
         function getWeekNumber(dateStr) {
@@ -483,6 +463,23 @@
             return `W${formatDt(startOfWeek)} - ${formatDt(endOfWeek)}`;
         }
 
+        const mesesMap = {
+            "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
+            "julio": 7, "agosto": 8, "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12
+        };
+
+        function ordenarMesesCronologicamente(a, b) {
+            const partsA = a.toLowerCase().trim().split(' ');
+            const partsB = b.toLowerCase().trim().split(' ');
+            const mesA = partsA[0];
+            const anoA = partsA[1] ? parseInt(partsA[1]) : 0;
+            const mesB = partsB[0];
+            const anoB = partsB[1] ? parseInt(partsB[1]) : 0;
+            if (anoA !== anoB) return anoA - anoB;
+            return (mesesMap[mesA] || 0) - (mesesMap[mesB] || 0);
+        }
+
+        // CONTROL DE PANTALLA Y TABS
         function setModeWFM(mode) {
             if (forecastMode === mode) return; 
 
@@ -501,141 +498,63 @@
 
             const contParametros = document.getElementById('contParametrosSimulacion');
             const contInfoGen = document.getElementById('contInfoGeneral');
-            
-            const cardCalls = document.getElementById('cardKpiCalls');
-            const cardAht = document.getElementById('cardKpiAht');
-            const kpiContainer = document.getElementById('kpiCardsContainer');
 
             if(mode === 'general') {
                 btnGen.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-[#070B14] shadow-md";
-                
                 contParametros.style.display = 'none';
                 contInfoGen.style.display = 'block';
-                
-                cardCalls.classList.add('hidden');
-                cardAht.classList.add('hidden');
-                kpiContainer.classList.remove('lg:grid-cols-4');
-                kpiContainer.classList.add('lg:grid-cols-2');
-
-                document.getElementById('kpiCallsTitle').innerText = "Interacciones Globales";
             } else {
                 contParametros.style.display = 'block';
                 contInfoGen.style.display = 'none';
-                
-                cardCalls.classList.remove('hidden');
-                cardAht.classList.remove('hidden');
-                kpiContainer.classList.remove('lg:grid-cols-2');
-                kpiContainer.classList.add('lg:grid-cols-4');
 
                 if(mode === 'inbound') {
                     btnIn.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-primary text-white shadow-md";
                     document.getElementById('contTargetSl').style.display = 'block';
                     document.getElementById('contTargetTime').style.display = 'block';
                     document.getElementById('contConcurrencia').classList.add('hidden');
-                    document.getElementById('kpiCallsTitle').innerText = "Demanda Total (Periodo)";
                 } else if (mode === 'outbound') {
                     btnOut.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-accentViolet text-white shadow-md";
                     document.getElementById('contTargetSl').style.display = 'none';
                     document.getElementById('contTargetTime').style.display = 'none';
                     document.getElementById('contConcurrencia').classList.add('hidden');
-                    document.getElementById('kpiCallsTitle').innerText = "Contactos (Periodo)";
                 } else if (mode === 'chat') {
                     btnChat.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-accentCyan text-[#0B1121] shadow-md";
                     document.getElementById('contTargetSl').style.display = 'block';
                     document.getElementById('contTargetTime').style.display = 'block';
                     document.getElementById('contConcurrencia').classList.remove('hidden');
-                    document.getElementById('kpiCallsTitle').innerText = "Mensajes (Periodo)";
-                }
-            }
-            
-            if (mode !== 'general') {
-                if (configMerma[mode] !== undefined) {
-                    const mermaInput = document.getElementById('merma');
-                    if (mermaInput) mermaInput.value = configMerma[mode];
-                }
-                if (configNocturno[mode] !== undefined) {
-                    const chkNoc = document.getElementById('chkNocturno');
-                    if (chkNoc) chkNoc.checked = configNocturno[mode];
-                }
-                if (configJornada[mode] !== undefined) {
-                    const jorInput = document.getElementById('duracionJornada');
-                    if (jorInput) jorInput.value = configJornada[mode];
                 }
             }
 
             fetchLatestData(mode);
         }
 
-        function applySavedFilters() {
-            if (window.savedFilters && (currentMode === 'ops' || currentMode === 'operaciones')) {
-                const f = window.savedFilters;
-                if (f.meses && f.meses.length > 0) selectedMeses = new Set(f.meses.filter(x => allMesesOptions.includes(x)));
-                if (f.semanas && f.semanas.length > 0) selectedSemanas = new Set(f.semanas.filter(x => allSemanasOptions.includes(x)));
-                if (f.campanas && f.campanas.length > 0) selectedCampanas = new Set(f.campanas.filter(x => allCampanasOptions.includes(x)));
-                if (f.fechas && f.fechas.length > 0) selectedFechas = new Set(f.fechas.filter(x => allFechasOptions.includes(x)));
-                if (f.intervalos && f.intervalos.length > 0) selectedIntervalos = new Set(f.intervalos.filter(x => allIntervalosOptions.includes(x)));
+        function switchMode(mode) {
+            currentMode = mode;
+            const aside = document.getElementById('panelControl');
+            const main = document.getElementById('dashboardMain');
+            const tag = document.getElementById('tagModoOps');
+            const containerShow = document.getElementById('containerShowSidebar');
 
-                renderMenuOptions('Mes', allMesesOptions, selectedMeses);
-                renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
-                renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
-                renderMenuOptions('Fecha', allFechasOptions, selectedFechas);
-                renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
-                actualizarTextosBotones();
-            }
-        }
-
-        async function fetchLatestData(mode) {
-            try {
-                if (mode === 'general') {
-                    const [inRes, outRes, chatRes] = await Promise.all([
-                        fetch('/api/latest?mode=inbound&t=' + new Date().getTime()),
-                        fetch('/api/latest?mode=outbound&t=' + new Date().getTime()),
-                        fetch('/api/latest?mode=chat&t=' + new Date().getTime())
-                    ]);
-                    const inData = inRes.ok ? await inRes.json() : [];
-                    const outData = outRes.ok ? await outRes.json() : [];
-                    const chatData = chatRes.ok ? await chatRes.json() : [];
-                    
-                    const inDataTagged = inData.map(d => ({...d, Canal: 'Inbound'}));
-                    const outDataTagged = outData.map(d => ({...d, Canal: 'Outbound'}));
-                    const chatDataTagged = chatData.map(d => ({...d, Canal: 'Chat'}));
-                    
-                    globalData = [...inDataTagged, ...outDataTagged, ...chatDataTagged];
-                    
-                    if (globalData.length > 0) {
-                        inicializarFiltrosMultiples();
-                        applySavedFilters(); 
-                        debouncedActualizarGrafica();
-                    } else {
-                        limpiarPantalla(mode);
-                    }
-                } else {
-                    const response = await fetch('/api/latest?mode=' + mode + '&t=' + new Date().getTime());
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (Array.isArray(data) && data.length > 0) {
-                            const canalName = mode === 'inbound' ? 'Inbound' : (mode === 'outbound' ? 'Outbound' : 'Chat');
-                            globalData = data.map(d => ({...d, Canal: canalName}));
-                            inicializarFiltrosMultiples();
-                            applySavedFilters();
-                            debouncedActualizarGrafica();
-                        } else {
-                            limpiarPantalla(mode);
-                        }
+            if (mode === 'ops' || mode === 'operaciones') {
+                if (aside) aside.style.display = 'none';
+                if (containerShow) containerShow.classList.add('hidden'); 
+                if (main) {
+                    main.classList.remove('lg:col-span-9');
+                    main.classList.add('lg:col-span-12');
+                }
+                if (tag) tag.classList.remove('hidden');
+            } else {
+                if (tag) tag.classList.add('hidden');
+                if (isSidebarVisible) {
+                    if (aside) aside.style.display = 'block';
+                    if (containerShow) containerShow.classList.add('hidden');
+                    if (main) {
+                        main.classList.remove('lg:col-span-12');
+                        main.classList.add('lg:col-span-9');
                     }
                 }
-            } catch (e) {
-                console.log("Error cargando pronóstico automático.");
             }
-        }
-
-        function limpiarPantalla(mode) {
-            document.getElementById('kpiCalls').innerText = "0";
-            document.getElementById('kpiAht').innerText = "00:00:00";
-            document.getElementById('kpiHcRequerido').innerText = "0 HC";
-            document.getElementById('kpiHcRoster').innerText = "0 HC";
-            document.getElementById('intervalTableBody').innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-500 font-medium font-sans">Presiona RUN PLAN para generar la proyección por primera vez.</td></tr>`;
-            if(gapChartInstance) gapChartInstance.destroy();
+            setTimeout(() => { if (gapChartInstance) gapChartInstance.resize(); }, 100);
         }
 
         function toggleSidebar() {
@@ -662,145 +581,49 @@
                 if (containerShow) containerShow.classList.add('hidden');
                 isSidebarVisible = true;
             }
-            
-            setTimeout(() => { 
-                if (gapChartInstance) gapChartInstance.resize(); 
-                if (generalChartInstance) generalChartInstance.resize();
-            }, 150);
+            setTimeout(() => { if (gapChartInstance) gapChartInstance.resize(); }, 150);
         }
 
-        async function fetchWFMConfig() {
+        // CARGA DE DATOS Y WFM
+        async function fetchLatestData(mode) {
             try {
-                const response = await fetch('/api/config?t=' + new Date().getTime());
-                if (response.ok) {
-                    const config = await response.json();
+                if (mode === 'general') {
+                    const [inRes, outRes, chatRes] = await Promise.all([
+                        fetch('/api/latest?mode=inbound&t=' + new Date().getTime()),
+                        fetch('/api/latest?mode=outbound&t=' + new Date().getTime()),
+                        fetch('/api/latest?mode=chat&t=' + new Date().getTime())
+                    ]);
+                    const inData = inRes.ok ? await inRes.json() : [];
+                    const outData = outRes.ok ? await outRes.json() : [];
+                    const chatData = chatRes.ok ? await chatRes.json() : [];
                     
-                    if(config.targetSl) document.getElementById('targetSl').value = config.targetSl;
-                    if(config.targetTime) document.getElementById('targetTime').value = config.targetTime;
-
-                    if (config.opsView) {
-                        window.savedFilters = config.opsView;
-                    }
-                }
-            } catch (e) {
-                console.log("No hay config WFM previa, usando valores default.");
-            }
-        }
-
-        async function saveWFMConfig() {
-            if(currentMode === 'ops' || currentMode === 'operaciones') return; 
-            
-            const config = {
-                targetSl: document.getElementById('targetSl').value,
-                targetTime: document.getElementById('targetTime').value,
-                opsView: {
-                    tab: forecastMode,
-                    meses: Array.from(selectedMeses),
-                    semanas: Array.from(selectedSemanas),
-                    campanas: Array.from(selectedCampanas),
-                    fechas: Array.from(selectedFechas),
-                    intervalos: Array.from(selectedIntervalos)
-                }
-            };
-
-            try {
-                await fetch('/api/config', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(config)
-                });
-            } catch (e) {
-                console.log("No se pudo guardar la config de WFM.");
-            }
-        }
-
-        function switchMode(mode) {
-            currentMode = mode;
-            const aside = document.getElementById('panelControl');
-            const main = document.getElementById('dashboardMain');
-            const tag = document.getElementById('tagModoOps');
-            const containerShow = document.getElementById('containerShowSidebar');
-
-            if (mode === 'ops' || mode === 'operaciones') {
-                if (aside) aside.style.display = 'none';
-                if (containerShow) containerShow.classList.add('hidden'); 
-                
-                if (main) {
-                    main.classList.remove('lg:col-span-9');
-                    main.classList.add('lg:col-span-12');
-                }
-                if (tag) tag.classList.remove('hidden');
-                
-                setTimeout(() => { if (gapChartInstance) gapChartInstance.resize(); }, 100);
-            } else {
-                if (tag) tag.classList.add('hidden');
-                
-                if (isSidebarVisible) {
-                    if (aside) aside.style.display = 'block';
-                    if (containerShow) containerShow.classList.add('hidden');
-                    if (main) {
-                        main.classList.remove('lg:col-span-12');
-                        main.classList.add('lg:col-span-9');
-                    }
+                    const inDataTagged = inData.map(d => ({...d, Canal: 'Inbound'}));
+                    const outDataTagged = outData.map(d => ({...d, Canal: 'Outbound'}));
+                    const chatDataTagged = chatData.map(d => ({...d, Canal: 'Chat'}));
+                    
+                    globalData = [...inDataTagged, ...outDataTagged, ...chatDataTagged];
                 } else {
-                    if (aside) aside.style.display = 'none';
-                    if (containerShow) containerShow.classList.remove('hidden');
-                    if (main) {
-                        main.classList.remove('lg:col-span-9');
-                        main.classList.add('lg:col-span-12');
+                    const response = await fetch('/api/latest?mode=' + mode + '&t=' + new Date().getTime());
+                    if (response.ok) {
+                        const data = await response.json();
+                        const canalName = mode === 'inbound' ? 'Inbound' : (mode === 'outbound' ? 'Outbound' : 'Chat');
+                        globalData = data.map(d => ({...d, Canal: canalName}));
                     }
                 }
-                
-                setTimeout(() => { 
-                    if (gapChartInstance) gapChartInstance.resize(); 
-                    if (generalChartInstance) generalChartInstance.resize();
-                }, 100);
-            }
-        }
 
-        function debouncedActualizarGrafica() {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                actualizarGrafica();
-            }, 10); 
-        }
-
-        window.addEventListener('DOMContentLoaded', async () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const mode = urlParams.get('mode') || urlParams.get('role') || 'wfm';
-            switchMode(mode);
-
-            await fetchWFMConfig();
-
-            if ((mode === 'ops' || mode === 'operaciones') && window.savedFilters) {
-                if (forecastMode !== window.savedFilters.tab) {
-                    setModeWFM(window.savedFilters.tab);
-                    return; 
+                if (globalData && globalData.length > 0) {
+                    inicializarFiltrosMultiples();
+                    applySavedFilters(); 
+                    debouncedActualizarGrafica();
+                } else {
+                    limpiarPantalla();
                 }
+            } catch (e) {
+                console.log("Error cargando pronóstico.");
             }
-
-            fetchLatestData(forecastMode);
-        });
-
-        function getProp(row, keys, def = '') {
-            for (let k of keys) {
-                if (row[k] !== undefined && row[k] !== null) return row[k];
-            }
-            return def;
-        }
-
-        function formatAHT(seconds) {
-            if (!seconds || seconds <= 0) return "00:00:00";
-            const secs = Math.round(seconds);
-            const hrs = Math.floor(secs / 3600);
-            const mins = Math.floor((secs % 3600) / 60);
-            const remainderSecs = secs % 60;
-            return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(remainderSecs).padStart(2, '0')}`;
         }
 
         async function procesarWFM() {
-            await saveWFMConfig();
-
             const btn = document.getElementById('btnProcesar');
             btn.disabled = true;
             btn.innerText = "⏳ RECALCULANDO...";
@@ -814,7 +637,6 @@
             if (forecastMode === 'chat') {
                 formData.append('concurrencia', document.getElementById('concurrencia').value);
             }
-            
             formData.append('dias', document.getElementById('dias') ? document.getElementById('dias').value : 45);
             
             let url = '/api/process';
@@ -823,21 +645,14 @@
 
             try {
                 const response = await fetch(url, { method: 'POST', body: formData });
-                
-                const contentType = response.headers.get("content-type");
-                if (contentType && contentType.indexOf("application/json") === -1) {
-                    const errorText = await response.text();
-                    throw new Error("El servidor está procesando un volumen alto. Por favor, espera unos segundos y vuelve a dar clic en 'Run Plan'.");
-                }
-
                 globalData = await response.json();
                 
                 if (response.ok && Array.isArray(globalData)) {
                     inicializarFiltrosMultiples();
                     debouncedActualizarGrafica();
-                    await saveWFMConfig();
+                    guardarEstadoParametros();
                 } else {
-                    alert("Error: " + (globalData.error || "Asegúrate de que 'historico.xlsx' esté cargado y tenga la pestaña correcta."));
+                    alert("Error: Asegúrate de que 'historico.xlsx' esté cargado.");
                 }
             } catch (e) {
                 alert("Error de conexión: " + e.message);
@@ -847,6 +662,16 @@
             }
         }
 
+        function limpiarPantalla() {
+            document.getElementById('kpiCalls').innerText = "0";
+            document.getElementById('kpiAht').innerText = "00:00:00";
+            document.getElementById('kpiHcRequerido').innerText = "0 HC";
+            document.getElementById('kpiHcRoster').innerText = "0 HC";
+            document.getElementById('intervalTableBody').innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-500 font-medium font-sans">Sin datos o presiona RUN PLAN.</td></tr>`;
+            if(gapChartInstance) gapChartInstance.destroy();
+        }
+
+        // SISTEMA DE FILTROS EN CASCADA (FAST O(N))
         function inicializarFiltrosMultiples() {
             allMesesOptions = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).sort(ordenarMesesCronologicamente);
             allSemanasOptions = [...new Set(globalData.map(i => getWeekNumber(getProp(i, ['Fecha'], ''))))].filter(Boolean).sort();
@@ -860,14 +685,8 @@
             selectedFechas = new Set(allFechasOptions);
             selectedIntervalos = new Set(allIntervalosOptions);
 
-            renderMenuOptions('Mes', allMesesOptions, selectedMeses);
-            renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
-            renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
-            renderMenuOptions('Fecha', allFechasOptions, selectedFechas);
-            renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
-            
             calcularTotalesFiltros();
-            actualizarTextosBotones();
+            updateFilterOptions();
         }
 
         function calcularTotalesFiltros() {
@@ -878,18 +697,51 @@
             totalesFiltros.I = allIntervalosOptions.length;
         }
 
-        function renderMenuOptions(type, allOptions, setRef) {
+        function updateFilterOptions() {
+            let validM = new Set();
+            let validS = new Set();
+            let validC = new Set();
+            let validF = new Set();
+            let validI = new Set();
+
+            for(let i=0; i<globalData.length; i++) {
+                let r = globalData[i];
+                let m = String(getProp(r, ['Mes'], ''));
+                let s = getWeekNumber(getProp(r, ['Fecha'], ''));
+                let c = String(getProp(r, ['Campaña', 'Campana'], 'General'));
+                let f = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
+                let inv = String(getProp(r, ['Intervalo'], '00:00'));
+
+                let matchM = selectedMeses.has(m);
+                let matchS = selectedSemanas.has(s);
+                let matchC = selectedCampanas.has(c);
+                let matchF = selectedFechas.has(f);
+                let matchI = selectedIntervalos.has(inv);
+
+                // Lógica Cross-Filter PowerBI
+                if(matchS && matchC && matchF && matchI) validM.add(m);
+                if(matchM && matchC && matchF && matchI) validS.add(s);
+                if(matchM && matchS && matchF && matchI) validC.add(c);
+                if(matchM && matchS && matchC && matchI) validF.add(f);
+                if(matchM && matchS && matchC && matchF) validI.add(inv);
+            }
+
+            renderMenuOptions('Mes', allMesesOptions.filter(x => validM.has(x)), selectedMeses);
+            renderMenuOptions('Semana', allSemanasOptions.filter(x => validS.has(x)), selectedSemanas);
+            renderMenuOptions('Campana', allCampanasOptions.filter(x => validC.has(x)), selectedCampanas);
+            renderMenuOptions('Fecha', allFechasOptions.filter(x => validF.has(x)), selectedFechas);
+            renderMenuOptions('Intervalo', allIntervalosOptions.filter(x => validI.has(x)), selectedIntervalos);
+            
+            actualizarTextosBotones();
+        }
+
+        function renderMenuOptions(type, optionsToRender, setRef) {
             const menu = document.getElementById(`dropdown${type}Menu`);
             if (!menu) return;
             menu.innerHTML = '';
-            const headerDiv = document.createElement('div');
             
-            let checkboxHex = '#3B82F6';
-            if(type === 'Mes') checkboxHex = '#FBBF24';
-            if(type === 'Semana') checkboxHex = '#FB7185';
-            if(type === 'Campana') checkboxHex = '#A78BFA';
-            if(type === 'Fecha') checkboxHex = '#22D3EE';
-            if(type === 'Intervalo') checkboxHex = '#34D399';
+            const headerDiv = document.createElement('div');
+            let checkboxHex = type === 'Mes' ? '#FBBF24' : type === 'Semana' ? '#FB7185' : type === 'Campana' ? '#A78BFA' : type === 'Fecha' ? '#22D3EE' : '#34D399';
 
             headerDiv.className = 'flex items-center justify-between p-2 pb-3 mb-1 border-b border-[#334155] text-[11px] font-bold tracking-wider';
             headerDiv.innerHTML = `
@@ -898,7 +750,7 @@
             `;
             menu.appendChild(headerDiv);
             
-            allOptions.forEach(opt => {
+            optionsToRender.forEach(opt => {
                 const label = document.createElement('label');
                 label.className = `flex items-center gap-3 p-2 hover:bg-[#1E293B] rounded-lg cursor-pointer transition-colors`;
                 const isChecked = setRef.has(opt);
@@ -910,7 +762,10 @@
                 input.style.accentColor = checkboxHex; 
                 
                 input.addEventListener('change', (e) => {
-                    onCheckboxChange(type, opt, e.target.checked);
+                    if (e.target.checked) setRef.add(opt); 
+                    else setRef.delete(opt);
+                    updateFilterOptions();
+                    debouncedActualizarGrafica();
                 });
 
                 const span = document.createElement('span');
@@ -923,64 +778,8 @@
             });
         }
 
-        // Cascada estricta
-        function intersectAndRender(type, availSet, selectedSet, allOptions) {
-            let toDelete = [];
-            for (let val of selectedSet) {
-                if (!availSet.has(val)) toDelete.push(val);
-            }
-            toDelete.forEach(val => selectedSet.delete(val));
-            let optionsToRender = allOptions.filter(o => availSet.has(o));
-            renderMenuOptions(type, optionsToRender, selectedSet);
-        }
-
-        function onCheckboxChange(type, value, checked) {
-            let setRef;
-            if(type === 'Mes') setRef = selectedMeses;
-            else if(type === 'Semana') setRef = selectedSemanas;
-            else if(type === 'Campana') setRef = selectedCampanas;
-            else if(type === 'Fecha') setRef = selectedFechas;
-            else setRef = selectedIntervalos;
-
-            if (checked) setRef.add(value); 
-            else setRef.delete(value);
-
-            if (['Mes', 'Semana', 'Fecha'].includes(type)) {
-                let tempValid = globalData.filter(r => {
-                    let m = String(getProp(r, ['Mes'], ''));
-                    let s = getWeekNumber(getProp(r, ['Fecha'], ''));
-                    let f = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
-                    let matchM = selectedMeses.size === 0 || selectedMeses.has(m);
-                    let matchS = selectedSemanas.size === 0 || selectedSemanas.has(s);
-                    let matchF = selectedFechas.size === 0 || selectedFechas.has(f);
-                    return matchM && matchS && matchF;
-                });
-
-                if (type === 'Mes') {
-                    let availS = new Set(tempValid.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))).filter(Boolean));
-                    let availF = new Set(tempValid.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]).filter(Boolean));
-                    intersectAndRender('Semana', availS, selectedSemanas, allSemanasOptions);
-                    intersectAndRender('Fecha', availF, selectedFechas, allFechasOptions);
-                } else if (type === 'Semana') {
-                    let availM = new Set(tempValid.map(r => String(getProp(r, ['Mes'], ''))).filter(Boolean));
-                    let availF = new Set(tempValid.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]).filter(Boolean));
-                    intersectAndRender('Mes', availM, selectedMeses, allMesesOptions);
-                    intersectAndRender('Fecha', availF, selectedFechas, allFechasOptions);
-                } else if (type === 'Fecha') {
-                    let availM = new Set(tempValid.map(r => String(getProp(r, ['Mes'], ''))).filter(Boolean));
-                    let availS = new Set(tempValid.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))).filter(Boolean));
-                    intersectAndRender('Mes', availM, selectedMeses, allMesesOptions);
-                    intersectAndRender('Semana', availS, selectedSemanas, allSemanasOptions);
-                }
-            }
-
-            actualizarTextosBotones();
-            debouncedActualizarGrafica();
-        }
-
         function selectAllFilter(type, selectAll) {
             let setRef, allOptions;
-            
             if (type === 'Mes') { setRef = selectedMeses; allOptions = allMesesOptions; }
             else if (type === 'Semana') { setRef = selectedSemanas; allOptions = allSemanasOptions; }
             else if (type === 'Campana') { setRef = selectedCampanas; allOptions = allCampanasOptions; }
@@ -989,38 +788,17 @@
             
             if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
             
-            if (['Mes', 'Semana', 'Fecha'].includes(type)) {
-                let tempValid = globalData.filter(r => {
-                    let m = String(getProp(r, ['Mes'], ''));
-                    let s = getWeekNumber(getProp(r, ['Fecha'], ''));
-                    let f = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
-                    let matchM = selectedMeses.size === 0 || selectedMeses.has(m);
-                    let matchS = selectedSemanas.size === 0 || selectedSemanas.has(s);
-                    let matchF = selectedFechas.size === 0 || selectedFechas.has(f);
-                    return matchM && matchS && matchF;
-                });
+            updateFilterOptions();
+            debouncedActualizarGrafica();
+        }
 
-                if (type === 'Mes') {
-                    let availS = new Set(tempValid.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))).filter(Boolean));
-                    let availF = new Set(tempValid.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]).filter(Boolean));
-                    intersectAndRender('Semana', availS, selectedSemanas, allSemanasOptions);
-                    intersectAndRender('Fecha', availF, selectedFechas, allFechasOptions);
-                } else if (type === 'Semana') {
-                    let availM = new Set(tempValid.map(r => String(getProp(r, ['Mes'], ''))).filter(Boolean));
-                    let availF = new Set(tempValid.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]).filter(Boolean));
-                    intersectAndRender('Mes', availM, selectedMeses, allMesesOptions);
-                    intersectAndRender('Fecha', availF, selectedFechas, allFechasOptions);
-                } else if (type === 'Fecha') {
-                    let availM = new Set(tempValid.map(r => String(getProp(r, ['Mes'], ''))).filter(Boolean));
-                    let availS = new Set(tempValid.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))).filter(Boolean));
-                    intersectAndRender('Mes', availM, selectedMeses, allMesesOptions);
-                    intersectAndRender('Semana', availS, selectedSemanas, allSemanasOptions);
-                }
-            } else {
-                renderMenuOptions(type, allOptions, setRef);
-            }
-            
-            actualizarTextosBotones();
+        function resetAllFilters() {
+            selectedMeses = new Set(allMesesOptions);
+            selectedSemanas = new Set(allSemanasOptions);
+            selectedCampanas = new Set(allCampanasOptions);
+            selectedFechas = new Set(allFechasOptions);
+            selectedIntervalos = new Set(allIntervalosOptions);
+            updateFilterOptions();
             debouncedActualizarGrafica();
         }
 
@@ -1059,39 +837,83 @@
             document.getElementById('intervaloSelectedText').innerText = `SELECC. (${selectedIntervalos.size}/${totalesFiltros.I})`;
         }
 
-        function resetAllFilters() {
-            selectedMeses = new Set(allMesesOptions);
-            selectedSemanas = new Set(allSemanasOptions);
-            selectedCampanas = new Set(allCampanasOptions);
-            selectedFechas = new Set(allFechasOptions);
-            selectedIntervalos = new Set(allIntervalosOptions);
-
-            renderMenuOptions('Mes', allMesesOptions, selectedMeses);
-            renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
-            renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
-            renderMenuOptions('Fecha', allFechasOptions, selectedFechas);
-            renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
-            
-            actualizarTextosBotones();
-            debouncedActualizarGrafica();
-        }
-
         function toggleTableInterval(inter) {
             if (selectedIntervalos.has(inter)) selectedIntervalos.delete(inter); else selectedIntervalos.add(inter);
-            renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
-            actualizarTextosBotones();
+            updateFilterOptions();
             debouncedActualizarGrafica();
         }
 
+        // SALVADO Y CARGA DE CONFIGURACIÓN
+        function guardarEstadoParametros() {
+            if (forecastMode !== 'general' && currentMode !== 'ops' && currentMode !== 'operaciones') {
+                const config = {
+                    targetSl: document.getElementById('targetSl').value,
+                    targetTime: document.getElementById('targetTime').value,
+                    opsView: {
+                        tab: forecastMode,
+                        meses: Array.from(selectedMeses),
+                        semanas: Array.from(selectedSemanas),
+                        campanas: Array.from(selectedCampanas),
+                        fechas: Array.from(selectedFechas),
+                        intervalos: Array.from(selectedIntervalos)
+                    }
+                };
+                fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) }).catch(()=>{});
+            }
+        }
+
+        function applySavedFilters() {
+            if (window.savedFilters && (currentMode === 'ops' || currentMode === 'operaciones')) {
+                const f = window.savedFilters;
+                if (f.meses && f.meses.length > 0) selectedMeses = new Set(f.meses.filter(x => allMesesOptions.includes(x)));
+                if (f.semanas && f.semanas.length > 0) selectedSemanas = new Set(f.semanas.filter(x => allSemanasOptions.includes(x)));
+                if (f.campanas && f.campanas.length > 0) selectedCampanas = new Set(f.campanas.filter(x => allCampanasOptions.includes(x)));
+                if (f.fechas && f.fechas.length > 0) selectedFechas = new Set(f.fechas.filter(x => allFechasOptions.includes(x)));
+                if (f.intervalos && f.intervalos.length > 0) selectedIntervalos = new Set(f.intervalos.filter(x => allIntervalosOptions.includes(x)));
+                updateFilterOptions();
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const mode = urlParams.get('mode') || urlParams.get('role') || 'wfm';
+            switchMode(mode);
+
+            try {
+                const response = await fetch('/api/config?t=' + new Date().getTime());
+                if (response.ok) {
+                    const config = await response.json();
+                    if(config.targetSl) document.getElementById('targetSl').value = config.targetSl;
+                    if(config.targetTime) document.getElementById('targetTime').value = config.targetTime;
+                    if (config.opsView) window.savedFilters = config.opsView;
+                }
+            } catch (e) {}
+
+            if ((mode === 'ops' || mode === 'operaciones') && window.savedFilters) {
+                if (forecastMode !== window.savedFilters.tab) {
+                    setModeWFM(window.savedFilters.tab);
+                    return; 
+                }
+            }
+            fetchLatestData(forecastMode);
+        });
+
+        function debouncedActualizarGrafica() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                actualizarGrafica();
+            }, 50); 
+        }
+
+        // MOTOR PRINCIPAL DE CÁLCULO Y GRÁFICA
         async function actualizarGrafica() {
             const durJornada = parseFloat(document.getElementById('duracionJornada') ? document.getElementById('duracionJornada').value : 8) || 8;
             const usarNocturnoActual = document.getElementById('chkNocturno') ? document.getElementById('chkNocturno').checked : false;
-            
             const targetSlObj = parseFloat(document.getElementById('targetSl') ? document.getElementById('targetSl').value : 80) || 80;
             const targetTimeObj = parseFloat(document.getElementById('targetTime') ? document.getElementById('targetTime').value : 20) || 20;
             const concurrenciaVal = parseFloat(document.getElementById('concurrencia') ? document.getElementById('concurrencia').value : 4) || 4;
 
-            // Filtrado Ulttra Rápido O(N)
+            // 1. Aplicar Filtros (Ultra Rápido O(N))
             const dfFiltered = [];
             for (let i = 0; i < globalData.length; i++) {
                 let item = globalData[i];
@@ -1101,329 +923,169 @@
                 let f = String(getProp(item, ['Fecha'], '')).split(' ')[0].split('T')[0];
                 let inv = String(getProp(item, ['Intervalo'], '00:00'));
 
-                if ((selectedMeses.size === 0 || selectedMeses.has(m)) &&
-                    (selectedSemanas.size === 0 || selectedSemanas.has(s)) &&
-                    (selectedCampanas.size === 0 || selectedCampanas.has(c)) &&
-                    (selectedFechas.size === 0 || selectedFechas.has(f)) &&
-                    (selectedIntervalos.size === 0 || selectedIntervalos.has(inv))) {
+                if (selectedMeses.has(m) && selectedSemanas.has(s) && selectedCampanas.has(c) && selectedFechas.has(f) && selectedIntervalos.has(inv)) {
                     dfFiltered.push(item);
                 }
             }
 
-            const reforecastAlert = document.getElementById('reforecastAlert');
-            const reforecastMsg = document.getElementById('reforecastMsg');
-            let campanasModificadas = {};
-            
-            for (let r of dfFiltered) {
-                const f = parseFloat(getProp(r, ['Factor_Correccion'], 1.0));
-                if (f !== 1.0 && !isNaN(f)) {
-                    const c = String(getProp(r, ['Campaña', 'Campana'], 'General'));
-                    campanasModificadas[c] = f;
-                }
-            }
-
-            if (Object.keys(campanasModificadas).length > 0 && reforecastAlert && currentMode !== 'ops' && currentMode !== 'operaciones') {
-                reforecastAlert.classList.remove('hidden');
-                let detalles = Object.entries(campanasModificadas).map(([camp, factor]) => {
-                    let pct = Math.round((factor - 1) * 100);
-                    let signo = pct > 0 ? '+' : '';
-                    return `<span class="text-brand-accentAmber font-bold">${camp} (${signo}${pct}%)</span>`;
-                }).join(', ');
-                reforecastMsg.innerHTML = `El algoritmo detectó un quiebre de tendencia reciente. Ajuste aplicado a: ${detalles}.`;
-            } else if (reforecastAlert) {
-                reforecastAlert.classList.add('hidden');
-            }
-
             if (!dfFiltered || dfFiltered.length === 0) {
-                document.getElementById('kpiCalls').innerText = "0";
-                document.getElementById('kpiAht').innerText = "00:00:00";
-                document.getElementById('kpiHcRequerido').innerText = "0 HC";
-                document.getElementById('kpiHcRoster').innerText = "0 HC";
-                document.getElementById('intervalTableBody').innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-500">Sin datos</td></tr>';
-                if(gapChartInstance) gapChartInstance.destroy();
+                limpiarPantalla();
                 return;
             }
 
-            const fechasSet = new Set();
+            // 2. Agrupación O(N) para Silos y Totales
+            let aggSilos = {}; 
+            let uniqueFechas = new Set();
             let totalCallsGlobal = 0;
             let totalHTGlobal = 0;
+            let rosterDiarioCampana = {};
 
             for (let i = 0; i < dfFiltered.length; i++) {
                 let r = dfFiltered[i];
+                let c = String(getProp(r, ['Campaña', 'Campana'], 'General'));
+                let inv = String(getProp(r, ['Intervalo'], '00:00'));
                 let d = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
-                fechasSet.add(d);
                 
                 let calls = Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
                 let aht = Number(getProp(r, ['AHT_Segundos'], 180)) || 180;
-                
+                let ros = Number(getProp(r, ['Total_Roster_Campana', 'Total_Roster_Dia', 'HC_Actual_Roster'], 0)) || 0;
+
+                uniqueFechas.add(d);
                 totalCallsGlobal += calls;
                 totalHTGlobal += (calls * aht);
+
+                if (!aggSilos[c]) aggSilos[c] = {};
+                if (!aggSilos[c][inv]) aggSilos[c][inv] = { calls: 0, ht: 0 };
+                
+                aggSilos[c][inv].calls += calls;
+                aggSilos[c][inv].ht += (calls * aht);
+
+                // Guardar Roster único por día y campaña
+                let rosKey = d + '|' + c;
+                if (!rosterDiarioCampana[rosKey]) {
+                    rosterDiarioCampana[rosKey] = ros;
+                }
             }
 
+            const numDias = uniqueFechas.size || 1;
+            
+            // Actualizar KPIs Top
             document.getElementById('kpiCalls').innerText = totalCallsGlobal.toLocaleString();
             document.getElementById('kpiAht').innerText = formatAHT(totalCallsGlobal > 0 ? Math.round(totalHTGlobal / totalCallsGlobal) : 0);
 
-            const numDiasPeriodo = fechasSet.size || 1;
-            const todosIntervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
-            const campanas = [...new Set(dfFiltered.map(r => r.Campaña))];
-            const esVistaSemanal = numDiasPeriodo > 1;
+            let interCalls = {};
+            let interAhtSum = {};
+            let interFteReq = {};
+            const todosIntervalos = Array.from(selectedIntervalos).sort();
 
-            if (forecastMode === 'general') {
-                const btn = document.getElementById('btnProcesar');
-                if(btn) { btn.disabled = true; btn.innerText = "⏳ SUMANDO CANALES..."; }
+            // Inicializar diccionarios
+            todosIntervalos.forEach(inv => {
+                interCalls[inv] = 0;
+                interAhtSum[inv] = { ht: 0, c: 0 };
+                interFteReq[inv] = 0;
+            });
 
-                const getCanalData = async (canalStr) => {
-                    const dfC = dfFiltered.filter(r => r.Canal === canalStr);
-                    if (dfC.length === 0) return { req: 0, disp: 0 };
+            // 3. Cálculos Matemáticos (Erlang C Silos)
+            for (let c in aggSilos) {
+                for (let inv in aggSilos[c]) {
+                    if(!interFteReq[inv] && interFteReq[inv] !== 0) continue; // Si no está en el filtro, ignorar
 
-                    const fechasC = [...new Set(dfC.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0]))].filter(Boolean);
-                    const nDias = fechasC.length || 1;
-                    const campanasC = [...new Set(dfC.map(r => r.Campaña))];
-
-                    let fteAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
+                    let callsSilo = aggSilos[c][inv].calls;
+                    let htSilo = aggSilos[c][inv].ht;
                     
-                    campanasC.forEach(camp => {
-                        const dfCamp = dfC.filter(r => r.Campaña === camp);
-                        todosIntervalos.forEach((inter, idx) => {
-                            let callSum = 0, htSum = 0;
-                            fechasC.forEach(d => {
-                                const rows = dfCamp.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === inter && String(getProp(r, ['Fecha'], '')).split(' ')[0] === d);
-                                rows.forEach(r => {
-                                    let calls = Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
-                                    let aht = Number(getProp(r, ['AHT_Segundos'], 180)) || 180;
-                                    callSum += calls;
-                                    htSum += (calls * aht);
-                                });
-                            });
-                            
-                            let avgLlam = callSum / nDias;
-                            let avgAht = callSum > 0 ? htSum / callSum : 180;
-                            
-                            if (canalStr === 'Chat') {
-                                avgAht = avgAht / Math.max(1.0, concurrenciaVal);
-                            }
-                            
-                            let fteReq = 0;
-                            if (avgLlam >= 0.05) {
-                                let a_erlang = (avgLlam * avgAht) / 1800.0;
-                                fteReq = calcular_agentes_requeridos_erlang_c_js(a_erlang, avgAht, targetTimeObj, targetSlObj);
-                            }
-                            fteAgrupadoGlobal[idx] += fteReq;
-                        });
-                    });
-
-                    // Área Volumétrica Silos
-                    const totalFteIntervals = fteAgrupadoGlobal.reduce((a, b) => a + b, 0);
-                    const horasCanal = totalFteIntervals * 0.5;
-                    const factorDes = usarNocturnoActual ? (7.0/5.0) : (7.0/6.0);
-                    const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
-                    const factorAsistencia = Math.max(0.01, 1.0 - (mermaValLocal / 100.0));
-
-                    let hcReqNomina = Math.ceil(((horasCanal / durJornada) * factorDes) / factorAsistencia);
-
-                    let hcDisp = 0;
-                    const uniqueCampChannel = [...new Set(dfC.map(r => r.Campaña + '|' + (r.Canal || '')))];
-                    uniqueCampChannel.forEach(cc => {
-                        const row = dfC.find(r => (r.Campaña + '|' + (r.Canal || '')) === cc);
-                        if (row) hcDisp += esVistaSemanal ? (Number(row.Total_Roster_Campana) || 0) : (Number(row.Total_Roster_Dia) || 0);
-                    });
-
-                    return { req: hcReqNomina, disp: hcDisp };
-                };
-
-                Promise.all([
-                    getCanalData('Inbound'),
-                    getCanalData('Outbound'),
-                    getCanalData('Chat')
-                ]).then(results => {
-                    if(btn) { btn.disabled = false; btn.innerText = "▶ RUN PLAN"; }
-
-                    const hcReqInbound = results[0] ? results[0].req : 0;
-                    const hcDispInbound = results[0] ? results[0].disp : 0;
+                    let avgLlam = callsSilo / numDias;
+                    let avgAht = callsSilo > 0 ? htSilo / callsSilo : 180;
                     
-                    const hcReqOutbound = results[1] ? results[1].req : 0;
-                    const hcDispOutbound = results[1] ? results[1].disp : 0;
-                    
-                    const hcReqChat = results[2] ? results[2].req : 0;
-                    const hcDispChat = results[2] ? results[2].disp : 0;
-
-                    const totalReqGlobal = hcReqInbound + hcReqOutbound + hcReqChat;
-                    const totalDispGlobal = hcDispInbound + hcDispOutbound + hcDispChat;
-
-                    document.getElementById('kpiHcRequeridoTitle').innerText = "Nómina a Contratar (HC)";
-                    document.getElementById('kpiHcRequerido').innerText = totalReqGlobal.toLocaleString() + ' HC';
-                    document.getElementById('kpiHcRequeridoSub').innerHTML = `Erlang C (Silos) + Shrinkage`;
-                    
-                    document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Disponible (Roster)" : "Plantilla de Hoy";
-                    document.getElementById('kpiHcRoster').innerText = totalDispGlobal.toLocaleString() + ' HC';
-
-                    const gapTotal = totalDispGlobal - totalReqGlobal;
-                    const gapEl = document.getElementById('kpiHcGap');
-                    if (gapTotal > 0) {
-                        gapEl.innerText = `+${gapTotal} Sobran`;
-                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
-                    } else if (gapTotal < 0) {
-                        gapEl.innerText = `${gapTotal} Faltan`;
-                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
-                    } else {
-                        gapEl.innerText = `✓ Balanceado`;
-                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
-                    }
-
-                    document.getElementById('tableHeaderRow').innerHTML = `
-                        <th class="py-3.5 px-4 text-left">Canal Operativo</th>
-                        <th class="py-3.5 px-4 text-brand-primary">Nómina a Contratar</th>
-                        <th class="py-3.5 px-4 text-brand-accentEmerald">Nómina Roster</th>
-                        <th class="py-3.5 px-4 text-center">Delta (Gap)</th>
-                    `;
-
-                    const tbody = document.getElementById('intervalTableBody');
-                    tbody.innerHTML = '';
-                    
-                    const channels = [
-                        { name: '🎯 Inbound', req: hcReqInbound, disp: hcDispInbound },
-                        { name: '🚀 Outbound', req: hcReqOutbound, disp: hcDispOutbound },
-                        { name: '💬 Chat', req: hcReqChat, disp: hcDispChat },
-                        { name: '🌐 TOTAL', req: totalReqGlobal, disp: totalDispGlobal }
-                    ];
-
-                    channels.forEach(ch => {
-                        const gap = ch.disp - ch.req;
-                        let gapHtml = gap > 0 ? `<span class="bg-[#34D399]/20 text-[#34D399] px-2 py-0.5 rounded-md font-bold">+${gap}</span>` : 
-                                      gap < 0 ? `<span class="bg-[#FB7185]/20 text-[#FB7185] px-2 py-0.5 rounded-md font-bold">${gap}</span>` : 
-                                      `<span class="text-slate-500 font-bold">0</span>`;
-
-                        let rowClass = ch.name === '🌐 TOTAL' ? "bg-[#1E293B] font-bold border-t border-[#334155]" : "hover:bg-[#1E293B] transition-colors";
-
-                        tbody.innerHTML += `
-                            <tr class="${rowClass}">
-                                <td class="py-3.5 px-4 font-bold text-white text-left">${ch.name}</td>
-                                <td class="py-3.5 px-4 text-brand-primary font-black text-sm">${ch.req.toLocaleString()}</td>
-                                <td class="py-3.5 px-4 text-brand-accentEmerald font-black text-sm">${ch.disp.toLocaleString()}</td>
-                                <td class="py-3.5 px-4 text-center">${gapHtml}</td>
-                            </tr>
-                        `;
-                    });
-
-                    document.getElementById('contGapChart').classList.add('hidden');
-                    document.getElementById('contGeneralChart').classList.remove('hidden');
-
-                    if(generalChartInstance) generalChartInstance.destroy();
-                    const ctxGen = document.getElementById('generalChart').getContext('2d');
-                    generalChartInstance = new Chart(ctxGen, {
-                        type: 'bar',
-                        data: {
-                            labels: ['Inbound', 'Outbound', 'Chat'],
-                            datasets: [
-                                { label: 'HC Requerido', data: [hcReqInbound, hcReqOutbound, hcReqChat], backgroundColor: '#A78BFA', borderRadius: 4 },
-                                { label: 'HC Disponible', data: [hcDispInbound, hcDispOutbound, hcDispChat], backgroundColor: '#34D399', borderRadius: 4 }
-                            ]
-                        },
-                        options: {
-                            responsive: true, maintainAspectRatio: false,
-                            plugins: {
-                                legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } },
-                                tooltip: { backgroundColor: '#111827', titleColor: '#F8FAFC', bodyColor: '#cbd5e1', borderColor: '#1F2937', borderWidth: 1 }
-                            },
-                            scales: {
-                                x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 11, weight: 'bold' } } },
-                                y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono' } }, beginAtZero: true }
-                            }
-                        }
-                    });
-
-                    return; 
-                });
-                return; 
-            }
-
-            let llamadasAgrupadasGlobal = new Array(todosIntervalos.length).fill(0);
-            let ahtAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
-            let fteAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
-
-            // CÁLCULO DE ERLANG C PURO EN JS (SILOS)
-            campanas.forEach(camp => {
-                const dfCamp = dfFiltered.filter(r => r.Campaña === camp);
-                
-                todosIntervalos.forEach((inter, idx) => {
-                    let callSum = 0, htSum = 0;
-                    fechasFiltradas.forEach(d => {
-                        const rows = dfCamp.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === inter && String(getProp(r, ['Fecha'], '')).split(' ')[0] === d);
-                        rows.forEach(r => {
-                            let calls = Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
-                            let aht = Number(getProp(r, ['AHT_Segundos'], 180)) || 180;
-                            callSum += calls;
-                            htSum += (calls * aht);
-                        });
-                    });
-                    
-                    let avgLlam = callSum / numDiasPeriodo;
-                    let avgAht = callSum > 0 ? htSum / callSum : 180;
-                    
-                    if (forecastMode === 'chat') {
-                        avgAht = avgAht / Math.max(1.0, concurrenciaVal);
-                    }
+                    let aht_efectivo = forecastMode === 'chat' ? avgAht / Math.max(1.0, concurrenciaVal) : avgAht;
                     
                     let fteReq = 0;
-                    if (avgLlam >= 0.05) { // Filtro Fantasma
-                        let a_erlang = (avgLlam * avgAht) / 1800.0;
-                        fteReq = calcular_agentes_requeridos_erlang_c_js(a_erlang, avgAht, targetTimeObj, targetSlObj);
+                    // Filtro Fantasma: ignorar si entra menos de 0.05 llamadas
+                    if (avgLlam >= 0.05) { 
+                        let a_erlang = (avgLlam * aht_efectivo) / 1800.0;
+                        fteReq = calcular_agentes_requeridos_erlang_c_js(a_erlang, aht_efectivo, targetTimeObj, targetSlObj);
                     }
-                    
-                    llamadasAgrupadasGlobal[idx] += avgLlam;
-                    fteAgrupadoGlobal[idx] += fteReq;
-                    if (avgAht > ahtAgrupadoGlobal[idx]) ahtAgrupadoGlobal[idx] = avgAht; // Tomamos el AHT más representativo
-                });
+
+                    interCalls[inv] += avgLlam;
+                    interAhtSum[inv].ht += htSilo;
+                    interAhtSum[inv].c += callsSilo;
+                    interFteReq[inv] += fteReq;
+                }
+            }
+
+            // Preparar vectores para gráfica y tabla
+            let plotCalls = [];
+            let plotAht = [];
+            let plotFteReq = [];
+            
+            todosIntervalos.forEach(inv => {
+                plotCalls.push(Math.round(interCalls[inv]));
+                let htObj = interAhtSum[inv];
+                plotAht.push(htObj.c > 0 ? htObj.ht / htObj.c : 180);
+                plotFteReq.push(Math.ceil(interFteReq[inv])); // Redondeo de sillas requeridas
             });
 
-            // Agrupar Roster
-            let rosterAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
-            todosIntervalos.forEach((inter, idx) => {
-                let interRosSum = 0;
-                fechasFiltradas.forEach(d => {
-                    campanas.forEach(camp => {
-                        const row = dfFiltered.find(r => r.Campaña === camp && String(getProp(r, ['Intervalo'], '00:00')) === inter && String(getProp(r, ['Fecha'], '')).split(' ')[0] === d);
-                        if (row) interRosSum += (Number(getProp(row, ['HC_Actual_Roster'], 0)) || 0);
-                    });
-                });
-                rosterAgrupadoGlobal[idx] = Math.round(interRosSum / numDiasPeriodo);
-            });
+            // 4. Cálculo de HC Actual Promedio (Roster)
+            let totalRosterSumaHistorica = 0;
+            for (let key in rosterDiarioCampana) {
+                totalRosterSumaHistorica += rosterDiarioCampana[key];
+            }
+            let hcActualDisplay = Math.round(totalRosterSumaHistorica / numDias);
 
-            // CÁLCULO VOLUMÉTRICO FINAL
+            // Roster por intervalo: Para la gráfica vamos a proyectar el HC Actual como una línea recta si es consolidada
+            let plotRoster = new Array(todosIntervalos.length).fill(hcActualDisplay);
+
+            // 5. Cálculo de Nómina a Contratar (Área)
             const factorDescanso = usarNocturnoActual ? (7.0 / 5.0) : (7.0 / 6.0);
             const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
             const factorAsistencia = Math.max(0.01, 1.0 - (mermaValLocal / 100.0));
 
-            const totalFteIntervals = fteAgrupadoGlobal.reduce((a, b) => a + b, 0);
+            const totalFteIntervals = plotFteReq.reduce((a, b) => a + b, 0);
             const totalHorasRequeridas = totalFteIntervals * 0.5;
             const hcNominaCalculado = Math.ceil(((totalHorasRequeridas / durJornada) * factorDescanso) / factorAsistencia);
-            
-            // Para la gráfica (mostrar el FTE redondeado)
-            const reqAgrupadoGlobalParaPlot = fteAgrupadoGlobal.map(val => Math.ceil(val));
-            
+
+            // Actualizar KPIs Bottom
             document.getElementById('kpiHcRequeridoTitle').innerText = "Nómina a Contratar (HC)";
             document.getElementById('kpiHcRequerido').innerText = hcNominaCalculado.toLocaleString() + ' HC';
             document.getElementById('kpiHcRequeridoSub').innerHTML = `Erlang C (Silos) + Shrinkage`;
 
-            let legendInteractions = forecastMode === 'outbound' ? 'Contactos (FCST)' : forecastMode === 'chat' ? 'Mensajes (FCST)' : 'Llamadas (FCST)';
+            document.getElementById('kpiHcRosterTitle').innerText = "HC Actual (Roster)";
+            document.getElementById('kpiHcRosterSub').innerText = "Total de agentes en Roster";
+            document.getElementById('kpiHcRoster').innerText = hcActualDisplay.toLocaleString() + ' HC';
 
+            const gapTotal = hcActualDisplay - hcNominaCalculado;
+            const gapEl = document.getElementById('kpiHcGap');
+            if (gapTotal > 0) {
+                gapEl.innerText = `+${gapTotal} Sobran`;
+                gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
+            } else if (gapTotal < 0) {
+                gapEl.innerText = `${gapTotal} Faltan`;
+                gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
+            } else {
+                gapEl.innerText = `✓ OK`;
+                gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
+            }
+
+            // 6. Actualizar Tabla
+            let legendInteractions = forecastMode === 'outbound' ? 'Contactos (FCST)' : forecastMode === 'chat' ? 'Mensajes (FCST)' : 'Llamadas (FCST)';
             document.getElementById('tableHeaderRow').innerHTML = `
                 <th class="py-3.5 px-4 text-left">Intervalo</th>
                 <th class="py-3.5 px-4">${legendInteractions}</th>
                 <th class="py-3.5 px-4">AHT (HH:MM:SS)</th>
-                <th class="py-3.5 px-4 text-brand-primary">FTE Requerido</th>
-                <th class="py-3.5 px-4 text-brand-accentEmerald">HC Actual</th>
-                <th class="py-3.5 px-4 text-center">Gap</th>
+                <th class="py-3.5 px-4 text-brand-accentCyan">FTE Requerido</th>
+                <th class="py-3.5 px-4 text-brand-accentEmerald">FTE Actual</th>
+                <th class="py-3.5 px-4 text-center">Gap (FTE)</th>
             `;
 
             const tbody = document.getElementById('intervalTableBody');
             tbody.innerHTML = '';
             
             todosIntervalos.forEach((inter, idx) => {
-                const rowLlamadas = Math.round(llamadasAgrupadasGlobal[idx]);
-                const rowAhtSegs = ahtAgrupadoGlobal[idx];
-                const rowReq = reqAgrupadoGlobalParaPlot[idx] || 0; 
-                const rowRoster = rosterAgrupadoGlobal[idx] || 0;
+                const rowLlamadas = plotCalls[idx];
+                const rowAhtSegs = plotAht[idx];
+                const rowReq = plotFteReq[idx]; 
+                
+                // Distribución plana del roster para comparativa de sillas en la tabla
+                const rowRoster = Math.round(hcActualDisplay * factorAsistencia * (durJornada / 24)); 
                 
                 const gap = rowRoster - rowReq;
                 let gapHtml = gap > 0 ? `<span class="bg-[#34D399]/20 text-[#34D399] px-2 py-0.5 rounded-md font-bold">+${gap}</span>` : 
@@ -1444,10 +1106,12 @@
                     <td class="py-2.5 px-4 text-center">${gapHtml}</td>
                 `;
                 tbody.appendChild(tr);
+                
+                plotRoster[idx] = rowRoster; // Para la gráfica también
             });
 
+            // 7. Renderizar Gráfica
             document.getElementById('contGapChart').classList.remove('hidden');
-            document.getElementById('contGeneralChart').classList.add('hidden');
 
             if (gapChartInstance) gapChartInstance.destroy();
             const ctxGap = document.getElementById('gapChart').getContext('2d');
@@ -1457,8 +1121,8 @@
                 data: {
                     labels: todosIntervalos,
                     datasets: [
-                        { label: 'FTE Requerido (Motor)', data: reqAgrupadoGlobalParaPlot, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
-                        { label: 'HC Actual (Roster)', data: rosterAgrupadoGlobal, borderColor: '#34D399', backgroundColor: '#34D399', fill: false, tension: 0.4, borderWidth: 2, borderDash: [5, 5], pointRadius: 0, pointHoverRadius: 6 }
+                        { label: 'FTE Requerido (Motor)', data: plotFteReq, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
+                        { label: 'FTE Actual (Roster Dirigido)', data: plotRoster, borderColor: '#34D399', backgroundColor: '#34D399', fill: false, tension: 0.4, borderWidth: 2, borderDash: [5, 5], pointRadius: 0, pointHoverRadius: 6 }
                     ]
                 },
                 options: { 
@@ -1473,36 +1137,6 @@
                     } 
                 }
             });
-
-            let totalRosterHC = 0;
-            let uniqueRosterMap = new Set();
-            
-            dfFiltered.forEach(r => {
-                let camp = String(getProp(r, ['Campaña', 'Campana'], 'General'));
-                let ch = r.Canal || 'Inbound';
-                let rosKey = camp + '|' + ch;
-                if (!uniqueRosterMap.has(rosKey)) {
-                    uniqueRosterMap.add(rosKey);
-                    totalRosterHC += (Number(getProp(r, ['Total_Roster_Campana'], 0)) || 0);
-                }
-            });
-
-            document.getElementById('kpiHcRosterTitle').innerText = "HC Actual (Roster)";
-            document.getElementById('kpiHcRosterSub').innerText = esVistaSemanal ? "Total de agentes contratados en Roster" : "Descuenta descansos (DD-DD) del día";
-            document.getElementById('kpiHcRoster').innerText = totalRosterHC.toLocaleString() + ' HC';
-            
-            const gapTotal = totalRosterHC - hcNominaCalculado;
-            const gapEl = document.getElementById('kpiHcGap');
-            if (gapTotal > 0) {
-                gapEl.innerText = `+${gapTotal} Sobran`;
-                gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
-            } else if (gapTotal < 0) {
-                gapEl.innerText = `${gapTotal} Faltan`;
-                gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
-            } else {
-                gapEl.innerText = `✓ OK`;
-                gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
-            }
         }
 
         function exportarCSV() {
@@ -1526,7 +1160,7 @@
                 alert("No hay datos cargados para exportar.");
                 return;
             }
-            const headers = ["Campana", "Canal", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Volumen", "AHT_HH_MM_SS", "FTE_Requerido_Puro", "HC_Actual_Roster", "Factor_Reforecast"];
+            const headers = ["Campana", "Canal", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Volumen", "AHT_HH_MM_SS", "HC_Actual_Roster"];
             const csvRows = [headers.join(",")];
             dfFiltered.forEach(row => {
                 const values = [
@@ -1538,9 +1172,7 @@
                     getProp(row, ['Intervalo'], '00:00'),
                     getProp(row, ['Llamadas', 'Recibidas', 'Recibidos'], 0),
                     formatAHT(getProp(row, ['AHT_Segundos'], 180)),
-                    getProp(row, ['Agentes_Requeridos'], 0),
-                    getProp(row, ['HC_Actual_Roster'], 0),
-                    getProp(row, ['Factor_Correccion'], 1.0)
+                    getProp(row, ['Total_Roster_Campana', 'Total_Roster_Dia', 'HC_Actual_Roster'], 0)
                 ];
                 csvRows.push(values.join(","));
             });
@@ -1548,7 +1180,7 @@
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.setAttribute('href', url);
-            a.setAttribute('download', `WFM_Reporte_Ejecutivo_HC_${new Date().toISOString().slice(0,10)}.csv`);
+            a.setAttribute('download', `WFM_Reporte_Ejecutivo_${new Date().toISOString().slice(0,10)}.csv`);
             a.click();
         }
     </script>
