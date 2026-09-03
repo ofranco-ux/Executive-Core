@@ -705,40 +705,31 @@
             totalesFiltros.I = allIntervalosOptions.length;
         }
 
-        function updateFilterOptions() {
-            let validM = new Set();
-            let validS = new Set();
-            let validC = new Set();
-            let validF = new Set();
-            let validI = new Set();
-
-            for(let i=0; i<globalData.length; i++) {
-                let r = globalData[i];
-                let m = String(getProp(r, ['Mes'], ''));
-                let s = getWeekNumber(getProp(r, ['Fecha'], ''));
-                let c = String(getProp(r, ['Campaña', 'Campana'], 'General'));
-                let f = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
-                let inv = String(getProp(r, ['Intervalo'], '00:00'));
-
-                let matchM = selectedMeses.has(m);
-                let matchS = selectedSemanas.has(s);
-                let matchC = selectedCampanas.has(c);
-                let matchF = selectedFechas.has(f);
-                let matchI = selectedIntervalos.has(inv);
-
-                // Lógica Cross-Filter PowerBI
-                if(matchS && matchC && matchF && matchI) validM.add(m);
-                if(matchM && matchC && matchF && matchI) validS.add(s);
-                if(matchM && matchS && matchF && matchI) validC.add(c);
-                if(matchM && matchS && matchC && matchI) validF.add(f);
-                if(matchM && matchS && matchC && matchF) validI.add(inv);
+        function updateFilterOptions(changedType) {
+            let validRows = globalData;
+            
+            let validS = allSemanasOptions;
+            let validF = allFechasOptions;
+            
+            if (selectedMeses.size > 0 && selectedMeses.size < allMesesOptions.length) {
+                validRows = validRows.filter(r => selectedMeses.has(String(getProp(r, ['Mes'], ''))));
+                validS = [...new Set(validRows.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))))].filter(Boolean).sort();
+                validF = [...new Set(validRows.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
+            }
+            
+            if (selectedSemanas.size > 0 && selectedSemanas.size < allSemanasOptions.length) {
+                validRows = validRows.filter(r => selectedSemanas.has(getWeekNumber(getProp(r, ['Fecha'], ''))));
+                validF = [...new Set(validRows.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
             }
 
-            renderMenuOptions('Mes', allMesesOptions.filter(x => validM.has(x)), selectedMeses);
-            renderMenuOptions('Semana', allSemanasOptions.filter(x => validS.has(x)), selectedSemanas);
-            renderMenuOptions('Campana', allCampanasOptions.filter(x => validC.has(x)), selectedCampanas);
-            renderMenuOptions('Fecha', allFechasOptions.filter(x => validF.has(x)), selectedFechas);
-            renderMenuOptions('Intervalo', allIntervalosOptions.filter(x => validI.has(x)), selectedIntervalos);
+            // Always render static independent categories to avoid 0/0 trap
+            if (changedType !== 'Mes') renderMenuOptions('Mes', allMesesOptions, selectedMeses);
+            if (changedType !== 'Campana') renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
+            if (changedType !== 'Intervalo') renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
+            
+            // Dynamic cascade
+            if (changedType !== 'Semana') renderMenuOptions('Semana', validS, selectedSemanas);
+            if (changedType !== 'Fecha') renderMenuOptions('Fecha', validF, selectedFechas);
             
             actualizarTextosBotones();
         }
@@ -772,7 +763,12 @@
                 input.addEventListener('change', (e) => {
                     if (e.target.checked) setRef.add(opt); 
                     else setRef.delete(opt);
-                    updateFilterOptions();
+                    
+                    if (type === 'Mes' || type === 'Semana') {
+                        updateFilterOptions(type);
+                    } else {
+                        actualizarTextosBotones();
+                    }
                     debouncedActualizarGrafica();
                 });
 
@@ -787,16 +783,37 @@
         }
 
         function selectAllFilter(type, selectAll) {
-            let setRef, allOptions;
-            if (type === 'Mes') { setRef = selectedMeses; allOptions = allMesesOptions; }
-            else if (type === 'Semana') { setRef = selectedSemanas; allOptions = allSemanasOptions; }
-            else if (type === 'Campana') { setRef = selectedCampanas; allOptions = allCampanasOptions; }
-            else if (type === 'Fecha') { setRef = selectedFechas; allOptions = allFechasOptions; }
-            else { setRef = selectedIntervalos; allOptions = allIntervalosOptions; }
+            let setRef;
+            let currentOptions = [];
             
-            if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
+            if (type === 'Mes') { setRef = selectedMeses; currentOptions = allMesesOptions; }
+            else if (type === 'Campana') { setRef = selectedCampanas; currentOptions = allCampanasOptions; }
+            else if (type === 'Intervalo') { setRef = selectedIntervalos; currentOptions = allIntervalosOptions; }
+            else if (type === 'Semana') { 
+                setRef = selectedSemanas; 
+                let validRows = selectedMeses.size > 0 ? globalData.filter(r => selectedMeses.has(String(getProp(r, ['Mes'], '')))) : globalData;
+                currentOptions = [...new Set(validRows.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))))].filter(Boolean);
+            }
+            else if (type === 'Fecha') { 
+                setRef = selectedFechas;
+                let validRows = globalData;
+                if (selectedMeses.size > 0) validRows = validRows.filter(r => selectedMeses.has(String(getProp(r, ['Mes'], ''))));
+                if (selectedSemanas.size > 0) validRows = validRows.filter(r => selectedSemanas.has(getWeekNumber(getProp(r, ['Fecha'], ''))));
+                currentOptions = [...new Set(validRows.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
+            }
             
-            updateFilterOptions();
+            if (selectAll) {
+                currentOptions.forEach(o => setRef.add(o));
+            } else {
+                setRef.clear();
+            }
+            
+            if (type === 'Mes' || type === 'Semana') updateFilterOptions(type);
+            else {
+                renderMenuOptions(type, currentOptions, setRef);
+                actualizarTextosBotones();
+            }
+            
             debouncedActualizarGrafica();
         }
 
@@ -847,7 +864,7 @@
 
         function toggleTableInterval(inter) {
             if (selectedIntervalos.has(inter)) selectedIntervalos.delete(inter); else selectedIntervalos.add(inter);
-            updateFilterOptions();
+            updateFilterOptions('Intervalo');
             debouncedActualizarGrafica();
         }
 
@@ -966,8 +983,8 @@
             }
 
             // 2. Agrupación O(N) para Silos y Totales
-            let aggSilos = {}; 
-            let uniqueFechas = new Set();
+            let aggInter = {};
+            let fechasSet = new Set();
             let totalCallsGlobal = 0;
             let totalHTGlobal = 0;
             let rosterDiarioCampana = {};
@@ -980,123 +997,252 @@
                 
                 let calls = Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
                 let aht = Number(getProp(r, ['AHT_Segundos'], 180)) || 180;
-                let ros = Number(getProp(r, ['Total_Roster_Campana', 'Total_Roster_Dia', 'HC_Actual_Roster'], 0)) || 0;
+                let rosInter = Number(getProp(r, ['HC_Actual_Roster'], 0)) || 0;
+                let rosDia = Number(getProp(r, ['Total_Roster_Dia', 'Total_Roster_Campana'], 0)) || 0;
 
-                uniqueFechas.add(d);
+                fechasSet.add(d);
                 totalCallsGlobal += calls;
                 totalHTGlobal += (calls * aht);
 
-                if (!aggSilos[c]) aggSilos[c] = {};
-                if (!aggSilos[c][inv]) aggSilos[c][inv] = { calls: 0, ht: 0 };
+                if (!aggInter[inv]) aggInter[inv] = { calls: 0, ht: 0, req: 0, rosSet: new Set(), rosSum: 0, silos: {} };
                 
-                aggSilos[c][inv].calls += calls;
-                aggSilos[c][inv].ht += (calls * aht);
-
-                // Guardar Roster único por día y campaña
-                let rosKey = d + '|' + c;
-                if (!rosterDiarioCampana[rosKey]) {
-                    rosterDiarioCampana[rosKey] = ros;
+                aggInter[inv].calls += calls;
+                aggInter[inv].ht += (calls * aht);
+                
+                let rosKey = c + '|' + d;
+                if (!aggInter[inv].rosSet.has(rosKey)) {
+                    aggInter[inv].rosSet.add(rosKey);
+                    aggInter[inv].rosSum += rosInter;
                 }
+
+                if (!rosterDiarioCampana[rosKey]) {
+                    rosterDiarioCampana[rosKey] = rosDia; // Captura el total de agentes (incluso descansos) para el KPI
+                }
+
+                if (!aggInter[inv].silos[c]) aggInter[inv].silos[c] = { calls: 0, ht: 0 };
+                aggInter[inv].silos[c].calls += calls;
+                aggInter[inv].silos[c].ht += (calls * aht);
             }
 
-            const numDias = uniqueFechas.size || 1;
-            const esVistaSemanal = numDias > 1;
-            
-            // Actualizar KPIs Top
             document.getElementById('kpiCalls').innerText = totalCallsGlobal.toLocaleString();
             document.getElementById('kpiAht').innerText = formatAHT(totalCallsGlobal > 0 ? Math.round(totalHTGlobal / totalCallsGlobal) : 0);
 
-            let interCalls = {};
-            let interAhtSum = {};
-            let interFteReq = {};
-            const todosIntervalos = Array.from(selectedIntervalos).sort();
+            const numDias = fechasSet.size || 1;
+            const todosIntervalos = Object.keys(aggInter).sort();
+            const esVistaSemanal = numDias > 1;
 
-            // Inicializar diccionarios
-            todosIntervalos.forEach(inv => {
-                interCalls[inv] = 0;
-                interAhtSum[inv] = { ht: 0, c: 0 };
-                interFteReq[inv] = 0;
-            });
+            if (forecastMode === 'general') {
+                const btn = document.getElementById('btnProcesar');
+                if(btn) { btn.disabled = true; btn.innerText = "⏳ SUMANDO CANALES..."; }
 
-            // 3. Cálculos Matemáticos (Erlang C Silos)
-            for (let c in aggSilos) {
-                for (let inv in aggSilos[c]) {
-                    if(!interFteReq[inv] && interFteReq[inv] !== 0) continue; // Si no está en el filtro, ignorar
+                const getCanalData = async (canalStr) => {
+                    const dfC = dfFiltered.filter(r => r.Canal === canalStr);
+                    if (dfC.length === 0) return { req: 0, disp: 0 };
 
-                    let callsSilo = aggSilos[c][inv].calls;
-                    let htSilo = aggSilos[c][inv].ht;
+                    let totalReqSum = 0;
+                    let localFechas = new Set();
+                    
+                    dfC.forEach(r => localFechas.add(String(getProp(r, ['Fecha'], '')).split(' ')[0]));
+                    let nDias = localFechas.size || 1;
+                    
+                    todosIntervalos.forEach(inter => {
+                        let interReq = 0;
+                        localFechas.forEach(d => {
+                            let dayReq = 0;
+                            dfC.forEach(r => {
+                                if(String(getProp(r, ['Intervalo'], '00:00')) === inter && String(getProp(r, ['Fecha'], '')).split(' ')[0] === d) {
+                                    let calls = Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
+                                    let req = Number(getProp(r, ['Agentes_Requeridos'], 0)) || 0;
+                                    if (calls < 0.1) req = 0;
+                                    dayReq += req;
+                                }
+                            });
+                            interReq += dayReq;
+                        });
+                        totalReqSum += (interReq / nDias);
+                    });
+
+                    // Área Volumétrica Silos
+                    const horasCanal = totalReqSum * 0.5;
+                    const factorDes = usarNocturnoActual ? (7.0/5.0) : (7.0/6.0);
+                    const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
+                    const factorAsistencia = Math.max(0.01, 1.0 - (mermaValLocal / 100.0));
+
+                    let hcReqNomina = Math.ceil(((horasCanal / durJornada) * factorDes) / factorAsistencia);
+
+                    let hcDisp = 0;
+                    const uniqueCampChannel = [...new Set(dfC.map(r => r.Campaña + '|' + (r.Canal || '')))];
+                    uniqueCampChannel.forEach(cc => {
+                        const row = dfC.find(r => (r.Campaña + '|' + (r.Canal || '')) === cc);
+                        if (row) hcDisp += esVistaSemanal ? (Number(row.Total_Roster_Campana) || 0) : (Number(row.Total_Roster_Dia) || 0);
+                    });
+
+                    return { req: hcReqNomina, disp: hcDisp };
+                };
+
+                Promise.all([
+                    getCanalData('Inbound'),
+                    getCanalData('Outbound'),
+                    getCanalData('Chat')
+                ]).then(results => {
+                    if(btn) { btn.disabled = false; btn.innerText = "▶ RUN PLAN"; }
+
+                    const hcReqInbound = results[0] ? results[0].req : 0;
+                    const hcDispInbound = results[0] ? results[0].disp : 0;
+                    
+                    const hcReqOutbound = results[1] ? results[1].req : 0;
+                    const hcDispOutbound = results[1] ? results[1].disp : 0;
+                    
+                    const hcReqChat = results[2] ? results[2].req : 0;
+                    const hcDispChat = results[2] ? results[2].disp : 0;
+
+                    const totalReqGlobal = hcReqInbound + hcReqOutbound + hcReqChat;
+                    const totalDispGlobal = hcDispInbound + hcDispOutbound + hcDispChat;
+
+                    document.getElementById('kpiHcRequeridoTitle').innerText = "Nómina a Contratar (HC)";
+                    document.getElementById('kpiHcRequerido').innerText = totalReqGlobal.toLocaleString() + ' HC';
+                    document.getElementById('kpiHcRequeridoSub').innerHTML = `Erlang C (Silos) + Shrinkage`;
+                    
+                    document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Actual (Roster)" : "Plantilla de Hoy";
+                    document.getElementById('kpiHcRoster').innerText = totalDispGlobal.toLocaleString() + ' HC';
+
+                    const gapTotal = totalDispGlobal - totalReqGlobal;
+                    const gapEl = document.getElementById('kpiHcGap');
+                    if (gapTotal > 0) {
+                        gapEl.innerText = `+${gapTotal} Sobran`;
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
+                    } else if (gapTotal < 0) {
+                        gapEl.innerText = `${gapTotal} Faltan`;
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
+                    } else {
+                        gapEl.innerText = `✓ Balanceado`;
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
+                    }
+
+                    document.getElementById('tableHeaderRow').innerHTML = `
+                        <th class="py-3.5 px-4 text-left">Canal Operativo</th>
+                        <th class="py-3.5 px-4 text-brand-primary">Nómina a Contratar</th>
+                        <th class="py-3.5 px-4 text-brand-accentEmerald">Nómina Roster</th>
+                        <th class="py-3.5 px-4 text-center">Delta (Gap)</th>
+                    `;
+
+                    const tbody = document.getElementById('intervalTableBody');
+                    tbody.innerHTML = '';
+                    
+                    const channels = [
+                        { name: '🎯 Inbound', req: hcReqInbound, disp: hcDispInbound },
+                        { name: '🚀 Outbound', req: hcReqOutbound, disp: hcDispOutbound },
+                        { name: '💬 Chat', req: hcReqChat, disp: hcDispChat },
+                        { name: '🌐 TOTAL', req: totalReqGlobal, disp: totalDispGlobal }
+                    ];
+
+                    channels.forEach(ch => {
+                        const gap = ch.disp - ch.req;
+                        let gapHtml = gap > 0 ? `<span class="bg-[#34D399]/20 text-[#34D399] px-2 py-0.5 rounded-md font-bold">+${gap}</span>` : 
+                                      gap < 0 ? `<span class="bg-[#FB7185]/20 text-[#FB7185] px-2 py-0.5 rounded-md font-bold">${gap}</span>` : 
+                                      `<span class="text-slate-500 font-bold">0</span>`;
+
+                        let rowClass = ch.name === '🌐 TOTAL' ? "bg-[#1E293B] font-bold border-t border-[#334155]" : "hover:bg-[#1E293B] transition-colors";
+
+                        tbody.innerHTML += `
+                            <tr class="${rowClass}">
+                                <td class="py-3.5 px-4 font-bold text-white text-left">${ch.name}</td>
+                                <td class="py-3.5 px-4 text-brand-primary font-black text-sm">${ch.req.toLocaleString()}</td>
+                                <td class="py-3.5 px-4 text-brand-accentEmerald font-black text-sm">${ch.disp.toLocaleString()}</td>
+                                <td class="py-3.5 px-4 text-center">${gapHtml}</td>
+                            </tr>
+                        `;
+                    });
+
+                    document.getElementById('contGapChart').classList.add('hidden');
+                    document.getElementById('contGeneralChart').classList.remove('hidden');
+
+                    if(generalChartInstance) generalChartInstance.destroy();
+                    const ctxGen = document.getElementById('generalChart').getContext('2d');
+                    generalChartInstance = new Chart(ctxGen, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Inbound', 'Outbound', 'Chat'],
+                            datasets: [
+                                { label: 'HC Requerido', data: [hcReqInbound, hcReqOutbound, hcReqChat], backgroundColor: '#A78BFA', borderRadius: 4 },
+                                { label: 'HC Disponible', data: [hcDispInbound, hcDispOutbound, hcDispChat], backgroundColor: '#34D399', borderRadius: 4 }
+                            ]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            plugins: {
+                                legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } },
+                                tooltip: { backgroundColor: '#111827', titleColor: '#F8FAFC', bodyColor: '#cbd5e1', borderColor: '#1F2937', borderWidth: 1 }
+                            },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 11, weight: 'bold' } } },
+                                y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono' } }, beginAtZero: true }
+                            }
+                        }
+                    });
+
+                    return; 
+                });
+                return; 
+            }
+
+            let llamadasAgrupadasGlobal = [];
+            let ahtAgrupadoGlobal = [];
+            let fteAgrupadoGlobal = [];
+            let rosterAgrupadoGlobal = [];
+
+            for (let i = 0; i < todosIntervalos.length; i++) {
+                let inter = todosIntervalos[i];
+                let invData = aggInter[inter];
+
+                let interCallSum = 0;
+                let interHtSum = 0;
+                let interReqSum = 0;
+
+                for (let c in invData.silos) {
+                    let callsSilo = invData.silos[c].calls;
+                    let htSilo = invData.silos[c].ht;
                     
                     let avgLlam = callsSilo / numDias;
                     let avgAht = callsSilo > 0 ? htSilo / callsSilo : 180;
-                    
                     let aht_efectivo = forecastMode === 'chat' ? avgAht / Math.max(1.0, concurrenciaVal) : avgAht;
                     
                     let fteReq = 0;
-                    // Filtro Fantasma: ignorar si entra menos de 0.05 llamadas
                     if (avgLlam >= 0.05) { 
                         let a_erlang = (avgLlam * aht_efectivo) / 1800.0;
                         fteReq = calcular_agentes_requeridos_erlang_c_js(a_erlang, aht_efectivo, targetTimeObj, targetSlObj);
                     }
-
-                    interCalls[inv] += avgLlam;
-                    interAhtSum[inv].ht += htSilo;
-                    interAhtSum[inv].c += callsSilo;
-                    interFteReq[inv] += fteReq;
+                    
+                    interCallSum += avgLlam;
+                    interHtSum += (avgLlam * avgAht); // Sum of averages
+                    interReqSum += fteReq;
                 }
+
+                llamadasAgrupadasGlobal.push(interCallSum);
+                ahtAgrupadoGlobal.push(interCallSum > 0 ? interHtSum / interCallSum : 180);
+                fteAgrupadoGlobal.push(interReqSum);
+                rosterAgrupadoGlobal.push(Math.round(invData.rosSum / numDias));
             }
 
-            // Preparar vectores para gráfica y tabla
-            let plotCalls = [];
-            let plotAht = [];
-            let plotFteReq = [];
+            const reqAgrupadoGlobalParaPlot = fteAgrupadoGlobal.map(val => Math.ceil(val));
             
-            todosIntervalos.forEach(inv => {
-                plotCalls.push(Math.round(interCalls[inv]));
-                let htObj = interAhtSum[inv];
-                plotAht.push(htObj.c > 0 ? htObj.ht / htObj.c : 180);
-                plotFteReq.push(Math.ceil(interFteReq[inv])); // Redondeo de sillas requeridas
-            });
-
-            // 4. Cálculo de HC Actual Promedio (Roster KPI)
+            // 4. Cálculo de HC Actual Promedio Bruto (Roster KPI)
             let totalRosterSumaHistorica = 0;
             for (let key in rosterDiarioCampana) {
                 totalRosterSumaHistorica += rosterDiarioCampana[key];
             }
             let hcActualDisplay = Math.round(totalRosterSumaHistorica / numDias);
 
-            // Roster por intervalo: recuperando la curva original
-            let plotRoster = new Array(todosIntervalos.length).fill(0);
-            todosIntervalos.forEach((inter, idx) => {
-                let interRosSum = 0;
-                uniqueFechas.forEach(d => {
-                    let uniqueCamps = new Set();
-                    dfFiltered.forEach(r => {
-                        let camp = String(getProp(r, ['Campaña', 'Campana'], 'General'));
-                        let f = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
-                        let i = String(getProp(r, ['Intervalo'], '00:00'));
-                        
-                        if(f === d && i === inter && !uniqueCamps.has(camp)) {
-                            uniqueCamps.add(camp);
-                            interRosSum += (Number(getProp(r, ['HC_Actual_Roster'], 0)) || 0);
-                        }
-                    });
-                });
-                plotRoster[idx] = Math.round(interRosSum / numDias);
-            });
-
-            // 5. Cálculo de Nómina a Contratar (Área)
             const factorDescanso = usarNocturnoActual ? (7.0 / 5.0) : (7.0 / 6.0);
             const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
             const factorAsistencia = Math.max(0.01, 1.0 - (mermaValLocal / 100.0));
 
-            const totalFteIntervals = plotFteReq.reduce((a, b) => a + b, 0);
+            const totalFteIntervals = fteAgrupadoGlobal.reduce((a, b) => a + b, 0);
             const totalHorasRequeridas = totalFteIntervals * 0.5;
             const hcNominaCalculado = Math.ceil(((totalHorasRequeridas / durJornada) * factorDescanso) / factorAsistencia);
-
-            // Actualizar KPIs Bottom
+            
             document.getElementById('kpiHcRequeridoTitle').innerText = "Nómina a Contratar (HC)";
             document.getElementById('kpiHcRequerido').innerText = hcNominaCalculado.toLocaleString() + ' HC';
-            document.getElementById('kpiHcRequeridoSub').innerHTML = `Erlang C (Silos) + Shrinkage`;
 
             document.getElementById('kpiHcRosterTitle').innerText = "HC Actual (Roster)";
             document.getElementById('kpiHcRoster').innerText = hcActualDisplay.toLocaleString() + ' HC';
@@ -1114,8 +1260,8 @@
                 gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
             }
 
-            // 6. Actualizar Tabla
             let legendInteractions = forecastMode === 'outbound' ? 'Contactos (FCST)' : forecastMode === 'chat' ? 'Mensajes (FCST)' : 'Llamadas (FCST)';
+
             document.getElementById('tableHeaderRow').innerHTML = `
                 <th class="py-3.5 px-4 text-left">Intervalo</th>
                 <th class="py-3.5 px-4">${legendInteractions}</th>
@@ -1129,10 +1275,10 @@
             tbody.innerHTML = '';
             
             todosIntervalos.forEach((inter, idx) => {
-                const rowLlamadas = plotCalls[idx];
-                const rowAhtSegs = plotAht[idx];
-                const rowReq = plotFteReq[idx]; 
-                const rowRoster = plotRoster[idx]; 
+                const rowLlamadas = Math.round(llamadasAgrupadasGlobal[idx]);
+                const rowAhtSegs = ahtAgrupadoGlobal[idx];
+                const rowReq = reqAgrupadoGlobalParaPlot[idx] || 0; 
+                const rowRoster = rosterAgrupadoGlobal[idx] || 0;
                 
                 const gap = rowRoster - rowReq;
                 let gapHtml = gap > 0 ? `<span class="bg-[#34D399]/20 text-[#34D399] px-2 py-0.5 rounded-md font-bold">+${gap}</span>` : 
@@ -1155,7 +1301,6 @@
                 tbody.appendChild(tr);
             });
 
-            // 7. Renderizar Gráfica
             document.getElementById('contGapChart').classList.remove('hidden');
             if (document.getElementById('contGeneralChart')) document.getElementById('contGeneralChart').classList.add('hidden');
 
@@ -1167,8 +1312,8 @@
                 data: {
                     labels: todosIntervalos,
                     datasets: [
-                        { label: 'HC Requerido', data: plotFteReq, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
-                        { label: 'HC Actual', data: plotRoster, borderColor: '#34D399', backgroundColor: '#34D399', fill: false, tension: 0.4, borderWidth: 2, borderDash: [5, 5], pointRadius: 0, pointHoverRadius: 6 }
+                        { label: 'HC Requerido', data: reqAgrupadoGlobalParaPlot, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
+                        { label: 'HC Actual', data: rosterAgrupadoGlobal, borderColor: '#34D399', backgroundColor: '#34D399', fill: false, tension: 0.4, borderWidth: 2, borderDash: [5, 5], pointRadius: 0, pointHoverRadius: 6 }
                     ]
                 },
                 options: { 
@@ -1211,7 +1356,6 @@
             const headers = ["Campana", "Canal", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Volumen", "AHT_HH_MM_SS", "HC_Requerido", "HC_Actual", "Gap"];
             const csvRows = [headers.join(",")];
             
-            // Regenerar cálculo limpio para CSV respetando filtros
             const targetSlObj = parseFloat(document.getElementById('targetSl') ? document.getElementById('targetSl').value : 80) || 80;
             const targetTimeObj = parseFloat(document.getElementById('targetTime') ? document.getElementById('targetTime').value : 20) || 20;
 
