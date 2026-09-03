@@ -146,7 +146,7 @@
                         </div>
                         
                         <div class="flex flex-col group hidden col-span-2" id="contConcurrencia">
-                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentCyan transition-colors">Concurrencia (Chats)</label>
+                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentCyan transition-colors">Concurrencia (Chats por Agente)</label>
                             <input type="number" id="concurrencia" value="4" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentCyan font-mono-num font-bold focus:border-brand-accentCyan focus:ring-1 focus:ring-brand-accentCyan focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
                         </div>
                     </div>
@@ -282,7 +282,7 @@
                 <div class="glass-panel glass-panel-hover p-5 rounded-xl border-t-2 border-t-brand-accentViolet shadow-[0_4px_15px_-5px_rgba(167,139,250,0.15)] relative overflow-hidden flex flex-col justify-between">
                     <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-accentViolet/10 rounded-full blur-xl pointer-events-none"></div>
                     <div class="flex justify-between items-start relative z-10">
-                        <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">HC Requerido</p>
+                        <p id="kpiHcRequeridoTitle" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">HC Requerido</p>
                         <div class="p-1.5 bg-brand-accentViolet/10 rounded-lg text-brand-accentViolet border border-brand-accentViolet/20 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
                         </div>
@@ -359,7 +359,7 @@
         let globalData = [];
         let gapChartInstance = null; 
         let generalChartInstance = null;
-
+        
         let allMesesOptions = [];
         let allSemanasOptions = [];
         let allCampanasOptions = [];
@@ -483,7 +483,7 @@
                     document.getElementById('kpiCallsTitle').innerText = "Mensajes (Periodo)";
                 }
             }
-            
+
             fetchLatestData(mode);
         }
 
@@ -1098,7 +1098,7 @@
 
                     document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido";
                     document.getElementById('kpiHcRequerido').innerText = totalReqGlobal.toLocaleString() + ' HC';
-                    document.getElementById('kpiHcRequeridoSub').innerHTML = `Erlang C (Pico Máximo)`;
+                    document.getElementById('kpiHcRequeridoSub').innerHTML = `Erlang C Puro (Sin Merma)`;
                     
                     document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Actual (Roster)" : "Plantilla de Hoy";
                     document.getElementById('kpiHcRoster').innerText = totalDispGlobal.toLocaleString() + ' HC';
@@ -1107,20 +1107,20 @@
                     const gapEl = document.getElementById('kpiHcGap');
                     if (gapTotal > 0) {
                         gapEl.innerText = `+${gapTotal} Sobran`;
-                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
                     } else if (gapTotal < 0) {
                         gapEl.innerText = `${gapTotal} Faltan`;
-                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
                     } else {
                         gapEl.innerText = `✓ Balanceado`;
-                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
                     }
 
                     document.getElementById('tableHeaderRow').innerHTML = `
                         <th class="py-3.5 px-4 text-left">Canal Operativo</th>
                         <th class="py-3.5 px-4 text-brand-primary">HC Requerido</th>
                         <th class="py-3.5 px-4 text-brand-accentEmerald">HC Actual</th>
-                        <th class="py-3.5 px-4 text-center">Delta (Gap)</th>
+                        <th class="py-3.5 px-4 text-center">Gap</th>
                     `;
 
                     const tbody = document.getElementById('intervalTableBody');
@@ -1240,7 +1240,7 @@
             
             document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido";
             document.getElementById('kpiHcRequerido').innerText = picoReq.toLocaleString() + ' HC';
-            document.getElementById('kpiHcRequeridoSub').innerHTML = `Erlang C Puro (Pico Máximo)`;
+            document.getElementById('kpiHcRequeridoSub').innerHTML = `Pico Máximo Erlang C (Sin Merma)`;
 
             let legendInteractions = forecastMode === 'outbound' ? 'Contactos (FCST)' : forecastMode === 'chat' ? 'Mensajes (FCST)' : 'Llamadas (FCST)';
 
@@ -1294,8 +1294,8 @@
                 data: {
                     labels: todosIntervalos,
                     datasets: [
-                        { label: 'HC Requerido (Motor)', data: reqAgrupadoGlobalParaPlot, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
-                        { label: 'HC Actual (Roster)', data: rosterAgrupadoGlobal, borderColor: '#34D399', backgroundColor: '#34D399', fill: false, tension: 0.4, borderWidth: 2, borderDash: [5, 5], pointRadius: 0, pointHoverRadius: 6 }
+                        { label: 'HC Requerido', data: reqAgrupadoGlobalParaPlot, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
+                        { label: 'HC Actual', data: rosterAgrupadoGlobal, borderColor: '#34D399', backgroundColor: '#34D399', fill: false, tension: 0.4, borderWidth: 2, borderDash: [5, 5], pointRadius: 0, pointHoverRadius: 6 }
                     ]
                 },
                 options: { 
@@ -1319,7 +1319,7 @@
             });
 
             document.getElementById('kpiHcRosterTitle').innerText = "HC Actual (Roster)";
-            document.getElementById('kpiHcRosterSub').innerText = esVistaSemanal ? "Total de agentes contratados en Roster" : "Descuenta descansos (DD-DD) del día";
+            document.getElementById('kpiHcRosterSub').innerText = "Total de agentes contratados";
             document.getElementById('kpiHcRoster').innerText = totalRosterHC.toLocaleString() + ' HC';
             
             const gapTotal = totalRosterHC - picoReq;
@@ -1331,7 +1331,7 @@
                 gapEl.innerText = `${gapTotal} Faltan`;
                 gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
             } else {
-                gapEl.innerText = `✓ Balanceado`;
+                gapEl.innerText = `✓ OK`;
                 gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
             }
         }
@@ -1341,7 +1341,7 @@
                 alert("No hay datos cargados para exportar.");
                 return;
             }
-            const headers = ["Campana", "Canal", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Volumen", "AHT_HH_MM_SS", "Agentes_Requeridos", "HC_Actual_Roster", "Factor_Reforecast"];
+            const headers = ["Campana", "Canal", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Volumen", "AHT_HH_MM_SS", "HC_Requerido", "HC_Actual", "Factor_Reforecast"];
             const csvRows = [headers.join(",")];
             globalData.forEach(row => {
                 const values = [
