@@ -146,7 +146,7 @@
                         </div>
                         
                         <div class="flex flex-col group hidden col-span-2" id="contConcurrencia">
-                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentCyan transition-colors">Concurrencia (Chats por Agente)</label>
+                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentCyan transition-colors">Concurrencia (Chats)</label>
                             <input type="number" id="concurrencia" value="4" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentCyan font-mono-num font-bold focus:border-brand-accentCyan focus:ring-1 focus:ring-brand-accentCyan focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
                         </div>
                     </div>
@@ -189,7 +189,7 @@
             <div id="contInfoGeneral" class="hidden pt-6">
                 <div class="p-4 bg-brand-primary/10 border border-brand-primary/30 rounded-xl">
                     <p class="text-[11px] text-brand-primary font-bold uppercase tracking-widest mb-2">Vista Consolidada Activa</p>
-                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>El sistema está calculando el requerimiento campaña por campaña de forma independiente (silos) y sumando los resultados.</p>
+                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>El sistema calcula el requerimiento campaña por campaña de forma independiente (silos) y suma los resultados.</p>
                 </div>
             </div>
 
@@ -205,7 +205,7 @@
                         <span style="font-size: 16px;">🎯</span>
                     </div>
                     <div>
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Filtros Operativos en Cascada</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Filtros Operativos</p>
                         <p id="tableSelectionLabel" class="text-xs text-slate-200 font-medium">Selecciona campaña, meses, semanas, fechas e intervalos</p>
                     </div>
                 </div>
@@ -679,7 +679,7 @@
             if(gapChartInstance) gapChartInstance.destroy();
         }
 
-        // SISTEMA DE FILTROS EN CASCADA (FAST O(N))
+        // SISTEMA DE FILTROS INDESTRUCTIBLE
         function inicializarFiltrosMultiples() {
             allMesesOptions = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).sort(ordenarMesesCronologicamente);
             allSemanasOptions = [...new Set(globalData.map(i => getWeekNumber(getProp(i, ['Fecha'], ''))))].filter(Boolean).sort();
@@ -693,8 +693,18 @@
             selectedFechas = new Set(allFechasOptions);
             selectedIntervalos = new Set(allIntervalosOptions);
 
+            renderAllMenus();
+        }
+
+        function renderAllMenus() {
+            renderMenuOptions('Mes', allMesesOptions, selectedMeses);
+            renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
+            renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
+            renderMenuOptions('Fecha', allFechasOptions, selectedFechas);
+            renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
+            
             calcularTotalesFiltros();
-            updateFilterOptions();
+            actualizarTextosBotones();
         }
 
         function calcularTotalesFiltros() {
@@ -703,35 +713,6 @@
             totalesFiltros.C = allCampanasOptions.length;
             totalesFiltros.F = allFechasOptions.length;
             totalesFiltros.I = allIntervalosOptions.length;
-        }
-
-        function updateFilterOptions(changedType) {
-            let validRows = globalData;
-            
-            let validS = allSemanasOptions;
-            let validF = allFechasOptions;
-            
-            if (selectedMeses.size > 0 && selectedMeses.size < allMesesOptions.length) {
-                validRows = validRows.filter(r => selectedMeses.has(String(getProp(r, ['Mes'], ''))));
-                validS = [...new Set(validRows.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))))].filter(Boolean).sort();
-                validF = [...new Set(validRows.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
-            }
-            
-            if (selectedSemanas.size > 0 && selectedSemanas.size < allSemanasOptions.length) {
-                validRows = validRows.filter(r => selectedSemanas.has(getWeekNumber(getProp(r, ['Fecha'], ''))));
-                validF = [...new Set(validRows.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
-            }
-
-            // Always render static independent categories to avoid 0/0 trap
-            if (changedType !== 'Mes') renderMenuOptions('Mes', allMesesOptions, selectedMeses);
-            if (changedType !== 'Campana') renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
-            if (changedType !== 'Intervalo') renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
-            
-            // Dynamic cascade
-            if (changedType !== 'Semana') renderMenuOptions('Semana', validS, selectedSemanas);
-            if (changedType !== 'Fecha') renderMenuOptions('Fecha', validF, selectedFechas);
-            
-            actualizarTextosBotones();
         }
 
         function renderMenuOptions(type, optionsToRender, setRef) {
@@ -764,11 +745,7 @@
                     if (e.target.checked) setRef.add(opt); 
                     else setRef.delete(opt);
                     
-                    if (type === 'Mes' || type === 'Semana') {
-                        updateFilterOptions(type);
-                    } else {
-                        actualizarTextosBotones();
-                    }
+                    actualizarTextosBotones();
                     debouncedActualizarGrafica();
                 });
 
@@ -784,36 +761,17 @@
 
         function selectAllFilter(type, selectAll) {
             let setRef;
-            let currentOptions = [];
+            let allOptions;
+            if (type === 'Mes') { setRef = selectedMeses; allOptions = allMesesOptions; }
+            else if (type === 'Semana') { setRef = selectedSemanas; allOptions = allSemanasOptions; }
+            else if (type === 'Campana') { setRef = selectedCampanas; allOptions = allCampanasOptions; }
+            else if (type === 'Fecha') { setRef = selectedFechas; allOptions = allFechasOptions; }
+            else { setRef = selectedIntervalos; allOptions = allIntervalosOptions; }
             
-            if (type === 'Mes') { setRef = selectedMeses; currentOptions = allMesesOptions; }
-            else if (type === 'Campana') { setRef = selectedCampanas; currentOptions = allCampanasOptions; }
-            else if (type === 'Intervalo') { setRef = selectedIntervalos; currentOptions = allIntervalosOptions; }
-            else if (type === 'Semana') { 
-                setRef = selectedSemanas; 
-                let validRows = selectedMeses.size > 0 ? globalData.filter(r => selectedMeses.has(String(getProp(r, ['Mes'], '')))) : globalData;
-                currentOptions = [...new Set(validRows.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))))].filter(Boolean);
-            }
-            else if (type === 'Fecha') { 
-                setRef = selectedFechas;
-                let validRows = globalData;
-                if (selectedMeses.size > 0) validRows = validRows.filter(r => selectedMeses.has(String(getProp(r, ['Mes'], ''))));
-                if (selectedSemanas.size > 0) validRows = validRows.filter(r => selectedSemanas.has(getWeekNumber(getProp(r, ['Fecha'], ''))));
-                currentOptions = [...new Set(validRows.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
-            }
+            if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
             
-            if (selectAll) {
-                currentOptions.forEach(o => setRef.add(o));
-            } else {
-                setRef.clear();
-            }
-            
-            if (type === 'Mes' || type === 'Semana') updateFilterOptions(type);
-            else {
-                renderMenuOptions(type, currentOptions, setRef);
-                actualizarTextosBotones();
-            }
-            
+            renderMenuOptions(type, allOptions, setRef);
+            actualizarTextosBotones();
             debouncedActualizarGrafica();
         }
 
@@ -823,7 +781,8 @@
             selectedCampanas = new Set(allCampanasOptions);
             selectedFechas = new Set(allFechasOptions);
             selectedIntervalos = new Set(allIntervalosOptions);
-            updateFilterOptions();
+
+            renderAllMenus();
             debouncedActualizarGrafica();
         }
 
@@ -864,7 +823,8 @@
 
         function toggleTableInterval(inter) {
             if (selectedIntervalos.has(inter)) selectedIntervalos.delete(inter); else selectedIntervalos.add(inter);
-            updateFilterOptions('Intervalo');
+            renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
+            actualizarTextosBotones();
             debouncedActualizarGrafica();
         }
 
@@ -895,7 +855,7 @@
                 if (f.campanas && f.campanas.length > 0) selectedCampanas = new Set(f.campanas.filter(x => allCampanasOptions.includes(x)));
                 if (f.fechas && f.fechas.length > 0) selectedFechas = new Set(f.fechas.filter(x => allFechasOptions.includes(x)));
                 if (f.intervalos && f.intervalos.length > 0) selectedIntervalos = new Set(f.intervalos.filter(x => allIntervalosOptions.includes(x)));
-                updateFilterOptions();
+                renderAllMenus();
             }
         }
 
@@ -987,7 +947,6 @@
             let fechasSet = new Set();
             let totalCallsGlobal = 0;
             let totalHTGlobal = 0;
-            let rosterDiarioCampana = {};
 
             for (let i = 0; i < dfFiltered.length; i++) {
                 let r = dfFiltered[i];
@@ -998,7 +957,6 @@
                 let calls = Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
                 let aht = Number(getProp(r, ['AHT_Segundos'], 180)) || 180;
                 let rosInter = Number(getProp(r, ['HC_Actual_Roster'], 0)) || 0;
-                let rosDia = Number(getProp(r, ['Total_Roster_Dia', 'Total_Roster_Campana'], 0)) || 0;
 
                 fechasSet.add(d);
                 totalCallsGlobal += calls;
@@ -1013,10 +971,6 @@
                 if (!aggInter[inv].rosSet.has(rosKey)) {
                     aggInter[inv].rosSet.add(rosKey);
                     aggInter[inv].rosSum += rosInter;
-                }
-
-                if (!rosterDiarioCampana[rosKey]) {
-                    rosterDiarioCampana[rosKey] = rosDia; // Captura el total de agentes (incluso descansos) para el KPI
                 }
 
                 if (!aggInter[inv].silos[c]) aggInter[inv].silos[c] = { calls: 0, ht: 0 };
@@ -1062,7 +1016,6 @@
                         totalReqSum += (interReq / nDias);
                     });
 
-                    // Área Volumétrica Silos
                     const horasCanal = totalReqSum * 0.5;
                     const factorDes = usarNocturnoActual ? (7.0/5.0) : (7.0/6.0);
                     const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
@@ -1214,7 +1167,7 @@
                     }
                     
                     interCallSum += avgLlam;
-                    interHtSum += (avgLlam * avgAht); // Sum of averages
+                    interHtSum += (avgLlam * avgAht); 
                     interReqSum += fteReq;
                 }
 
@@ -1226,12 +1179,25 @@
 
             const reqAgrupadoGlobalParaPlot = fteAgrupadoGlobal.map(val => Math.ceil(val));
             
-            // 4. Cálculo de HC Actual Promedio Bruto (Roster KPI)
-            let totalRosterSumaHistorica = 0;
-            for (let key in rosterDiarioCampana) {
-                totalRosterSumaHistorica += rosterDiarioCampana[key];
-            }
-            let hcActualDisplay = Math.round(totalRosterSumaHistorica / numDias);
+            // 4. Cálculo de HC Actual Promedio Bruto (Roster KPI = Los 106 Fijos)
+            let rosterPorCampana = {};
+            globalData.forEach(r => {
+                let camp = String(getProp(r, ['Campaña', 'Campana'], 'General'));
+                let r_camp = Number(getProp(r, ['Total_Roster_Campana'], 0)) || 0;
+                let r_dia = Number(getProp(r, ['Total_Roster_Dia'], 0)) || 0;
+                let r_int = Number(getProp(r, ['HC_Actual_Roster'], 0)) || 0;
+                let max_val = Math.max(r_camp, r_dia, r_int);
+                
+                if (!rosterPorCampana[camp] || max_val > rosterPorCampana[camp]) {
+                    rosterPorCampana[camp] = max_val;
+                }
+            });
+
+            let totalRosterKPI = 0;
+            let activeCampaigns = new Set(dfFiltered.map(r => String(getProp(r, ['Campaña', 'Campana'], 'General'))));
+            activeCampaigns.forEach(camp => {
+                if(rosterPorCampana[camp]) totalRosterKPI += rosterPorCampana[camp];
+            });
 
             const factorDescanso = usarNocturnoActual ? (7.0 / 5.0) : (7.0 / 6.0);
             const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
@@ -1245,15 +1211,15 @@
             document.getElementById('kpiHcRequerido').innerText = hcNominaCalculado.toLocaleString() + ' HC';
 
             document.getElementById('kpiHcRosterTitle').innerText = "HC Actual (Roster)";
-            document.getElementById('kpiHcRoster').innerText = hcActualDisplay.toLocaleString() + ' HC';
+            document.getElementById('kpiHcRoster').innerText = totalRosterKPI.toLocaleString() + ' HC';
 
-            const gapTotal = hcActualDisplay - hcNominaCalculado;
+            const gapTotal = totalRosterKPI - hcNominaCalculado;
             const gapEl = document.getElementById('kpiHcGap');
             if (gapTotal > 0) {
                 gapEl.innerText = `+${gapTotal} Sobran`;
                 gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
             } else if (gapTotal < 0) {
-                gapEl.innerText = `${gapTotal} Faltan`;
+                gapEl.innerText = `${Math.abs(gapTotal)} Faltan`;
                 gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
             } else {
                 gapEl.innerText = `✓ OK`;
