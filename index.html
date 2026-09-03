@@ -106,7 +106,7 @@
 
                     <span id="tagModoOps" class="hidden text-[10px] bg-brand-primary/20 text-brand-primary border border-brand-primary/40 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider drop-shadow-md">Vista Operaciones</span>
                 </div>
-                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning (Área Volumétrica HC)</p>
+                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning (Erlang C Silos Puros)</p>
             </div>
         </div>
 
@@ -154,11 +154,11 @@
                     <div class="grid grid-cols-2 gap-4">
                         <div class="flex flex-col group">
                             <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentRose transition-colors">Shrinkage (%)</label>
-                            <input type="number" id="merma" value="30" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentRose font-mono-num font-bold focus:border-brand-accentRose focus:ring-1 focus:ring-brand-accentRose focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
+                            <input type="number" id="merma" value="20" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentRose font-mono-num font-bold focus:border-brand-accentRose focus:ring-1 focus:ring-brand-accentRose focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
                         </div>
                         <div class="flex flex-col group">
                             <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentAmber transition-colors">Jornada (Hrs)</label>
-                            <input type="number" id="duracionJornada" value="8" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentAmber font-mono-num font-bold focus:border-brand-accentAmber focus:ring-1 focus:ring-brand-accentAmber focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
+                            <input type="number" id="duracionJornada" value="6" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentAmber font-mono-num font-bold focus:border-brand-accentAmber focus:ring-1 focus:ring-brand-accentAmber focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
                         </div>
                     </div>
 
@@ -189,7 +189,7 @@
             <div id="contInfoGeneral" class="hidden pt-6">
                 <div class="p-4 bg-brand-primary/10 border border-brand-primary/30 rounded-xl">
                     <p class="text-[11px] text-brand-primary font-bold uppercase tracking-widest mb-2">Vista Consolidada Activa</p>
-                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>El sistema está calculando el requerimiento de forma nativa para evitar la inflación por silos.</p>
+                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>El sistema está calculando el requerimiento campaña por campaña de forma independiente (silos) y sumando los resultados.</p>
                 </div>
             </div>
 
@@ -313,7 +313,7 @@
                     </div>
                     <div class="relative z-10 mt-2">
                         <p id="kpiHcRequerido" class="text-3xl font-black font-mono-num text-brand-accentViolet drop-shadow-[0_0_8px_rgba(167,139,250,0.3)]">0 HC</p>
-                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium leading-tight">Área Volumétrica</p>
+                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium leading-tight">Erlang C (Silos) + Shrinkage</p>
                     </div>
                 </div>
 
@@ -364,8 +364,8 @@
                                 <th class="py-3.5 px-4">Intervalo</th>
                                 <th class="py-3.5 px-4" id="colHeaderCalls">Llamadas (FCST)</th>
                                 <th class="py-3.5 px-4">AHT (HH:MM:SS)</th>
-                                <th class="py-3.5 px-4 text-brand-accentCyan">HC Requerido</th>
-                                <th class="py-3.5 px-4 text-brand-accentEmerald">HC Actual</th>
+                                <th class="py-3.5 px-4 text-brand-accentCyan">HC Requerido (Motor)</th>
+                                <th class="py-3.5 px-4 text-brand-accentEmerald">HC Actual (Roster)</th>
                                 <th class="py-3.5 px-4 text-center">Gap</th>
                             </tr>
                         </thead>
@@ -379,43 +379,11 @@
         </main>
     </div>
 
-    <!-- Funciones Matemáticas Nativas (Erlang C en JS) -->
     <script>
-        function erlang_c_sl_optimizado(A, N, AHT, target_time) {
-            if (N <= A || A <= 0 || N <= 0) return 0.0;
-            let sum_terms = 1.0;
-            let current_term = 1.0;
-            let int_N = Math.min(Math.floor(N), 1000);
-            for (let k = 1; k < int_N; k++) {
-                current_term *= (A / k);
-                sum_terms += current_term;
-            }
-            let last_term = current_term * (A / N) / (1.0 - (A / N));
-            let pw = last_term / (sum_terms + last_term);
-            let intensity = N - A;
-            let sl = 1.0 - (pw * Math.exp(-intensity * (target_time / AHT)));
-            return Math.max(0.0, Math.min(100.0, sl * 100.0));
-        }
-
-        function calcular_agentes_requeridos_erlang_c_js(A, aht, target_time, target_sl) {
-            if (A <= 0 || aht <= 0) return 0;
-            let n = Math.max(1, Math.floor(A) + 1);
-            if (A > 50) n = Math.max(n, Math.floor(A + Math.sqrt(A)));
-            while (n < 3000) {
-                if (erlang_c_sl_optimizado(A, n, aht, target_time) >= target_sl) return n;
-                n++;
-            }
-            return n;
-        }
-
         let globalData = [];
         let gapChartInstance = null; 
         let generalChartInstance = null;
         
-        let configMerma = { inbound: 30, outbound: 30, chat: 30 };
-        let configNocturno = { inbound: false, outbound: false, chat: false };
-        let configJornada = { inbound: 8, outbound: 8, chat: 8 };
-
         let allMesesOptions = [];
         let allSemanasOptions = [];
         let allCampanasOptions = [];
@@ -438,14 +406,6 @@
             "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
             "julio": 7, "agosto": 8, "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12
         };
-
-        function guardarEstadoParametros() {
-            if (forecastMode !== 'general') {
-                configMerma[forecastMode] = document.getElementById('merma').value;
-                configNocturno[forecastMode] = document.getElementById('chkNocturno').checked;
-                configJornada[forecastMode] = document.getElementById('duracionJornada').value;
-            }
-        }
 
         function ordenarMesesCronologicamente(a, b) {
             const partsA = a.toLowerCase().trim().split(' ');
@@ -545,21 +505,6 @@
                     document.getElementById('contTargetTime').style.display = 'block';
                     document.getElementById('contConcurrencia').classList.remove('hidden');
                     document.getElementById('kpiCallsTitle').innerText = "Mensajes (Periodo)";
-                }
-            }
-            
-            if (mode !== 'general') {
-                if (configMerma[mode] !== undefined) {
-                    const mermaInput = document.getElementById('merma');
-                    if (mermaInput) mermaInput.value = configMerma[mode];
-                }
-                if (configNocturno[mode] !== undefined) {
-                    const chkNoc = document.getElementById('chkNocturno');
-                    if (chkNoc) chkNoc.checked = configNocturno[mode];
-                }
-                if (configJornada[mode] !== undefined) {
-                    const jorInput = document.getElementById('duracionJornada');
-                    if (jorInput) jorInput.value = configJornada[mode];
                 }
             }
 
@@ -923,7 +868,7 @@
             });
         }
 
-        // Cascada estricta para evitar datos cruzados
+        // Cascada estricta
         function intersectAndRender(type, availSet, selectedSet, allOptions) {
             let toDelete = [];
             for (let val of selectedSet) {
@@ -1086,12 +1031,8 @@
         async function actualizarGrafica() {
             const durJornada = parseFloat(document.getElementById('duracionJornada') ? document.getElementById('duracionJornada').value : 8) || 8;
             const usarNocturnoActual = document.getElementById('chkNocturno') ? document.getElementById('chkNocturno').checked : false;
-            
-            const targetSlObj = parseFloat(document.getElementById('targetSl') ? document.getElementById('targetSl').value : 80) || 80;
-            const targetTimeObj = parseFloat(document.getElementById('targetTime') ? document.getElementById('targetTime').value : 20) || 20;
-            const concurrenciaVal = parseFloat(document.getElementById('concurrencia') ? document.getElementById('concurrencia').value : 4) || 4;
 
-            // FILTRADO SUPER RÁPIDO O(N)
+            // Filtrado Ulttra Rápido O(N)
             const dfFiltered = [];
             for (let i = 0; i < globalData.length; i++) {
                 let item = globalData[i];
@@ -1144,12 +1085,11 @@
                 return;
             }
 
-            // AGREGADOR O(N) para matar la latencia
+            // Agrupador Hash O(N) para Silos
             let aggInter = {};
             let fechasSet = new Set();
             let totalCallsGlobal = 0;
             let totalHTGlobal = 0;
-            let canalSet = new Set();
 
             for (let i = 0; i < dfFiltered.length; i++) {
                 let r = dfFiltered[i];
@@ -1157,24 +1097,27 @@
                 let d = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
                 let camp = String(getProp(r, ['Campaña', 'Campana'], 'General'));
                 let ch = r.Canal || 'Inbound';
-                
+
                 fechasSet.add(d);
-                canalSet.add(ch);
 
                 let calls = Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
                 let aht = Number(getProp(r, ['AHT_Segundos'], 180)) || 180;
                 let ros = Number(getProp(r, ['HC_Actual_Roster'], 0)) || 0;
+                let req = Number(getProp(r, ['Agentes_Requeridos'], 0)) || 0;
+
+                // Filtro Fantasma: Si es menos de 0.1 llamadas reales, no requerimos FTE en la madrugada
+                if (calls < 0.1) req = 0;
 
                 totalCallsGlobal += calls;
                 totalHTGlobal += (calls * aht);
 
                 if (!aggInter[inter]) aggInter[inter] = {};
-                if (!aggInter[inter][d]) aggInter[inter][d] = { calls: 0, ht: 0, rosSet: new Set(), rosSum: 0 };
-                
+                if (!aggInter[inter][d]) aggInter[inter][d] = { calls: 0, ht: 0, req: 0, rosSet: new Set(), rosSum: 0 };
+
                 aggInter[inter][d].calls += calls;
                 aggInter[inter][d].ht += (calls * aht);
-                
-                // Para no sumar dos veces el roster de la misma campana en el mismo intervalo
+                aggInter[inter][d].req += req;
+
                 let rosKey = camp + '|' + ch;
                 if (!aggInter[inter][d].rosSet.has(rosKey)) {
                     aggInter[inter][d].rosSet.add(rosKey);
@@ -1187,49 +1130,189 @@
 
             const numDiasPeriodo = fechasSet.size || 1;
             const todosIntervalos = Object.keys(aggInter).sort();
+            const esVistaSemanal = numDiasPeriodo > 1;
+
+            if (forecastMode === 'general') {
+                const btn = document.getElementById('btnProcesar');
+                if(btn) { btn.disabled = true; btn.innerText = "⏳ SUMANDO CANALES..."; }
+
+                const getCanalData = async (canalStr) => {
+                    const dfC = dfFiltered.filter(r => r.Canal === canalStr);
+                    if (dfC.length === 0) return { req: 0, disp: 0 };
+
+                    let totalReqSum = 0;
+                    let localFechas = new Set();
+                    
+                    dfC.forEach(r => localFechas.add(String(getProp(r, ['Fecha'], '')).split(' ')[0]));
+                    let nDias = localFechas.size || 1;
+                    
+                    todosIntervalos.forEach(inter => {
+                        let interReq = 0;
+                        localFechas.forEach(d => {
+                            let dayReq = 0;
+                            dfC.forEach(r => {
+                                if(String(getProp(r, ['Intervalo'], '00:00')) === inter && String(getProp(r, ['Fecha'], '')).split(' ')[0] === d) {
+                                    let calls = Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
+                                    let req = Number(getProp(r, ['Agentes_Requeridos'], 0)) || 0;
+                                    if (calls < 0.1) req = 0;
+                                    dayReq += req;
+                                }
+                            });
+                            interReq += dayReq;
+                        });
+                        totalReqSum += (interReq / nDias);
+                    });
+
+                    // Área Volumétrica Silos
+                    const horasCanal = totalReqSum * 0.5;
+                    const factorDes = usarNocturnoActual ? (7.0/5.0) : (7.0/6.0);
+                    const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
+                    const factorAsistencia = Math.max(0.01, 1.0 - (mermaValLocal / 100.0));
+
+                    let hcReqNomina = Math.ceil(((horasCanal / durJornada) * factorDes) / factorAsistencia);
+
+                    let hcDisp = 0;
+                    const uniqueCampChannel = [...new Set(dfC.map(r => r.Campaña + '|' + (r.Canal || '')))];
+                    uniqueCampChannel.forEach(cc => {
+                        const row = dfC.find(r => (r.Campaña + '|' + (r.Canal || '')) === cc);
+                        if (row) hcDisp += esVistaSemanal ? (Number(row.Total_Roster_Campana) || 0) : (Number(row.Total_Roster_Dia) || 0);
+                    });
+
+                    return { req: hcReqNomina, disp: hcDisp };
+                };
+
+                Promise.all([
+                    getCanalData('Inbound'),
+                    getCanalData('Outbound'),
+                    getCanalData('Chat')
+                ]).then(results => {
+                    if(btn) { btn.disabled = false; btn.innerText = "▶ RUN PLAN"; }
+
+                    const hcReqInbound = results[0] ? results[0].req : 0;
+                    const hcDispInbound = results[0] ? results[0].disp : 0;
+                    
+                    const hcReqOutbound = results[1] ? results[1].req : 0;
+                    const hcDispOutbound = results[1] ? results[1].disp : 0;
+                    
+                    const hcReqChat = results[2] ? results[2].req : 0;
+                    const hcDispChat = results[2] ? results[2].disp : 0;
+
+                    const totalReqGlobal = hcReqInbound + hcReqOutbound + hcReqChat;
+                    const totalDispGlobal = hcDispInbound + hcDispOutbound + hcDispChat;
+
+                    document.getElementById('kpiHcRequeridoTitle').innerText = "Nómina a Contratar (HC)";
+                    document.getElementById('kpiHcRequerido').innerText = totalReqGlobal.toLocaleString() + ' HC';
+                    document.getElementById('kpiHcRequeridoSub').innerHTML = `Erlang C (Silos) + Shrinkage`;
+                    
+                    document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Disponible (Roster)" : "Plantilla de Hoy";
+                    document.getElementById('kpiHcRoster').innerText = totalDispGlobal.toLocaleString() + ' HC';
+
+                    const gapTotal = totalDispGlobal - totalReqGlobal;
+                    const gapEl = document.getElementById('kpiHcGap');
+                    if (gapTotal > 0) {
+                        gapEl.innerText = `+${gapTotal} Sobran`;
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
+                    } else if (gapTotal < 0) {
+                        gapEl.innerText = `${gapTotal} Faltan`;
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
+                    } else {
+                        gapEl.innerText = `✓ Balanceado`;
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
+                    }
+
+                    document.getElementById('tableHeaderRow').innerHTML = `
+                        <th class="py-3.5 px-4 text-left">Canal Operativo</th>
+                        <th class="py-3.5 px-4 text-brand-primary">Nómina a Contratar</th>
+                        <th class="py-3.5 px-4 text-brand-accentEmerald">Nómina Roster</th>
+                        <th class="py-3.5 px-4 text-center">Delta (Gap)</th>
+                    `;
+
+                    const tbody = document.getElementById('intervalTableBody');
+                    tbody.innerHTML = '';
+                    
+                    const channels = [
+                        { name: '🎯 Inbound', req: hcReqInbound, disp: hcDispInbound },
+                        { name: '🚀 Outbound', req: hcReqOutbound, disp: hcDispOutbound },
+                        { name: '💬 Chat', req: hcReqChat, disp: hcDispChat },
+                        { name: '🌐 TOTAL', req: totalReqGlobal, disp: totalDispGlobal }
+                    ];
+
+                    channels.forEach(ch => {
+                        const gap = ch.disp - ch.req;
+                        let gapHtml = gap > 0 ? `<span class="bg-[#34D399]/20 text-[#34D399] px-2 py-0.5 rounded-md font-bold">+${gap}</span>` : 
+                                      gap < 0 ? `<span class="bg-[#FB7185]/20 text-[#FB7185] px-2 py-0.5 rounded-md font-bold">${gap}</span>` : 
+                                      `<span class="text-slate-500 font-bold">0</span>`;
+
+                        let rowClass = ch.name === '🌐 TOTAL' ? "bg-[#1E293B] font-bold border-t border-[#334155]" : "hover:bg-[#1E293B] transition-colors";
+
+                        tbody.innerHTML += `
+                            <tr class="${rowClass}">
+                                <td class="py-3.5 px-4 font-bold text-white text-left">${ch.name}</td>
+                                <td class="py-3.5 px-4 text-brand-primary font-black text-sm">${ch.req.toLocaleString()}</td>
+                                <td class="py-3.5 px-4 text-brand-accentEmerald font-black text-sm">${ch.disp.toLocaleString()}</td>
+                                <td class="py-3.5 px-4 text-center">${gapHtml}</td>
+                            </tr>
+                        `;
+                    });
+
+                    document.getElementById('contGapChart').classList.add('hidden');
+                    document.getElementById('contGeneralChart').classList.remove('hidden');
+
+                    if(generalChartInstance) generalChartInstance.destroy();
+                    const ctxGen = document.getElementById('generalChart').getContext('2d');
+                    generalChartInstance = new Chart(ctxGen, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Inbound', 'Outbound', 'Chat'],
+                            datasets: [
+                                { label: 'HC Requerido', data: [hcReqInbound, hcReqOutbound, hcReqChat], backgroundColor: '#A78BFA', borderRadius: 4 },
+                                { label: 'HC Disponible', data: [hcDispInbound, hcDispOutbound, hcDispChat], backgroundColor: '#34D399', borderRadius: 4 }
+                            ]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            plugins: {
+                                legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } },
+                                tooltip: { backgroundColor: '#111827', titleColor: '#F8FAFC', bodyColor: '#cbd5e1', borderColor: '#1F2937', borderWidth: 1 }
+                            },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 11, weight: 'bold' } } },
+                                y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono' } }, beginAtZero: true }
+                            }
+                        }
+                    });
+
+                    return; 
+                });
+                return; 
+            }
 
             let llamadasAgrupadasGlobal = [];
             let fteAgrupadoGlobal = [];
             let ahtAgrupadoGlobal = [];
             let rosterAgrupadoGlobal = [];
 
-            // Calculamos Erlang de forma consolidada por intervalo (ya habiendo sumado las campañas de ese día)
             for (let i = 0; i < todosIntervalos.length; i++) {
                 let inter = todosIntervalos[i];
                 let diasObj = aggInter[inter];
-                
+
                 let interCallSum = 0;
                 let interHtSum = 0;
-                let interFteSum = 0;
+                let interReqSum = 0;
                 let interRosSum = 0;
 
                 for (let d of fechasSet) {
                     if (diasObj[d]) {
-                        let callsD = diasObj[d].calls;
-                        let htD = diasObj[d].ht;
-                        let rosD = diasObj[d].rosSum;
-
-                        interCallSum += callsD;
-                        interHtSum += htD;
-                        interRosSum += rosD;
-
-                        // Corremos Erlang C sobre el volumen YA FUSIONADO de ese día y ese intervalo
-                        let avgAhtD = callsD > 0 ? htD / callsD : 180;
-                        let aht_efectivo = avgAhtD;
-                        if (forecastMode === 'chat') aht_efectivo = avgAhtD / Math.max(1.0, concurrenciaVal);
-
-                        let fte_req = 0;
-                        if (callsD > 0.05) {
-                            let a_erlang = (callsD * aht_efectivo) / 1800.0;
-                            fte_req = calcular_agentes_requeridos_erlang_c_js(a_erlang, aht_efectivo, targetTimeObj, targetSlObj);
-                        }
-                        interFteSum += fte_req;
+                        interCallSum += diasObj[d].calls;
+                        interHtSum += diasObj[d].ht;
+                        interReqSum += diasObj[d].req;
+                        interRosSum += diasObj[d].rosSum;
                     }
                 }
 
                 llamadasAgrupadasGlobal.push(interCallSum / numDiasPeriodo);
                 ahtAgrupadoGlobal.push(interCallSum > 0 ? interHtSum / interCallSum : 180);
-                fteAgrupadoGlobal.push(interFteSum / numDiasPeriodo);
+                fteAgrupadoGlobal.push(interReqSum / numDiasPeriodo);
                 rosterAgrupadoGlobal.push(Math.round(interRosSum / numDiasPeriodo));
             }
 
@@ -1239,14 +1322,13 @@
             const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
             const factorAsistencia = Math.max(0.01, 1.0 - (mermaValLocal / 100.0));
 
-            // Área bajo la curva para HC total (Nómina a contratar)
             const totalFteIntervals = fteAgrupadoGlobal.reduce((a, b) => a + b, 0);
             const totalHorasRequeridas = totalFteIntervals * 0.5;
             const hcNominaCalculado = Math.ceil(((totalHorasRequeridas / durJornada) * factorDescanso) / factorAsistencia);
             
             document.getElementById('kpiHcRequeridoTitle').innerText = "Nómina a Contratar (HC)";
             document.getElementById('kpiHcRequerido').innerText = hcNominaCalculado.toLocaleString() + ' HC';
-            document.getElementById('kpiHcRequeridoSub').innerHTML = `Erlang C Consolidado + Shrinkage`;
+            document.getElementById('kpiHcRequeridoSub').innerHTML = `Erlang C (Silos) + Shrinkage`;
 
             let legendInteractions = forecastMode === 'outbound' ? 'Contactos (FCST)' : forecastMode === 'chat' ? 'Mensajes (FCST)' : 'Llamadas (FCST)';
 
@@ -1254,7 +1336,7 @@
                 <th class="py-3.5 px-4 text-left">Intervalo</th>
                 <th class="py-3.5 px-4">${legendInteractions}</th>
                 <th class="py-3.5 px-4">AHT (HH:MM:SS)</th>
-                <th class="py-3.5 px-4 text-brand-primary">HC Requerido (Motor)</th>
+                <th class="py-3.5 px-4 text-brand-accentCyan">HC Requerido (Motor)</th>
                 <th class="py-3.5 px-4 text-brand-accentEmerald">HC Actual</th>
                 <th class="py-3.5 px-4 text-center">Gap</th>
             `;
@@ -1317,21 +1399,15 @@
                 }
             });
 
+            const uniqueCampChannel = [...new Set(dfFiltered.map(r => r.Campaña + '|' + (r.Canal || '')))];
             let totalRosterHC = 0;
-            let uniqueRosterMap = new Set();
-            
-            dfFiltered.forEach(r => {
-                let camp = String(getProp(r, ['Campaña', 'Campana'], 'General'));
-                let ch = r.Canal || 'Inbound';
-                let rosKey = camp + '|' + ch;
-                if (!uniqueRosterMap.has(rosKey)) {
-                    uniqueRosterMap.add(rosKey);
-                    totalRosterHC += (Number(getProp(r, ['Total_Roster_Campana'], 0)) || 0);
-                }
+            uniqueCampChannel.forEach(cc => {
+                const row = dfFiltered.find(r => (r.Campaña + '|' + (r.Canal || '')) === cc);
+                if (row) totalRosterHC += esVistaSemanal ? (Number(row.Total_Roster_Campana) || 0) : (Number(row.Total_Roster_Dia) || 0);
             });
 
             document.getElementById('kpiHcRosterTitle').innerText = "HC Actual (Roster)";
-            document.getElementById('kpiHcRosterSub').innerText = "Total de agentes contratados en Roster";
+            document.getElementById('kpiHcRosterSub').innerText = esVistaSemanal ? "Total de agentes contratados en Roster" : "Descuenta descansos (DD-DD) del día";
             document.getElementById('kpiHcRoster').innerText = totalRosterHC.toLocaleString() + ' HC';
             
             const gapTotal = totalRosterHC - hcNominaCalculado;
@@ -1356,11 +1432,11 @@
                 const f = String(getProp(item, ['Fecha'], '')).split(' ')[0].split('T')[0];
                 const i = String(getProp(item, ['Intervalo'], '00:00'));
                 
-                const matchMes = selectedMeses.has(m);
-                const matchSem = selectedSemanas.has(s); 
-                const matchCamp = selectedCampanas.has(c);
-                const matchFecha = selectedFechas.has(f);
-                const matchInter = selectedIntervalos.has(i);
+                const matchMes = selectedMeses.size === 0 || selectedMeses.has(m);
+                const matchSem = selectedSemanas.size === 0 || selectedSemanas.has(s); 
+                const matchCamp = selectedCampanas.size === 0 || selectedCampanas.has(c);
+                const matchFecha = selectedFechas.size === 0 || selectedFechas.has(f);
+                const matchInter = selectedIntervalos.size === 0 || selectedIntervalos.has(i);
 
                 return matchMes && matchSem && matchCamp && matchFecha && matchInter;
             });
