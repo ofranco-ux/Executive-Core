@@ -146,7 +146,7 @@
                         </div>
                         
                         <div class="flex flex-col group hidden col-span-2" id="contConcurrencia">
-                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentCyan transition-colors">Concurrencia (Chats por Agente)</label>
+                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentCyan transition-colors">Concurrencia (Chats)</label>
                             <input type="number" id="concurrencia" value="4" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentCyan font-mono-num font-bold focus:border-brand-accentCyan focus:ring-1 focus:ring-brand-accentCyan focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
                         </div>
                     </div>
@@ -251,15 +251,16 @@
             <div id="kpiCardsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 
                 <!-- CARD 1: TOTAL DEMAND -->
-                <div id="cardKpiCalls" class="glass-panel glass-panel-hover p-5 rounded-xl relative overflow-hidden flex flex-col justify-between border-t-2 border-t-[#1F2937]">
-                    <div class="flex justify-between items-start">
+                <div id="cardKpiCalls" class="glass-panel glass-panel-hover p-5 rounded-xl relative overflow-hidden flex flex-col justify-between border-t-2 border-t-brand-primary shadow-[0_4px_15px_-5px_rgba(59,130,246,0.15)]">
+                    <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-primary/10 rounded-full blur-xl pointer-events-none"></div>
+                    <div class="flex justify-between items-start relative z-10">
                         <p id="kpiCallsTitle" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Demanda Total (Periodo)</p>
-                        <div class="p-1.5 bg-slate-800/40 rounded-lg text-slate-300 border border-slate-700/50 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
+                        <div class="p-1.5 bg-brand-primary/10 rounded-lg text-brand-primary border border-brand-primary/20 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
                         </div>
                     </div>
                     <div class="relative z-10 mt-2">
-                        <p id="kpiCalls" class="text-3xl font-black font-mono-num text-white drop-shadow-sm">0</p>
+                        <p id="kpiCalls" class="text-3xl font-black font-mono-num text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">0</p>
                     </div>
                 </div>
 
@@ -281,14 +282,14 @@
                 <div class="glass-panel glass-panel-hover p-5 rounded-xl border-t-2 border-t-brand-accentViolet shadow-[0_4px_15px_-5px_rgba(167,139,250,0.15)] relative overflow-hidden flex flex-col justify-between">
                     <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-accentViolet/10 rounded-full blur-xl pointer-events-none"></div>
                     <div class="flex justify-between items-start relative z-10">
-                        <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Pico Máximo (HC)</p>
+                        <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">HC Requerido</p>
                         <div class="p-1.5 bg-brand-accentViolet/10 rounded-lg text-brand-accentViolet border border-brand-accentViolet/20 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
                         </div>
                     </div>
                     <div class="relative z-10 mt-2">
                         <p id="kpiHcRequerido" class="text-3xl font-black font-mono-num text-brand-accentViolet drop-shadow-[0_0_8px_rgba(167,139,250,0.3)]">0 HC</p>
-                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium leading-tight">Erlang C Puro (Sin Merma)</p>
+                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium leading-tight">Pico Máximo Erlang C (Sin Merma)</p>
                     </div>
                 </div>
 
@@ -296,7 +297,7 @@
                 <div class="glass-panel glass-panel-hover p-5 rounded-xl border-t-2 border-t-brand-accentEmerald shadow-[0_4px_15px_-5px_rgba(52,211,153,0.15)] relative overflow-hidden flex flex-col justify-between">
                     <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-accentEmerald/10 rounded-full blur-xl pointer-events-none"></div>
                     <div class="flex justify-between items-start relative z-10">
-                        <p id="kpiHcRosterTitle" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Roster Actual (HC)</p>
+                        <p id="kpiHcRosterTitle" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">HC Actual (Roster)</p>
                         <div class="p-1.5 bg-brand-accentEmerald/10 rounded-lg text-brand-accentEmerald border border-brand-accentEmerald/20 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                         </div>
@@ -358,7 +359,7 @@
         let globalData = [];
         let gapChartInstance = null; 
         let generalChartInstance = null;
-        
+
         let allMesesOptions = [];
         let allSemanasOptions = [];
         let allCampanasOptions = [];
@@ -482,7 +483,7 @@
                     document.getElementById('kpiCallsTitle').innerText = "Mensajes (Periodo)";
                 }
             }
-
+            
             fetchLatestData(mode);
         }
 
@@ -1070,7 +1071,7 @@
                     const uniqueCampChannel = [...new Set(dfC.map(r => r.Campaña + '|' + (r.Canal || '')))];
                     uniqueCampChannel.forEach(cc => {
                         const row = dfC.find(r => (r.Campaña + '|' + (r.Canal || '')) === cc);
-                        if (row) hcDisp += esVistaSemanal ? (row.Total_Roster_Campana || 0) : (row.Total_Roster_Dia || 0);
+                        if (row) hcDisp += esVistaSemanal ? (Number(row.Total_Roster_Campana) || 0) : (Number(row.Total_Roster_Dia) || 0);
                     });
 
                     return { req: peakFteCanal, disp: hcDisp };
@@ -1106,20 +1107,20 @@
                     const gapEl = document.getElementById('kpiHcGap');
                     if (gapTotal > 0) {
                         gapEl.innerText = `+${gapTotal} Sobran`;
-                        gapEl.className = 'text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
                     } else if (gapTotal < 0) {
                         gapEl.innerText = `${gapTotal} Faltan`;
-                        gapEl.className = 'text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
                     } else {
-                        gapEl.innerText = `✓ OK`;
-                        gapEl.className = 'text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
+                        gapEl.innerText = `✓ Balanceado`;
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
                     }
 
                     document.getElementById('tableHeaderRow').innerHTML = `
                         <th class="py-3.5 px-4 text-left">Canal Operativo</th>
                         <th class="py-3.5 px-4 text-brand-primary">HC Requerido</th>
                         <th class="py-3.5 px-4 text-brand-accentEmerald">HC Actual</th>
-                        <th class="py-3.5 px-4 text-center">Gap</th>
+                        <th class="py-3.5 px-4 text-center">Delta (Gap)</th>
                     `;
 
                     const tbody = document.getElementById('intervalTableBody');
@@ -1239,7 +1240,7 @@
             
             document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido";
             document.getElementById('kpiHcRequerido').innerText = picoReq.toLocaleString() + ' HC';
-            document.getElementById('kpiHcRequeridoSub').innerHTML = `Erlang C Puro (Sin Merma)`;
+            document.getElementById('kpiHcRequeridoSub').innerHTML = `Erlang C Puro (Pico Máximo)`;
 
             let legendInteractions = forecastMode === 'outbound' ? 'Contactos (FCST)' : forecastMode === 'chat' ? 'Mensajes (FCST)' : 'Llamadas (FCST)';
 
@@ -1314,7 +1315,7 @@
             let totalRosterHC = 0;
             uniqueCampChannel.forEach(cc => {
                 const row = dfFiltered.find(r => (r.Campaña + '|' + (r.Canal || '')) === cc);
-                if (row) totalRosterHC += esVistaSemanal ? (row.Total_Roster_Campana || 0) : (row.Total_Roster_Dia || 0);
+                if (row) totalRosterHC += esVistaSemanal ? (Number(row.Total_Roster_Campana) || 0) : (Number(row.Total_Roster_Dia) || 0);
             });
 
             document.getElementById('kpiHcRosterTitle').innerText = "HC Actual (Roster)";
@@ -1325,13 +1326,13 @@
             const gapEl = document.getElementById('kpiHcGap');
             if (gapTotal > 0) {
                 gapEl.innerText = `+${gapTotal} Sobran`;
-                gapEl.className = 'text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
+                gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
             } else if (gapTotal < 0) {
                 gapEl.innerText = `${gapTotal} Faltan`;
-                gapEl.className = 'text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
+                gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
             } else {
-                gapEl.innerText = `✓ OK`;
-                gapEl.className = 'text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
+                gapEl.innerText = `✓ Balanceado`;
+                gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
             }
         }
 
