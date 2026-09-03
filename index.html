@@ -281,14 +281,14 @@
                 <div class="glass-panel glass-panel-hover p-5 rounded-xl border-t-2 border-t-brand-accentViolet shadow-[0_4px_15px_-5px_rgba(167,139,250,0.15)] relative overflow-hidden flex flex-col justify-between">
                     <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-accentViolet/10 rounded-full blur-xl pointer-events-none"></div>
                     <div class="flex justify-between items-start relative z-10">
-                        <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">HC Requerido</p>
+                        <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Pico Máximo (HC)</p>
                         <div class="p-1.5 bg-brand-accentViolet/10 rounded-lg text-brand-accentViolet border border-brand-accentViolet/20 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
                         </div>
                     </div>
                     <div class="relative z-10 mt-2">
                         <p id="kpiHcRequerido" class="text-3xl font-black font-mono-num text-brand-accentViolet drop-shadow-[0_0_8px_rgba(167,139,250,0.3)]">0 HC</p>
-                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium leading-tight">Pico Máximo Erlang C (Sin Merma)</p>
+                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium leading-tight">Erlang C Puro (Sin Merma)</p>
                     </div>
                 </div>
 
@@ -296,7 +296,7 @@
                 <div class="glass-panel glass-panel-hover p-5 rounded-xl border-t-2 border-t-brand-accentEmerald shadow-[0_4px_15px_-5px_rgba(52,211,153,0.15)] relative overflow-hidden flex flex-col justify-between">
                     <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-accentEmerald/10 rounded-full blur-xl pointer-events-none"></div>
                     <div class="flex justify-between items-start relative z-10">
-                        <p id="kpiHcRosterTitle" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">HC Actual (Roster)</p>
+                        <p id="kpiHcRosterTitle" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Roster Actual (HC)</p>
                         <div class="p-1.5 bg-brand-accentEmerald/10 rounded-lg text-brand-accentEmerald border border-brand-accentEmerald/20 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                         </div>
@@ -482,7 +482,7 @@
                     document.getElementById('kpiCallsTitle').innerText = "Mensajes (Periodo)";
                 }
             }
-            
+
             fetchLatestData(mode);
         }
 
@@ -1043,7 +1043,6 @@
                     const fechasC = [...new Set(dfC.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0]))].filter(Boolean);
                     const nDias = fechasC.length || 1;
 
-                    let peakFteCanal = 0;
                     let arrAvgIntervals = new Array(todosIntervalos.length).fill(0);
                     
                     campanas.forEach((camp) => {
@@ -1061,12 +1060,11 @@
                                 });
                                 reqSum += dReq; 
                             });
-                            let avgInter = reqSum / nDias;
-                            arrAvgIntervals[idx] += avgInter;
+                            arrAvgIntervals[idx] += (reqSum / nDias);
                         });
                     });
 
-                    peakFteCanal = Math.ceil(Math.max(...arrAvgIntervals));
+                    let peakFteCanal = Math.ceil(Math.max(...arrAvgIntervals));
 
                     let hcDisp = 0;
                     const uniqueCampChannel = [...new Set(dfC.map(r => r.Campaña + '|' + (r.Canal || '')))];
