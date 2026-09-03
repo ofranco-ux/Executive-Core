@@ -78,7 +78,7 @@ def manage_config():
             try:
                 with open(CONFIG_FILE, 'r', encoding='utf-8') as f: return jsonify(json.load(f)), 200
             except: pass
-        return jsonify({'targetSl': 80, 'targetTime': 20}), 200
+        return jsonify({'targetSl': 80, 'targetTime': 20, 'merma': 30}), 200
 
 def clean_num(val, default=0.0):
     if pd.isna(val) or val is None: return default
@@ -227,7 +227,7 @@ def procesar_hoja_roster(df_roster):
                                 roster_cov[(camp, dia_real, inv)] = roster_cov.get((camp, dia_real, inv), 0) + 1
     return roster_cov, roster_total_camp, roster_total_dia_camp
 
-def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, dias_futuros=45):
+def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=45):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
@@ -358,6 +358,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, dias_f
     del df_raw, df, df_diario, df_filtrado, df_reciente
     gc.collect()
 
+    factor_asistencia = max(0.01, 1.0 - merma)
     data_processed = []
 
     for d in range(dias_futuros):
@@ -404,7 +405,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, dias_f
 
                 a_erlang = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls_float > 0 else 0
-                req_hc = math.ceil(req_ftes) if req_ftes > 0 else 0
+                req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
                 
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
                 tot_camp = roster_total_camp.get(str(camp), 0)
@@ -431,7 +432,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, dias_f
     except: pass
     return data_processed
 
-def procesar_archivo_outbound(file_source, dias_futuros=45):
+def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     
     sheet_out = None
@@ -561,6 +562,7 @@ def procesar_archivo_outbound(file_source, dias_futuros=45):
     del df_raw, df, df_diario, df_filtrado, df_reciente
     gc.collect()
 
+    factor_asistencia = max(0.01, 1.0 - merma)
     data_processed = []
 
     for d in range(dias_futuros):
@@ -606,7 +608,7 @@ def procesar_archivo_outbound(file_source, dias_futuros=45):
                     aht = 0.0
 
                 req_ftes = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
-                req_hc = math.ceil(req_ftes) if req_ftes > 0 else 0
+                req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
                 
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
                 tot_camp = roster_total_camp.get(str(camp), 0)
@@ -633,7 +635,7 @@ def procesar_archivo_outbound(file_source, dias_futuros=45):
     except: pass
     return data_processed
 
-def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, concurrencia=3.0, dias_futuros=45):
+def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0.20, concurrencia=3.0, dias_futuros=45):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     
     sheet_chat = None
@@ -763,6 +765,7 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, concurr
     del df_raw, df, df_diario, df_filtrado, df_reciente
     gc.collect()
 
+    factor_asistencia = max(0.01, 1.0 - merma)
     data_processed = []
 
     for d in range(dias_futuros):
@@ -811,7 +814,7 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, concurr
                 a_erlang_raw = (calls_float * aht_efectivo) / 1800.0 if (aht_efectivo > 0 and calls_float > 0) else 0.0
                 
                 req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang_raw, aht_efectivo, target_time, target_sl) if calls_float > 0 else 0
-                req_hc = math.ceil(req_ftes) if req_ftes > 0 else 0.0
+                req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0.0
 
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
                 tot_camp = roster_total_camp.get(str(camp), 0)
@@ -858,21 +861,30 @@ def get_latest_forecast():
     excel_path = buscar_archivo_excel()
     if excel_path:
         try:
-            sl, tt, dias, concurrencia = 80.0, 20.0, 130, 3.0
+            sl, tt, merma, dias, concurrencia = 80.0, 20.0, 30.0, 130, 3.0
             if os.path.exists(CONFIG_FILE):
                 try:
                     with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                         cfg = json.load(f)
                         sl = float(cfg.get('targetSl', 80.0))
                         tt = float(cfg.get('targetTime', 20.0))
+                        
+                        # Extraer merma si está en el archivo config
+                        merma_data = cfg.get('merma', 30.0)
+                        if isinstance(merma_data, dict):
+                            merma = float(merma_data.get(mode, 30.0))
+                        else:
+                            merma = float(merma_data)
                 except: pass
             
+            merma_pct = merma / 100.0
+            
             if mode == 'outbound':
-                data = procesar_archivo_outbound(excel_path, dias_futuros=dias)
+                data = procesar_archivo_outbound(excel_path, merma=merma_pct, dias_futuros=dias)
             elif mode == 'chat':
-                data = procesar_archivo_chat(excel_path, target_sl=sl, target_time=tt, concurrencia=concurrencia, dias_futuros=dias)
+                data = procesar_archivo_chat(excel_path, target_sl=sl, target_time=tt, merma=merma_pct, concurrencia=concurrencia, dias_futuros=dias)
             else:
-                data = procesar_archivo_excel(excel_path, target_sl=sl, target_time=tt, dias_futuros=dias)
+                data = procesar_archivo_excel(excel_path, target_sl=sl, target_time=tt, merma=merma_pct, dias_futuros=dias)
                 
             gc.collect()
             return jsonify(data), 200
@@ -888,7 +900,13 @@ def process_data():
     excel_path = buscar_archivo_excel()
     if not excel_path: return jsonify({'error': 'No se encontro Excel (.xlsx).'}), 400
     try:
-        data = procesar_archivo_excel(excel_path, float(clean_num(request.form.get('target_sl'), 80.0)), float(clean_num(request.form.get('target_time'), 20.0)), int(clean_num(request.form.get('dias'), 45)))
+        data = procesar_archivo_excel(
+            excel_path, 
+            float(clean_num(request.form.get('target_sl'), 80.0)), 
+            float(clean_num(request.form.get('target_time'), 20.0)), 
+            float(clean_num(request.form.get('merma'), 30.0)) / 100.0, 
+            int(clean_num(request.form.get('dias'), 45))
+        )
         gc.collect()
         return jsonify(data)
     except Exception as e:
@@ -900,7 +918,11 @@ def process_outbound_data():
     excel_path = buscar_archivo_excel()
     if not excel_path: return jsonify({'error': 'No se encontro Excel (.xlsx).'}), 400
     try:
-        data = procesar_archivo_outbound(excel_path, int(clean_num(request.form.get('dias'), 45)))
+        data = procesar_archivo_outbound(
+            excel_path, 
+            float(clean_num(request.form.get('merma'), 30.0)) / 100.0, 
+            int(clean_num(request.form.get('dias'), 45))
+        )
         gc.collect()
         return jsonify(data)
     except Exception as e:
@@ -916,6 +938,7 @@ def process_chat_data():
             excel_path, 
             float(clean_num(request.form.get('target_sl'), 80.0)),
             float(clean_num(request.form.get('target_time'), 20.0)),
+            float(clean_num(request.form.get('merma'), 30.0)) / 100.0, 
             float(clean_num(request.form.get('concurrencia'), 3.0)), 
             int(clean_num(request.form.get('dias'), 45))
         )
