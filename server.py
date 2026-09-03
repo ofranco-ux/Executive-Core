@@ -78,7 +78,7 @@ def manage_config():
             try:
                 with open(CONFIG_FILE, 'r', encoding='utf-8') as f: return jsonify(json.load(f)), 200
             except: pass
-        return jsonify({'targetSl': 80, 'targetTime': 20, 'merma': 30, 'duracionJornada': 8, 'chkNocturno': False, 'chkPicos': False}), 200
+        return jsonify({'targetSl': 80, 'targetTime': 20}), 200
 
 def clean_num(val, default=0.0):
     if pd.isna(val) or val is None: return default
@@ -227,7 +227,7 @@ def procesar_hoja_roster(df_roster):
                                 roster_cov[(camp, dia_real, inv)] = roster_cov.get((camp, dia_real, inv), 0) + 1
     return roster_cov, roster_total_camp, roster_total_dia_camp
 
-def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=0.20, dias_futuros=45):
+def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, dias_futuros=45):
     xls_file = pd.ExcelFile(file_source, engine='openpyxl')
     sheet_calls = xls_file.sheet_names[0]
     for s in xls_file.sheet_names:
@@ -402,7 +402,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 if calls_int <= 0:
                     aht = 0.0
 
-                req_ftes = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
+                a_erlang = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
+                req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls_float > 0 else 0
                 req_hc = math.ceil(req_ftes) if req_ftes > 0 else 0
                 
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
@@ -857,7 +858,7 @@ def get_latest_forecast():
     excel_path = buscar_archivo_excel()
     if excel_path:
         try:
-            sl, tt, merma, dias, concurrencia = 80.0, 20.0, 0.30, 130, 3.0
+            sl, tt, dias, concurrencia = 80.0, 20.0, 130, 3.0
             if os.path.exists(CONFIG_FILE):
                 try:
                     with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
