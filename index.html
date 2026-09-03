@@ -146,7 +146,7 @@
                         </div>
                         
                         <div class="flex flex-col group hidden col-span-2" id="contConcurrencia">
-                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentCyan transition-colors">Concurrencia (Chats)</label>
+                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentCyan transition-colors">Concurrencia (Chats por Agente)</label>
                             <input type="number" id="concurrencia" value="4" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentCyan font-mono-num font-bold focus:border-brand-accentCyan focus:ring-1 focus:ring-brand-accentCyan focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
                         </div>
                     </div>
@@ -205,7 +205,7 @@
                         <span style="font-size: 16px;">🎯</span>
                     </div>
                     <div>
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Filtros Operativos</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Filtros Operativos (Independientes)</p>
                         <p id="tableSelectionLabel" class="text-xs text-slate-200 font-medium">Selecciona campaña, meses, semanas, fechas e intervalos</p>
                     </div>
                 </div>
@@ -679,7 +679,7 @@
             if(gapChartInstance) gapChartInstance.destroy();
         }
 
-        // SISTEMA DE FILTROS INDESTRUCTIBLE
+        // SISTEMA DE FILTROS INDESTRUCTIBLES
         function inicializarFiltrosMultiples() {
             allMesesOptions = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).sort(ordenarMesesCronologicamente);
             allSemanasOptions = [...new Set(globalData.map(i => getWeekNumber(getProp(i, ['Fecha'], ''))))].filter(Boolean).sort();
@@ -693,10 +693,6 @@
             selectedFechas = new Set(allFechasOptions);
             selectedIntervalos = new Set(allIntervalosOptions);
 
-            renderAllMenus();
-        }
-
-        function renderAllMenus() {
             renderMenuOptions('Mes', allMesesOptions, selectedMeses);
             renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
             renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
@@ -713,6 +709,54 @@
             totalesFiltros.C = allCampanasOptions.length;
             totalesFiltros.F = allFechasOptions.length;
             totalesFiltros.I = allIntervalosOptions.length;
+        }
+
+        function syncFilters(sourceType) {
+            let validRows = globalData;
+            
+            if (sourceType === 'Mes') {
+                if (selectedMeses.size > 0) {
+                    validRows = validRows.filter(r => selectedMeses.has(String(getProp(r, ['Mes'], ''))));
+                }
+                let validS = new Set(validRows.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))).filter(Boolean));
+                let validF = new Set(validRows.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]).filter(Boolean));
+                
+                for (let s of selectedSemanas) { if (!validS.has(s)) selectedSemanas.delete(s); }
+                for (let f of selectedFechas) { if (!validF.has(f)) selectedFechas.delete(f); }
+                
+                renderMenuOptions('Semana', Array.from(validS).sort(), selectedSemanas);
+                renderMenuOptions('Fecha', Array.from(validF).sort(), selectedFechas);
+                renderMenuOptions('Mes', allMesesOptions, selectedMeses);
+            } 
+            else if (sourceType === 'Semana') {
+                if (selectedSemanas.size > 0) {
+                    validRows = validRows.filter(r => selectedSemanas.has(getWeekNumber(getProp(r, ['Fecha'], ''))));
+                }
+                let validM = new Set(validRows.map(r => String(getProp(r, ['Mes'], ''))).filter(Boolean));
+                let validF = new Set(validRows.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]).filter(Boolean));
+                
+                for (let m of selectedMeses) { if (!validM.has(m)) selectedMeses.delete(m); }
+                for (let f of selectedFechas) { if (!validF.has(f)) selectedFechas.delete(f); }
+                
+                renderMenuOptions('Mes', Array.from(validM).sort(ordenarMesesCronologicamente), selectedMeses);
+                renderMenuOptions('Fecha', Array.from(validF).sort(), selectedFechas);
+                renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
+            }
+            else if (sourceType === 'Fecha') {
+                if (selectedFechas.size > 0) {
+                    validRows = validRows.filter(r => selectedFechas.has(String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]));
+                }
+                let validM = new Set(validRows.map(r => String(getProp(r, ['Mes'], ''))).filter(Boolean));
+                let validS = new Set(validRows.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))).filter(Boolean));
+                
+                for (let m of selectedMeses) { if (!validM.has(m)) selectedMeses.delete(m); }
+                for (let s of selectedSemanas) { if (!validS.has(s)) selectedSemanas.delete(s); }
+                
+                renderMenuOptions('Mes', Array.from(validM).sort(ordenarMesesCronologicamente), selectedMeses);
+                renderMenuOptions('Semana', Array.from(validS).sort(), selectedSemanas);
+                renderMenuOptions('Fecha', allFechasOptions, selectedFechas);
+            }
+            actualizarTextosBotones();
         }
 
         function renderMenuOptions(type, optionsToRender, setRef) {
@@ -745,7 +789,11 @@
                     if (e.target.checked) setRef.add(opt); 
                     else setRef.delete(opt);
                     
-                    actualizarTextosBotones();
+                    if (['Mes', 'Semana', 'Fecha'].includes(type)) {
+                        syncFilters(type);
+                    } else {
+                        actualizarTextosBotones();
+                    }
                     debouncedActualizarGrafica();
                 });
 
@@ -760,8 +808,7 @@
         }
 
         function selectAllFilter(type, selectAll) {
-            let setRef;
-            let allOptions;
+            let setRef, allOptions;
             if (type === 'Mes') { setRef = selectedMeses; allOptions = allMesesOptions; }
             else if (type === 'Semana') { setRef = selectedSemanas; allOptions = allSemanasOptions; }
             else if (type === 'Campana') { setRef = selectedCampanas; allOptions = allCampanasOptions; }
@@ -770,8 +817,12 @@
             
             if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
             
-            renderMenuOptions(type, allOptions, setRef);
-            actualizarTextosBotones();
+            if (['Mes', 'Semana', 'Fecha'].includes(type)) {
+                syncFilters(type);
+            } else {
+                renderMenuOptions(type, allOptions, setRef);
+                actualizarTextosBotones();
+            }
             debouncedActualizarGrafica();
         }
 
@@ -782,7 +833,13 @@
             selectedFechas = new Set(allFechasOptions);
             selectedIntervalos = new Set(allIntervalosOptions);
 
-            renderAllMenus();
+            renderMenuOptions('Mes', allMesesOptions, selectedMeses);
+            renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
+            renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
+            renderMenuOptions('Fecha', allFechasOptions, selectedFechas);
+            renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
+            
+            actualizarTextosBotones();
             debouncedActualizarGrafica();
         }
 
@@ -855,7 +912,13 @@
                 if (f.campanas && f.campanas.length > 0) selectedCampanas = new Set(f.campanas.filter(x => allCampanasOptions.includes(x)));
                 if (f.fechas && f.fechas.length > 0) selectedFechas = new Set(f.fechas.filter(x => allFechasOptions.includes(x)));
                 if (f.intervalos && f.intervalos.length > 0) selectedIntervalos = new Set(f.intervalos.filter(x => allIntervalosOptions.includes(x)));
-                renderAllMenus();
+                
+                renderMenuOptions('Mes', allMesesOptions, selectedMeses);
+                renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
+                renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
+                renderMenuOptions('Fecha', allFechasOptions, selectedFechas);
+                renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
+                actualizarTextosBotones();
             }
         }
 
@@ -908,7 +971,11 @@
                 let f = String(getProp(item, ['Fecha'], '')).split(' ')[0].split('T')[0];
                 let inv = String(getProp(item, ['Intervalo'], '00:00'));
 
-                if (selectedMeses.has(m) && selectedSemanas.has(s) && selectedCampanas.has(c) && selectedFechas.has(f) && selectedIntervalos.has(inv)) {
+                if ((selectedMeses.size === 0 || selectedMeses.has(m)) &&
+                    (selectedSemanas.size === 0 || selectedSemanas.has(s)) &&
+                    (selectedCampanas.size === 0 || selectedCampanas.has(c)) &&
+                    (selectedFechas.size === 0 || selectedFechas.has(f)) &&
+                    (selectedIntervalos.size === 0 || selectedIntervalos.has(inv))) {
                     dfFiltered.push(item);
                 }
             }
@@ -1194,7 +1261,10 @@
             });
 
             let totalRosterKPI = 0;
-            let activeCampaigns = new Set(dfFiltered.map(r => String(getProp(r, ['Campaña', 'Campana'], 'General'))));
+            let activeCampaigns = new Set();
+            for (let i = 0; i < dfFiltered.length; i++) {
+                activeCampaigns.add(String(getProp(dfFiltered[i], ['Campaña', 'Campana'], 'General')));
+            }
             activeCampaigns.forEach(camp => {
                 if(rosterPorCampana[camp]) totalRosterKPI += rosterPorCampana[camp];
             });
