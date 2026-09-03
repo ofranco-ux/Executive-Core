@@ -106,7 +106,7 @@
 
                     <span id="tagModoOps" class="hidden text-[10px] bg-brand-primary/20 text-brand-primary border border-brand-primary/40 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider drop-shadow-md">Vista Operaciones</span>
                 </div>
-                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning (Requerimiento Erlang-C Puro)</p>
+                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning (Área Volumétrica HC)</p>
             </div>
         </div>
 
@@ -151,9 +151,33 @@
                         </div>
                     </div>
 
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="flex flex-col group">
+                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentRose transition-colors">Shrinkage (%)</label>
+                            <input type="number" id="merma" value="30" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentRose font-mono-num font-bold focus:border-brand-accentRose focus:ring-1 focus:ring-brand-accentRose focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
+                        </div>
+                        <div class="flex flex-col group">
+                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentAmber transition-colors">Jornada (Hrs)</label>
+                            <input type="number" id="duracionJornada" value="8" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentAmber font-mono-num font-bold focus:border-brand-accentAmber focus:ring-1 focus:ring-brand-accentAmber focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
+                        </div>
+                    </div>
+
                     <div class="flex flex-col group pt-1">
-                        <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-primary transition-colors">Horizonte (Días)</label>
-                        <input type="number" id="dias" value="130" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-primary font-mono-num font-bold focus:border-brand-primary focus:ring-1 focus:ring-brand-primary focus:outline-none transition-all shadow-inner"/>
+                        <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-white transition-colors">Horizonte (Días)</label>
+                        <input type="number" id="dias" value="130" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-white font-mono-num font-bold focus:border-brand-primary focus:ring-1 focus:ring-brand-primary focus:outline-none transition-all shadow-inner"/>
+                    </div>
+
+                    <div class="pt-4 space-y-6">
+                        <label class="flex items-center justify-between cursor-pointer group">
+                            <div class="flex items-center gap-3">
+                                <span class="text-brand-accentAmber text-lg drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]">🌙</span>
+                                <span class="text-[13px] text-white font-bold transition-colors tracking-wide">Turno Nocturno (5x2)</span>
+                            </div>
+                            <div class="relative">
+                                <input type="checkbox" id="chkNocturno" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()" class="sr-only peer" checked>
+                                <div class="w-[42px] h-[22px] bg-[#1E293B] border border-[#334155] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[16px] after:w-[16px] after:transition-all peer-checked:bg-[#A78BFA] peer-checked:border-brand-accentViolet peer-checked:shadow-[0_0_10px_rgba(167,139,250,0.5)]"></div>
+                            </div>
+                        </label>
                     </div>
                 </div>
 
@@ -278,18 +302,18 @@
                     </div>
                 </div>
 
-                <!-- CARD 3: HC REQUERIDO (ERLANG C) -->
+                <!-- CARD 3: HC REQUERIDO (NÓMINA) -->
                 <div class="glass-panel glass-panel-hover p-5 rounded-xl border-t-2 border-t-brand-accentViolet shadow-[0_4px_15px_-5px_rgba(167,139,250,0.15)] relative overflow-hidden flex flex-col justify-between">
                     <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-accentViolet/10 rounded-full blur-xl pointer-events-none"></div>
                     <div class="flex justify-between items-start relative z-10">
-                        <p id="kpiHcRequeridoTitle" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">HC Requerido</p>
+                        <p id="kpiHcRequeridoTitle" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">HC Requerido (Nómina)</p>
                         <div class="p-1.5 bg-brand-accentViolet/10 rounded-lg text-brand-accentViolet border border-brand-accentViolet/20 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                         </div>
                     </div>
                     <div class="relative z-10 mt-2">
                         <p id="kpiHcRequerido" class="text-3xl font-black font-mono-num text-brand-accentViolet drop-shadow-[0_0_8px_rgba(167,139,250,0.3)]">0 HC</p>
-                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium leading-tight">Pico Máximo Erlang C (Sin Merma)</p>
+                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium leading-tight">Fórmula: (Horas / Jornada) × Descansos + Shrinkage</p>
                     </div>
                 </div>
 
@@ -360,6 +384,10 @@
         let gapChartInstance = null; 
         let generalChartInstance = null;
         
+        let configMerma = { inbound: 30, outbound: 30, chat: 30 };
+        let configNocturno = { inbound: true, outbound: false, chat: false };
+        let configJornada = { inbound: 8, outbound: 8, chat: 8 };
+
         let allMesesOptions = [];
         let allSemanasOptions = [];
         let allCampanasOptions = [];
@@ -382,6 +410,14 @@
             "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
             "julio": 7, "agosto": 8, "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12
         };
+
+        function guardarEstadoParametros() {
+            if (forecastMode !== 'general') {
+                configMerma[forecastMode] = document.getElementById('merma').value;
+                configNocturno[forecastMode] = document.getElementById('chkNocturno').checked;
+                configJornada[forecastMode] = document.getElementById('duracionJornada').value;
+            }
+        }
 
         function ordenarMesesCronologicamente(a, b) {
             const partsA = a.toLowerCase().trim().split(' ');
@@ -481,6 +517,21 @@
                     document.getElementById('contTargetTime').style.display = 'block';
                     document.getElementById('contConcurrencia').classList.remove('hidden');
                     document.getElementById('kpiCallsTitle').innerText = "Mensajes (Periodo)";
+                }
+            }
+            
+            if (mode !== 'general') {
+                if (configMerma[mode] !== undefined) {
+                    const mermaInput = document.getElementById('merma');
+                    if (mermaInput) mermaInput.value = configMerma[mode];
+                }
+                if (configNocturno[mode] !== undefined) {
+                    const chkNoc = document.getElementById('chkNocturno');
+                    if (chkNoc) chkNoc.checked = configNocturno[mode];
+                }
+                if (configJornada[mode] !== undefined) {
+                    const jorInput = document.getElementById('duracionJornada');
+                    if (jorInput) jorInput.value = configJornada[mode];
                 }
             }
 
@@ -979,6 +1030,9 @@
         }
 
         async function actualizarGrafica() {
+            const durJornada = parseFloat(document.getElementById('duracionJornada') ? document.getElementById('duracionJornada').value : 8) || 8;
+            const usarNocturnoActual = document.getElementById('chkNocturno') ? document.getElementById('chkNocturno').checked : false;
+
             const dfFiltered = globalData.filter(item => {
                 const m = String(getProp(item, ['Mes'], ''));
                 const s = getWeekNumber(getProp(item, ['Fecha'], ''));
@@ -1051,21 +1105,33 @@
                         
                         todosIntervalos.forEach((inter, idx) => {
                             const rowsInter = dfCamp.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === inter);
-                            let reqSum=0;
+                            let fteSum = 0;
+                            let daysWithVolume = 0;
                             
                             fechasC.forEach(d => {
                                 const subRows = rowsInter.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0] === d);
-                                let dReq = 0;
+                                let dFte = 0, dCalls = 0;
                                 subRows.forEach(b => {
-                                    dReq += (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0);
+                                    dFte += (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0);
+                                    dCalls += (Number(getProp(b, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0);
                                 });
-                                reqSum += dReq; 
+                                fteSum += dFte; 
+                                if (dCalls > 0 || dFte > 0) daysWithVolume++;
                             });
-                            arrAvgIntervals[idx] += (reqSum / nDias);
+                            
+                            let div = daysWithVolume > 0 ? daysWithVolume : nDias;
+                            arrAvgIntervals[idx] += (fteSum / div);
                         });
                     });
 
-                    let peakFteCanal = Math.ceil(Math.max(...arrAvgIntervals));
+                    // Área bajo la curva para nómina
+                    const totalFteIntervals = arrAvgIntervals.reduce((a, b) => a + b, 0);
+                    const totalHorasRequeridas = totalFteIntervals * 0.5;
+                    const factorDescanso = usarNocturnoActual ? (7.0 / 5.0) : (7.0 / 6.0);
+                    const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
+                    const factorAsistencia = Math.max(0.01, 1.0 - (mermaValLocal / 100.0));
+
+                    let hcReqNomina = Math.ceil(((totalHorasRequeridas / durJornada) * factorDescanso) / factorAsistencia);
 
                     let hcDisp = 0;
                     const uniqueCampChannel = [...new Set(dfC.map(r => r.Campaña + '|' + (r.Canal || '')))];
@@ -1074,7 +1140,7 @@
                         if (row) hcDisp += esVistaSemanal ? (Number(row.Total_Roster_Campana) || 0) : (Number(row.Total_Roster_Dia) || 0);
                     });
 
-                    return { req: peakFteCanal, disp: hcDisp };
+                    return { req: hcReqNomina, disp: hcDisp };
                 };
 
                 Promise.all([
@@ -1096,31 +1162,31 @@
                     const totalReqGlobal = hcReqInbound + hcReqOutbound + hcReqChat;
                     const totalDispGlobal = hcDispInbound + hcDispOutbound + hcDispChat;
 
-                    document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido";
+                    document.getElementById('kpiHcRequeridoTitle').innerText = "Nómina a Contratar";
                     document.getElementById('kpiHcRequerido').innerText = totalReqGlobal.toLocaleString() + ' HC';
-                    document.getElementById('kpiHcRequeridoSub').innerHTML = `Erlang C Puro (Sin Merma)`;
+                    document.getElementById('kpiHcRequeridoSub').innerHTML = `Fórmula: (Horas / Jornada) × Descansos + Shrinkage`;
                     
-                    document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Actual (Roster)" : "Plantilla de Hoy";
+                    document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Disponible (Roster Actual)" : "Plantilla de Hoy";
                     document.getElementById('kpiHcRoster').innerText = totalDispGlobal.toLocaleString() + ' HC';
 
                     const gapTotal = totalDispGlobal - totalReqGlobal;
                     const gapEl = document.getElementById('kpiHcGap');
                     if (gapTotal > 0) {
                         gapEl.innerText = `+${gapTotal} Sobran`;
-                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
                     } else if (gapTotal < 0) {
                         gapEl.innerText = `${gapTotal} Faltan`;
-                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
                     } else {
                         gapEl.innerText = `✓ Balanceado`;
-                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
+                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
                     }
 
                     document.getElementById('tableHeaderRow').innerHTML = `
                         <th class="py-3.5 px-4 text-left">Canal Operativo</th>
-                        <th class="py-3.5 px-4 text-brand-primary">HC Requerido</th>
-                        <th class="py-3.5 px-4 text-brand-accentEmerald">HC Actual</th>
-                        <th class="py-3.5 px-4 text-center">Gap</th>
+                        <th class="py-3.5 px-4 text-brand-primary">Nómina a Contratar</th>
+                        <th class="py-3.5 px-4 text-brand-accentEmerald">Nómina Roster</th>
+                        <th class="py-3.5 px-4 text-center">Delta (Gap)</th>
                     `;
 
                     const tbody = document.getElementById('intervalTableBody');
@@ -1196,7 +1262,7 @@
             const numDiasPeriodo = fechasFiltradas.length || 1;
 
             let llamadasAgrupadasGlobal = new Array(todosIntervalos.length).fill(0);
-            let reqAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
+            let fteAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
             let ahtAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
             let rosterAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
 
@@ -1205,42 +1271,56 @@
                 
                 todosIntervalos.forEach((inter, idx) => {
                     const rowsInter = dfCamp.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === inter);
-                    let callSum=0, htSum=0, reqSum=0;
+                    let callSum=0, htSum=0, fteSum=0, rosSum=0, daysWithVolume=0;
                     
                     fechasFiltradas.forEach(d => {
                         const subRows = rowsInter.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0] === d);
-                        let sC=0, sHt=0, sR=0, sRos=0;
+                        let dC=0, dHt=0, dF=0, dRos=0;
                         subRows.forEach(b => {
                             const calls = Number(getProp(b, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
-                            sC += calls;
-                            sHt += calls * (Number(getProp(b, ['AHT_Segundos'], 180)) || 180);
-                            sR += (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0);
-                            sRos += (Number(getProp(b, ['HC_Actual_Roster'], 0)) || 0);
+                            dC += calls;
+                            dHt += calls * (Number(getProp(b, ['AHT_Segundos'], 180)) || 180);
+                            dF += (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0);
+                            dRos += (Number(getProp(b, ['HC_Actual_Roster'], 0)) || 0);
                         });
-                        callSum += sC; 
-                        htSum += sHt; 
-                        reqSum += sR; 
-                        rosterAgrupadoGlobal[idx] += sRos;
+                        callSum += dC; 
+                        htSum += dHt; 
+                        fteSum += dF; 
+                        rosSum += dRos;
+                        
+                        if (dC > 0 || dF > 0) daysWithVolume++;
                     });
 
-                    let valLlam = callSum / numDiasPeriodo;
+                    let div = daysWithVolume > 0 ? daysWithVolume : numDiasPeriodo;
+
+                    let valLlam = callSum / div;
                     let valAht = callSum > 0 ? htSum/callSum : 180;
-                    let valReq = reqSum / numDiasPeriodo; 
+                    let valFte = fteSum / div; 
                     
                     llamadasAgrupadasGlobal[idx] += valLlam;
-                    reqAgrupadoGlobal[idx] += valReq;
+                    fteAgrupadoGlobal[idx] += valFte;
                     if (valAht > ahtAgrupadoGlobal[idx]) ahtAgrupadoGlobal[idx] = valAht;
+                    rosterAgrupadoGlobal[idx] += (rosSum / numDiasPeriodo); 
                 });
             });
 
-            rosterAgrupadoGlobal = rosterAgrupadoGlobal.map(val => Math.round(val / numDiasPeriodo));
+            rosterAgrupadoGlobal = rosterAgrupadoGlobal.map(val => Math.round(val));
             
-            const reqAgrupadoGlobalParaPlot = reqAgrupadoGlobal.map(val => Math.ceil(val));
-            const picoReq = reqAgrupadoGlobalParaPlot.length ? Math.max(...reqAgrupadoGlobalParaPlot) : 0;
+            const factorDescanso = usarNocturnoActual ? (7.0 / 5.0) : (7.0 / 6.0);
+            const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
+            const factorAsistencia = Math.max(0.01, 1.0 - (mermaValLocal / 100.0));
+
+            // HC requerido por intervalo para la tabla y gráfica
+            const hcAgrupadoGlobal = fteAgrupadoGlobal.map(fte => Math.ceil((fte * factorDescanso) / factorAsistencia));
             
-            document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido";
-            document.getElementById('kpiHcRequerido').innerText = picoReq.toLocaleString() + ' HC';
-            document.getElementById('kpiHcRequeridoSub').innerHTML = `Pico Máximo Erlang C (Sin Merma)`;
+            // Área bajo la curva para HC total (Nómina a contratar)
+            const totalFteIntervals = fteAgrupadoGlobal.reduce((a, b) => a + b, 0);
+            const totalHorasRequeridas = totalFteIntervals * 0.5;
+            const hcNominaCalculado = Math.ceil(((totalHorasRequeridas / durJornada) * factorDescanso) / factorAsistencia);
+            
+            document.getElementById('kpiHcRequeridoTitle').innerText = "Nómina a Contratar (HC)";
+            document.getElementById('kpiHcRequerido').innerText = hcNominaCalculado.toLocaleString() + ' HC';
+            document.getElementById('kpiHcRequeridoSub').innerHTML = `Fórmula: Área ErlangC / ${durJornada}h × ${usarNocturnoActual ? '5x2' : '6x1'} + Shrinkage`;
 
             let legendInteractions = forecastMode === 'outbound' ? 'Contactos (FCST)' : forecastMode === 'chat' ? 'Mensajes (FCST)' : 'Llamadas (FCST)';
 
@@ -1259,7 +1339,7 @@
             todosIntervalos.forEach((inter, idx) => {
                 const rowLlamadas = Math.round(llamadasAgrupadasGlobal[idx]);
                 const rowAhtSegs = ahtAgrupadoGlobal[idx];
-                const rowReq = reqAgrupadoGlobalParaPlot[idx] || 0; 
+                const rowReq = hcAgrupadoGlobal[idx] || 0; 
                 const rowRoster = rosterAgrupadoGlobal[idx] || 0;
                 
                 const gap = rowRoster - rowReq;
@@ -1294,8 +1374,8 @@
                 data: {
                     labels: todosIntervalos,
                     datasets: [
-                        { label: 'HC Requerido', data: reqAgrupadoGlobalParaPlot, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
-                        { label: 'HC Actual', data: rosterAgrupadoGlobal, borderColor: '#34D399', backgroundColor: '#34D399', fill: false, tension: 0.4, borderWidth: 2, borderDash: [5, 5], pointRadius: 0, pointHoverRadius: 6 }
+                        { label: 'HC Requerido', data: hcAgrupadoGlobal, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
+                        { label: 'HC Actual (Roster)', data: rosterAgrupadoGlobal, borderColor: '#34D399', backgroundColor: '#34D399', fill: false, tension: 0.4, borderWidth: 2, borderDash: [5, 5], pointRadius: 0, pointHoverRadius: 6 }
                     ]
                 },
                 options: { 
@@ -1318,11 +1398,11 @@
                 if (row) totalRosterHC += esVistaSemanal ? (Number(row.Total_Roster_Campana) || 0) : (Number(row.Total_Roster_Dia) || 0);
             });
 
-            document.getElementById('kpiHcRosterTitle').innerText = "HC Actual (Roster)";
-            document.getElementById('kpiHcRosterSub').innerText = "Total de agentes contratados";
+            document.getElementById('kpiHcRosterTitle').innerText = "HC Disponible (Roster Actual)";
+            document.getElementById('kpiHcRosterSub').innerText = esVistaSemanal ? "Total de agentes contratados en Roster" : "Descuenta descansos (DD-DD) del día";
             document.getElementById('kpiHcRoster').innerText = totalRosterHC.toLocaleString() + ' HC';
             
-            const gapTotal = totalRosterHC - picoReq;
+            const gapTotal = totalRosterHC - hcNominaCalculado;
             const gapEl = document.getElementById('kpiHcGap');
             if (gapTotal > 0) {
                 gapEl.innerText = `+${gapTotal} Sobran`;
@@ -1341,7 +1421,7 @@
                 alert("No hay datos cargados para exportar.");
                 return;
             }
-            const headers = ["Campana", "Canal", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Volumen", "AHT_HH_MM_SS", "HC_Requerido", "HC_Actual", "Factor_Reforecast"];
+            const headers = ["Campana", "Canal", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Volumen", "AHT_HH_MM_SS", "Agentes_Requeridos_FTE", "HC_Actual_Roster", "Factor_Reforecast"];
             const csvRows = [headers.join(",")];
             globalData.forEach(row => {
                 const values = [
