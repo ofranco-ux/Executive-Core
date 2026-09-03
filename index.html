@@ -106,7 +106,7 @@
 
                     <span id="tagModoOps" class="hidden text-[10px] bg-brand-primary/20 text-brand-primary border border-brand-primary/40 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider drop-shadow-md">Vista Operaciones</span>
                 </div>
-                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning (Área Volumétrica HC)</p>
+                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning (Erlang C Silos Puros)</p>
             </div>
         </div>
 
@@ -146,7 +146,7 @@
                         </div>
                         
                         <div class="flex flex-col group hidden col-span-2" id="contConcurrencia">
-                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentCyan transition-colors">Concurrencia (Chats por Agente)</label>
+                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentCyan transition-colors">Concurrencia (Chats)</label>
                             <input type="number" id="concurrencia" value="4" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentCyan font-mono-num font-bold focus:border-brand-accentCyan focus:ring-1 focus:ring-brand-accentCyan focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
                         </div>
                     </div>
@@ -275,11 +275,10 @@
             <div id="kpiCardsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 
                 <!-- CARD 1: TOTAL DEMAND -->
-                <div id="cardKpiCalls" class="glass-panel glass-panel-hover p-5 rounded-xl relative overflow-hidden flex flex-col justify-between border-t-2 border-t-brand-primary shadow-[0_4px_15px_-5px_rgba(59,130,246,0.15)]">
-                    <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-primary/10 rounded-full blur-xl pointer-events-none"></div>
-                    <div class="flex justify-between items-start relative z-10">
+                <div id="cardKpiCalls" class="glass-panel glass-panel-hover p-5 rounded-xl relative overflow-hidden flex flex-col justify-between border-t-2 border-t-[#1F2937]">
+                    <div class="flex justify-between items-start">
                         <p id="kpiCallsTitle" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Demanda Total (Periodo)</p>
-                        <div class="p-1.5 bg-brand-primary/10 rounded-lg text-brand-primary border border-brand-primary/20 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
+                        <div class="p-1.5 bg-slate-800/40 rounded-lg text-slate-300 border border-slate-700/50 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
                         </div>
                     </div>
@@ -302,7 +301,7 @@
                     </div>
                 </div>
 
-                <!-- CARD 3: HC REQUERIDO -->
+                <!-- CARD 3: HC REQUERIDO (NÓMINA) -->
                 <div class="glass-panel glass-panel-hover p-5 rounded-xl border-t-2 border-t-brand-accentViolet shadow-[0_4px_15px_-5px_rgba(167,139,250,0.15)] relative overflow-hidden flex flex-col justify-between">
                     <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-accentViolet/10 rounded-full blur-xl pointer-events-none"></div>
                     <div class="flex justify-between items-start relative z-10">
@@ -313,7 +312,7 @@
                     </div>
                     <div class="relative z-10 mt-2">
                         <p id="kpiHcRequerido" class="text-3xl font-black font-mono-num text-brand-accentViolet drop-shadow-[0_0_8px_rgba(167,139,250,0.3)]">0 HC</p>
-                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium leading-tight">Fórmula Volumétrica (Área Erlang C)</p>
+                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium leading-tight">Área Volumétrica (Silos)</p>
                     </div>
                 </div>
 
@@ -1098,6 +1097,7 @@
                     const fechasC = [...new Set(dfC.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0]))].filter(Boolean);
                     const nDias = fechasC.length || 1;
 
+                    let arrAvgIntervals = new Array(todosIntervalos.length).fill(0);
                     let totalFteIntervals = 0;
                     
                     campanas.forEach((camp) => {
@@ -1111,18 +1111,25 @@
                                 const subRows = rowsInter.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0] === d);
                                 let dReq = 0;
                                 subRows.forEach(b => {
-                                    dReq += (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0);
+                                    const calls = Number(getProp(b, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
+                                    let req = Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0;
+                                    if (calls < 0.1) req = 0; 
+                                    dReq += req;
                                 });
                                 reqSum += dReq; 
                             });
-                            totalFteIntervals += (reqSum / nDias);
+                            let avgInter = reqSum / nDias;
+                            arrAvgIntervals[idx] += avgInter;
+                            totalFteIntervals += avgInter;
                         });
                     });
 
-                    // Cálculo HC Requerido (Nómina) Área
                     const horasCanal = totalFteIntervals * 0.5;
                     const factorDes = usarNocturnoActual ? (7.0/5.0) : (7.0/6.0);
-                    let hcReqNomina = Math.ceil((horasCanal / durJornada) * factorDes);
+                    const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
+                    const factorAsistencia = Math.max(0.01, 1.0 - (mermaValLocal / 100.0));
+
+                    let hcReqNomina = Math.ceil(((horasCanal / durJornada) * factorDes) / factorAsistencia);
 
                     let hcDisp = 0;
                     const uniqueCampChannel = [...new Set(dfC.map(r => r.Campaña + '|' + (r.Canal || '')))];
@@ -1157,7 +1164,7 @@
                     document.getElementById('kpiHcRequerido').innerText = totalReqGlobal.toLocaleString() + ' HC';
                     document.getElementById('kpiHcRequeridoSub').innerHTML = `Fórmula: (Horas / Jornada) × Descansos + Shrinkage`;
                     
-                    document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Disponible (Roster)" : "Plantilla de Hoy";
+                    document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Actual (Roster)" : "Plantilla de Hoy";
                     document.getElementById('kpiHcRoster').innerText = totalDispGlobal.toLocaleString() + ' HC';
 
                     const gapTotal = totalDispGlobal - totalReqGlobal;
@@ -1253,58 +1260,76 @@
             const numDiasPeriodo = fechasFiltradas.length || 1;
 
             let llamadasAgrupadasGlobal = new Array(todosIntervalos.length).fill(0);
-            let reqAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
+            let fteAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
             let ahtAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
             let rosterAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
 
-            campanas.forEach((camp) => {
-                const dfCamp = dfFiltered.filter(r => r.Campaña === camp);
-                
-                todosIntervalos.forEach((inter, idx) => {
-                    const rowsInter = dfCamp.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === inter);
-                    let callSum=0, htSum=0, reqSum=0;
+            todosIntervalos.forEach((inter, idx) => {
+                let interCallSum = 0;
+                let interHtSum = 0;
+                let interFteSum = 0;
+                let interRosSum = 0;
+
+                campanas.forEach((camp) => {
+                    const dfCampInter = dfFiltered.filter(r => r.Campaña === camp && String(getProp(r, ['Intervalo'], '00:00')) === inter);
+                    
+                    let campCallSum = 0, campHtSum = 0, campFteSum = 0;
                     
                     fechasFiltradas.forEach(d => {
-                        const subRows = rowsInter.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0] === d);
-                        let sC=0, sHt=0, sR=0, sRos=0;
+                        const subRows = dfCampInter.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0] === d);
+                        let dC=0, dHt=0, dF=0;
                         subRows.forEach(b => {
                             const calls = Number(getProp(b, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
-                            sC += calls;
-                            sHt += calls * (Number(getProp(b, ['AHT_Segundos'], 180)) || 180);
-                            sR += (Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0);
-                            sRos += (Number(getProp(b, ['HC_Actual_Roster'], 0)) || 0);
+                            let req = Number(getProp(b, ['Agentes_Requeridos'], 0)) || 0;
+                            if (calls < 0.1) req = 0; // Filtro de volumen fantasma
+                            
+                            dC += calls;
+                            dHt += calls * (Number(getProp(b, ['AHT_Segundos'], 180)) || 180);
+                            dF += req;
                         });
-                        callSum += sC; 
-                        htSum += sHt; 
-                        reqSum += sR; 
-                        rosterAgrupadoGlobal[idx] += sRos;
+                        campCallSum += dC;
+                        campHtSum += dHt;
+                        campFteSum += dF;
                     });
 
-                    let valLlam = callSum / numDiasPeriodo;
-                    let valAht = callSum > 0 ? htSum/callSum : 180;
-                    let valReq = reqSum / numDiasPeriodo; 
-                    
-                    llamadasAgrupadasGlobal[idx] += valLlam;
-                    reqAgrupadoGlobal[idx] += valReq;
-                    if (valAht > ahtAgrupadoGlobal[idx]) ahtAgrupadoGlobal[idx] = valAht;
+                    interCallSum += (campCallSum / numDiasPeriodo);
+                    if (campCallSum > 0) interHtSum += campHtSum; 
+                    interFteSum += (campFteSum / numDiasPeriodo);
                 });
+
+                fechasFiltradas.forEach(d => {
+                    campanas.forEach(camp => {
+                        const row = dfFiltered.find(r => r.Campaña === camp && String(getProp(r, ['Intervalo'], '00:00')) === inter && String(getProp(r, ['Fecha'], '')).split(' ')[0] === d);
+                        if (row) interRosSum += (Number(getProp(row, ['HC_Actual_Roster'], 0)) || 0);
+                    });
+                });
+
+                let totalCallsForAHT = dfFiltered.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === inter)
+                                                  .reduce((sum, r) => sum + (Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0), 0);
+                let totalHTForAHT = dfFiltered.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === inter)
+                                                  .reduce((sum, r) => sum + ((Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0) * (Number(getProp(r, ['AHT_Segundos'], 180)) || 180)), 0);
+                
+                llamadasAgrupadasGlobal[idx] = interCallSum;
+                ahtAgrupadoGlobal[idx] = totalCallsForAHT > 0 ? (totalHTForAHT / totalCallsForAHT) : 180;
+                fteAgrupadoGlobal[idx] = interFteSum;
+                rosterAgrupadoGlobal[idx] = interRosSum / numDiasPeriodo;
             });
 
-            rosterAgrupadoGlobal = rosterAgrupadoGlobal.map(val => Math.round(val / numDiasPeriodo));
+            rosterAgrupadoGlobal = rosterAgrupadoGlobal.map(val => Math.round(val));
             
-            // Requerimiento agrupado por intervalo. Server.py ya trae Shrinkage inyectado en "Agentes_Requeridos".
-            const reqAgrupadoGlobalParaPlot = reqAgrupadoGlobal.map(val => Math.ceil(val));
-            
-            // AREA UNDER THE CURVE CALCULATION PARA NOMINA
-            const totalFteIntervals = reqAgrupadoGlobal.reduce((a, b) => a + b, 0);
-            const totalHorasRequeridas = totalFteIntervals * 0.5;
             const factorDescanso = usarNocturnoActual ? (7.0 / 5.0) : (7.0 / 6.0);
+            const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
+            const factorAsistencia = Math.max(0.01, 1.0 - (mermaValLocal / 100.0));
+
+            const hcAgrupadoGlobal = fteAgrupadoGlobal.map(fte => Math.ceil((fte * factorDescanso) / factorAsistencia));
             
-            const hcNominaCalculado = Math.ceil((totalHorasRequeridas / durJornada) * factorDescanso);
+            const totalFteIntervals = fteAgrupadoGlobal.reduce((a, b) => a + b, 0);
+            const totalHorasRequeridas = totalFteIntervals * 0.5;
+            const hcNominaCalculado = Math.ceil(((totalHorasRequeridas / durJornada) * factorDescanso) / factorAsistencia);
             
-            document.getElementById('kpiHcRequeridoTitle').innerText = "HC Requerido (Nómina)";
+            document.getElementById('kpiHcRequeridoTitle').innerText = "Nómina a Contratar (HC)";
             document.getElementById('kpiHcRequerido').innerText = hcNominaCalculado.toLocaleString() + ' HC';
-            document.getElementById('kpiHcRequeridoSub').innerHTML = `Fórmula Volumétrica (${durJornada}h, ${usarNocturnoActual ? '5x2' : '6x1'})`;
+            document.getElementById('kpiHcRequeridoSub').innerHTML = `Erlang C (Silos) + Shrinkage`;
 
             let legendInteractions = forecastMode === 'outbound' ? 'Contactos (FCST)' : forecastMode === 'chat' ? 'Mensajes (FCST)' : 'Llamadas (FCST)';
 
@@ -1323,7 +1348,7 @@
             todosIntervalos.forEach((inter, idx) => {
                 const rowLlamadas = Math.round(llamadasAgrupadasGlobal[idx]);
                 const rowAhtSegs = ahtAgrupadoGlobal[idx];
-                const rowReq = reqAgrupadoGlobalParaPlot[idx] || 0; 
+                const rowReq = hcAgrupadoGlobal[idx] || 0; 
                 const rowRoster = rosterAgrupadoGlobal[idx] || 0;
                 
                 const gap = rowRoster - rowReq;
@@ -1358,7 +1383,7 @@
                 data: {
                     labels: todosIntervalos,
                     datasets: [
-                        { label: 'HC Requerido (Motor)', data: reqAgrupadoGlobalParaPlot, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
+                        { label: 'HC Requerido (Motor)', data: hcAgrupadoGlobal, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
                         { label: 'HC Actual (Roster)', data: rosterAgrupadoGlobal, borderColor: '#34D399', backgroundColor: '#34D399', fill: false, tension: 0.4, borderWidth: 2, borderDash: [5, 5], pointRadius: 0, pointHoverRadius: 6 }
                     ]
                 },
