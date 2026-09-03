@@ -189,7 +189,7 @@
             <div id="contInfoGeneral" class="hidden pt-6">
                 <div class="p-4 bg-brand-primary/10 border border-brand-primary/30 rounded-xl">
                     <p class="text-[11px] text-brand-primary font-bold uppercase tracking-widest mb-2">Vista Consolidada Activa</p>
-                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>El sistema está calculando el requerimiento campaña por campaña de forma independiente (silos) y sumando los resultados.</p>
+                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>El sistema está calculando el requerimiento de forma nativa para evitar la inflación por silos.</p>
                 </div>
             </div>
 
@@ -205,7 +205,7 @@
                         <span style="font-size: 16px;">🎯</span>
                     </div>
                     <div>
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Filtros Operativos (Multiselección)</p>
+                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Filtros Operativos en Cascada</p>
                         <p id="tableSelectionLabel" class="text-xs text-slate-200 font-medium">Selecciona campaña, meses, semanas, fechas e intervalos</p>
                     </div>
                 </div>
@@ -313,7 +313,7 @@
                     </div>
                     <div class="relative z-10 mt-2">
                         <p id="kpiHcRequerido" class="text-3xl font-black font-mono-num text-brand-accentViolet drop-shadow-[0_0_8px_rgba(167,139,250,0.3)]">0 HC</p>
-                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium leading-tight">Área Volumétrica (Silos)</p>
+                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium leading-tight">Área Volumétrica</p>
                     </div>
                 </div>
 
@@ -762,7 +762,7 @@
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
                 actualizarGrafica();
-            }, 400); 
+            }, 10); 
         }
 
         window.addEventListener('DOMContentLoaded', async () => {
@@ -923,33 +923,15 @@
             });
         }
 
-        function syncFilters(changedType) {
-            let validRows = globalData;
-
-            if (changedType === 'Mes' && selectedMeses.size > 0 && selectedMeses.size < allMesesOptions.length) {
-                validRows = validRows.filter(r => selectedMeses.has(String(getProp(r, ['Mes'], ''))));
-            } else if (changedType === 'Semana' && selectedSemanas.size > 0 && selectedSemanas.size < allSemanasOptions.length) {
-                validRows = validRows.filter(r => selectedSemanas.has(getWeekNumber(getProp(r, ['Fecha'], ''))));
-            } else if (changedType === 'Fecha' && selectedFechas.size > 0 && selectedFechas.size < allFechasOptions.length) {
-                validRows = validRows.filter(r => selectedFechas.has(String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]));
+        // Cascada estricta para evitar datos cruzados
+        function intersectAndRender(type, availSet, selectedSet, allOptions) {
+            let toDelete = [];
+            for (let val of selectedSet) {
+                if (!availSet.has(val)) toDelete.push(val);
             }
-
-            if (changedType === 'Mes') {
-                let availSemanas = [...new Set(validRows.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))))].filter(Boolean).sort();
-                let availFechas = [...new Set(validRows.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
-                renderMenuOptions('Semana', availSemanas, selectedSemanas);
-                renderMenuOptions('Fecha', availFechas, selectedFechas);
-            } else if (changedType === 'Semana') {
-                let availMeses = [...new Set(validRows.map(r => String(getProp(r, ['Mes'], ''))))].filter(Boolean).sort(ordenarMesesCronologicamente);
-                let availFechas = [...new Set(validRows.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
-                renderMenuOptions('Mes', availMeses, selectedMeses);
-                renderMenuOptions('Fecha', availFechas, selectedFechas);
-            } else if (changedType === 'Fecha') {
-                let availMeses = [...new Set(validRows.map(r => String(getProp(r, ['Mes'], ''))))].filter(Boolean).sort(ordenarMesesCronologicamente);
-                let availSemanas = [...new Set(validRows.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))))].filter(Boolean).sort();
-                renderMenuOptions('Mes', availMeses, selectedMeses);
-                renderMenuOptions('Semana', availSemanas, selectedSemanas);
-            }
+            toDelete.forEach(val => selectedSet.delete(val));
+            let optionsToRender = allOptions.filter(o => availSet.has(o));
+            renderMenuOptions(type, optionsToRender, selectedSet);
         }
 
         function onCheckboxChange(type, value, checked) {
@@ -964,7 +946,32 @@
             else setRef.delete(value);
 
             if (['Mes', 'Semana', 'Fecha'].includes(type)) {
-                syncFilters(type);
+                let tempValid = globalData.filter(r => {
+                    let m = String(getProp(r, ['Mes'], ''));
+                    let s = getWeekNumber(getProp(r, ['Fecha'], ''));
+                    let f = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
+                    let matchM = selectedMeses.size === 0 || selectedMeses.has(m);
+                    let matchS = selectedSemanas.size === 0 || selectedSemanas.has(s);
+                    let matchF = selectedFechas.size === 0 || selectedFechas.has(f);
+                    return matchM && matchS && matchF;
+                });
+
+                if (type === 'Mes') {
+                    let availS = new Set(tempValid.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))).filter(Boolean));
+                    let availF = new Set(tempValid.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]).filter(Boolean));
+                    intersectAndRender('Semana', availS, selectedSemanas, allSemanasOptions);
+                    intersectAndRender('Fecha', availF, selectedFechas, allFechasOptions);
+                } else if (type === 'Semana') {
+                    let availM = new Set(tempValid.map(r => String(getProp(r, ['Mes'], ''))).filter(Boolean));
+                    let availF = new Set(tempValid.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]).filter(Boolean));
+                    intersectAndRender('Mes', availM, selectedMeses, allMesesOptions);
+                    intersectAndRender('Fecha', availF, selectedFechas, allFechasOptions);
+                } else if (type === 'Fecha') {
+                    let availM = new Set(tempValid.map(r => String(getProp(r, ['Mes'], ''))).filter(Boolean));
+                    let availS = new Set(tempValid.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))).filter(Boolean));
+                    intersectAndRender('Mes', availM, selectedMeses, allMesesOptions);
+                    intersectAndRender('Semana', availS, selectedSemanas, allSemanasOptions);
+                }
             }
 
             actualizarTextosBotones();
@@ -982,10 +989,35 @@
             
             if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
             
-            renderMenuOptions(type, allOptions, setRef);
-            
             if (['Mes', 'Semana', 'Fecha'].includes(type)) {
-                syncFilters(type);
+                let tempValid = globalData.filter(r => {
+                    let m = String(getProp(r, ['Mes'], ''));
+                    let s = getWeekNumber(getProp(r, ['Fecha'], ''));
+                    let f = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
+                    let matchM = selectedMeses.size === 0 || selectedMeses.has(m);
+                    let matchS = selectedSemanas.size === 0 || selectedSemanas.has(s);
+                    let matchF = selectedFechas.size === 0 || selectedFechas.has(f);
+                    return matchM && matchS && matchF;
+                });
+
+                if (type === 'Mes') {
+                    let availS = new Set(tempValid.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))).filter(Boolean));
+                    let availF = new Set(tempValid.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]).filter(Boolean));
+                    intersectAndRender('Semana', availS, selectedSemanas, allSemanasOptions);
+                    intersectAndRender('Fecha', availF, selectedFechas, allFechasOptions);
+                } else if (type === 'Semana') {
+                    let availM = new Set(tempValid.map(r => String(getProp(r, ['Mes'], ''))).filter(Boolean));
+                    let availF = new Set(tempValid.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]).filter(Boolean));
+                    intersectAndRender('Mes', availM, selectedMeses, allMesesOptions);
+                    intersectAndRender('Fecha', availF, selectedFechas, allFechasOptions);
+                } else if (type === 'Fecha') {
+                    let availM = new Set(tempValid.map(r => String(getProp(r, ['Mes'], ''))).filter(Boolean));
+                    let availS = new Set(tempValid.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))).filter(Boolean));
+                    intersectAndRender('Mes', availM, selectedMeses, allMesesOptions);
+                    intersectAndRender('Semana', availS, selectedSemanas, allSemanasOptions);
+                }
+            } else {
+                renderMenuOptions(type, allOptions, setRef);
             }
             
             actualizarTextosBotones();
@@ -1033,7 +1065,7 @@
             selectedCampanas = new Set(allCampanasOptions);
             selectedFechas = new Set(allFechasOptions);
             selectedIntervalos = new Set(allIntervalosOptions);
-            
+
             renderMenuOptions('Mes', allMesesOptions, selectedMeses);
             renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
             renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
@@ -1059,33 +1091,36 @@
             const targetTimeObj = parseFloat(document.getElementById('targetTime') ? document.getElementById('targetTime').value : 20) || 20;
             const concurrenciaVal = parseFloat(document.getElementById('concurrencia') ? document.getElementById('concurrencia').value : 4) || 4;
 
-            const dfFiltered = globalData.filter(item => {
-                const m = String(getProp(item, ['Mes'], ''));
-                const s = getWeekNumber(getProp(item, ['Fecha'], ''));
-                const c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
-                const f = String(getProp(item, ['Fecha'], '')).split(' ')[0].split('T')[0];
-                const i = String(getProp(item, ['Intervalo'], '00:00'));
-                
-                const matchMes = selectedMeses.has(m);
-                const matchSem = selectedSemanas.has(s); 
-                const matchCamp = selectedCampanas.has(c);
-                const matchFecha = selectedFechas.has(f);
-                const matchInter = selectedIntervalos.has(i);
+            // FILTRADO SUPER RÁPIDO O(N)
+            const dfFiltered = [];
+            for (let i = 0; i < globalData.length; i++) {
+                let item = globalData[i];
+                let m = String(getProp(item, ['Mes'], ''));
+                let s = getWeekNumber(getProp(item, ['Fecha'], ''));
+                let c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
+                let f = String(getProp(item, ['Fecha'], '')).split(' ')[0].split('T')[0];
+                let inv = String(getProp(item, ['Intervalo'], '00:00'));
 
-                return matchMes && matchSem && matchCamp && matchFecha && matchInter;
-            });
+                if ((selectedMeses.size === 0 || selectedMeses.has(m)) &&
+                    (selectedSemanas.size === 0 || selectedSemanas.has(s)) &&
+                    (selectedCampanas.size === 0 || selectedCampanas.has(c)) &&
+                    (selectedFechas.size === 0 || selectedFechas.has(f)) &&
+                    (selectedIntervalos.size === 0 || selectedIntervalos.has(inv))) {
+                    dfFiltered.push(item);
+                }
+            }
 
             const reforecastAlert = document.getElementById('reforecastAlert');
             const reforecastMsg = document.getElementById('reforecastMsg');
             let campanasModificadas = {};
             
-            dfFiltered.forEach(r => {
+            for (let r of dfFiltered) {
                 const f = parseFloat(getProp(r, ['Factor_Correccion'], 1.0));
                 if (f !== 1.0 && !isNaN(f)) {
                     const c = String(getProp(r, ['Campaña', 'Campana'], 'General'));
                     campanasModificadas[c] = f;
                 }
-            });
+            }
 
             if (Object.keys(campanasModificadas).length > 0 && reforecastAlert && currentMode !== 'ops' && currentMode !== 'operaciones') {
                 reforecastAlert.classList.remove('hidden');
@@ -1109,262 +1144,101 @@
                 return;
             }
 
-            const fechasFiltradas = [...new Set(dfFiltered.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean);
-            const todosIntervalos = [...new Set(dfFiltered.map(r => String(getProp(r, ['Intervalo'], '00:00'))))].sort();
-            const esVistaSemanal = fechasFiltradas.length > 1;
+            // AGREGADOR O(N) para matar la latencia
+            let aggInter = {};
+            let fechasSet = new Set();
+            let totalCallsGlobal = 0;
+            let totalHTGlobal = 0;
+            let canalSet = new Set();
 
-            if (forecastMode === 'general') {
-                const btn = document.getElementById('btnProcesar');
-                if(btn) { btn.disabled = true; btn.innerText = "⏳ SUMANDO CANALES..."; }
+            for (let i = 0; i < dfFiltered.length; i++) {
+                let r = dfFiltered[i];
+                let inter = String(getProp(r, ['Intervalo'], '00:00'));
+                let d = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
+                let camp = String(getProp(r, ['Campaña', 'Campana'], 'General'));
+                let ch = r.Canal || 'Inbound';
+                
+                fechasSet.add(d);
+                canalSet.add(ch);
 
-                const getCanalData = async (canalStr) => {
-                    const dfC = dfFiltered.filter(r => r.Canal === canalStr);
-                    if (dfC.length === 0) return { req: 0, disp: 0 };
+                let calls = Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
+                let aht = Number(getProp(r, ['AHT_Segundos'], 180)) || 180;
+                let ros = Number(getProp(r, ['HC_Actual_Roster'], 0)) || 0;
 
-                    const campanas = [...new Set(dfC.map(r => r.Campaña))];
-                    const fechasC = [...new Set(dfC.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0]))].filter(Boolean);
-                    const nDias = fechasC.length || 1;
+                totalCallsGlobal += calls;
+                totalHTGlobal += (calls * aht);
 
-                    let arrAvgIntervals = new Array(todosIntervalos.length).fill(0);
-                    
-                    campanas.forEach((camp) => {
-                        const dfCamp = dfC.filter(r => r.Campaña === camp);
-                        
-                        todosIntervalos.forEach((inter, idx) => {
-                            const rowsInter = dfCamp.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === inter);
-                            let callSum=0, htSum=0;
-                            
-                            fechasC.forEach(d => {
-                                const subRows = rowsInter.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0] === d);
-                                subRows.forEach(b => {
-                                    const calls = Number(getProp(b, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
-                                    callSum += calls;
-                                    htSum += calls * (Number(getProp(b, ['AHT_Segundos'], 180)) || 180);
-                                });
-                            });
-                            
-                            let avgLlam = callSum / nDias;
-                            let avgAht = callSum > 0 ? htSum/callSum : 180;
-                            
-                            let aht_efectivo = avgAht;
-                            if (canalStr === 'Chat') aht_efectivo = avgAht / Math.max(1.0, concurrenciaVal);
-                            
-                            let fte_req = 0;
-                            if (avgLlam > 0.05) { 
-                                let a_erlang = (avgLlam * aht_efectivo) / 1800.0;
-                                fte_req = calcular_agentes_requeridos_erlang_c_js(a_erlang, aht_efectivo, targetTimeObj, targetSlObj);
-                            }
-                            arrAvgIntervals[idx] += fte_req;
-                        });
-                    });
-
-                    // Área bajo la curva para nómina
-                    const totalFteIntervals = arrAvgIntervals.reduce((a, b) => a + b, 0);
-                    const totalHorasRequeridas = totalFteIntervals * 0.5;
-                    const factorDes = usarNocturnoActual ? (7.0/5.0) : (7.0/6.0);
-                    const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
-                    const factorAsistencia = Math.max(0.01, 1.0 - (mermaValLocal / 100.0));
-
-                    let hcReqNomina = Math.ceil(((totalHorasRequeridas / durJornada) * factorDes) / factorAsistencia);
-
-                    let hcDisp = 0;
-                    const uniqueCampChannel = [...new Set(dfC.map(r => r.Campaña + '|' + (r.Canal || '')))];
-                    uniqueCampChannel.forEach(cc => {
-                        const row = dfC.find(r => (r.Campaña + '|' + (r.Canal || '')) === cc);
-                        if (row) hcDisp += esVistaSemanal ? (Number(row.Total_Roster_Campana) || 0) : (Number(row.Total_Roster_Dia) || 0);
-                    });
-
-                    return { req: hcReqNomina, disp: hcDisp };
-                };
-
-                Promise.all([
-                    getCanalData('Inbound'),
-                    getCanalData('Outbound'),
-                    getCanalData('Chat')
-                ]).then(results => {
-                    if(btn) { btn.disabled = false; btn.innerText = "▶ RUN PLAN"; }
-
-                    const hcReqInbound = results[0] ? results[0].req : 0;
-                    const hcDispInbound = results[0] ? results[0].disp : 0;
-                    
-                    const hcReqOutbound = results[1] ? results[1].req : 0;
-                    const hcDispOutbound = results[1] ? results[1].disp : 0;
-                    
-                    const hcReqChat = results[2] ? results[2].req : 0;
-                    const hcDispChat = results[2] ? results[2].disp : 0;
-
-                    const totalReqGlobal = hcReqInbound + hcReqOutbound + hcReqChat;
-                    const totalDispGlobal = hcDispInbound + hcDispOutbound + hcDispChat;
-
-                    document.getElementById('kpiHcRequeridoTitle').innerText = "Nómina a Contratar (HC)";
-                    document.getElementById('kpiHcRequerido').innerText = totalReqGlobal.toLocaleString() + ' HC';
-                    document.getElementById('kpiHcRequeridoSub').innerHTML = `Fórmula: (Horas / Jornada) × Descansos + Shrinkage`;
-                    
-                    document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Disponible (Roster Actual)" : "Plantilla de Hoy";
-                    document.getElementById('kpiHcRoster').innerText = totalDispGlobal.toLocaleString() + ' HC';
-
-                    const gapTotal = totalDispGlobal - totalReqGlobal;
-                    const gapEl = document.getElementById('kpiHcGap');
-                    if (gapTotal > 0) {
-                        gapEl.innerText = `+${gapTotal} Sobran`;
-                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
-                    } else if (gapTotal < 0) {
-                        gapEl.innerText = `${gapTotal} Faltan`;
-                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
-                    } else {
-                        gapEl.innerText = `✓ Balanceado`;
-                        gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
-                    }
-
-                    document.getElementById('tableHeaderRow').innerHTML = `
-                        <th class="py-3.5 px-4 text-left">Canal Operativo</th>
-                        <th class="py-3.5 px-4 text-brand-primary">Nómina a Contratar</th>
-                        <th class="py-3.5 px-4 text-brand-accentEmerald">Nómina Roster</th>
-                        <th class="py-3.5 px-4 text-center">Delta (Gap)</th>
-                    `;
-
-                    const tbody = document.getElementById('intervalTableBody');
-                    tbody.innerHTML = '';
-                    
-                    const channels = [
-                        { name: '🎯 Inbound', req: hcReqInbound, disp: hcDispInbound },
-                        { name: '🚀 Outbound', req: hcReqOutbound, disp: hcDispOutbound },
-                        { name: '💬 Chat', req: hcReqChat, disp: hcDispChat },
-                        { name: '🌐 TOTAL', req: totalReqGlobal, disp: totalDispGlobal }
-                    ];
-
-                    channels.forEach(ch => {
-                        const gap = ch.disp - ch.req;
-                        let gapHtml = gap > 0 ? `<span class="bg-[#34D399]/20 text-[#34D399] px-2 py-0.5 rounded-md font-bold">+${gap}</span>` : 
-                                      gap < 0 ? `<span class="bg-[#FB7185]/20 text-[#FB7185] px-2 py-0.5 rounded-md font-bold">${gap}</span>` : 
-                                      `<span class="text-slate-500 font-bold">0</span>`;
-
-                        let rowClass = ch.name === '🌐 TOTAL' ? "bg-[#1E293B] font-bold border-t border-[#334155]" : "hover:bg-[#1E293B] transition-colors";
-
-                        tbody.innerHTML += `
-                            <tr class="${rowClass}">
-                                <td class="py-3.5 px-4 font-bold text-white text-left">${ch.name}</td>
-                                <td class="py-3.5 px-4 text-brand-primary font-black text-sm">${ch.req.toLocaleString()}</td>
-                                <td class="py-3.5 px-4 text-brand-accentEmerald font-black text-sm">${ch.disp.toLocaleString()}</td>
-                                <td class="py-3.5 px-4 text-center">${gapHtml}</td>
-                            </tr>
-                        `;
-                    });
-
-                    document.getElementById('contGapChart').classList.add('hidden');
-                    document.getElementById('contGeneralChart').classList.remove('hidden');
-
-                    if(generalChartInstance) generalChartInstance.destroy();
-                    const ctxGen = document.getElementById('generalChart').getContext('2d');
-                    generalChartInstance = new Chart(ctxGen, {
-                        type: 'bar',
-                        data: {
-                            labels: ['Inbound', 'Outbound', 'Chat'],
-                            datasets: [
-                                { label: 'HC Requerido', data: [hcReqInbound, hcReqOutbound, hcReqChat], backgroundColor: '#A78BFA', borderRadius: 4 },
-                                { label: 'HC Disponible', data: [hcDispInbound, hcDispOutbound, hcDispChat], backgroundColor: '#34D399', borderRadius: 4 }
-                            ]
-                        },
-                        options: {
-                            responsive: true, maintainAspectRatio: false,
-                            plugins: {
-                                legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } },
-                                tooltip: { backgroundColor: '#111827', titleColor: '#F8FAFC', bodyColor: '#cbd5e1', borderColor: '#1F2937', borderWidth: 1 }
-                            },
-                            scales: {
-                                x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 11, weight: 'bold' } } },
-                                y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono' } }, beginAtZero: true }
-                            }
-                        }
-                    });
-
-                    return; 
-                });
-                return; 
+                if (!aggInter[inter]) aggInter[inter] = {};
+                if (!aggInter[inter][d]) aggInter[inter][d] = { calls: 0, ht: 0, rosSet: new Set(), rosSum: 0 };
+                
+                aggInter[inter][d].calls += calls;
+                aggInter[inter][d].ht += (calls * aht);
+                
+                // Para no sumar dos veces el roster de la misma campana en el mismo intervalo
+                let rosKey = camp + '|' + ch;
+                if (!aggInter[inter][d].rosSet.has(rosKey)) {
+                    aggInter[inter][d].rosSet.add(rosKey);
+                    aggInter[inter][d].rosSum += ros;
+                }
             }
 
-            const totCalls = dfFiltered.reduce((acc, row) => acc + (Number(getProp(row, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0), 0);
-            document.getElementById('kpiCalls').innerText = totCalls.toLocaleString();
-            
-            const sumLlamadasAht = dfFiltered.reduce((acc, row) => {
-                const calls = Number(getProp(row, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
-                return acc + (calls * Number(getProp(row, ['AHT_Segundos'], 180)));
-            }, 0);
-            document.getElementById('kpiAht').innerText = formatAHT(totCalls > 0 ? Math.round(sumLlamadasAht / totCalls) : 0);
+            document.getElementById('kpiCalls').innerText = totalCallsGlobal.toLocaleString();
+            document.getElementById('kpiAht').innerText = formatAHT(totalCallsGlobal > 0 ? Math.round(totalHTGlobal / totalCallsGlobal) : 0);
 
-            const campanas = [...new Set(dfFiltered.map(r => r.Campaña))];
-            const numDiasPeriodo = fechasFiltradas.length || 1;
+            const numDiasPeriodo = fechasSet.size || 1;
+            const todosIntervalos = Object.keys(aggInter).sort();
 
-            let llamadasAgrupadasGlobal = new Array(todosIntervalos.length).fill(0);
-            let fteAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
-            let ahtAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
-            let rosterAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
+            let llamadasAgrupadasGlobal = [];
+            let fteAgrupadoGlobal = [];
+            let ahtAgrupadoGlobal = [];
+            let rosterAgrupadoGlobal = [];
 
-            todosIntervalos.forEach((inter, idx) => {
+            // Calculamos Erlang de forma consolidada por intervalo (ya habiendo sumado las campañas de ese día)
+            for (let i = 0; i < todosIntervalos.length; i++) {
+                let inter = todosIntervalos[i];
+                let diasObj = aggInter[inter];
+                
                 let interCallSum = 0;
                 let interHtSum = 0;
                 let interFteSum = 0;
                 let interRosSum = 0;
 
-                campanas.forEach((camp) => {
-                    const dfCampInter = dfFiltered.filter(r => r.Campaña === camp && String(getProp(r, ['Intervalo'], '00:00')) === inter);
-                    
-                    let campCallSum = 0, campHtSum = 0;
-                    
-                    fechasFiltradas.forEach(d => {
-                        const subRows = dfCampInter.filter(r => String(getProp(r, ['Fecha'], '')).split(' ')[0] === d);
-                        subRows.forEach(b => {
-                            const calls = Number(getProp(b, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
-                            campCallSum += calls;
-                            campHtSum += calls * (Number(getProp(b, ['AHT_Segundos'], 180)) || 180);
-                        });
-                    });
+                for (let d of fechasSet) {
+                    if (diasObj[d]) {
+                        let callsD = diasObj[d].calls;
+                        let htD = diasObj[d].ht;
+                        let rosD = diasObj[d].rosSum;
 
-                    let avgLlam = campCallSum / numDiasPeriodo;
-                    let avgAht = campCallSum > 0 ? campHtSum/campCallSum : 180;
-                    
-                    let aht_efectivo = avgAht;
-                    if (forecastMode === 'chat') aht_efectivo = avgAht / Math.max(1.0, concurrenciaVal);
-                    
-                    let fte_req = 0;
-                    if (avgLlam > 0.05) { // Filtro para ignorar 0.01 llamadas en madrugada
-                        let a_erlang = (avgLlam * aht_efectivo) / 1800.0;
-                        fte_req = calcular_agentes_requeridos_erlang_c_js(a_erlang, aht_efectivo, targetTimeObj, targetSlObj);
+                        interCallSum += callsD;
+                        interHtSum += htD;
+                        interRosSum += rosD;
+
+                        // Corremos Erlang C sobre el volumen YA FUSIONADO de ese día y ese intervalo
+                        let avgAhtD = callsD > 0 ? htD / callsD : 180;
+                        let aht_efectivo = avgAhtD;
+                        if (forecastMode === 'chat') aht_efectivo = avgAhtD / Math.max(1.0, concurrenciaVal);
+
+                        let fte_req = 0;
+                        if (callsD > 0.05) {
+                            let a_erlang = (callsD * aht_efectivo) / 1800.0;
+                            fte_req = calcular_agentes_requeridos_erlang_c_js(a_erlang, aht_efectivo, targetTimeObj, targetSlObj);
+                        }
+                        interFteSum += fte_req;
                     }
+                }
 
-                    interCallSum += avgLlam;
-                    if (campCallSum > 0) interHtSum += campHtSum; 
-                    interFteSum += fte_req;
-                });
+                llamadasAgrupadasGlobal.push(interCallSum / numDiasPeriodo);
+                ahtAgrupadoGlobal.push(interCallSum > 0 ? interHtSum / interCallSum : 180);
+                fteAgrupadoGlobal.push(interFteSum / numDiasPeriodo);
+                rosterAgrupadoGlobal.push(Math.round(interRosSum / numDiasPeriodo));
+            }
 
-                // Conteo de Roster Real
-                fechasFiltradas.forEach(d => {
-                    campanas.forEach(camp => {
-                        const row = dfFiltered.find(r => r.Campaña === camp && String(getProp(r, ['Intervalo'], '00:00')) === inter && String(getProp(r, ['Fecha'], '')).split(' ')[0] === d);
-                        if (row) interRosSum += (Number(getProp(row, ['HC_Actual_Roster'], 0)) || 0);
-                    });
-                });
-
-                let totalCallsForAHT = dfFiltered.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === inter)
-                                                  .reduce((sum, r) => sum + (Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0), 0);
-                let totalHTForAHT = dfFiltered.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === inter)
-                                                  .reduce((sum, r) => sum + ((Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0) * (Number(getProp(r, ['AHT_Segundos'], 180)) || 180)), 0);
-                
-                llamadasAgrupadasGlobal[idx] = interCallSum;
-                ahtAgrupadoGlobal[idx] = totalCallsForAHT > 0 ? (totalHTForAHT / totalCallsForAHT) : 180;
-                fteAgrupadoGlobal[idx] = interFteSum;
-                rosterAgrupadoGlobal[idx] = interRosSum / numDiasPeriodo;
-            });
-
-            rosterAgrupadoGlobal = rosterAgrupadoGlobal.map(val => Math.round(val));
+            const reqAgrupadoGlobalParaPlot = fteAgrupadoGlobal.map(val => Math.ceil(val));
             
             const factorDescanso = usarNocturnoActual ? (7.0 / 5.0) : (7.0 / 6.0);
             const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
             const factorAsistencia = Math.max(0.01, 1.0 - (mermaValLocal / 100.0));
 
-            // HC requerido por intervalo para la tabla y gráfica
-            const hcAgrupadoGlobal = fteAgrupadoGlobal.map(fte => Math.ceil((fte * factorDescanso) / factorAsistencia));
-            
             // Área bajo la curva para HC total (Nómina a contratar)
             const totalFteIntervals = fteAgrupadoGlobal.reduce((a, b) => a + b, 0);
             const totalHorasRequeridas = totalFteIntervals * 0.5;
@@ -1372,7 +1246,7 @@
             
             document.getElementById('kpiHcRequeridoTitle').innerText = "Nómina a Contratar (HC)";
             document.getElementById('kpiHcRequerido').innerText = hcNominaCalculado.toLocaleString() + ' HC';
-            document.getElementById('kpiHcRequeridoSub').innerHTML = `Fórmula: Área Volumétrica (${durJornada}h, ${usarNocturnoActual ? '5x2' : '6x1'})`;
+            document.getElementById('kpiHcRequeridoSub').innerHTML = `Erlang C Consolidado + Shrinkage`;
 
             let legendInteractions = forecastMode === 'outbound' ? 'Contactos (FCST)' : forecastMode === 'chat' ? 'Mensajes (FCST)' : 'Llamadas (FCST)';
 
@@ -1380,7 +1254,7 @@
                 <th class="py-3.5 px-4 text-left">Intervalo</th>
                 <th class="py-3.5 px-4">${legendInteractions}</th>
                 <th class="py-3.5 px-4">AHT (HH:MM:SS)</th>
-                <th class="py-3.5 px-4 text-brand-primary">HC Requerido</th>
+                <th class="py-3.5 px-4 text-brand-primary">HC Requerido (Motor)</th>
                 <th class="py-3.5 px-4 text-brand-accentEmerald">HC Actual</th>
                 <th class="py-3.5 px-4 text-center">Gap</th>
             `;
@@ -1391,7 +1265,7 @@
             todosIntervalos.forEach((inter, idx) => {
                 const rowLlamadas = Math.round(llamadasAgrupadasGlobal[idx]);
                 const rowAhtSegs = ahtAgrupadoGlobal[idx];
-                const rowReq = hcAgrupadoGlobal[idx] || 0; 
+                const rowReq = reqAgrupadoGlobalParaPlot[idx] || 0; 
                 const rowRoster = rosterAgrupadoGlobal[idx] || 0;
                 
                 const gap = rowRoster - rowReq;
@@ -1426,7 +1300,7 @@
                 data: {
                     labels: todosIntervalos,
                     datasets: [
-                        { label: 'HC Requerido', data: hcAgrupadoGlobal, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
+                        { label: 'HC Requerido (Motor)', data: reqAgrupadoGlobalParaPlot, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
                         { label: 'HC Actual (Roster)', data: rosterAgrupadoGlobal, borderColor: '#34D399', backgroundColor: '#34D399', fill: false, tension: 0.4, borderWidth: 2, borderDash: [5, 5], pointRadius: 0, pointHoverRadius: 6 }
                     ]
                 },
@@ -1443,15 +1317,21 @@
                 }
             });
 
-            const uniqueCampChannel = [...new Set(dfFiltered.map(r => r.Campaña + '|' + (r.Canal || '')))];
             let totalRosterHC = 0;
-            uniqueCampChannel.forEach(cc => {
-                const row = dfFiltered.find(r => (r.Campaña + '|' + (r.Canal || '')) === cc);
-                if (row) totalRosterHC += esVistaSemanal ? (Number(row.Total_Roster_Campana) || 0) : (Number(row.Total_Roster_Dia) || 0);
+            let uniqueRosterMap = new Set();
+            
+            dfFiltered.forEach(r => {
+                let camp = String(getProp(r, ['Campaña', 'Campana'], 'General'));
+                let ch = r.Canal || 'Inbound';
+                let rosKey = camp + '|' + ch;
+                if (!uniqueRosterMap.has(rosKey)) {
+                    uniqueRosterMap.add(rosKey);
+                    totalRosterHC += (Number(getProp(r, ['Total_Roster_Campana'], 0)) || 0);
+                }
             });
 
             document.getElementById('kpiHcRosterTitle').innerText = "HC Actual (Roster)";
-            document.getElementById('kpiHcRosterSub').innerText = esVistaSemanal ? "Total de agentes contratados en Roster" : "Descuenta descansos (DD-DD) del día";
+            document.getElementById('kpiHcRosterSub').innerText = "Total de agentes contratados en Roster";
             document.getElementById('kpiHcRoster').innerText = totalRosterHC.toLocaleString() + ' HC';
             
             const gapTotal = totalRosterHC - hcNominaCalculado;
@@ -1489,7 +1369,7 @@
                 alert("No hay datos cargados para exportar.");
                 return;
             }
-            const headers = ["Campana", "Canal", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Volumen", "AHT_HH_MM_SS", "HC_Requerido", "HC_Actual", "Factor_Reforecast"];
+            const headers = ["Campana", "Canal", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Volumen", "AHT_HH_MM_SS", "HC_Requerido_Puro", "HC_Actual_Roster", "Factor_Reforecast"];
             const csvRows = [headers.join(",")];
             dfFiltered.forEach(row => {
                 const values = [
