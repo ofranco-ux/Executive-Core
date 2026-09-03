@@ -154,11 +154,11 @@
                     <div class="grid grid-cols-2 gap-4">
                         <div class="flex flex-col group">
                             <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentRose transition-colors">Shrinkage (%)</label>
-                            <input type="number" id="merma" value="20" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentRose font-mono-num font-bold focus:border-brand-accentRose focus:ring-1 focus:ring-brand-accentRose focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
+                            <input type="number" id="merma" value="30" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentRose font-mono-num font-bold focus:border-brand-accentRose focus:ring-1 focus:ring-brand-accentRose focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
                         </div>
                         <div class="flex flex-col group">
                             <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentAmber transition-colors">Jornada (Hrs)</label>
-                            <input type="number" id="duracionJornada" value="6" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentAmber font-mono-num font-bold focus:border-brand-accentAmber focus:ring-1 focus:ring-brand-accentAmber focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
+                            <input type="number" id="duracionJornada" value="8" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentAmber font-mono-num font-bold focus:border-brand-accentAmber focus:ring-1 focus:ring-brand-accentAmber focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
                         </div>
                     </div>
 
@@ -189,7 +189,7 @@
             <div id="contInfoGeneral" class="hidden pt-6">
                 <div class="p-4 bg-brand-primary/10 border border-brand-primary/30 rounded-xl">
                     <p class="text-[11px] text-brand-primary font-bold uppercase tracking-widest mb-2">Vista Consolidada Activa</p>
-                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>El sistema está calculando el requerimiento campaña por campaña de forma independiente y sumando los resultados.</p>
+                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>El sistema está calculando el requerimiento campaña por campaña de forma independiente (silos) y sumando los resultados.</p>
                 </div>
             </div>
 
@@ -859,7 +859,7 @@
             selectedCampanas = new Set(allCampanasOptions);
             selectedFechas = new Set(allFechasOptions);
             selectedIntervalos = new Set(allIntervalosOptions);
-            
+
             renderMenuOptions('Mes', allMesesOptions, selectedMeses);
             renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
             renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
@@ -923,6 +923,35 @@
             });
         }
 
+        function syncFilters(changedType) {
+            let validRows = globalData;
+
+            if (changedType === 'Mes' && selectedMeses.size > 0 && selectedMeses.size < allMesesOptions.length) {
+                validRows = validRows.filter(r => selectedMeses.has(String(getProp(r, ['Mes'], ''))));
+            } else if (changedType === 'Semana' && selectedSemanas.size > 0 && selectedSemanas.size < allSemanasOptions.length) {
+                validRows = validRows.filter(r => selectedSemanas.has(getWeekNumber(getProp(r, ['Fecha'], ''))));
+            } else if (changedType === 'Fecha' && selectedFechas.size > 0 && selectedFechas.size < allFechasOptions.length) {
+                validRows = validRows.filter(r => selectedFechas.has(String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]));
+            }
+
+            if (changedType === 'Mes') {
+                let availSemanas = [...new Set(validRows.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))))].filter(Boolean).sort();
+                let availFechas = [...new Set(validRows.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
+                renderMenuOptions('Semana', availSemanas, selectedSemanas);
+                renderMenuOptions('Fecha', availFechas, selectedFechas);
+            } else if (changedType === 'Semana') {
+                let availMeses = [...new Set(validRows.map(r => String(getProp(r, ['Mes'], ''))))].filter(Boolean).sort(ordenarMesesCronologicamente);
+                let availFechas = [...new Set(validRows.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
+                renderMenuOptions('Mes', availMeses, selectedMeses);
+                renderMenuOptions('Fecha', availFechas, selectedFechas);
+            } else if (changedType === 'Fecha') {
+                let availMeses = [...new Set(validRows.map(r => String(getProp(r, ['Mes'], ''))))].filter(Boolean).sort(ordenarMesesCronologicamente);
+                let availSemanas = [...new Set(validRows.map(r => getWeekNumber(getProp(r, ['Fecha'], ''))))].filter(Boolean).sort();
+                renderMenuOptions('Mes', availMeses, selectedMeses);
+                renderMenuOptions('Semana', availSemanas, selectedSemanas);
+            }
+        }
+
         function onCheckboxChange(type, value, checked) {
             let setRef;
             if(type === 'Mes') setRef = selectedMeses;
@@ -933,6 +962,10 @@
 
             if (checked) setRef.add(value); 
             else setRef.delete(value);
+
+            if (['Mes', 'Semana', 'Fecha'].includes(type)) {
+                syncFilters(type);
+            }
 
             actualizarTextosBotones();
             debouncedActualizarGrafica();
@@ -950,6 +983,11 @@
             if (selectAll) allOptions.forEach(o => setRef.add(o)); else setRef.clear();
             
             renderMenuOptions(type, allOptions, setRef);
+            
+            if (['Mes', 'Semana', 'Fecha'].includes(type)) {
+                syncFilters(type);
+            }
+            
             actualizarTextosBotones();
             debouncedActualizarGrafica();
         }
@@ -1162,7 +1200,7 @@
                     document.getElementById('kpiHcRequerido').innerText = totalReqGlobal.toLocaleString() + ' HC';
                     document.getElementById('kpiHcRequeridoSub').innerHTML = `Fórmula: (Horas / Jornada) × Descansos + Shrinkage`;
                     
-                    document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Disponible (Roster)" : "Plantilla de Hoy";
+                    document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Disponible (Roster Actual)" : "Plantilla de Hoy";
                     document.getElementById('kpiHcRoster').innerText = totalDispGlobal.toLocaleString() + ' HC';
 
                     const gapTotal = totalDispGlobal - totalReqGlobal;
@@ -1388,7 +1426,7 @@
                 data: {
                     labels: todosIntervalos,
                     datasets: [
-                        { label: 'HC Requerido (Motor)', data: hcAgrupadoGlobal, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
+                        { label: 'HC Requerido', data: hcAgrupadoGlobal, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
                         { label: 'HC Actual (Roster)', data: rosterAgrupadoGlobal, borderColor: '#34D399', backgroundColor: '#34D399', fill: false, tension: 0.4, borderWidth: 2, borderDash: [5, 5], pointRadius: 0, pointHoverRadius: 6 }
                     ]
                 },
