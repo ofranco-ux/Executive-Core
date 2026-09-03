@@ -106,7 +106,7 @@
 
                     <span id="tagModoOps" class="hidden text-[10px] bg-brand-primary/20 text-brand-primary border border-brand-primary/40 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider drop-shadow-md">Vista Operaciones</span>
                 </div>
-                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning (Erlang C Silos Puros)</p>
+                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning (Cálculo Volumétrico + Erlang C JS)</p>
             </div>
         </div>
 
@@ -154,11 +154,11 @@
                     <div class="grid grid-cols-2 gap-4">
                         <div class="flex flex-col group">
                             <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentRose transition-colors">Shrinkage (%)</label>
-                            <input type="number" id="merma" value="20" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentRose font-mono-num font-bold focus:border-brand-accentRose focus:ring-1 focus:ring-brand-accentRose focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
+                            <input type="number" id="merma" value="30" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentRose font-mono-num font-bold focus:border-brand-accentRose focus:ring-1 focus:ring-brand-accentRose focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
                         </div>
                         <div class="flex flex-col group">
                             <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentAmber transition-colors">Jornada (Hrs)</label>
-                            <input type="number" id="duracionJornada" value="6" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentAmber font-mono-num font-bold focus:border-brand-accentAmber focus:ring-1 focus:ring-brand-accentAmber focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
+                            <input type="number" id="duracionJornada" value="8" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentAmber font-mono-num font-bold focus:border-brand-accentAmber focus:ring-1 focus:ring-brand-accentAmber focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
                         </div>
                     </div>
 
@@ -364,8 +364,8 @@
                                 <th class="py-3.5 px-4">Intervalo</th>
                                 <th class="py-3.5 px-4" id="colHeaderCalls">Llamadas (FCST)</th>
                                 <th class="py-3.5 px-4">AHT (HH:MM:SS)</th>
-                                <th class="py-3.5 px-4 text-brand-accentCyan">HC Requerido (Motor)</th>
-                                <th class="py-3.5 px-4 text-brand-accentEmerald">HC Actual (Roster)</th>
+                                <th class="py-3.5 px-4 text-brand-accentCyan">HC Requerido</th>
+                                <th class="py-3.5 px-4 text-brand-accentEmerald">HC Actual</th>
                                 <th class="py-3.5 px-4 text-center">Gap</th>
                             </tr>
                         </thead>
@@ -379,11 +379,43 @@
         </main>
     </div>
 
+    <!-- Funciones Matemáticas Nativas (Erlang C en JS) -->
     <script>
+        function erlang_c_sl_optimizado(A, N, AHT, target_time) {
+            if (N <= A || A <= 0 || N <= 0) return 0.0;
+            let sum_terms = 1.0;
+            let current_term = 1.0;
+            let int_N = Math.min(Math.floor(N), 1000);
+            for (let k = 1; k < int_N; k++) {
+                current_term *= (A / k);
+                sum_terms += current_term;
+            }
+            let last_term = current_term * (A / N) / (1.0 - (A / N));
+            let pw = last_term / (sum_terms + last_term);
+            let intensity = N - A;
+            let sl = 1.0 - (pw * Math.exp(-intensity * (target_time / AHT)));
+            return Math.max(0.0, Math.min(100.0, sl * 100.0));
+        }
+
+        function calcular_agentes_requeridos_erlang_c_js(A, aht, target_time, target_sl) {
+            if (A <= 0 || aht <= 0) return 0;
+            let n = Math.max(1, Math.floor(A) + 1);
+            if (A > 50) n = Math.max(n, Math.floor(A + Math.sqrt(A)));
+            while (n < 3000) {
+                if (erlang_c_sl_optimizado(A, n, aht, target_time) >= target_sl) return n;
+                n++;
+            }
+            return n;
+        }
+
         let globalData = [];
         let gapChartInstance = null; 
         let generalChartInstance = null;
         
+        let configMerma = { inbound: 30, outbound: 30, chat: 30 };
+        let configNocturno = { inbound: false, outbound: false, chat: false };
+        let configJornada = { inbound: 8, outbound: 8, chat: 8 };
+
         let allMesesOptions = [];
         let allSemanasOptions = [];
         let allCampanasOptions = [];
@@ -406,6 +438,14 @@
             "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
             "julio": 7, "agosto": 8, "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12
         };
+
+        function guardarEstadoParametros() {
+            if (forecastMode !== 'general') {
+                configMerma[forecastMode] = document.getElementById('merma').value;
+                configNocturno[forecastMode] = document.getElementById('chkNocturno').checked;
+                configJornada[forecastMode] = document.getElementById('duracionJornada').value;
+            }
+        }
 
         function ordenarMesesCronologicamente(a, b) {
             const partsA = a.toLowerCase().trim().split(' ');
@@ -505,6 +545,21 @@
                     document.getElementById('contTargetTime').style.display = 'block';
                     document.getElementById('contConcurrencia').classList.remove('hidden');
                     document.getElementById('kpiCallsTitle').innerText = "Mensajes (Periodo)";
+                }
+            }
+            
+            if (mode !== 'general') {
+                if (configMerma[mode] !== undefined) {
+                    const mermaInput = document.getElementById('merma');
+                    if (mermaInput) mermaInput.value = configMerma[mode];
+                }
+                if (configNocturno[mode] !== undefined) {
+                    const chkNoc = document.getElementById('chkNocturno');
+                    if (chkNoc) chkNoc.checked = configNocturno[mode];
+                }
+                if (configJornada[mode] !== undefined) {
+                    const jorInput = document.getElementById('duracionJornada');
+                    if (jorInput) jorInput.value = configJornada[mode];
                 }
             }
 
@@ -1031,6 +1086,10 @@
         async function actualizarGrafica() {
             const durJornada = parseFloat(document.getElementById('duracionJornada') ? document.getElementById('duracionJornada').value : 8) || 8;
             const usarNocturnoActual = document.getElementById('chkNocturno') ? document.getElementById('chkNocturno').checked : false;
+            
+            const targetSlObj = parseFloat(document.getElementById('targetSl') ? document.getElementById('targetSl').value : 80) || 80;
+            const targetTimeObj = parseFloat(document.getElementById('targetTime') ? document.getElementById('targetTime').value : 20) || 20;
+            const concurrenciaVal = parseFloat(document.getElementById('concurrencia') ? document.getElementById('concurrencia').value : 4) || 4;
 
             // Filtrado Ulttra Rápido O(N)
             const dfFiltered = [];
@@ -1085,51 +1144,28 @@
                 return;
             }
 
-            // Agrupador Hash O(N) para Silos
-            let aggInter = {};
-            let fechasSet = new Set();
+            const fechasSet = new Set();
             let totalCallsGlobal = 0;
             let totalHTGlobal = 0;
 
             for (let i = 0; i < dfFiltered.length; i++) {
                 let r = dfFiltered[i];
-                let inter = String(getProp(r, ['Intervalo'], '00:00'));
                 let d = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
-                let camp = String(getProp(r, ['Campaña', 'Campana'], 'General'));
-                let ch = r.Canal || 'Inbound';
-
                 fechasSet.add(d);
-
+                
                 let calls = Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
                 let aht = Number(getProp(r, ['AHT_Segundos'], 180)) || 180;
-                let ros = Number(getProp(r, ['HC_Actual_Roster'], 0)) || 0;
-                let req = Number(getProp(r, ['Agentes_Requeridos'], 0)) || 0;
-
-                // Filtro Fantasma: Si es menos de 0.1 llamadas reales, no requerimos FTE en la madrugada
-                if (calls < 0.1) req = 0;
-
+                
                 totalCallsGlobal += calls;
                 totalHTGlobal += (calls * aht);
-
-                if (!aggInter[inter]) aggInter[inter] = {};
-                if (!aggInter[inter][d]) aggInter[inter][d] = { calls: 0, ht: 0, req: 0, rosSet: new Set(), rosSum: 0 };
-
-                aggInter[inter][d].calls += calls;
-                aggInter[inter][d].ht += (calls * aht);
-                aggInter[inter][d].req += req;
-
-                let rosKey = camp + '|' + ch;
-                if (!aggInter[inter][d].rosSet.has(rosKey)) {
-                    aggInter[inter][d].rosSet.add(rosKey);
-                    aggInter[inter][d].rosSum += ros;
-                }
             }
 
             document.getElementById('kpiCalls').innerText = totalCallsGlobal.toLocaleString();
             document.getElementById('kpiAht').innerText = formatAHT(totalCallsGlobal > 0 ? Math.round(totalHTGlobal / totalCallsGlobal) : 0);
 
             const numDiasPeriodo = fechasSet.size || 1;
-            const todosIntervalos = Object.keys(aggInter).sort();
+            const todosIntervalos = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
+            const campanas = [...new Set(dfFiltered.map(r => r.Campaña))];
             const esVistaSemanal = numDiasPeriodo > 1;
 
             if (forecastMode === 'general') {
@@ -1140,31 +1176,45 @@
                     const dfC = dfFiltered.filter(r => r.Canal === canalStr);
                     if (dfC.length === 0) return { req: 0, disp: 0 };
 
-                    let totalReqSum = 0;
-                    let localFechas = new Set();
+                    const fechasC = [...new Set(dfC.map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0]))].filter(Boolean);
+                    const nDias = fechasC.length || 1;
+                    const campanasC = [...new Set(dfC.map(r => r.Campaña))];
+
+                    let fteAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
                     
-                    dfC.forEach(r => localFechas.add(String(getProp(r, ['Fecha'], '')).split(' ')[0]));
-                    let nDias = localFechas.size || 1;
-                    
-                    todosIntervalos.forEach(inter => {
-                        let interReq = 0;
-                        localFechas.forEach(d => {
-                            let dayReq = 0;
-                            dfC.forEach(r => {
-                                if(String(getProp(r, ['Intervalo'], '00:00')) === inter && String(getProp(r, ['Fecha'], '')).split(' ')[0] === d) {
+                    campanasC.forEach(camp => {
+                        const dfCamp = dfC.filter(r => r.Campaña === camp);
+                        todosIntervalos.forEach((inter, idx) => {
+                            let callSum = 0, htSum = 0;
+                            fechasC.forEach(d => {
+                                const rows = dfCamp.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === inter && String(getProp(r, ['Fecha'], '')).split(' ')[0] === d);
+                                rows.forEach(r => {
                                     let calls = Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
-                                    let req = Number(getProp(r, ['Agentes_Requeridos'], 0)) || 0;
-                                    if (calls < 0.1) req = 0;
-                                    dayReq += req;
-                                }
+                                    let aht = Number(getProp(r, ['AHT_Segundos'], 180)) || 180;
+                                    callSum += calls;
+                                    htSum += (calls * aht);
+                                });
                             });
-                            interReq += dayReq;
+                            
+                            let avgLlam = callSum / nDias;
+                            let avgAht = callSum > 0 ? htSum / callSum : 180;
+                            
+                            if (canalStr === 'Chat') {
+                                avgAht = avgAht / Math.max(1.0, concurrenciaVal);
+                            }
+                            
+                            let fteReq = 0;
+                            if (avgLlam >= 0.05) {
+                                let a_erlang = (avgLlam * avgAht) / 1800.0;
+                                fteReq = calcular_agentes_requeridos_erlang_c_js(a_erlang, avgAht, targetTimeObj, targetSlObj);
+                            }
+                            fteAgrupadoGlobal[idx] += fteReq;
                         });
-                        totalReqSum += (interReq / nDias);
                     });
 
                     // Área Volumétrica Silos
-                    const horasCanal = totalReqSum * 0.5;
+                    const totalFteIntervals = fteAgrupadoGlobal.reduce((a, b) => a + b, 0);
+                    const horasCanal = totalFteIntervals * 0.5;
                     const factorDes = usarNocturnoActual ? (7.0/5.0) : (7.0/6.0);
                     const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
                     const factorAsistencia = Math.max(0.01, 1.0 - (mermaValLocal / 100.0));
@@ -1287,37 +1337,59 @@
                 return; 
             }
 
-            let llamadasAgrupadasGlobal = [];
-            let fteAgrupadoGlobal = [];
-            let ahtAgrupadoGlobal = [];
-            let rosterAgrupadoGlobal = [];
+            let llamadasAgrupadasGlobal = new Array(todosIntervalos.length).fill(0);
+            let ahtAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
+            let fteAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
 
-            for (let i = 0; i < todosIntervalos.length; i++) {
-                let inter = todosIntervalos[i];
-                let diasObj = aggInter[inter];
-
-                let interCallSum = 0;
-                let interHtSum = 0;
-                let interReqSum = 0;
-                let interRosSum = 0;
-
-                for (let d of fechasSet) {
-                    if (diasObj[d]) {
-                        interCallSum += diasObj[d].calls;
-                        interHtSum += diasObj[d].ht;
-                        interReqSum += diasObj[d].req;
-                        interRosSum += diasObj[d].rosSum;
+            // CÁLCULO DE ERLANG C PURO EN JS (SILOS)
+            campanas.forEach(camp => {
+                const dfCamp = dfFiltered.filter(r => r.Campaña === camp);
+                
+                todosIntervalos.forEach((inter, idx) => {
+                    let callSum = 0, htSum = 0;
+                    fechasFiltradas.forEach(d => {
+                        const rows = dfCamp.filter(r => String(getProp(r, ['Intervalo'], '00:00')) === inter && String(getProp(r, ['Fecha'], '')).split(' ')[0] === d);
+                        rows.forEach(r => {
+                            let calls = Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
+                            let aht = Number(getProp(r, ['AHT_Segundos'], 180)) || 180;
+                            callSum += calls;
+                            htSum += (calls * aht);
+                        });
+                    });
+                    
+                    let avgLlam = callSum / numDiasPeriodo;
+                    let avgAht = callSum > 0 ? htSum / callSum : 180;
+                    
+                    if (forecastMode === 'chat') {
+                        avgAht = avgAht / Math.max(1.0, concurrenciaVal);
                     }
-                }
+                    
+                    let fteReq = 0;
+                    if (avgLlam >= 0.05) { // Filtro Fantasma
+                        let a_erlang = (avgLlam * avgAht) / 1800.0;
+                        fteReq = calcular_agentes_requeridos_erlang_c_js(a_erlang, avgAht, targetTimeObj, targetSlObj);
+                    }
+                    
+                    llamadasAgrupadasGlobal[idx] += avgLlam;
+                    fteAgrupadoGlobal[idx] += fteReq;
+                    if (avgAht > ahtAgrupadoGlobal[idx]) ahtAgrupadoGlobal[idx] = avgAht; // Tomamos el AHT más representativo
+                });
+            });
 
-                llamadasAgrupadasGlobal.push(interCallSum / numDiasPeriodo);
-                ahtAgrupadoGlobal.push(interCallSum > 0 ? interHtSum / interCallSum : 180);
-                fteAgrupadoGlobal.push(interReqSum / numDiasPeriodo);
-                rosterAgrupadoGlobal.push(Math.round(interRosSum / numDiasPeriodo));
-            }
+            // Agrupar Roster
+            let rosterAgrupadoGlobal = new Array(todosIntervalos.length).fill(0);
+            todosIntervalos.forEach((inter, idx) => {
+                let interRosSum = 0;
+                fechasFiltradas.forEach(d => {
+                    campanas.forEach(camp => {
+                        const row = dfFiltered.find(r => r.Campaña === camp && String(getProp(r, ['Intervalo'], '00:00')) === inter && String(getProp(r, ['Fecha'], '')).split(' ')[0] === d);
+                        if (row) interRosSum += (Number(getProp(row, ['HC_Actual_Roster'], 0)) || 0);
+                    });
+                });
+                rosterAgrupadoGlobal[idx] = Math.round(interRosSum / numDiasPeriodo);
+            });
 
-            const reqAgrupadoGlobalParaPlot = fteAgrupadoGlobal.map(val => Math.ceil(val));
-            
+            // CÁLCULO VOLUMÉTRICO FINAL
             const factorDescanso = usarNocturnoActual ? (7.0 / 5.0) : (7.0 / 6.0);
             const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
             const factorAsistencia = Math.max(0.01, 1.0 - (mermaValLocal / 100.0));
@@ -1325,6 +1397,9 @@
             const totalFteIntervals = fteAgrupadoGlobal.reduce((a, b) => a + b, 0);
             const totalHorasRequeridas = totalFteIntervals * 0.5;
             const hcNominaCalculado = Math.ceil(((totalHorasRequeridas / durJornada) * factorDescanso) / factorAsistencia);
+            
+            // Para la gráfica (mostrar el FTE redondeado)
+            const reqAgrupadoGlobalParaPlot = fteAgrupadoGlobal.map(val => Math.ceil(val));
             
             document.getElementById('kpiHcRequeridoTitle').innerText = "Nómina a Contratar (HC)";
             document.getElementById('kpiHcRequerido').innerText = hcNominaCalculado.toLocaleString() + ' HC';
@@ -1336,7 +1411,7 @@
                 <th class="py-3.5 px-4 text-left">Intervalo</th>
                 <th class="py-3.5 px-4">${legendInteractions}</th>
                 <th class="py-3.5 px-4">AHT (HH:MM:SS)</th>
-                <th class="py-3.5 px-4 text-brand-accentCyan">HC Requerido (Motor)</th>
+                <th class="py-3.5 px-4 text-brand-primary">FTE Requerido</th>
                 <th class="py-3.5 px-4 text-brand-accentEmerald">HC Actual</th>
                 <th class="py-3.5 px-4 text-center">Gap</th>
             `;
@@ -1382,7 +1457,7 @@
                 data: {
                     labels: todosIntervalos,
                     datasets: [
-                        { label: 'HC Requerido (Motor)', data: reqAgrupadoGlobalParaPlot, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
+                        { label: 'FTE Requerido (Motor)', data: reqAgrupadoGlobalParaPlot, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
                         { label: 'HC Actual (Roster)', data: rosterAgrupadoGlobal, borderColor: '#34D399', backgroundColor: '#34D399', fill: false, tension: 0.4, borderWidth: 2, borderDash: [5, 5], pointRadius: 0, pointHoverRadius: 6 }
                     ]
                 },
@@ -1399,11 +1474,17 @@
                 }
             });
 
-            const uniqueCampChannel = [...new Set(dfFiltered.map(r => r.Campaña + '|' + (r.Canal || '')))];
             let totalRosterHC = 0;
-            uniqueCampChannel.forEach(cc => {
-                const row = dfFiltered.find(r => (r.Campaña + '|' + (r.Canal || '')) === cc);
-                if (row) totalRosterHC += esVistaSemanal ? (Number(row.Total_Roster_Campana) || 0) : (Number(row.Total_Roster_Dia) || 0);
+            let uniqueRosterMap = new Set();
+            
+            dfFiltered.forEach(r => {
+                let camp = String(getProp(r, ['Campaña', 'Campana'], 'General'));
+                let ch = r.Canal || 'Inbound';
+                let rosKey = camp + '|' + ch;
+                if (!uniqueRosterMap.has(rosKey)) {
+                    uniqueRosterMap.add(rosKey);
+                    totalRosterHC += (Number(getProp(r, ['Total_Roster_Campana'], 0)) || 0);
+                }
             });
 
             document.getElementById('kpiHcRosterTitle').innerText = "HC Actual (Roster)";
@@ -1432,11 +1513,11 @@
                 const f = String(getProp(item, ['Fecha'], '')).split(' ')[0].split('T')[0];
                 const i = String(getProp(item, ['Intervalo'], '00:00'));
                 
-                const matchMes = selectedMeses.size === 0 || selectedMeses.has(m);
-                const matchSem = selectedSemanas.size === 0 || selectedSemanas.has(s); 
-                const matchCamp = selectedCampanas.size === 0 || selectedCampanas.has(c);
-                const matchFecha = selectedFechas.size === 0 || selectedFechas.has(f);
-                const matchInter = selectedIntervalos.size === 0 || selectedIntervalos.has(i);
+                const matchMes = selectedMeses.has(m);
+                const matchSem = selectedSemanas.has(s); 
+                const matchCamp = selectedCampanas.has(c);
+                const matchFecha = selectedFechas.has(f);
+                const matchInter = selectedIntervalos.has(i);
 
                 return matchMes && matchSem && matchCamp && matchFecha && matchInter;
             });
@@ -1445,7 +1526,7 @@
                 alert("No hay datos cargados para exportar.");
                 return;
             }
-            const headers = ["Campana", "Canal", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Volumen", "AHT_HH_MM_SS", "HC_Requerido_Puro", "HC_Actual_Roster", "Factor_Reforecast"];
+            const headers = ["Campana", "Canal", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Volumen", "AHT_HH_MM_SS", "FTE_Requerido_Puro", "HC_Actual_Roster", "Factor_Reforecast"];
             const csvRows = [headers.join(",")];
             dfFiltered.forEach(row => {
                 const values = [
