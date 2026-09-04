@@ -301,32 +301,45 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        # PROMEDIO BASE 60/30/10 SIN DOBLE PENALIZACIÓN
+        # 1. CLASIFICACIÓN ADAPTATIVA POR VOLUMEN
+        vol_promedio = sub[col_calls].mean()
+        es_micro_campana = vol_promedio < 200
+
+        # 2. PROMEDIO BASE DINÁMICO
         dow_avg = {}
         for i in range(7):
             vols_dow = sub[sub[col_fecha].dt.weekday == i][col_calls]
             vols_dow = vols_dow[vols_dow > 0]
-            vols_list = vols_dow.tail(3).tolist()
+            vols_list = vols_dow.tail(4).tolist()
             
-            if len(vols_list) == 3:
-                dow_avg[i] = (vols_list[2] * 0.60) + (vols_list[1] * 0.30) + (vols_list[0] * 0.10)
-            elif len(vols_list) == 2:
-                dow_avg[i] = (vols_list[1] * 0.70) + (vols_list[0] * 0.30)
-            elif len(vols_list) == 1:
-                dow_avg[i] = vols_list[0]
+            if len(vols_list) == 4:
+                if es_micro_campana:
+                    dow_avg[i] = sum(vols_list) / 4.0
+                else:
+                    dow_avg[i] = (vols_list[3] * 0.50) + (vols_list[2] * 0.30) + (vols_list[1] * 0.15) + (vols_list[0] * 0.05)
+            elif len(vols_list) > 0:
+                dow_avg[i] = sum(vols_list) / len(vols_list)
             else:
-                dow_avg[i] = sub[col_calls].mean()
+                dow_avg[i] = vol_promedio
 
-        # Tendencia solo para mostrar visualmente en UI, no castiga la fórmula base
+        # 3. FACTOR DE TENDENCIA INTELIGENTE
         fecha_max = sub[col_fecha].max()
-        ultimos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=7))][col_calls].mean()
-        previos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=14)) & (sub[col_fecha] <= fecha_max - timedelta(days=7))][col_calls].mean()
-        
-        if pd.notna(previos_7) and previos_7 > 0 and pd.notna(ultimos_7):
-            trend_rate = ultimos_7 / previos_7
+        if es_micro_campana:
+            ultimos = sub[(sub[col_fecha] > fecha_max - timedelta(days=14))][col_calls].mean()
+            previos = sub[(sub[col_fecha] > fecha_max - timedelta(days=28)) & (sub[col_fecha] <= fecha_max - timedelta(days=14))][col_calls].mean()
+            tope_min, tope_max = 0.85, 1.15
         else:
-            trend_rate = 1.0
+            ultimos = sub[(sub[col_fecha] > fecha_max - timedelta(days=7))][col_calls].mean()
+            previos = sub[(sub[col_fecha] > fecha_max - timedelta(days=14)) & (sub[col_fecha] <= fecha_max - timedelta(days=7))][col_calls].mean()
+            tope_min, tope_max = 0.70, 1.30
+        
+        ajuste_reciente = 1.0
+        if pd.notna(previos) and previos > 0 and pd.notna(ultimos):
+            ajuste_reciente = ultimos / previos
+            
+        ajuste_reciente = max(tope_min, min(tope_max, ajuste_reciente))
 
+        # 4. APLICACIÓN AL FORECAST
         preds_finales = []
         for d in range(dias_futuros):
             fecha_futura = fecha_inicio_forecast + timedelta(days=d)
@@ -336,12 +349,12 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             vol_base = dow_avg.get(wd, sub[col_calls].mean())
             quincena_factor = 1.10 if day_m in [1, 15, 16, 30, 31] else 1.0
             
-            vol_final = vol_base * quincena_factor
+            vol_final = vol_base * ajuste_reciente * quincena_factor
             if sub[col_calls].mean() < 1.0: vol_final = 0.0
             preds_finales.append(max(0.0, vol_final))
 
         predicciones_futuras[camp] = preds_finales
-        factores_ui[camp] = round(trend_rate, 2)
+        factores_ui[camp] = round(ajuste_reciente, 2)
 
     df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
     df_filtrado = df[df['En_Ventana']].copy()
@@ -526,30 +539,45 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
+        # 1. CLASIFICACIÓN ADAPTATIVA POR VOLUMEN
+        vol_promedio = sub[col_calls].mean()
+        es_micro_campana = vol_promedio < 200
+
+        # 2. PROMEDIO BASE DINÁMICO
         dow_avg = {}
         for i in range(7):
             vols_dow = sub[sub[col_fecha].dt.weekday == i][col_calls]
             vols_dow = vols_dow[vols_dow > 0]
-            vols_list = vols_dow.tail(3).tolist()
+            vols_list = vols_dow.tail(4).tolist()
             
-            if len(vols_list) == 3:
-                dow_avg[i] = (vols_list[2] * 0.60) + (vols_list[1] * 0.30) + (vols_list[0] * 0.10)
-            elif len(vols_list) == 2:
-                dow_avg[i] = (vols_list[1] * 0.70) + (vols_list[0] * 0.30)
-            elif len(vols_list) == 1:
-                dow_avg[i] = vols_list[0]
+            if len(vols_list) == 4:
+                if es_micro_campana:
+                    dow_avg[i] = sum(vols_list) / 4.0
+                else:
+                    dow_avg[i] = (vols_list[3] * 0.50) + (vols_list[2] * 0.30) + (vols_list[1] * 0.15) + (vols_list[0] * 0.05)
+            elif len(vols_list) > 0:
+                dow_avg[i] = sum(vols_list) / len(vols_list)
             else:
-                dow_avg[i] = sub[col_calls].mean()
+                dow_avg[i] = vol_promedio
 
+        # 3. FACTOR DE TENDENCIA INTELIGENTE
         fecha_max = sub[col_fecha].max()
-        ultimos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=7))][col_calls].mean()
-        previos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=14)) & (sub[col_fecha] <= fecha_max - timedelta(days=7))][col_calls].mean()
-        
-        if pd.notna(previos_7) and previos_7 > 0 and pd.notna(ultimos_7):
-            trend_rate = ultimos_7 / previos_7
+        if es_micro_campana:
+            ultimos = sub[(sub[col_fecha] > fecha_max - timedelta(days=14))][col_calls].mean()
+            previos = sub[(sub[col_fecha] > fecha_max - timedelta(days=28)) & (sub[col_fecha] <= fecha_max - timedelta(days=14))][col_calls].mean()
+            tope_min, tope_max = 0.85, 1.15
         else:
-            trend_rate = 1.0
+            ultimos = sub[(sub[col_fecha] > fecha_max - timedelta(days=7))][col_calls].mean()
+            previos = sub[(sub[col_fecha] > fecha_max - timedelta(days=14)) & (sub[col_fecha] <= fecha_max - timedelta(days=7))][col_calls].mean()
+            tope_min, tope_max = 0.70, 1.30
+        
+        ajuste_reciente = 1.0
+        if pd.notna(previos) and previos > 0 and pd.notna(ultimos):
+            ajuste_reciente = ultimos / previos
+            
+        ajuste_reciente = max(tope_min, min(tope_max, ajuste_reciente))
 
+        # 4. APLICACIÓN AL FORECAST
         preds_finales = []
         for d in range(dias_futuros):
             fecha_futura = fecha_inicio_forecast + timedelta(days=d)
@@ -559,12 +587,12 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
             vol_base = dow_avg.get(wd, sub[col_calls].mean())
             quincena_factor = 1.10 if day_m in [1, 15, 16, 30, 31] else 1.0
             
-            vol_final = vol_base * quincena_factor
+            vol_final = vol_base * ajuste_reciente * quincena_factor
             if sub[col_calls].mean() < 1.0: vol_final = 0.0
             preds_finales.append(max(0.0, vol_final))
 
         predicciones_futuras[camp] = preds_finales
-        factores_ui[camp] = round(trend_rate, 2)
+        factores_ui[camp] = round(ajuste_reciente, 2)
 
     df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
     df_filtrado = df[df['En_Ventana']].copy()
@@ -572,6 +600,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
     df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_fecha_real - timedelta(days=28))]
     if df_reciente.empty: df_reciente = df_filtrado.copy()
     
+    # PERFIL HÍBRIDO: Día de la semana específico + Respaldo Global si hay huecos
     perfil_intradia = df_reciente.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
         avg_calls=(col_calls, 'mean'),
         avg_aht=(col_aht, lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 0)
@@ -581,6 +610,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
     perfil_intradia['weight'] = [(c / t) if t > 0 else 0 for c, t in zip(perfil_intradia['avg_calls'], totales_dia)]
     mapa_perfil = {(r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean']): {'weight': r['weight'], 'aht': r['avg_aht']} for _, r in perfil_intradia.iterrows()}
 
+    # Perfil global de respaldo
     perfil_global = df_reciente.groupby([col_camp, 'Inter_Clean']).agg(avg_calls=(col_calls, 'mean')).reset_index()
     totales_global = perfil_global.groupby([col_camp])['avg_calls'].transform('sum')
     perfil_global['weight'] = [(c / t) if t > 0 else 0 for c, t in zip(perfil_global['avg_calls'], totales_global)]
@@ -746,30 +776,45 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
+        # 1. CLASIFICACIÓN ADAPTATIVA POR VOLUMEN
+        vol_promedio = sub[col_calls].mean()
+        es_micro_campana = vol_promedio < 200
+
+        # 2. PROMEDIO BASE DINÁMICO
         dow_avg = {}
         for i in range(7):
             vols_dow = sub[sub[col_fecha].dt.weekday == i][col_calls]
             vols_dow = vols_dow[vols_dow > 0]
-            vols_list = vols_dow.tail(3).tolist()
+            vols_list = vols_dow.tail(4).tolist()
             
-            if len(vols_list) == 3:
-                dow_avg[i] = (vols_list[2] * 0.60) + (vols_list[1] * 0.30) + (vols_list[0] * 0.10)
-            elif len(vols_list) == 2:
-                dow_avg[i] = (vols_list[1] * 0.70) + (vols_list[0] * 0.30)
-            elif len(vols_list) == 1:
-                dow_avg[i] = vols_list[0]
+            if len(vols_list) == 4:
+                if es_micro_campana:
+                    dow_avg[i] = sum(vols_list) / 4.0
+                else:
+                    dow_avg[i] = (vols_list[3] * 0.50) + (vols_list[2] * 0.30) + (vols_list[1] * 0.15) + (vols_list[0] * 0.05)
+            elif len(vols_list) > 0:
+                dow_avg[i] = sum(vols_list) / len(vols_list)
             else:
-                dow_avg[i] = sub[col_calls].mean()
+                dow_avg[i] = vol_promedio
 
+        # 3. FACTOR DE TENDENCIA INTELIGENTE
         fecha_max = sub[col_fecha].max()
-        ultimos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=7))][col_calls].mean()
-        previos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=14)) & (sub[col_fecha] <= fecha_max - timedelta(days=7))][col_calls].mean()
-        
-        if pd.notna(previos_7) and previos_7 > 0 and pd.notna(ultimos_7):
-            trend_rate = ultimos_7 / previos_7
+        if es_micro_campana:
+            ultimos = sub[(sub[col_fecha] > fecha_max - timedelta(days=14))][col_calls].mean()
+            previos = sub[(sub[col_fecha] > fecha_max - timedelta(days=28)) & (sub[col_fecha] <= fecha_max - timedelta(days=14))][col_calls].mean()
+            tope_min, tope_max = 0.85, 1.15
         else:
-            trend_rate = 1.0
+            ultimos = sub[(sub[col_fecha] > fecha_max - timedelta(days=7))][col_calls].mean()
+            previos = sub[(sub[col_fecha] > fecha_max - timedelta(days=14)) & (sub[col_fecha] <= fecha_max - timedelta(days=7))][col_calls].mean()
+            tope_min, tope_max = 0.70, 1.30
+        
+        ajuste_reciente = 1.0
+        if pd.notna(previos) and previos > 0 and pd.notna(ultimos):
+            ajuste_reciente = ultimos / previos
+            
+        ajuste_reciente = max(tope_min, min(tope_max, ajuste_reciente))
 
+        # 4. APLICACIÓN AL FORECAST
         preds_finales = []
         for d in range(dias_futuros):
             fecha_futura = fecha_inicio_forecast + timedelta(days=d)
@@ -779,12 +824,12 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
             vol_base = dow_avg.get(wd, sub[col_calls].mean())
             quincena_factor = 1.10 if day_m in [1, 15, 16, 30, 31] else 1.0
             
-            vol_final = vol_base * quincena_factor
+            vol_final = vol_base * ajuste_reciente * quincena_factor
             if sub[col_calls].mean() < 1.0: vol_final = 0.0
             preds_finales.append(max(0.0, vol_final))
 
         predicciones_futuras[camp] = preds_finales
-        factores_ui[camp] = round(trend_rate, 2)
+        factores_ui[camp] = round(ajuste_reciente, 2)
 
     df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
     df_filtrado = df[df['En_Ventana']].copy()
@@ -792,6 +837,7 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
     df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_fecha_real - timedelta(days=28))]
     if df_reciente.empty: df_reciente = df_filtrado.copy()
     
+    # PERFIL HÍBRIDO: Día de la semana específico + Respaldo Global si hay huecos
     perfil_intradia = df_reciente.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
         avg_calls=(col_calls, 'mean'),
         avg_aht=(col_aht, lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 0)
@@ -801,6 +847,7 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
     perfil_intradia['weight'] = [(c / t) if t > 0 else 0 for c, t in zip(perfil_intradia['avg_calls'], totales_dia)]
     mapa_perfil = {(r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean']): {'weight': r['weight'], 'aht': r['avg_aht']} for _, r in perfil_intradia.iterrows()}
 
+    # Perfil global de respaldo
     perfil_global = df_reciente.groupby([col_camp, 'Inter_Clean']).agg(avg_calls=(col_calls, 'mean')).reset_index()
     totales_global = perfil_global.groupby([col_camp])['avg_calls'].transform('sum')
     perfil_global['weight'] = [(c / t) if t > 0 else 0 for c, t in zip(perfil_global['avg_calls'], totales_global)]
