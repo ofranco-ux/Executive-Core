@@ -128,7 +128,7 @@ def buscar_archivo_excel():
         if not archivos: return None
         for f in archivos:
             if 'historico' in f.lower(): return os.path.join(BASE_DIR, f)
-        return os.path.join(BASE_DIR, archivos)
+        return os.path.join(BASE_DIR, archivos[0])
     except: return None
 
 @app.route('/')
@@ -178,8 +178,8 @@ def parse_aht_to_seconds(val):
     if ':' in val_str:
         p = val_str.split(':')
         try:
-            if len(p) == 3: return int(p) * 3600 + int(p) * 60 + float(p)
-            elif len(p) == 2: return int(p) * 60 + float(p)
+            if len(p) == 3: return int(p[0]) * 3600 + int(p[1]) * 60 + float(p[2])
+            elif len(p) == 2: return int(p[0]) * 60 + float(p[1])
         except: pass
     return clean_num(val_str, 180.0)
 
@@ -226,6 +226,8 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
 
 def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
     if A <= 0 or aht <= 0: return 0
-    # Lógica lineal simplificada sin ifs ni bucles anidados para evitar errores de indentación
     piso_minimo = int(math.floor(A)) + 1
+    piso_alto = int(math.floor(A + math.sqrt(A)))
+    n_agentes = piso_alto if A > 50 else piso_minimo
+    
 
