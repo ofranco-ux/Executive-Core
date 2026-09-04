@@ -128,7 +128,7 @@ def buscar_archivo_excel():
         if not archivos: return None
         for f in archivos:
             if 'historico' in f.lower(): return os.path.join(BASE_DIR, f)
-        return os.path.join(BASE_DIR, archivos[0])
+        return os.path.join(BASE_DIR, archivos)
     except: return None
 
 @app.route('/')
@@ -230,4 +230,3 @@ def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
     piso_alto = int(math.floor(A + math.sqrt(A)))
     n_agentes = piso_alto if A > 50 else piso_minimo
     
-
