@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Workforce Capacity Forecast — C-Suite Analytics</title>
-    <!-- Tailwind CSS para diseño rápido -->
-    <script src="https://tailwindcss.com"></script>
+    <!-- CDN OFICIAL Y CORRECTO DE TAILWIND CSS PARA PRODUCCIÓN -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #0b0f19; color: #f3f4f6; }
         .card { background-color: #111827; border: 1px solid #1f2937; }
@@ -114,65 +114,64 @@
 
     <!-- CORE LOGIC / JAVASCRIPT DE PRODUCCIÓN -->
     <script>
-        // URL ABSOLUTA DEL SERVIDOR BACKEND EN RENDER
-        const API_BASE_URL = 'https://onrender.com';
+        // URL ABSOLUTA CORREGIDA CON TU DOMINIO REAL EN RENDER
+        const API_BASE_URL = 'https://executive-core.onrender.com';
 
-        document.getElementById('btnRunPlan').addEventListener('click', async () => {
-            const btn = document.getElementById('btnRunPlan');
-            const tabla = document.getElementById('tablaCuerpo');
-            
-            btn.disabled = true;
-            btn.innerText = '🧠 ENTRENANDO IA MODEL...';
-            tabla.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-blue-400 font-medium animate-pulse">Procesando histórico mediante Random Forest Regressor. Calculando Erlang C...</td></tr>`;
-
-            const formElement = document.getElementById('wfmForm');
-            const formData = new FormData(formElement);
-
-            try {
-                // LLAMADA ABSOLUTA AL ENDPOINT DE PROCESAMIENTO INBOUND
-                const response = await fetch(`${API_BASE_URL}/api/process`, {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const data = await response.json();
-                renderizarTabla(data);
-
-            } catch (error) {
-                console.error('Error de comunicación:', error);
-                alert(`Error de conexión con la API corporativa de Machine Learning: ${error.message}`);
-                tabla.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-red-500 font-medium">Fallo al conectar con la API en Render. Asegúrate de que el Backend esté arriba.</td></tr>`;
-            } finally {
-                btn.disabled = false;
-                btn.innerText = '▶ RUN PLAN';
-            }
-        });
+        // Función para renderizar los datos devueltos por el servidor en la tabla HTML
+        制造_DATOS_TABLA = [];
 
         function renderizarTabla(data) {
-            const tbody = document.getElementById('tablaCuerpo');
+            const tabla = document.getElementById('tablaCuerpo');
+            const lblDemanda = document.getElementById('lblDemanda');
+            const lblAht = document.getElementById('lblAht');
+            const lblHc = document.getElementById('lblHc');
+
             if (!data || data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-gray-500">El procesamiento no devolvió registros válidos.</td></tr>`;
+                tabla.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-gray-500">No se encontraron registros en el archivo histórico.</td></tr>`;
                 return;
             }
 
+            制造_DATOS_TABLA = data;
             let html = '';
-            let totalLlamadas = 0;
+            let acumuladoLlamadas = 0;
             let maxHc = 0;
+            let totalSegundosAht = 0;
+            let registrosConLlamadas = 0;
 
-            data.forEach(row => {
-                totalLlamadas += parseInt(row.Llamadas || 0);
-                if (parseInt(row.Agentes_Requeridos || 0) > maxHc) {
-                    maxHc = parseInt(row.Agentes_Requeridos || 0);
+            data.forEach(item => {
+                acumuladoLlamadas += parseInt(item.Llamadas || 0);
+                if (parseInt(item.Agentes_Requeridos || 0) > maxHc) {
+                    maxHc = parseInt(item.Agentes_Requeridos || 0);
+                }
+                if (parseInt(item.Llamadas || 0) > 0) {
+                    totalSegundosAht += parseInt(item.AHT_Segundos || 0);
+                    registrosConLlamadas++;
                 }
 
                 html += `
-                    <tr class="hover:bg-gray-900/50 transition duration-150">
-                        <td class="py-3 font-medium text-white">${row.Campaña}</td>
-                        <td class="py-3 text-gray-400">${row.Fecha}</td>
-                        <td class="py-3 font-mono">${row.Intervalo}</td>
-                        <td class="py-3 text-right font-mono">${row.Llamadas}</td>
-                        <td class="py-3 text-right font-mono text-green-400">${row.AHT}</td>
+                <tr class="hover:bg-gray-900/50 transition">
+                    <td class="py-3 font-medium text-white">${item.Campaña}</td>
+                    <td class="py-3">${item.Fecha}</td>
+                    <td class="py-3 text-gray-400">${item.Intervalo}</td>
+                    <td class="py-3 text-right font-semibold text-blue-400">${parseInt(item.Llamadas).toLocaleString()}</td>
+                    <td class="py-3 text-right text-green-400">${item.AHT}</td>
+                    <td class="py-3 text-right font-bold text-purple-400">${item.Agentes_Requeridos}</td>
+                </tr>`;
+            });
+
+            tabla.innerHTML = html;
+            lblDemanda.innerText = acumuladoLlamadas.toLocaleString();
+            lblHc.innerText = `${maxHc} HC`;
+
+            if (registrosConLlamadas > 0) {
+                const promedioAhtSegundos = totalSegundosAht / registrosConLlamadas;
+                const hrs = Math.floor(promedioAhtSegundos / 3600);
+                const mins = Math.floor((promedioAhtSegundos % 3600) / 60);
+                const secs = Math.floor(promedioAhtSegundos % 60);
+                lblAht.innerText = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            } else {
+                lblAht.innerText = "00:00:00";
+            }
+        }
+
+        document.getElementById('btnRunPlan').addEventListener('click', async () => {
