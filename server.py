@@ -229,5 +229,3 @@ def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
     n = max(1, int(math.floor(A)) + 1)
     if A > 50: n = max(n, int(math.floor(A + math.sqrt(A))))
     while n < 3000:
-        if erlang_c_sl_optimizado(A, n, aht, target_time) >= target_sl: 
-            return n
