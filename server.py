@@ -301,43 +301,26 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        fecha_max = sub[col_fecha].max()
-        
-        # 1. ÍNDICE DE ESTACIONALIDAD (Últimas 4 semanas)
-        df_ultimas_4_sem = sub[sub[col_fecha] > (fecha_max - timedelta(days=28))]
-        if df_ultimas_4_sem.empty: df_ultimas_4_sem = sub
-        
-        dow_means = df_ultimas_4_sem.groupby(df_ultimas_4_sem[col_fecha].dt.weekday)[col_calls].mean()
-        promedio_global = dow_means.mean()
-        
-        dow_idx = {}
+        # 1. LA MAGIA DE LA MEDIANA MÓVIL (Elimina picos y valles falsos)
+        dow_avg = {}
         for i in range(7):
-            if i in dow_means and promedio_global > 0:
-                dow_idx[i] = dow_means[i] / promedio_global
+            # Filtramos solo los días > 0 para ignorar festivos nulos
+            vols_dow = sub[(sub[col_fecha].dt.weekday == i) & (sub[col_calls] > 0)][col_calls]
+            vols_list = vols_dow.tail(3).tolist() # Evaluamos estrictamente las últimas 3 semanas
+            
+            if len(vols_list) > 0:
+                # La Mediana aniquila cualquier arrastre de anomalías
+                dow_avg[i] = float(np.median(vols_list))
             else:
-                dow_idx[i] = 1.0
+                dow_avg[i] = sub[col_calls].mean()
 
-        # 2. NIVEL BASE DESESTACIONALIZADO (Alta Reactividad - Últimos 14 días)
-        df_ultimos_14 = sub[sub[col_fecha] > (fecha_max - timedelta(days=14))].copy()
-        if not df_ultimos_14.empty:
-            # Quitamos el factor del día de la semana para ver la base pura
-            df_ultimos_14['deseasonalized'] = df_ultimos_14.apply(
-                lambda r: r[col_calls] / dow_idx.get(r[col_fecha].weekday(), 1.0) 
-                if dow_idx.get(r[col_fecha].weekday(), 1.0) > 0 else r[col_calls], 
-                axis=1
-            )
-            # EMA super reactivo (span=4 da ~40% peso al último día)
-            recent_level = df_ultimos_14['deseasonalized'].ewm(span=4, adjust=False).mean().iloc[-1]
-        else:
-            recent_level = sub[col_calls].mean()
-
-        # 3. PROYECCIÓN FINAL (Nivel * Estacionalidad)
         preds_finales = []
         for d in range(dias_futuros):
             fecha_futura = fecha_inicio_forecast + timedelta(days=d)
             wd = fecha_futura.weekday()
             
-            vol_final = recent_level * dow_idx.get(wd, 1.0)
+            # Forecast directo y puro
+            vol_final = dow_avg.get(wd, sub[col_calls].mean())
             if sub[col_calls].mean() < 1.0: vol_final = 0.0
             preds_finales.append(max(0.0, vol_final))
 
@@ -349,7 +332,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_fecha_real - timedelta(days=28))]
     if df_reciente.empty: df_reciente = df_filtrado.copy()
     
-    # 4. CURVA INTRADÍA GLOBAL (Para eliminar ruido de variaciones diarias)
+    # 2. CURVA INTRADÍA GLOBAL (Distribución a prueba de balas)
     perfil_global = df_reciente.groupby([col_camp, 'Inter_Clean']).agg(
         total_calls=(col_calls, 'sum'),
         avg_aht=(col_aht, lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 0)
@@ -516,38 +499,22 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        fecha_max = sub[col_fecha].max()
-        
-        df_ultimas_4_sem = sub[sub[col_fecha] > (fecha_max - timedelta(days=28))]
-        if df_ultimas_4_sem.empty: df_ultimas_4_sem = sub
-        
-        dow_means = df_ultimas_4_sem.groupby(df_ultimas_4_sem[col_fecha].dt.weekday)[col_calls].mean()
-        promedio_global = dow_means.mean()
-        
-        dow_idx = {}
+        dow_avg = {}
         for i in range(7):
-            if i in dow_means and promedio_global > 0:
-                dow_idx[i] = dow_means[i] / promedio_global
+            vols_dow = sub[(sub[col_fecha].dt.weekday == i) & (sub[col_calls] > 0)][col_calls]
+            vols_list = vols_dow.tail(3).tolist()
+            
+            if len(vols_list) > 0:
+                dow_avg[i] = float(np.median(vols_list))
             else:
-                dow_idx[i] = 1.0
-
-        df_ultimos_14 = sub[sub[col_fecha] > (fecha_max - timedelta(days=14))].copy()
-        if not df_ultimos_14.empty:
-            df_ultimos_14['deseasonalized'] = df_ultimos_14.apply(
-                lambda r: r[col_calls] / dow_idx.get(r[col_fecha].weekday(), 1.0) 
-                if dow_idx.get(r[col_fecha].weekday(), 1.0) > 0 else r[col_calls], 
-                axis=1
-            )
-            recent_level = df_ultimos_14['deseasonalized'].ewm(span=4, adjust=False).mean().iloc[-1]
-        else:
-            recent_level = sub[col_calls].mean()
+                dow_avg[i] = sub[col_calls].mean()
 
         preds_finales = []
         for d in range(dias_futuros):
             fecha_futura = fecha_inicio_forecast + timedelta(days=d)
             wd = fecha_futura.weekday()
             
-            vol_final = recent_level * dow_idx.get(wd, 1.0)
+            vol_final = dow_avg.get(wd, sub[col_calls].mean())
             if sub[col_calls].mean() < 1.0: vol_final = 0.0
             preds_finales.append(max(0.0, vol_final))
 
@@ -725,38 +692,22 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        fecha_max = sub[col_fecha].max()
-        
-        df_ultimas_4_sem = sub[sub[col_fecha] > (fecha_max - timedelta(days=28))]
-        if df_ultimas_4_sem.empty: df_ultimas_4_sem = sub
-        
-        dow_means = df_ultimas_4_sem.groupby(df_ultimas_4_sem[col_fecha].dt.weekday)[col_calls].mean()
-        promedio_global = dow_means.mean()
-        
-        dow_idx = {}
+        dow_avg = {}
         for i in range(7):
-            if i in dow_means and promedio_global > 0:
-                dow_idx[i] = dow_means[i] / promedio_global
+            vols_dow = sub[(sub[col_fecha].dt.weekday == i) & (sub[col_calls] > 0)][col_calls]
+            vols_list = vols_dow.tail(3).tolist()
+            
+            if len(vols_list) > 0:
+                dow_avg[i] = float(np.median(vols_list))
             else:
-                dow_idx[i] = 1.0
-
-        df_ultimos_14 = sub[sub[col_fecha] > (fecha_max - timedelta(days=14))].copy()
-        if not df_ultimos_14.empty:
-            df_ultimos_14['deseasonalized'] = df_ultimos_14.apply(
-                lambda r: r[col_calls] / dow_idx.get(r[col_fecha].weekday(), 1.0) 
-                if dow_idx.get(r[col_fecha].weekday(), 1.0) > 0 else r[col_calls], 
-                axis=1
-            )
-            recent_level = df_ultimos_14['deseasonalized'].ewm(span=4, adjust=False).mean().iloc[-1]
-        else:
-            recent_level = sub[col_calls].mean()
+                dow_avg[i] = sub[col_calls].mean()
 
         preds_finales = []
         for d in range(dias_futuros):
             fecha_futura = fecha_inicio_forecast + timedelta(days=d)
             wd = fecha_futura.weekday()
             
-            vol_final = recent_level * dow_idx.get(wd, 1.0)
+            vol_final = dow_avg.get(wd, sub[col_calls].mean())
             if sub[col_calls].mean() < 1.0: vol_final = 0.0
             preds_finales.append(max(0.0, vol_final))
 
