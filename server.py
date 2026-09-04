@@ -21,7 +21,8 @@ CONFIG_FILE = os.path.join(BASE_DIR, 'wfm_config.json')
 EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 
 app = Flask(__name__)
-CORS(app)
+# Configuración CORS robusta para permitir peticiones cross-origin desde el frontend en Render
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 VENTANAS_SERVICIO = {
     'ambulancia servicios': {'inicio': 0 * 60, 'fin': 24 * 60},
@@ -128,7 +129,7 @@ def buscar_archivo_excel():
         if not archivos: return None
         for f in archivos:
             if 'historico' in f.lower(): return os.path.join(BASE_DIR, f)
-        return os.path.join(BASE_DIR, archivos)
+        return os.path.join(BASE_DIR, archivos[0])
     except: return None
 
 @app.route('/')
@@ -226,7 +227,4 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
 
 def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
     if A <= 0 or aht <= 0: return 0
-    piso_minimo = int(math.floor(A)) + 1
-    piso_alto = int(math.floor(A + math.sqrt(A)))
-    n_agentes = piso_alto if A > 50 else piso_minimo
-    
+
