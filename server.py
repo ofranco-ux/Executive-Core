@@ -21,7 +21,6 @@ CONFIG_FILE = os.path.join(BASE_DIR, 'wfm_config.json')
 EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 
 app = Flask(__name__)
-# Configuración CORS robusta para permitir peticiones cross-origin desde el frontend en Render
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 VENTANAS_SERVICIO = {
@@ -47,10 +46,6 @@ VENTANAS_SERVICIO = {
 # 🧠 MOTOR DE MACHINE LEARNING CON ATRIBUTOS TEMPORALES Y EXÓGENOS
 # =====================================================================
 def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inicio_forecast, col_fecha, col_calls):
-    """
-    Entrena un modelo autoregresivo Random Forest para predecir el volumen
-    de llamadas de forma diaria incorporando lags, promedios móviles y festivos de México.
-    """
     df_ml = df_diario_campana.sort_values(col_fecha).copy()
     
     anos_presentes = list(df_ml[col_fecha].dt.year.unique())
@@ -144,25 +139,7 @@ def serve_index():
             response.headers['Pragma'] = 'no-cache'
             response.headers['Expires'] = '0'
             return response
-    return jsonify({"error": "ALERTA CRÍTICA: No se encontró el archivo index.html."}), 404
-
-@app.route('/favicon.ico')
-def favicon(): return '', 204
-
-@app.route('/api/config', methods=['GET', 'POST'])
-def manage_config():
-    if request.method == 'POST':
-        try:
-            new_config = request.get_json(force=True)
-            with open(CONFIG_FILE, 'w', encoding='utf-8') as f: json.dump(new_config, f)
-            return jsonify({'status': 'Guardado'}), 200
-        except Exception as e: return jsonify({'error': str(e)}), 500
-    else:
-        if os.path.exists(CONFIG_FILE):
-            try:
-                with open(CONFIG_FILE, 'r', encoding='utf-8') as f: return jsonify(json.load(f)), 200
-            except: pass
-        return jsonify({'targetSl': 80, 'targetTime': 20, 'merma': 30}), 200
+    return jsonify({"error": "No se encontró index.html"}), 404
 
 def clean_num(val, default=0.0):
     if pd.isna(val) or val is None: return default
@@ -227,4 +204,35 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
 
 def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
     if A <= 0 or aht <= 0: return 0
+    piso_minimo = int(math.floor(A)) + 1
+    piso_alto = int(math.floor(A + math.sqrt(A)))
+    n_agentes = piso_alto if A > 50 else piso_minimo
+    
+    for iterador_n in range(n_agentes, 3000):
+        if erlang_c_sl_optimizado(A, iterador_n, aht, target_time) >= target_sl:
+            return iterador_n
+    return n_agentes
+
+def parse_time_str(t_str):
+    if not t_str: return None
+    t = re.sub(r'[^\d:]', '', str(t_str).lower())
+    if not t: return None
+    if ':' not in t: t += ':00'
+    try:
+        p = t.split(':')
+        return int(p[0]) * 60 + int(p[1])
+    except: return None
+
+def esta_en_ventana_servicio(campana, intervalo_str):
+    camp_key = str(campana).strip().lower()
+    min_in = parse_time_str(intervalo_str)
+    if min_in is None: return True
+    for key, window in VENTANAS_SERVICIO.items():
+        if key in camp_key or camp_key in key:
+            return window['inicio'] <= min_in < window['fin']
+    return True
+
+def encontrar_columna(df, posibles):
+    for p in posibles:
+        for c in df.columns:
 
