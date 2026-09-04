@@ -9,7 +9,7 @@ from flask_cors import CORS
 import pandas as pd
 import numpy as np
 
-# --- NUEVAS LIBRERÍAS DE MACHINE LEARNING ---
+# --- LIBRERÍAS DE MACHINE LEARNING ---
 import holidays
 from sklearn.ensemble import RandomForestRegressor
 
@@ -52,7 +52,6 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
     """
     df_ml = df_diario_campana.sort_values(col_fecha).copy()
     
-    # Configuración de festivos automatizados basados en el rango temporal detectado
     anos_presentes = list(df_ml[col_fecha].dt.year.unique())
     anos_presentes.append(fecha_inicio_forecast.year)
     anos_presentes.append((fecha_inicio_forecast + timedelta(days=dias_futuros)).year)
@@ -60,7 +59,6 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
     
     festivos_pais = holidays.CountryHoliday('MX', years=anos_unicos)
     
-    # Extracción de características temporales (Feature Engineering)
     df_ml['lag_1'] = df_ml[col_calls].shift(1)
     df_ml['lag_2'] = df_ml[col_calls].shift(2)
     df_ml['lag_7'] = df_ml[col_calls].shift(7)
@@ -76,7 +74,6 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
     
     df_train = df_ml.dropna().copy()
     
-    # Mecanismo de contingencia por si la campaña cuenta con datos insuficientes
     if len(df_train) < 14:
         promedio_seguro = df_diario_campana[col_calls].mean()
         return [max(0.0, promedio_seguro)] * dias_futuros
@@ -87,11 +84,9 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
     X_train = df_train[features]
     y_train = df_train[col_calls]
     
-    # Instanciación y entrenamiento controlado para prevenir sobreajuste
     modelo = RandomForestRegressor(n_estimators=100, random_state=42, max_depth=10)
     modelo.fit(X_train, y_train)
     
-    # Simulación recursiva iterativa paso a paso del futuro
     historial_simulado = df_ml.to_dict('records')
     preds_finales = []
     fecha_actual = fecha_inicio_forecast
@@ -114,7 +109,7 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
             'es_festivo': 1 if fecha_actual in festivos_pais else 0
         }])
         
-        pred_vol = float(modelo.predict(X_pred[features])[0])
+        pred_vol = float(modelo.predict(X_pred[features]))
         pred_vol = max(0.0, pred_vol)
         preds_finales.append(pred_vol)
         
@@ -224,4 +219,14 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
         last_term = current_term * (A / N) / (1.0 - (A / N))
         pw = last_term / (sum_terms + last_term)
         sl = 1.0 - (pw * math.exp(-(N - A) * (target_time / AHT)))
+        resultado = round(max(0.0, min(100.0, sl * 100.0)), 1)
+        ERLANG_CACHE[key] = resultado
+        return resultado
+    except: return 0.0
+
+def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
+    if A <= 0 or aht <= 0: return 0
+    n = max(1, int(math.floor(A)) + 1)
+    if A > 50: n = max(n, int(math.floor(A + math.sqrt(A))))
+    while n < 3000:
 
