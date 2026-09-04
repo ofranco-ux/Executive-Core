@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Workforce Capacity Forecast — C-Suite Analytics</title>
-    <!-- CDN OFICIAL Y CORRECTO DE TAILWIND CSS PARA PRODUCCIÓN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- CDN Oficial y optimizado de Tailwind CSS -->
+    <script src="https://tailwindcss.com"></script>
     <style>
         body { background-color: #0b0f19; color: #f3f4f6; }
         .card { background-color: #111827; border: 1px solid #1f2937; }
@@ -49,11 +49,11 @@
                     </div>
                     <div>
                         <label class="block text-xs text-gray-400 uppercase font-bold mb-1">Horizonte (Días)</label>
-                        <input type="number" name="dias" value="45" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                        <input type="number" name="dias" value="31" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm focus:outline-none focus:border-blue-500">
                     </div>
                     <div>
                         <label class="block text-xs text-gray-400 uppercase font-bold mb-1">Concurrencia Chat</label>
-                        <input type="number" name="concurrencia" value="3" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                        <input type="number" name="concurrencia" value="4" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm focus:outline-none focus:border-blue-500">
                     </div>
                     
                     <button type="button" id="btnRunPlan" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold p-3 rounded-lg shadow-lg mt-4 transition duration-200">
@@ -112,13 +112,10 @@
         </div>
     </div>
 
-    <!-- CORE LOGIC / JAVASCRIPT DE PRODUCCIÓN -->
+    <!-- CONTROL DE PETICIONES Y RENDERIZADO DESDE LA API -->
     <script>
-        // URL ABSOLUTA CORREGIDA CON TU DOMINIO REAL EN RENDER
-        const API_BASE_URL = 'https://executive-core.onrender.com';
-
-        // Función para renderizar los datos devueltos por el servidor en la tabla HTML
-        制造_DATOS_TABLA = [];
+        const API_BASE_URL = 'https://onrender.com';
+        let DATOS_GLOBALES = [];
 
         function renderizarTabla(data) {
             const tabla = document.getElementById('tablaCuerpo');
@@ -127,51 +124,56 @@
             const lblHc = document.getElementById('lblHc');
 
             if (!data || data.length === 0) {
-                tabla.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-gray-500">No se encontraron registros en el archivo histórico.</td></tr>`;
+                tabla.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-gray-500">No se encontraron datos históricos procesables.</td></tr>`;
                 return;
             }
 
-            制造_DATOS_TABLA = data;
+            DATOS_GLOBALES = data;
             let html = '';
-            let acumuladoLlamadas = 0;
-            let maxHc = 0;
-            let totalSegundosAht = 0;
-            let registrosConLlamadas = 0;
+            let totalLlamadas = 0;
+            let maxAgentes = 0;
+            let sumaAhtSegundos = 0;
+            let conteoValido = 0;
 
             data.forEach(item => {
-                acumuladoLlamadas += parseInt(item.Llamadas || 0);
-                if (parseInt(item.Agentes_Requeridos || 0) > maxHc) {
-                    maxHc = parseInt(item.Agentes_Requeridos || 0);
+                totalLlamadas += parseInt(item.Llamadas || 0);
+                if (parseInt(item.Agentes_Requeridos || 0) > maxAgentes) {
+                    maxAgentes = parseInt(item.Agentes_Requeridos || 0);
                 }
                 if (parseInt(item.Llamadas || 0) > 0) {
-                    totalSegundosAht += parseInt(item.AHT_Segundos || 0);
-                    registrosConLlamadas++;
+                    sumaAhtSegundos += parseInt(item.AHT_Segundos || 0);
+                    conteoValido++;
                 }
 
                 html += `
-                <tr class="hover:bg-gray-900/50 transition">
-                    <td class="py-3 font-medium text-white">${item.Campaña}</td>
+                <tr class="hover:bg-gray-900/50 transition border-b border-gray-800/40">
+                    <td class="py-3 font-medium text-white">${item.Campaña || item.Campana}</td>
                     <td class="py-3">${item.Fecha}</td>
                     <td class="py-3 text-gray-400">${item.Intervalo}</td>
-                    <td class="py-3 text-right font-semibold text-blue-400">${parseInt(item.Llamadas).toLocaleString()}</td>
+                    <td class="py-3 text-right font-semibold text-blue-400">${parseInt(item.Llamadas || 0).toLocaleString()}</td>
                     <td class="py-3 text-right text-green-400">${item.AHT}</td>
                     <td class="py-3 text-right font-bold text-purple-400">${item.Agentes_Requeridos}</td>
                 </tr>`;
             });
 
             tabla.innerHTML = html;
-            lblDemanda.innerText = acumuladoLlamadas.toLocaleString();
-            lblHc.innerText = `${maxHc} HC`;
+            lblDemanda.innerText = totalLlamadas.toLocaleString();
+            lblHc.innerText = `${maxAgentes} HC`;
 
-            if (registrosConLlamadas > 0) {
-                const promedioAhtSegundos = totalSegundosAht / registrosConLlamadas;
-                const hrs = Math.floor(promedioAhtSegundos / 3600);
-                const mins = Math.floor((promedioAhtSegundos % 3600) / 60);
-                const secs = Math.floor(promedioAhtSegundos % 60);
-                lblAht.innerText = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            if (conteoValido > 0) {
+                const prom = sumaAhtSegundos / conteoValido;
+                const h = Math.floor(prom / 3600).toString().padStart(2, '0');
+                const m = Math.floor((prom % 3600) / 60).toString().padStart(2, '0');
+                const s = Math.floor(prom % 60).toString().padStart(2, '0');
+                lblAht.innerText = `${h}:${m}:${s}`;
             } else {
                 lblAht.innerText = "00:00:00";
             }
         }
 
         document.getElementById('btnRunPlan').addEventListener('click', async () => {
+            const btn = document.getElementById('btnRunPlan');
+            const tabla = document.getElementById('tablaCuerpo');
+            
+            btn.disabled = true;
+            btn.innerText = '🧠 ENTRENANDO IA MODEL...';
