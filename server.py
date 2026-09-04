@@ -226,6 +226,7 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
 
 def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
     if A <= 0 or aht <= 0: return 0
-    n = max(1, int(math.floor(A)) + 1)
-    if A > 50: n = max(n, int(math.floor(A + math.sqrt(A))))
-    while n < 3000:
+    # Inicializar con el piso mínimo de agentes basado en la intensidad de tráfico
+    n_agentes = max(1, int(math.floor(A)) + 1)
+    if A > 50: 
+
