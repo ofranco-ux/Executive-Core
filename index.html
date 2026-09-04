@@ -3,177 +3,155 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+    <meta http-equiv="Pragma" content="no-cache"/>
+    <meta http-equiv="Expires" content="0"/>
     <title>Workforce Capacity Forecast — C-Suite Analytics</title>
-    <!-- CDN oficial de Tailwind CSS -->
-    <script src="https://tailwindcss.com"></script>
-    <style>
-        body { background-color: #0b0f19; color: #f3f4f6; }
-        .card { background-color: #111827; border: 1px solid #1f2937; }
-    </style>
-</head>
-<body class="p-6">
-
-    <div class="max-w-7xl mx-auto">
-        <!-- ENCABEZADO -->
-        <div class="flex justify-between items-center mb-6">
-            <div>
-                <h1 class="text-3xl font-bold tracking-tight text-white">Workforce Capacity Forecast</h1>
-                <p class="text-gray-400 text-sm mt-1">Capacity Planning (Precisión Diaria + Área Volumétrica)</p>
-            </div>
-            <div class="space-x-2">
-                <span class="px-3 py-1 bg-blue-600 text-xs rounded-full font-semibold">🎯 Inbound</span>
-                <span class="px-3 py-1 bg-green-600 text-xs rounded-full font-semibold">🚀 Outbound</span>
-                <span class="px-3 py-1 bg-purple-600 text-xs rounded-full font-semibold">💬 Chat</span>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <!-- PANEL DE CONTROL / KEY ASSUMPTIONS -->
-            <div class="card p-5 rounded-xl shadow-xl space-y-4">
-                <h2 class="text-lg font-bold text-white border-b border-gray-800 pb-2 flex items-center">
-                    ⚙️ KEY ASSUMPTIONS
-                </h2>
-                
-                <form id="wfmForm" class="space-y-3">
-                    <div>
-                        <label class="block text-xs text-gray-400 uppercase font-bold mb-1">Target SL (%)</label>
-                        <input type="number" name="target_sl" value="80" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm focus:outline-none focus:border-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 uppercase font-bold mb-1">Target ASA (s)</label>
-                        <input type="number" name="target_time" value="20" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm focus:outline-none focus:border-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 uppercase font-bold mb-1">Shrinkage (%)</label>
-                        <input type="number" name="merma" value="30" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm focus:outline-none focus:border-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 uppercase font-bold mb-1">Horizonte (Días)</label>
-                        <input type="number" name="dias" value="31" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm focus:outline-none focus:border-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 uppercase font-bold mb-1">Concurrencia Chat</label>
-                        <input type="number" name="concurrencia" value="4" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm focus:outline-none focus:border-blue-500">
-                    </div>
-                    
-                    <button type="button" id="btnRunPlan" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold p-3 rounded-lg shadow-lg mt-4 transition duration-200">
-                        ▶ RUN PLAN
-                    </button>
-                </form>
-            </div>
-
-            <!-- RESULTADOS Y KPI CARDS -->
-            <div class="lg:col-span-3 space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="card p-4 rounded-xl flex flex-col justify-between">
-                        <span class="text-xs font-bold text-gray-400 uppercase">Demanda Total (Periodo)</span>
-                        <span id="lblDemanda" class="text-3xl font-extrabold text-blue-500 mt-2">0</span>
-                    </div>
-                    <div class="card p-4 rounded-xl flex flex-col justify-between">
-                        <span class="text-xs font-bold text-gray-400 uppercase">AHT Promedio</span>
-                        <span id="lblAht" class="text-3xl font-extrabold text-green-500 mt-2">00:00:00</span>
-                    </div>
-                    <div class="card p-4 rounded-xl flex flex-col justify-between">
-                        <span class="text-xs font-bold text-gray-400 uppercase">Nómina Requerida (Max HC)</span>
-                        <span id="lblHc" class="text-3xl font-extrabold text-purple-500 mt-2">0 HC</span>
-                    </div>
-                </div>
-
-                <!-- TABLA DE RESULTADOS (GAP MATRIX) -->
-                <div class="card rounded-xl p-5 shadow-xl">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-bold text-white">📊 Demand vs. Capacity (Gap Matrix)</h3>
-                        <button id="btnExport" class="bg-gray-800 hover:bg-gray-700 text-xs font-semibold px-4 py-2 rounded border border-gray-700 transition">
-                            📥 Export CSV
-                        </button>
-                    </div>
-
-                    <div class="overflow-x-auto max-h-96">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="border-b border-gray-800 text-xs text-gray-400 uppercase tracking-wider">
-                                    <th class="pb-3">Campaña</th>
-                                    <th class="pb-3">Fecha</th>
-                                    <th class="pb-3">Intervalo</th>
-                                    <th class="pb-3 text-right">Volumen</th>
-                                    <th class="pb-3 text-right">AHT</th>
-                                    <th class="pb-3 text-right">Agentes Req.</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tablaCuerpo" class="text-sm divide-y divide-gray-800 text-gray-300">
-                                <tr>
-                                    <td colspan="6" class="py-8 text-center text-gray-500">Cargue datos ejecutando el plan operativo...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- JAVASCRIPT CON RUTAS DE PRODUCCIÓN -->
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
     <script>
-        const API_BASE_URL = 'https://onrender.com';
-        let DATOS_GLOBALES = [];
-
-        function renderizarTabla(data) {
-            const tabla = document.getElementById('tablaCuerpo');
-            const lblDemanda = document.getElementById('lblDemanda');
-            const lblAht = document.getElementById('lblAht');
-            const lblHc = document.getElementById('lblHc');
-
-            if (!data || data.length === 0) {
-                tabla.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-gray-500">No se encontraron datos históricos procesables.</td></tr>`;
-                return;
-            }
-
-            DATOS_GLOBALES = data;
-            let html = '';
-            let totalLlamadas = 0;
-            let maxAgentes = 0;
-            let sumaAhtSegundos = 0;
-            let conteoValido = 0;
-
-            data.forEach(item => {
-                totalLlamadas += parseInt(item.Llamadas || 0);
-                if (parseInt(item.Agentes_Requeridos || 0) > maxAgentes) {
-                    maxAgentes = parseInt(item.Agentes_Requeridos || 0);
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            bg: '#070B14',
+                            surface: '#111827',
+                            border: '#1F2937', 
+                            primary: '#3B82F6', 
+                            primaryHover: '#60A5FA',
+                            accentCyan: '#22D3EE',
+                            accentViolet: '#A78BFA',
+                            accentEmerald: '#34D399',
+                            accentRose: '#FB7185',
+                            accentAmber: '#FBBF24'
+                        }
+                    }
                 }
-                if (parseInt(item.Llamadas || 0) > 0) {
-                    sumaAhtSegundos += parseInt(item.AHT_Segundos || 0);
-                    conteoValido++;
-                }
-
-                html += `
-                <tr class="hover:bg-gray-900/50 transition border-b border-gray-800/40">
-                    <td class="py-3 font-medium text-white">${item.Campaña || item.Campana}</td>
-                    <td class="py-3">${item.Fecha}</td>
-                    <td class="py-3 text-gray-400">${item.Intervalo}</td>
-                    <td class="py-3 text-right font-semibold text-blue-400">${parseInt(item.Llamadas || 0).toLocaleString()}</td>
-                    <td class="py-3 text-right text-green-400">${item.AHT}</td>
-                    <td class="py-3 text-right font-bold text-purple-400">${item.Agentes_Requeridos}</td>
-                </tr>`;
-            });
-
-            tabla.innerHTML = html;
-            lblDemanda.innerText = totalLlamadas.toLocaleString();
-            lblHc.innerText = `${maxAgentes} HC`;
-
-            if (conteoValido > 0) {
-                const prom = sumaAhtSegundos / conteoValido;
-                const h = Math.floor(prom / 3600).toString().padStart(2, '0');
-                const m = Math.floor((prom % 3600) / 60).toString().padStart(2, '0');
-                const s = Math.floor(prom % 60).toString().padStart(2, '0');
-                lblAht.innerText = `${h}:${m}:${s}`;
-            } else {
-                lblAht.innerText = "00:00:00";
             }
         }
+    </script>
 
-        document.getElementById('btnRunPlan').addEventListener('click', async () => {
-            const btn = document.getElementById('btnRunPlan');
-            const tabla = document.getElementById('tablaCuerpo');
-            
-            btn.disabled = true;
-            btn.innerText = '🧠 ENTRENANDO IA MODEL...';
+    <style>
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: #070B14; 
+            color: #E2E8F0; 
+        }
+        .glass-panel { 
+            background-color: #111827; 
+            border: 1px solid #1F2937; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+        }
+        .glass-panel-hover {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass-panel-hover:hover {
+            border-color: #3B82F6;
+            transform: translateY(-3px);
+            box-shadow: 0 12px 20px -8px rgba(59, 130, 246, 0.3);
+        }
+        .font-mono-num {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #070B14; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 99px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        
+        .input-clean {
+            background-color: #0F172A;
+            border: 1px solid #334155;
+            color: #F8FAFC;
+            transition: all 0.2s;
+        }
+        .input-clean:focus {
+            outline: none;
+            border-color: #3B82F6;
+            box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.5);
+        }
+    </style>
+</head>
+<body class="p-6 md:p-8 min-h-screen">
+
+    <header class="flex justify-between items-center bg-[#111827] border border-[#1F2937] shadow-lg rounded-2xl p-6 mb-8 relative flex-wrap gap-4">
+        <div class="flex items-center gap-5 z-10">
+            <svg class="h-12 w-12 flex-shrink-0 text-brand-accentCyan transition-transform hover:scale-110 duration-300 drop-shadow-[0_0_10px_rgba(34,211,238,0.4)]" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="100" cy="100" r="85" stroke="#3B82F6" stroke-width="12" stroke-linecap="round" stroke-dasharray="350 150" transform="rotate(-45 100 100)"/>
+                <circle cx="100" cy="100" r="65" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-dasharray="150 250" transform="rotate(135 100 100)"/>
+                <circle cx="100" cy="75" r="16" fill="#3B82F6"/>
+                <path d="M75 130 C75 110 125 110 125 130 L125 140 L75 140 Z" fill="#3B82F6"/>
+                <circle cx="60" cy="95" r="12" fill="currentColor"/>
+                <path d="M40 140 C40 125 80 125 80 140 Z" fill="currentColor"/>
+                <circle cx="140" cy="95" r="12" fill="currentColor"/>
+                <path d="M120 140 C120 125 160 125 160 140 Z" fill="currentColor"/>
+            </svg>
+
+            <div>
+                <div class="flex items-center gap-3">
+                    <h1 class="text-2xl font-bold text-white tracking-tight">Workforce Capacity Forecast</h1>
+                    
+                    <div class="bg-[#1E293B] rounded-xl p-1 flex items-center shadow-inner border border-[#334155] ml-4">
+                        <button id="btnTabInbound" onclick="setModeWFM('inbound')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-primary text-white shadow-md">🎯 Inbound</button>
+                        <button id="btnTabOutbound" onclick="setModeWFM('outbound')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200">🚀 Outbound</button>
+                        <button id="btnTabChat" onclick="setModeWFM('chat')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200">💬 Chat</button>
+                        <div class="w-px h-6 bg-[#334155] mx-1"></div>
+                        <button id="btnTabGeneral" onclick="setModeWFM('general')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200">🌐 Consolidado</button>
+                    </div>
+
+                    <span id="tagModoOps" class="hidden text-[10px] bg-brand-primary/20 text-brand-primary border border-brand-primary/40 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider drop-shadow-md">Vista Operaciones</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning (Precisión Diaria + Área Volumétrica)</p>
+            </div>
+        </div>
+
+        <div id="containerShowSidebar" class="z-10 ml-auto hidden">
+            <button onclick="toggleSidebar()" class="bg-[#1E293B] hover:bg-[#334155] text-slate-200 border border-[#475569] px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 font-mono shadow-lg">
+                <span class="text-brand-accentCyan drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">▶</span> Mostrar Parámetros
+            </button>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-12 gap-8">
+
+        <!-- SIDEBAR DE PARÁMETROS -->
+        <aside id="panelControl" class="col-span-12 lg:col-span-3 glass-panel p-6 rounded-[1.5rem] space-y-6 h-fit transition-all duration-300 relative overflow-hidden">
+            <div class="absolute -top-10 -right-10 w-32 h-32 bg-brand-accentViolet/10 rounded-full blur-3xl pointer-events-none"></div>
+
+            <button onclick="toggleSidebar()" class="w-full bg-[#111827] hover:bg-[#1E293B] text-slate-200 border border-[#1F2937] px-4 py-3.5 rounded-[14px] text-[11px] font-bold transition-all flex items-center justify-center gap-2 font-mono relative z-10 shadow-sm">
+                <span class="text-brand-accentCyan drop-shadow-sm">◀</span> Ocultar Parámetros
+            </button>
+
+            <form id="wfmForm">
+                <div id="contParametrosSimulacion">
+                    <div class="flex items-center justify-between pb-4 border-b border-[#1F2937] relative z-10 mt-4">
+                        <h2 class="text-xs font-extrabold text-white uppercase tracking-widest flex items-center gap-2">
+                            <span>⚙️</span> KEY ASSUMPTIONS
+                        </h2>
+                    </div>
+
+                    <div class="space-y-4 pt-2 relative z-10">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="flex flex-col group" id="contTargetSl">
+                                <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentEmerald transition-colors">Target SL (%)</label>
+                                <input type="number" name="target_sl" id="targetSl" value="80" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentEmerald font-mono-num font-bold focus:border-brand-accentEmerald focus:ring-1 focus:ring-brand-accentEmerald focus:outline-none">
+                            </div>
+                            <div class="flex flex-col group">
+                                <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentCyan transition-colors">Target ASA (s)</label>
+                                <input type="number" name="target_time" id="targetTime" value="20" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentCyan font-mono-num font-bold focus:border-brand-accentCyan focus:ring-1 focus:ring-brand-accentCyan focus:outline-none">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="flex flex-col group">
+                                <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentRose transition-colors">Shrinkage (%)</label>
+                                <input type="number" name="merma" id="merma" value="30" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentRose font-mono-num font-bold focus:border-brand-accentRose focus:ring-1 focus:ring-brand-accentRose focus:outline-none">
+                            </div>
+                            <div class="flex flex-col group">
+                                <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentAmber transition-colors">Jornada (Hrs)</label>
+
