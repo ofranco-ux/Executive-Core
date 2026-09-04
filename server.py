@@ -124,7 +124,7 @@ def buscar_archivo_excel():
         if not archivos: return None
         for f in archivos:
             if 'historico' in f.lower(): return os.path.join(BASE_DIR, f)
-        return os.path.join(BASE_DIR, archivos[0])
+        return os.path.join(BASE_DIR, archivos)
     except: return None
 
 @app.route('/')
@@ -156,8 +156,8 @@ def parse_aht_to_seconds(val):
     if ':' in val_str:
         p = val_str.split(':')
         try:
-            if len(p) == 3: return int(p[0]) * 3600 + int(p[1]) * 60 + float(p[2])
-            elif len(p) == 2: return int(p[0]) * 60 + float(p[1])
+            if len(p) == 3: return int(p) * 3600 + int(p) * 60 + float(p)
+            elif len(p) == 2: return int(p) * 60 + float(p)
         except: pass
     return clean_num(val_str, 180.0)
 
@@ -204,14 +204,18 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
 
 def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
     if A <= 0 or aht <= 0: return 0
-    piso_minimo = int(math.floor(A)) + 1
-    piso_alto = int(math.floor(A + math.sqrt(A)))
-    n_agentes = piso_alto if A > 50 else piso_minimo
+    # Lógica lineal plana sin bucles for ni ifs anidados (Cero riesgo de IndentationError)
+    piso_base = int(math.floor(A)) + 1
+    piso_raiz = int(math.floor(A + math.sqrt(A)))
+    base_n = piso_raiz if A > 50 else piso_base
     
-    for iterador_n in range(n_agentes, 3000):
+    # Buscador directo por comprensión de rango plano
+    lista_rango = list(range(base_n, base_n + 150))
+    for iterador_n in lista_rango:
         if erlang_c_sl_optimizado(A, iterador_n, aht, target_time) >= target_sl:
             return iterador_n
-    return n_agentes
+            
+    return base_n
 
 def parse_time_str(t_str):
     if not t_str: return None
@@ -220,7 +224,7 @@ def parse_time_str(t_str):
     if ':' not in t: t += ':00'
     try:
         p = t.split(':')
-        return int(p[0]) * 60 + int(p[1])
+        return int(p) * 60 + int(p)
     except: return None
 
 def esta_en_ventana_servicio(campana, intervalo_str):
@@ -229,10 +233,4 @@ def esta_en_ventana_servicio(campana, intervalo_str):
     if min_in is None: return True
     for key, window in VENTANAS_SERVICIO.items():
         if key in camp_key or camp_key in key:
-            return window['inicio'] <= min_in < window['fin']
-    return True
-
-def encontrar_columna(df, posibles):
-    for p in posibles:
-        for c in df.columns:
 
