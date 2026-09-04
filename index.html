@@ -3,1414 +3,176 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-    <meta http-equiv="Pragma" content="no-cache"/>
-    <meta http-equiv="Expires" content="0"/>
     <title>Workforce Capacity Forecast — C-Suite Analytics</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            bg: '#070B14',
-                            surface: '#111827',
-                            border: '#1F2937', 
-                            primary: '#3B82F6', 
-                            primaryHover: '#60A5FA',
-                            accentCyan: '#22D3EE',
-                            accentViolet: '#A78BFA',
-                            accentEmerald: '#34D399',
-                            accentRose: '#FB7185',
-                            accentAmber: '#FBBF24'
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-
+    <!-- Tailwind CSS para diseño rápido -->
+    <script src="https://tailwindcss.com"></script>
     <style>
-        body { 
-            font-family: 'Plus Jakarta Sans', sans-serif; 
-            background-color: #070B14; 
-            color: #E2E8F0; 
-        }
-        .glass-panel { 
-            background-color: #111827; 
-            border: 1px solid #1F2937; 
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
-        }
-        .glass-panel-hover {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .glass-panel-hover:hover {
-            border-color: #3B82F6;
-            transform: translateY(-3px);
-            box-shadow: 0 12px 20px -8px rgba(59, 130, 246, 0.3);
-        }
-        .font-mono-num {
-            font-family: 'JetBrains Mono', monospace;
-        }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #070B14; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 99px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
-        
-        .input-clean {
-            background-color: #0F172A;
-            border: 1px solid #334155;
-            color: #F8FAFC;
-            transition: all 0.2s;
-        }
-        .input-clean:focus {
-            outline: none;
-            border-color: #3B82F6;
-            box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.5);
-        }
+        body { background-color: #0b0f19; color: #f3f4f6; }
+        .card { background-color: #111827; border: 1px solid #1f2937; }
     </style>
 </head>
-<body class="p-6 md:p-8 min-h-screen">
+<body class="p-6">
 
-    <header class="flex justify-between items-center bg-[#111827] border border-[#1F2937] shadow-lg rounded-2xl p-6 mb-8 relative flex-wrap gap-4">
-        <div class="flex items-center gap-5 z-10">
-            <svg class="h-12 w-12 flex-shrink-0 text-brand-accentCyan transition-transform hover:scale-110 duration-300 drop-shadow-[0_0_10px_rgba(34,211,238,0.4)]" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="100" cy="100" r="85" stroke="#3B82F6" stroke-width="12" stroke-linecap="round" stroke-dasharray="350 150" transform="rotate(-45 100 100)"/>
-                <circle cx="100" cy="100" r="65" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-dasharray="150 250" transform="rotate(135 100 100)"/>
-                <circle cx="100" cy="75" r="16" fill="#3B82F6"/>
-                <path d="M75 130 C75 110 125 110 125 130 L125 140 L75 140 Z" fill="#3B82F6"/>
-                <circle cx="60" cy="95" r="12" fill="currentColor"/>
-                <path d="M40 140 C40 125 80 125 80 140 Z" fill="currentColor"/>
-                <circle cx="140" cy="95" r="12" fill="currentColor"/>
-                <path d="M120 140 C120 125 160 125 160 140 Z" fill="currentColor"/>
-            </svg>
-
+    <div class="max-w-7xl mx-auto">
+        <!-- ENCABEZADO -->
+        <div class="flex justify-between items-center mb-6">
             <div>
-                <div class="flex items-center gap-3">
-                    <h1 class="text-2xl font-bold text-white tracking-tight">Workforce Capacity Forecast</h1>
-                    
-                    <div class="bg-[#1E293B] rounded-xl p-1 flex items-center shadow-inner border border-[#334155] ml-4">
-                        <button id="btnTabInbound" onclick="setModeWFM('inbound')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-primary text-white shadow-md">🎯 Inbound</button>
-                        <button id="btnTabOutbound" onclick="setModeWFM('outbound')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200">🚀 Outbound</button>
-                        <button id="btnTabChat" onclick="setModeWFM('chat')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200">💬 Chat</button>
-                        <div class="w-px h-6 bg-[#334155] mx-1"></div>
-                        <button id="btnTabGeneral" onclick="setModeWFM('general')" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200">🌐 Consolidado</button>
-                    </div>
-
-                    <span id="tagModoOps" class="hidden text-[10px] bg-brand-primary/20 text-brand-primary border border-brand-primary/40 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider drop-shadow-md">Vista Operaciones</span>
-                </div>
-                <p class="text-xs text-slate-400 mt-1 font-medium tracking-wide">Capacity Planning (Precisión Diaria + Área Volumétrica)</p>
+                <h1 class="text-3xl font-bold tracking-tight text-white">Workforce Capacity Forecast</h1>
+                <p class="text-gray-400 text-sm mt-1">Capacity Planning (Precisión Diaria + Área Volumétrica)</p>
+            </div>
+            <div class="space-x-2">
+                <span class="px-3 py-1 bg-blue-600 text-xs rounded-full font-semibold">🎯 Inbound</span>
+                <span class="px-3 py-1 bg-green-600 text-xs rounded-full font-semibold">🚀 Outbound</span>
+                <span class="px-3 py-1 bg-purple-600 text-xs rounded-full font-semibold">💬 Chat</span>
             </div>
         </div>
 
-        <div id="containerShowSidebar" class="z-10 ml-auto hidden">
-            <button onclick="toggleSidebar()" class="bg-[#1E293B] hover:bg-[#334155] text-slate-200 border border-[#475569] px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 font-mono shadow-lg">
-                <span class="text-brand-accentCyan drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">▶</span> Mostrar Parámetros
-            </button>
-        </div>
-    </header>
-
-    <div class="grid grid-cols-12 gap-8">
-
-        <!-- SIDEBAR DE PARÁMETROS -->
-        <aside id="panelControl" class="col-span-12 lg:col-span-3 glass-panel p-6 rounded-[1.5rem] space-y-6 h-fit transition-all duration-300 relative overflow-hidden">
-            <div class="absolute -top-10 -right-10 w-32 h-32 bg-brand-accentViolet/10 rounded-full blur-3xl pointer-events-none"></div>
-
-            <button onclick="toggleSidebar()" class="w-full bg-[#111827] hover:bg-[#1E293B] text-slate-200 border border-[#1F2937] px-4 py-3.5 rounded-[14px] text-[11px] font-bold transition-all flex items-center justify-center gap-2 font-mono relative z-10 shadow-sm">
-                <span class="text-brand-accentCyan drop-shadow-sm">◀</span> Ocultar Parámetros
-            </button>
-
-            <div id="contParametrosSimulacion">
-                <div class="flex items-center justify-between pb-4 border-b border-[#1F2937] relative z-10 mt-4">
-                    <h2 class="text-xs font-extrabold text-white uppercase tracking-widest flex items-center gap-2">
-                        <span class="text-slate-300">⚙️</span> KEY ASSUMPTIONS
-                    </h2>
-                </div>
-
-                <div class="space-y-4 pt-2 relative z-10">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="flex flex-col group" id="contTargetSl">
-                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentEmerald transition-colors">Target SL (%)</label>
-                            <input type="number" id="targetSl" value="80" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentEmerald font-mono-num font-bold focus:border-brand-accentEmerald focus:ring-1 focus:ring-brand-accentEmerald focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
-                        </div>
-                        <div class="flex flex-col group" id="contTargetTime">
-                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-white transition-colors">Target ASA (s)</label>
-                            <input type="number" id="targetTime" value="20" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-white font-mono-num font-bold focus:border-white focus:ring-1 focus:ring-white focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
-                        </div>
-                        
-                        <div class="flex flex-col group hidden col-span-2" id="contConcurrencia">
-                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentCyan transition-colors">Concurrencia (Chats por Agente)</label>
-                            <input type="number" id="concurrencia" value="4" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentCyan font-mono-num font-bold focus:border-brand-accentCyan focus:ring-1 focus:ring-brand-accentCyan focus:outline-none transition-all shadow-inner" onchange="debouncedActualizarGrafica()"/>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="flex flex-col group">
-                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentRose transition-colors">Shrinkage (%)</label>
-                            <input type="number" id="merma" value="20" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentRose font-mono-num font-bold focus:border-brand-accentRose focus:ring-1 focus:ring-brand-accentRose focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
-                        </div>
-                        <div class="flex flex-col group">
-                            <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-accentAmber transition-colors">Jornada (Hrs)</label>
-                            <input type="number" id="duracionJornada" value="6" step="0.5" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-accentAmber font-mono-num font-bold focus:border-brand-accentAmber focus:ring-1 focus:ring-brand-accentAmber focus:outline-none transition-all shadow-inner" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()"/>
-                        </div>
-                    </div>
-
-                    <div class="flex flex-col group pt-1">
-                        <label class="text-[11px] text-slate-400 font-medium mb-2 group-focus-within:text-brand-primary transition-colors">Horizonte (Días)</label>
-                        <input type="number" id="dias" value="130" class="bg-[#0B1121] border border-[#1F2937] p-3 rounded-xl text-sm text-brand-primary font-mono-num font-bold focus:border-brand-primary focus:ring-1 focus:ring-brand-primary focus:outline-none transition-all shadow-inner"/>
-                    </div>
-
-                    <div class="pt-4 space-y-6">
-                        <label class="flex items-center justify-between cursor-pointer group">
-                            <div class="flex items-center gap-3">
-                                <span class="text-brand-accentAmber text-lg drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]">🌙</span>
-                                <span class="text-[13px] text-white font-bold transition-colors tracking-wide">Turno Nocturno (5x2)</span>
-                            </div>
-                            <div class="relative">
-                                <input type="checkbox" id="chkNocturno" onchange="guardarEstadoParametros(); debouncedActualizarGrafica()" class="sr-only peer">
-                                <div class="w-[42px] h-[22px] bg-[#1E293B] border border-[#334155] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-[16px] after:w-[16px] after:transition-all peer-checked:bg-[#A78BFA] peer-checked:border-brand-accentViolet peer-checked:shadow-[0_0_10px_rgba(167,139,250,0.5)]"></div>
-                            </div>
-                        </label>
-                    </div>
-                </div>
-
-                <button id="btnProcesar" onclick="procesarWFM()" class="w-full bg-gradient-to-r from-[#3B82F6] to-[#22D3EE] hover:from-[#2563EB] hover:to-[#06B6D4] text-white font-extrabold py-4 px-4 rounded-[14px] text-[13px] transition-all shadow-[0_4px_15px_-3px_rgba(34,211,238,0.4)] hover:shadow-[0_8px_25px_-5px_rgba(34,211,238,0.6)] uppercase tracking-wider mt-8 relative z-10">
-                    ▶ RUN PLAN
-                </button>
-            </div>
-
-            <div id="contInfoGeneral" class="hidden pt-6">
-                <div class="p-4 bg-brand-primary/10 border border-brand-primary/30 rounded-xl">
-                    <p class="text-[11px] text-brand-primary font-bold uppercase tracking-widest mb-2">Vista Consolidada Activa</p>
-                    <p class="text-[11px] text-slate-300 leading-relaxed">Estás visualizando los datos combinados de <span class="font-bold text-white">Inbound, Outbound y Chat</span>.<br><br>El sistema calcula el requerimiento campaña por campaña de forma independiente (silos) y suma los resultados.</p>
-                </div>
-            </div>
-
-        </aside>
-
-        <!-- DASHBOARD PRINCIPAL -->
-        <main id="dashboardMain" class="col-span-12 lg:col-span-9 space-y-6 transition-all duration-300">
-
-            <!-- FILTROS -->
-            <div class="glass-panel p-4 rounded-2xl flex justify-between items-center flex-wrap gap-4 relative z-50 overflow-visible border-[#1F2937]">
-                <div class="flex items-center gap-3">
-                    <div class="p-2 bg-brand-primary/20 text-brand-primary rounded-lg text-sm border border-brand-primary/30 drop-shadow-md flex items-center justify-center" style="width: 32px; height: 32px;">
-                        <span style="font-size: 16px;">🎯</span>
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- PANEL DE CONTROL / KEY ASSUMPTIONS -->
+            <div class="card p-5 rounded-xl shadow-xl space-y-4">
+                <h2 class="text-lg font-bold text-white border-b border-gray-800 pb-2 flex items-center">
+                    ⚙️ KEY ASSUMPTIONS
+                </h2>
+                
+                <form id="wfmForm" class="space-y-3">
+                    <div>
+                        <label class="block text-xs text-gray-400 uppercase font-bold mb-1">Target SL (%)</label>
+                        <input type="number" name="target_sl" value="80" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm focus:outline-none focus:border-blue-500">
                     </div>
                     <div>
-                        <p class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Filtros Operativos en Cascada</p>
-                        <p id="tableSelectionLabel" class="text-xs text-slate-200 font-medium">Selecciona campaña, meses, semanas, fechas e intervalos</p>
+                        <label class="block text-xs text-gray-400 uppercase font-bold mb-1">Target ASA (s)</label>
+                        <input type="number" name="target_time" value="20" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm focus:outline-none focus:border-blue-500">
                     </div>
-                </div>
-                
-                <div class="flex items-center gap-3 flex-wrap">
-                    <button id="btnResetTableFilter" onclick="resetAllFilters()" class="text-xs text-brand-accentRose hover:text-white bg-brand-accentRose/10 px-3 py-2 rounded-lg border border-brand-accentRose/30 mr-2 transition-colors font-bold font-mono">
-                        🔄 Resetear
+                    <div>
+                        <label class="block text-xs text-gray-400 uppercase font-bold mb-1">Shrinkage (%)</label>
+                        <input type="number" name="merma" value="30" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 uppercase font-bold mb-1">Horizonte (Días)</label>
+                        <input type="number" name="dias" value="45" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 uppercase font-bold mb-1">Concurrencia Chat</label>
+                        <input type="number" name="concurrencia" value="3" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                    </div>
+                    
+                    <button type="button" id="btnRunPlan" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold p-3 rounded-lg shadow-lg mt-4 transition duration-200">
+                        ▶ RUN PLAN
                     </button>
+                </form>
+            </div>
 
-                    <div class="flex flex-col relative group">
-                        <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Mes(es)</label>
-                        <button id="btnDropdownMes" onclick="toggleDropdown('Mes')" class="bg-[#0B1121] border border-brand-accentAmber/50 hover:border-brand-accentAmber focus:outline-none focus:border-brand-accentAmber text-xs rounded-xl px-4 py-2.5 text-brand-accentAmber font-mono-num font-bold transition-all min-w-[120px] flex items-center justify-between gap-3 shadow-sm">
-                            <span id="mesSelectedText">MES (0/0)</span>
-                            <span class="text-[10px]">▼</span>
+            <!-- RESULTADOS Y KPI CARDS -->
+            <div class="lg:col-span-3 space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="card p-4 rounded-xl flex flex-col justify-between">
+                        <span class="text-xs font-bold text-gray-400 uppercase">Demanda Total (Periodo)</span>
+                        <span id="lblDemanda" class="text-3xl font-extrabold text-blue-500 mt-2">0</span>
+                    </div>
+                    <div class="card p-4 rounded-xl flex flex-col justify-between">
+                        <span class="text-xs font-bold text-gray-400 uppercase">AHT Promedio</span>
+                        <span id="lblAht" class="text-3xl font-extrabold text-green-500 mt-2">00:00:00</span>
+                    </div>
+                    <div class="card p-4 rounded-xl flex flex-col justify-between">
+                        <span class="text-xs font-bold text-gray-400 uppercase">Nómina Requerida (Max HC)</span>
+                        <span id="lblHc" class="text-3xl font-extrabold text-purple-500 mt-2">0 HC</span>
+                    </div>
+                </div>
+
+                <!-- TABLA DE RESULTADOS (GAP MATRIX) -->
+                <div class="card rounded-xl p-5 shadow-xl">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold text-white">📊 Demand vs. Capacity (Gap Matrix)</h3>
+                        <button id="btnExport" class="bg-gray-800 hover:bg-gray-700 text-xs font-semibold px-4 py-2 rounded border border-gray-700 transition">
+                            📥 Export CSV
                         </button>
-                        <div id="dropdownMesMenu" class="hidden absolute top-full left-0 mt-2 w-56 max-h-60 bg-[#111827] border border-brand-accentAmber/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
                     </div>
 
-                    <div class="flex flex-col relative group">
-                        <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Semana(s)</label>
-                        <button id="btnDropdownSemana" onclick="toggleDropdown('Semana')" class="bg-[#0B1121] border border-brand-accentRose/50 hover:border-brand-accentRose focus:outline-none focus:border-brand-accentRose text-xs rounded-xl px-4 py-2.5 text-brand-accentRose font-mono-num font-bold transition-all min-w-[200px] flex items-center justify-between gap-3 shadow-sm">
-                            <span id="semanaSelectedText">SEM. (0/0)</span>
-                            <span class="text-[10px]">▼</span>
-                        </button>
-                        <div id="dropdownSemanaMenu" class="hidden absolute top-full left-0 mt-2 w-72 max-h-60 bg-[#111827] border border-brand-accentRose/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
-                    </div>
-
-                    <div class="flex flex-col relative group">
-                        <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Campaña(s)</label>
-                        <button id="btnDropdownCampana" onclick="toggleDropdown('Campana')" class="bg-[#0B1121] border border-brand-accentViolet/50 hover:border-brand-accentViolet focus:outline-none focus:border-brand-accentViolet text-xs rounded-xl px-4 py-2.5 text-brand-accentViolet font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
-                            <span id="campanaSelectedText">SELECC. (0/0)</span>
-                            <span class="text-[10px]">▼</span>
-                        </button>
-                        <div id="dropdownCampanaMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#111827] border border-brand-accentViolet/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
-                    </div>
-
-                    <div id="containerFiltroFecha" class="flex flex-col relative group">
-                        <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Fecha(s)</label>
-                        <button id="btnDropdownFecha" onclick="toggleDropdown('Fecha')" class="bg-[#0B1121] border border-brand-accentCyan/50 hover:border-brand-accentCyan focus:outline-none focus:border-brand-accentCyan text-xs rounded-xl px-4 py-2.5 text-brand-accentCyan font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
-                            <span id="fechaSelectedText">SELECC. (0/0)</span>
-                            <span class="text-[10px]">▼</span>
-                        </button>
-                        <div id="dropdownFechaMenu" class="hidden absolute top-full left-0 mt-2 w-64 max-h-60 bg-[#111827] border border-brand-accentCyan/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
-                    </div>
-
-                    <div class="flex flex-col relative group">
-                        <label class="text-[9px] text-slate-500 uppercase font-bold mb-1 ml-1">Intervalo(s)</label>
-                        <button id="btnDropdownIntervalo" onclick="toggleDropdown('Intervalo')" class="bg-[#0B1121] border border-brand-accentEmerald/50 hover:border-brand-accentEmerald focus:outline-none focus:border-brand-accentEmerald text-xs rounded-xl px-4 py-2.5 text-brand-accentEmerald font-mono-num font-bold transition-all min-w-[140px] flex items-center justify-between gap-3 shadow-sm">
-                            <span id="intervaloSelectedText">SELECC. (0/0)</span>
-                            <span class="text-[10px]">▼</span>
-                        </button>
-                        <div id="dropdownIntervaloMenu" class="hidden absolute top-full right-0 mt-2 w-64 max-h-60 bg-[#111827] border border-brand-accentEmerald/50 rounded-xl shadow-2xl overflow-y-auto z-[999] p-2 space-y-1 font-mono-num text-xs text-slate-200"></div>
+                    <div class="overflow-x-auto max-h-96">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b border-gray-800 text-xs text-gray-400 uppercase tracking-wider">
+                                    <th class="pb-3">Campaña</th>
+                                    <th class="pb-3">Fecha</th>
+                                    <th class="pb-3">Intervalo</th>
+                                    <th class="pb-3 text-right">Volumen</th>
+                                    <th class="pb-3 text-right">AHT</th>
+                                    <th class="pb-3 text-right">Agentes Req.</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaCuerpo" class="text-sm divide-y divide-gray-800 text-gray-300">
+                                <tr>
+                                    <td colspan="6" class="py-8 text-center text-gray-500">Cargue datos ejecutando el plan operativo...</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
-
-            <!-- ALERTA REFORECAST -->
-            <div id="reforecastAlert" class="hidden glass-panel border-l-4 border-l-brand-accentAmber p-4 rounded-xl mb-4 flex items-center gap-4 bg-brand-accentAmber/10 shadow-[0_0_15px_rgba(251,191,36,0.15)]">
-                <div class="text-2xl drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]">⚠️</div>
-                <div>
-                    <h4 class="text-xs uppercase tracking-widest text-brand-accentAmber font-extrabold drop-shadow-sm">Reforecast Dinámico Activado</h4>
-                    <p id="reforecastMsg" class="text-xs text-amber-100/80 mt-1 font-medium">El algoritmo detectó un quiebre de tendencia y ajustó la proyección.</p>
-                </div>
-            </div>
-
-            <!-- 4 CARDS PRINCIPALES (VISTA LIMPIA) -->
-            <div id="kpiCardsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                
-                <!-- CARD 1: TOTAL DEMAND -->
-                <div id="cardKpiCalls" class="glass-panel glass-panel-hover p-5 rounded-xl relative overflow-hidden flex flex-col justify-between border-t-2 border-t-brand-primary shadow-[0_4px_15px_-5px_rgba(59,130,246,0.15)]">
-                    <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-primary/10 rounded-full blur-xl pointer-events-none"></div>
-                    <div class="flex justify-between items-start relative z-10">
-                        <p id="kpiCallsTitle" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Demanda Total (Periodo)</p>
-                        <div class="p-1.5 bg-brand-primary/10 rounded-lg text-brand-primary border border-brand-primary/20 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
-                        </div>
-                    </div>
-                    <div class="relative z-10 mt-2">
-                        <p id="kpiCalls" class="text-3xl font-black font-mono-num text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">0</p>
-                    </div>
-                </div>
-
-                <!-- CARD 2: AVG HANDLE TIME -->
-                <div id="cardKpiAht" class="glass-panel glass-panel-hover p-5 rounded-xl relative overflow-hidden border-t-2 border-t-brand-accentCyan shadow-[0_4px_15px_-5px_rgba(34,211,238,0.15)] flex flex-col justify-between">
-                    <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-accentCyan/10 rounded-full blur-xl pointer-events-none"></div>
-                    <div class="flex justify-between items-start relative z-10">
-                        <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">AHT Promedio</p>
-                        <div class="p-1.5 bg-brand-accentCyan/10 rounded-lg text-brand-accentCyan border border-brand-accentCyan/20 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        </div>
-                    </div>
-                    <div class="relative z-10 mt-2">
-                        <p id="kpiAht" class="text-3xl font-black font-mono-num text-brand-accentCyan drop-shadow-[0_0_8px_rgba(34,211,238,0.3)]">00:00:00</p>
-                    </div>
-                </div>
-
-                <!-- CARD 3: HC REQUERIDO (NÓMINA) -->
-                <div class="glass-panel glass-panel-hover p-5 rounded-xl border-t-2 border-t-brand-accentViolet shadow-[0_4px_15px_-5px_rgba(167,139,250,0.15)] relative overflow-hidden flex flex-col justify-between">
-                    <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-accentViolet/10 rounded-full blur-xl pointer-events-none"></div>
-                    <div class="flex justify-between items-start relative z-10">
-                        <p id="kpiHcRequeridoTitle" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Nómina a Contratar (HC)</p>
-                        <div class="p-1.5 bg-brand-accentViolet/10 rounded-lg text-brand-accentViolet border border-brand-accentViolet/20 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
-                        </div>
-                    </div>
-                    <div class="relative z-10 mt-2">
-                        <p id="kpiHcRequerido" class="text-3xl font-black font-mono-num text-brand-accentViolet drop-shadow-[0_0_8px_rgba(167,139,250,0.3)]">0 HC</p>
-                        <p id="kpiHcRequeridoSub" class="text-[10px] text-slate-500 mt-1 font-medium leading-tight">Área Volumétrica</p>
-                    </div>
-                </div>
-
-                <!-- CARD 4: HC ACTUAL (ROSTER) -->
-                <div class="glass-panel glass-panel-hover p-5 rounded-xl border-t-2 border-t-brand-accentEmerald shadow-[0_4px_15px_-5px_rgba(52,211,153,0.15)] relative overflow-hidden flex flex-col justify-between">
-                    <div class="absolute -right-4 -top-4 w-16 h-16 bg-brand-accentEmerald/10 rounded-full blur-xl pointer-events-none"></div>
-                    <div class="flex justify-between items-start relative z-10">
-                        <p id="kpiHcRosterTitle" class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">HC Actual (Roster)</p>
-                        <div class="p-1.5 bg-brand-accentEmerald/10 rounded-lg text-brand-accentEmerald border border-brand-accentEmerald/20 shadow-inner flex items-center justify-center" style="width: 32px; height: 32px;">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                        </div>
-                    </div>
-                    <div class="relative z-10 mt-2">
-                        <div class="flex items-center gap-3">
-                            <p id="kpiHcRoster" class="text-3xl font-black font-mono-num text-brand-accentEmerald drop-shadow-[0_0_8px_rgba(52,211,153,0.3)]">0 HC</p>
-                            <p id="kpiHcGap" class="text-[11px] font-bold px-2.5 py-1 rounded bg-[#1E293B] border border-[#334155] text-slate-300 font-mono-num shadow-inner">0</p>
-                        </div>
-                        <p id="kpiHcRosterSub" class="text-[10px] text-slate-500 mt-1 font-medium leading-tight">Total de agentes contratados</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- MÓDULO 3: MATRIZ GAP Y GRAFICA GENERAL -->
-            <div class="glass-panel p-6 rounded-2xl border-t-2 border-t-brand-accentAmber shadow-[0_4px_15px_-5px_rgba(251,191,36,0.15)] relative overflow-hidden">
-                <div class="flex justify-between items-center mb-6 relative z-10">
-                    <h3 class="text-[15px] font-extrabold text-white flex items-center gap-2 tracking-wide">
-                        <span class="text-brand-accentAmber drop-shadow-[0_0_5px_rgba(251,191,36,0.6)]">📊</span> Demand vs. Capacity (Gap Matrix)
-                    </h3>
-                    <button onclick="exportarCSV()" class="bg-[#1E293B] hover:bg-brand-accentAmber/20 text-slate-200 hover:text-brand-accentAmber border border-[#334155] hover:border-brand-accentAmber/50 text-xs py-2 px-4 rounded-lg transition-all duration-200 font-bold shadow-md">
-                        📥 Export CSV
-                    </button>
-                </div>
-                
-                <!-- GRAFICA DE INTERVALOS (INBOUND/OUTBOUND/CHAT) -->
-                <div class="h-64 mb-6 relative bg-[#0F172A] p-2 rounded-xl border border-[#1F2937] shadow-inner" id="contGapChart">
-                    <canvas id="gapChart"></canvas>
-                </div>
-
-                <!-- GRAFICA GENERAL DE CANALES (SOLO VISTA CONSOLIDADA) -->
-                <div class="h-64 mb-6 relative bg-[#0F172A] p-4 rounded-xl border border-[#1F2937] shadow-inner hidden" id="contGeneralChart">
-                    <canvas id="generalChart"></canvas>
-                </div>
-
-                <div class="overflow-x-auto max-h-80 border border-[#1F2937] rounded-xl bg-[#0F172A] shadow-inner">
-                    <table class="w-full text-left text-xs text-slate-300">
-                        <thead class="bg-[#111827] text-slate-400 font-bold text-[10px] uppercase tracking-wider sticky top-0 border-b border-[#334155] z-10 shadow-sm" id="tableHeaderContainer">
-                            <tr id="tableHeaderRow">
-                                <th class="py-3.5 px-4">Intervalo</th>
-                                <th class="py-3.5 px-4" id="colHeaderCalls">Llamadas (FCST)</th>
-                                <th class="py-3.5 px-4">AHT (HH:MM:SS)</th>
-                                <th class="py-3.5 px-4 text-brand-accentCyan">HC Requerido</th>
-                                <th class="py-3.5 px-4 text-brand-accentEmerald">HC Actual</th>
-                                <th class="py-3.5 px-4 text-center">Gap</th>
-                            </tr>
-                        </thead>
-                        <tbody id="intervalTableBody" class="divide-y divide-[#1F2937] font-mono-num text-[11px]">
-                            <tr><td colspan="6" class="text-center py-8 text-slate-500 font-medium font-sans">Cargue datos...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-        </main>
+        </div>
     </div>
 
-    <!-- Funciones Matemáticas Nativas (Erlang C en JS) -->
+    <!-- CORE LOGIC / JAVASCRIPT DE PRODUCCIÓN -->
     <script>
-        function erlang_c_sl_optimizado(A, N, AHT, target_time) {
-            if (N <= A || A <= 0 || N <= 0) return 0.0;
-            let sum_terms = 1.0;
-            let current_term = 1.0;
-            let int_N = Math.min(Math.floor(N), 1000);
-            for (let k = 1; k < int_N; k++) {
-                current_term *= (A / k);
-                sum_terms += current_term;
-            }
-            let last_term = current_term * (A / N) / (1.0 - (A / N));
-            let pw = last_term / (sum_terms + last_term);
-            let intensity = N - A;
-            let sl = 1.0 - (pw * Math.exp(-intensity * (target_time / AHT)));
-            return Math.max(0.0, Math.min(100.0, sl * 100.0));
-        }
+        // URL ABSOLUTA DEL SERVIDOR BACKEND EN RENDER
+        const API_BASE_URL = 'https://onrender.com';
 
-        function calcular_agentes_requeridos_erlang_c_js(A, aht, target_time, target_sl) {
-            if (A <= 0 || aht <= 0) return 0;
-            let n = Math.max(1, Math.floor(A) + 1);
-            if (A > 50) n = Math.max(n, Math.floor(A + Math.sqrt(A)));
-            while (n < 3000) {
-                if (erlang_c_sl_optimizado(A, n, aht, target_time) >= target_sl) return n;
-                n++;
-            }
-            return n;
-        }
-
-        let globalData = [];
-        let gapChartInstance = null; 
-        let generalChartInstance = null;
-        
-        let allMesesOptions = [];
-        let allSemanasOptions = [];
-        let allCampanasOptions = [];
-        let allFechasOptions = [];
-        let allIntervalosOptions = [];
-
-        let selectedMeses = new Set();
-        let selectedSemanas = new Set(); 
-        let selectedCampanas = new Set();
-        let selectedFechas = new Set();
-        let selectedIntervalos = new Set();
-
-        let debounceTimer;
-        let totalesFiltros = { M: 0, S: 0, C: 0, F: 0, I: 0 }; 
-        let currentMode = 'wfm';
-        let forecastMode = 'inbound';
-        let isSidebarVisible = true; 
-
-        function getProp(row, keys, def = '') {
-            for (let k of keys) {
-                if (row[k] !== undefined && row[k] !== null) return row[k];
-            }
-            return def;
-        }
-
-        function formatAHT(seconds) {
-            if (!seconds || seconds <= 0) return "00:00:00";
-            const secs = Math.round(seconds);
-            const hrs = Math.floor(secs / 3600);
-            const mins = Math.floor((secs % 3600) / 60);
-            const remainderSecs = secs % 60;
-            return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(remainderSecs).padStart(2, '0')}`;
-        }
-
-        function getWeekNumber(dateStr) {
-            if (!dateStr) return '';
-            const cleanDate = dateStr.split(' ')[0].split('T')[0];
-            const parts = cleanDate.split('-');
-            if (parts.length !== 3) return '';
+        document.getElementById('btnRunPlan').addEventListener('click', async () => {
+            const btn = document.getElementById('btnRunPlan');
+            const tabla = document.getElementById('tablaCuerpo');
             
-            const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-            const dayNum = d.getUTCDay() || 7; 
-            
-            const startOfWeek = new Date(d);
-            startOfWeek.setUTCDate(d.getUTCDate() - dayNum + 1);
-            
-            const endOfWeek = new Date(startOfWeek);
-            endOfWeek.setUTCDate(startOfWeek.getUTCDate() + 6);
-
-            const formatDt = (date) => {
-                const yyyy = date.getUTCFullYear();
-                const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
-                const dd = String(date.getUTCDate()).padStart(2, '0');
-                return `${yyyy}/${mm}/${dd}`;
-            };
-
-            return `W${formatDt(startOfWeek)} - ${formatDt(endOfWeek)}`;
-        }
-
-        const mesesMap = {
-            "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
-            "julio": 7, "agosto": 8, "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12
-        };
-
-        function ordenarMesesCronologicamente(a, b) {
-            const partsA = a.toLowerCase().trim().split(' ');
-            const partsB = b.toLowerCase().trim().split(' ');
-            const mesA = partsA[0];
-            const anoA = partsA[1] ? parseInt(partsA[1]) : 0;
-            const mesB = partsB[0];
-            const anoB = partsB[1] ? parseInt(partsB[1]) : 0;
-            if (anoA !== anoB) return anoA - anoB;
-            return (mesesMap[mesA] || 0) - (mesesMap[mesB] || 0);
-        }
-
-        // CONTROL DE PANTALLA Y TABS
-        function setModeWFM(mode) {
-            if (forecastMode === mode) return; 
-
-            forecastMode = mode;
-            
-            const btnIn = document.getElementById('btnTabInbound');
-            const btnOut = document.getElementById('btnTabOutbound');
-            const btnChat = document.getElementById('btnTabChat');
-            const btnGen = document.getElementById('btnTabGeneral');
-
-            const inactiveClass = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200";
-            btnIn.className = inactiveClass;
-            btnOut.className = inactiveClass;
-            btnChat.className = inactiveClass;
-            btnGen.className = inactiveClass;
-
-            const contParametros = document.getElementById('contParametrosSimulacion');
-            const contInfoGen = document.getElementById('contInfoGeneral');
-
-            if(mode === 'general') {
-                btnGen.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-[#070B14] shadow-md";
-                contParametros.style.display = 'none';
-                contInfoGen.style.display = 'block';
-            } else {
-                contParametros.style.display = 'block';
-                contInfoGen.style.display = 'none';
-
-                if(mode === 'inbound') {
-                    btnIn.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-primary text-white shadow-md";
-                    document.getElementById('contTargetSl').style.display = 'block';
-                    document.getElementById('contTargetTime').style.display = 'block';
-                    document.getElementById('contConcurrencia').classList.add('hidden');
-                } else if (mode === 'outbound') {
-                    btnOut.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-accentViolet text-white shadow-md";
-                    document.getElementById('contTargetSl').style.display = 'none';
-                    document.getElementById('contTargetTime').style.display = 'none';
-                    document.getElementById('contConcurrencia').classList.add('hidden');
-                } else if (mode === 'chat') {
-                    btnChat.className = "px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-brand-accentCyan text-[#0B1121] shadow-md";
-                    document.getElementById('contTargetSl').style.display = 'block';
-                    document.getElementById('contTargetTime').style.display = 'block';
-                    document.getElementById('contConcurrencia').classList.remove('hidden');
-                }
-            }
-
-            fetchLatestData(mode);
-        }
-
-        function switchMode(mode) {
-            currentMode = mode;
-            const aside = document.getElementById('panelControl');
-            const main = document.getElementById('dashboardMain');
-            const tag = document.getElementById('tagModoOps');
-            const containerShow = document.getElementById('containerShowSidebar');
-
-            if (mode === 'ops' || mode === 'operaciones') {
-                if (aside) aside.style.display = 'none';
-                if (containerShow) containerShow.classList.add('hidden'); 
-                if (main) {
-                    main.classList.remove('lg:col-span-9');
-                    main.classList.add('lg:col-span-12');
-                }
-                if (tag) tag.classList.remove('hidden');
-            } else {
-                if (tag) tag.classList.add('hidden');
-                if (isSidebarVisible) {
-                    if (aside) aside.style.display = 'block';
-                    if (containerShow) containerShow.classList.add('hidden');
-                    if (main) {
-                        main.classList.remove('lg:col-span-12');
-                        main.classList.add('lg:col-span-9');
-                    }
-                }
-            }
-            setTimeout(() => { if (gapChartInstance) gapChartInstance.resize(); }, 100);
-        }
-
-        function toggleSidebar() {
-            const aside = document.getElementById('panelControl');
-            const main = document.getElementById('dashboardMain');
-            const containerShow = document.getElementById('containerShowSidebar');
-
-            if (isSidebarVisible) {
-                if (aside) aside.style.display = 'none';
-                if (main) {
-                    main.classList.remove('lg:col-span-9');
-                    main.classList.add('lg:col-span-12');
-                }
-                if (containerShow && currentMode !== 'ops' && currentMode !== 'operaciones') {
-                    containerShow.classList.remove('hidden');
-                }
-                isSidebarVisible = false;
-            } else {
-                if (aside) aside.style.display = 'block';
-                if (main) {
-                    main.classList.remove('lg:col-span-12');
-                    main.classList.add('lg:col-span-9');
-                }
-                if (containerShow) containerShow.classList.add('hidden');
-                isSidebarVisible = true;
-            }
-            setTimeout(() => { if (gapChartInstance) gapChartInstance.resize(); }, 150);
-        }
-
-        // CARGA DE DATOS Y WFM
-        async function fetchLatestData(mode) {
-            try {
-                if (mode === 'general') {
-                    const [inRes, outRes, chatRes] = await Promise.all([
-                        fetch('/api/latest?mode=inbound&t=' + new Date().getTime()),
-                        fetch('/api/latest?mode=outbound&t=' + new Date().getTime()),
-                        fetch('/api/latest?mode=chat&t=' + new Date().getTime())
-                    ]);
-                    const inData = inRes.ok ? await inRes.json() : [];
-                    const outData = outRes.ok ? await outRes.json() : [];
-                    const chatData = chatRes.ok ? await chatRes.json() : [];
-                    
-                    const inDataTagged = inData.map(d => ({...d, Canal: 'Inbound'}));
-                    const outDataTagged = outData.map(d => ({...d, Canal: 'Outbound'}));
-                    const chatDataTagged = chatData.map(d => ({...d, Canal: 'Chat'}));
-                    
-                    globalData = [...inDataTagged, ...outDataTagged, ...chatDataTagged];
-                } else {
-                    const response = await fetch('/api/latest?mode=' + mode + '&t=' + new Date().getTime());
-                    if (response.ok) {
-                        const data = await response.json();
-                        const canalName = mode === 'inbound' ? 'Inbound' : (mode === 'outbound' ? 'Outbound' : 'Chat');
-                        globalData = data.map(d => ({...d, Canal: canalName}));
-                    }
-                }
-
-                if (globalData && globalData.length > 0) {
-                    inicializarFiltrosMultiples();
-                    applySavedFilters(); 
-                    debouncedActualizarGrafica();
-                } else {
-                    limpiarPantalla();
-                }
-            } catch (e) {
-                console.log("Error cargando pronóstico automático.");
-            }
-        }
-
-        async function procesarWFM() {
-            const btn = document.getElementById('btnProcesar');
             btn.disabled = true;
-            btn.innerText = "⏳ RECALCULANDO...";
-            
-            const formData = new FormData();
-            
-            if (forecastMode === 'inbound' || forecastMode === 'chat') {
-                formData.append('target_sl', document.getElementById('targetSl').value);
-                formData.append('target_time', document.getElementById('targetTime').value);
-            }
-            if (forecastMode === 'chat') {
-                formData.append('concurrencia', document.getElementById('concurrencia').value);
-            }
-            formData.append('dias', document.getElementById('dias') ? document.getElementById('dias').value : 45);
-            
-            let url = '/api/process';
-            if (forecastMode === 'outbound') url = '/api/process_outbound';
-            if (forecastMode === 'chat') url = '/api/process_chat';
+            btn.innerText = '🧠 ENTRENANDO IA MODEL...';
+            tabla.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-blue-400 font-medium animate-pulse">Procesando histórico mediante Random Forest Regressor. Calculando Erlang C...</td></tr>`;
+
+            const formElement = document.getElementById('wfmForm');
+            const formData = new FormData(formElement);
 
             try {
-                const response = await fetch(url, { method: 'POST', body: formData });
-                globalData = await response.json();
-                
-                if (response.ok && Array.isArray(globalData)) {
-                    inicializarFiltrosMultiples();
-                    debouncedActualizarGrafica();
-                    guardarEstadoParametros();
-                } else {
-                    alert("Error: Asegúrate de que 'historico.xlsx' esté cargado.");
+                // LLAMADA ABSOLUTA AL ENDPOINT DE PROCESAMIENTO INBOUND
+                const response = await fetch(`${API_BASE_URL}/api/process`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
-            } catch (e) {
-                alert("Error de conexión: " + e.message);
+
+                const data = await response.json();
+                renderizarTabla(data);
+
+            } catch (error) {
+                console.error('Error de comunicación:', error);
+                alert(`Error de conexión con la API corporativa de Machine Learning: ${error.message}`);
+                tabla.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-red-500 font-medium">Fallo al conectar con la API en Render. Asegúrate de que el Backend esté arriba.</td></tr>`;
             } finally {
                 btn.disabled = false;
-                btn.innerText = "▶ RUN PLAN";
+                btn.innerText = '▶ RUN PLAN';
             }
-        }
-
-        function limpiarPantalla() {
-            document.getElementById('kpiCalls').innerText = "0";
-            document.getElementById('kpiAht').innerText = "00:00:00";
-            document.getElementById('kpiHcRequerido').innerText = "0 HC";
-            document.getElementById('kpiHcRoster').innerText = "0 HC";
-            document.getElementById('intervalTableBody').innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-500 font-medium font-sans">Sin datos o presiona RUN PLAN.</td></tr>`;
-            if(gapChartInstance) gapChartInstance.destroy();
-        }
-
-        // SISTEMA DE FILTROS EN CASCADA (INDEPENDIENTE Y ESTABLE)
-        function inicializarFiltrosMultiples() {
-            allMesesOptions = [...new Set(globalData.map(i => String(getProp(i, ['Mes'], ''))))].filter(Boolean).sort(ordenarMesesCronologicamente);
-            allSemanasOptions = [...new Set(globalData.map(i => getWeekNumber(getProp(i, ['Fecha'], ''))))].filter(Boolean).sort();
-            allCampanasOptions = [...new Set(globalData.map(i => String(getProp(i, ['Campaña', 'Campana'], 'General'))))].filter(Boolean).sort();
-            allFechasOptions = [...new Set(globalData.map(i => String(getProp(i, ['Fecha'], '')).split(' ')[0].split('T')[0]))].filter(Boolean).sort();
-            allIntervalosOptions = [...new Set(globalData.map(i => String(getProp(i, ['Intervalo'], '00:00'))))].filter(Boolean).sort();
-
-            selectedMeses = new Set(allMesesOptions);
-            selectedSemanas = new Set(allSemanasOptions);
-            selectedCampanas = new Set(allCampanasOptions);
-            selectedFechas = new Set(allFechasOptions);
-            selectedIntervalos = new Set(allIntervalosOptions);
-
-            renderMenuOptions('Mes', allMesesOptions, selectedMeses);
-            renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
-            renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
-            renderMenuOptions('Fecha', allFechasOptions, selectedFechas);
-            renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
-            
-            calcularTotalesFiltros();
-            actualizarTextosBotones();
-        }
-
-        function calcularTotalesFiltros() {
-            totalesFiltros.M = allMesesOptions.length;
-            totalesFiltros.S = allSemanasOptions.length;
-            totalesFiltros.C = allCampanasOptions.length;
-            totalesFiltros.F = allFechasOptions.length;
-            totalesFiltros.I = allIntervalosOptions.length;
-        }
-
-        function renderMenuOptions(type, optionsToRender, setRef) {
-            const menu = document.getElementById(`dropdown${type}Menu`);
-            if (!menu) return;
-            menu.innerHTML = '';
-            
-            const headerDiv = document.createElement('div');
-            let checkboxHex = type === 'Mes' ? '#FBBF24' : type === 'Semana' ? '#FB7185' : type === 'Campana' ? '#A78BFA' : type === 'Fecha' ? '#22D3EE' : '#34D399';
-
-            headerDiv.className = 'flex items-center justify-between p-2 pb-3 mb-1 border-b border-[#334155] text-[11px] font-bold tracking-wider';
-            headerDiv.innerHTML = `
-                <button type="button" onclick="selectAllFilter('${type}', true)" class="text-brand-accentCyan hover:text-white transition-colors">Todos</button>
-                <button type="button" onclick="selectAllFilter('${type}', false)" class="text-brand-accentRose hover:text-white transition-colors">Ninguno</button>
-            `;
-            menu.appendChild(headerDiv);
-            
-            optionsToRender.forEach(opt => {
-                const label = document.createElement('label');
-                label.className = `flex items-center gap-3 p-2 hover:bg-[#1E293B] rounded-lg cursor-pointer transition-colors`;
-                const isChecked = setRef.has(opt);
-                
-                const input = document.createElement('input');
-                input.type = 'checkbox';
-                input.checked = isChecked;
-                input.className = 'w-4 h-4 cursor-pointer';
-                input.style.accentColor = checkboxHex; 
-                
-                input.addEventListener('change', (e) => {
-                    if (e.target.checked) setRef.add(opt); 
-                    else setRef.delete(opt);
-                    
-                    actualizarTextosBotones();
-                    debouncedActualizarGrafica();
-                });
-
-                const span = document.createElement('span');
-                span.className = 'truncate text-slate-200 font-medium text-[13px]';
-                span.innerText = opt;
-
-                label.appendChild(input);
-                label.appendChild(span);
-                menu.appendChild(label);
-            });
-        }
-
-        function selectAllFilter(type, selectAll) {
-            let setRef;
-            let currentOptions = [];
-            
-            if (type === 'Mes') { setRef = selectedMeses; currentOptions = allMesesOptions; }
-            else if (type === 'Semana') { setRef = selectedSemanas; currentOptions = allSemanasOptions; }
-            else if (type === 'Campana') { setRef = selectedCampanas; currentOptions = allCampanasOptions; }
-            else if (type === 'Fecha') { setRef = selectedFechas; currentOptions = allFechasOptions; }
-            else if (type === 'Intervalo') { setRef = selectedIntervalos; currentOptions = allIntervalosOptions; }
-            
-            if (selectAll) {
-                currentOptions.forEach(o => setRef.add(o));
-            } else {
-                setRef.clear();
-            }
-            
-            renderMenuOptions(type, currentOptions, setRef);
-            actualizarTextosBotones();
-            debouncedActualizarGrafica();
-        }
-
-        function resetAllFilters() {
-            selectedMeses = new Set(allMesesOptions);
-            selectedSemanas = new Set(allSemanasOptions);
-            selectedCampanas = new Set(allCampanasOptions);
-            selectedFechas = new Set(allFechasOptions);
-            selectedIntervalos = new Set(allIntervalosOptions);
-
-            renderMenuOptions('Mes', allMesesOptions, selectedMeses);
-            renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
-            renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
-            renderMenuOptions('Fecha', allFechasOptions, selectedFechas);
-            renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
-            
-            actualizarTextosBotones();
-            debouncedActualizarGrafica();
-        }
-
-        function toggleDropdown(type) {
-            ['Mes', 'Semana', 'Campana', 'Fecha', 'Intervalo'].forEach(t => {
-                if (t !== type) {
-                    const menu = document.getElementById(`dropdown${t}Menu`);
-                    if (menu) menu.classList.add('hidden');
-                }
-            });
-            const selectedMenu = document.getElementById(`dropdown${type}Menu`);
-            if (selectedMenu) selectedMenu.classList.toggle('hidden');
-        }
-
-        window.addEventListener('click', function(e) {
-            ['Mes', 'Semana', 'Campana', 'Fecha', 'Intervalo'].forEach(type => {
-                const btn = document.getElementById(`btnDropdown${type}`);
-                const menu = document.getElementById(`dropdown${type}Menu`);
-                if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) {
-                    menu.classList.add('hidden');
-                }
-            });
         });
 
-        function actualizarTextosBotones() {
-            if(totalesFiltros.M === 0) calcularTotalesFiltros();
-            
-            const btnMes = document.getElementById('mesSelectedText');
-            if (btnMes) btnMes.innerText = `MES (${selectedMeses.size}/${totalesFiltros.M})`;
-            
-            const btnSem = document.getElementById('semanaSelectedText');
-            if (btnSem) btnSem.innerText = `SEM. (${selectedSemanas.size}/${totalesFiltros.S})`;
-            
-            document.getElementById('campanaSelectedText').innerText = `SELECC. (${selectedCampanas.size}/${totalesFiltros.C})`;
-            document.getElementById('fechaSelectedText').innerText = `SELECC. (${selectedFechas.size}/${totalesFiltros.F})`;
-            document.getElementById('intervaloSelectedText').innerText = `SELECC. (${selectedIntervalos.size}/${totalesFiltros.I})`;
-        }
-
-        function toggleTableInterval(inter) {
-            if (selectedIntervalos.has(inter)) selectedIntervalos.delete(inter); else selectedIntervalos.add(inter);
-            renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
-            actualizarTextosBotones();
-            debouncedActualizarGrafica();
-        }
-
-        // SALVADO Y CARGA DE CONFIGURACIÓN
-        function guardarEstadoParametros() {
-            if (forecastMode !== 'general' && currentMode !== 'ops' && currentMode !== 'operaciones') {
-                const config = {
-                    targetSl: document.getElementById('targetSl').value,
-                    targetTime: document.getElementById('targetTime').value,
-                    opsView: {
-                        tab: forecastMode,
-                        meses: Array.from(selectedMeses),
-                        semanas: Array.from(selectedSemanas),
-                        campanas: Array.from(selectedCampanas),
-                        fechas: Array.from(selectedFechas),
-                        intervalos: Array.from(selectedIntervalos)
-                    }
-                };
-                fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) }).catch(()=>{});
-            }
-        }
-
-        function applySavedFilters() {
-            if (window.savedFilters && (currentMode === 'ops' || currentMode === 'operaciones')) {
-                const f = window.savedFilters;
-                if (f.meses && f.meses.length > 0) selectedMeses = new Set(f.meses.filter(x => allMesesOptions.includes(x)));
-                if (f.semanas && f.semanas.length > 0) selectedSemanas = new Set(f.semanas.filter(x => allSemanasOptions.includes(x)));
-                if (f.campanas && f.campanas.length > 0) selectedCampanas = new Set(f.campanas.filter(x => allCampanasOptions.includes(x)));
-                if (f.fechas && f.fechas.length > 0) selectedFechas = new Set(f.fechas.filter(x => allFechasOptions.includes(x)));
-                if (f.intervalos && f.intervalos.length > 0) selectedIntervalos = new Set(f.intervalos.filter(x => allIntervalosOptions.includes(x)));
-                
-                renderMenuOptions('Mes', allMesesOptions, selectedMeses);
-                renderMenuOptions('Semana', allSemanasOptions, selectedSemanas);
-                renderMenuOptions('Campana', allCampanasOptions, selectedCampanas);
-                renderMenuOptions('Fecha', allFechasOptions, selectedFechas);
-                renderMenuOptions('Intervalo', allIntervalosOptions, selectedIntervalos);
-                actualizarTextosBotones();
-            }
-        }
-
-        window.addEventListener('DOMContentLoaded', async () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const mode = urlParams.get('mode') || urlParams.get('role') || 'wfm';
-            switchMode(mode);
-
-            try {
-                const response = await fetch('/api/config?t=' + new Date().getTime());
-                if (response.ok) {
-                    const config = await response.json();
-                    if(config.targetSl) document.getElementById('targetSl').value = config.targetSl;
-                    if(config.targetTime) document.getElementById('targetTime').value = config.targetTime;
-                    if (config.opsView) window.savedFilters = config.opsView;
-                }
-            } catch (e) {}
-
-            if ((mode === 'ops' || mode === 'operaciones') && window.savedFilters) {
-                if (forecastMode !== window.savedFilters.tab) {
-                    setModeWFM(window.savedFilters.tab);
-                    return; 
-                }
-            }
-            fetchLatestData(forecastMode);
-        });
-
-        function debouncedActualizarGrafica() {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                actualizarGrafica();
-            }, 50); 
-        }
-
-        // MOTOR PRINCIPAL DE CÁLCULO Y GRÁFICA
-        async function actualizarGrafica() {
-            const durJornada = parseFloat(document.getElementById('duracionJornada') ? document.getElementById('duracionJornada').value : 8) || 8;
-            const usarNocturnoActual = document.getElementById('chkNocturno') ? document.getElementById('chkNocturno').checked : false;
-            const targetSlObj = parseFloat(document.getElementById('targetSl') ? document.getElementById('targetSl').value : 80) || 80;
-            const targetTimeObj = parseFloat(document.getElementById('targetTime') ? document.getElementById('targetTime').value : 20) || 20;
-            const concurrenciaVal = parseFloat(document.getElementById('concurrencia') ? document.getElementById('concurrencia').value : 4) || 4;
-
-            // 1. Aplicar Filtros (Ultra Rápido O(N))
-            const dfFiltered = [];
-            for (let i = 0; i < globalData.length; i++) {
-                let item = globalData[i];
-                let m = String(getProp(item, ['Mes'], ''));
-                let s = getWeekNumber(getProp(item, ['Fecha'], ''));
-                let c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
-                let f = String(getProp(item, ['Fecha'], '')).split(' ')[0].split('T')[0];
-                let inv = String(getProp(item, ['Intervalo'], '00:00'));
-
-                if (selectedMeses.has(m) && selectedSemanas.has(s) && selectedCampanas.has(c) && selectedFechas.has(f) && selectedIntervalos.has(inv)) {
-                    dfFiltered.push(item);
-                }
-            }
-
-            if (!dfFiltered || dfFiltered.length === 0) {
-                limpiarPantalla();
+        function renderizarTabla(data) {
+            const tbody = document.getElementById('tablaCuerpo');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-gray-500">El procesamiento no devolvió registros válidos.</td></tr>`;
                 return;
             }
 
-            const reforecastAlert = document.getElementById('reforecastAlert');
-            const reforecastMsg = document.getElementById('reforecastMsg');
-            let campanasModificadas = {};
-            
-            for (let r of dfFiltered) {
-                const f = parseFloat(getProp(r, ['Factor_Correccion'], 1.0));
-                if (f !== 1.0 && !isNaN(f)) {
-                    const c = String(getProp(r, ['Campaña', 'Campana'], 'General'));
-                    campanasModificadas[c] = f;
-                }
-            }
+            let html = '';
+            let totalLlamadas = 0;
+            let maxHc = 0;
 
-            if (Object.keys(campanasModificadas).length > 0 && reforecastAlert && currentMode !== 'ops' && currentMode !== 'operaciones') {
-                reforecastAlert.classList.remove('hidden');
-                let detalles = Object.entries(campanasModificadas).map(([camp, factor]) => {
-                    let pct = Math.round((factor - 1) * 100);
-                    let signo = pct > 0 ? '+' : '';
-                    return `<span class="text-brand-accentAmber font-bold">${camp} (${signo}${pct}%)</span>`;
-                }).join(', ');
-                reforecastMsg.innerHTML = `El algoritmo detectó un quiebre de tendencia reciente. Ajuste aplicado a: ${detalles}.`;
-            } else if (reforecastAlert) {
-                reforecastAlert.classList.add('hidden');
-            }
-
-            // 2. Agrupación O(N) para Silos y Totales
-            let aggInter = {};
-            let fechasSet = new Set();
-            let totalCallsGlobal = 0;
-            let totalHTGlobal = 0;
-
-            for (let i = 0; i < dfFiltered.length; i++) {
-                let r = dfFiltered[i];
-                let c = String(getProp(r, ['Campaña', 'Campana'], 'General'));
-                let inv = String(getProp(r, ['Intervalo'], '00:00'));
-                let d = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
-                
-                let calls = Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
-                let aht = Number(getProp(r, ['AHT_Segundos'], 180)) || 180;
-                let rosInter = Number(getProp(r, ['HC_Actual_Roster'], 0)) || 0;
-
-                fechasSet.add(d);
-                totalCallsGlobal += calls;
-                totalHTGlobal += (calls * aht);
-
-                if (!aggInter[inv]) aggInter[inv] = { calls: 0, ht: 0, req: 0, rosSet: new Set(), rosSum: 0, silos: {} };
-                
-                aggInter[inv].calls += calls;
-                aggInter[inv].ht += (calls * aht);
-                
-                let rosKey = c + '|' + d;
-                if (!aggInter[inv].rosSet.has(rosKey)) {
-                    aggInter[inv].rosSet.add(rosKey);
-                    aggInter[inv].rosSum += rosInter;
+            data.forEach(row => {
+                totalLlamadas += parseInt(row.Llamadas || 0);
+                if (parseInt(row.Agentes_Requeridos || 0) > maxHc) {
+                    maxHc = parseInt(row.Agentes_Requeridos || 0);
                 }
 
-                if (!aggInter[inv].silos[c]) aggInter[inv].silos[c] = {};
-                if (!aggInter[inv].silos[c][d]) aggInter[inv].silos[c][d] = {calls: 0, ht: 0};
-                
-                aggInter[inv].silos[c][d].calls += calls;
-                aggInter[inv].silos[c][d].ht += (calls * aht);
-            }
-
-            document.getElementById('kpiCalls').innerText = totalCallsGlobal.toLocaleString();
-            document.getElementById('kpiAht').innerText = formatAHT(totalCallsGlobal > 0 ? Math.round(totalHTGlobal / totalCallsGlobal) : 0);
-
-            const numDias = fechasSet.size || 1;
-            const todosIntervalos = Object.keys(aggInter).sort();
-            const esVistaSemanal = numDias > 1;
-
-            if (forecastMode === 'general') {
-                const btn = document.getElementById('btnProcesar');
-                if(btn) { btn.disabled = true; btn.innerText = "⏳ SUMANDO CANALES..."; }
-
-                let aggGen = { 'Inbound': {}, 'Outbound': {}, 'Chat': {} };
-                ['Inbound', 'Outbound', 'Chat'].forEach(ch => {
-                    todosIntervalos.forEach(inv => { aggGen[ch][inv] = { silos: {} }; });
-                });
-
-                for (let i = 0; i < dfFiltered.length; i++) {
-                    let r = dfFiltered[i];
-                    let ch = r.Canal || 'Inbound';
-                    let c = String(getProp(r, ['Campaña', 'Campana'], 'General'));
-                    let inv = String(getProp(r, ['Intervalo'], '00:00'));
-                    let d = String(getProp(r, ['Fecha'], '')).split(' ')[0].split('T')[0];
-                    let calls = Number(getProp(r, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
-                    let aht = Number(getProp(r, ['AHT_Segundos'], 180)) || 180;
-                    
-                    if (!aggGen[ch][inv].silos[c]) aggGen[ch][inv].silos[c] = {};
-                    if (!aggGen[ch][inv].silos[c][d]) aggGen[ch][inv].silos[c][d] = {calls: 0, ht: 0};
-                    
-                    aggGen[ch][inv].silos[c][d].calls += calls;
-                    aggGen[ch][inv].silos[c][d].ht += (calls * aht);
-                }
-
-                const factorDescanso = usarNocturnoActual ? (7.0 / 5.0) : (7.0 / 6.0);
-                const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
-                const factorAsistencia = Math.max(0.01, 1.0 - (mermaValLocal / 100.0));
-
-                let hcReqDict = { 'Inbound': 0, 'Outbound': 0, 'Chat': 0 };
-                let hcDispDict = { 'Inbound': 0, 'Outbound': 0, 'Chat': 0 };
-
-                ['Inbound', 'Outbound', 'Chat'].forEach(ch => {
-                    let canalFechas = new Set(dfFiltered.filter(r => r.Canal === ch).map(r => String(getProp(r, ['Fecha'], '')).split(' ')[0]));
-                    let nDiasCanal = canalFechas.size || 1;
-                    
-                    let totalFteIntervals = 0;
-                    todosIntervalos.forEach(inv => {
-                        let invData = aggGen[ch][inv];
-                        let interReqSum = 0;
-                        if(invData) {
-                            for(let c in invData.silos) {
-                                let campData = invData.silos[c];
-                                for(let d in campData) {
-                                    let callsD = campData[d].calls;
-                                    let htD = campData[d].ht;
-                                    let avgAhtD = callsD > 0 ? htD / callsD : 180;
-                                    let aht_efectivo = ch === 'Chat' ? avgAhtD / Math.max(1.0, concurrenciaVal) : avgAhtD;
-                                    if(callsD >= 0.05) {
-                                        let a_erlang = (callsD * aht_efectivo) / 1800.0;
-                                        interReqSum += calcular_agentes_requeridos_erlang_c_js(a_erlang, aht_efectivo, targetTimeObj, targetSlObj);
-                                    }
-                                }
-                            }
-                        }
-                        totalFteIntervals += (interReqSum / nDiasCanal);
-                    });
-                    
-                    const horasCanal = totalFteIntervals * 0.5;
-                    hcReqDict[ch] = Math.ceil(((horasCanal / durJornada) * factorDescanso) / factorAsistencia);
-                    
-                    let disp = 0;
-                    let activeCamps = new Set(dfFiltered.filter(r => r.Canal === ch).map(r => String(getProp(r, ['Campaña', 'Campana'], 'General'))));
-                    
-                    let rosterPorCampanaGeneral = {};
-                    dfFiltered.forEach(r => {
-                        if (r.Canal === ch) {
-                            let camp = String(getProp(r, ['Campaña', 'Campana'], 'General'));
-                            let r_camp = Number(getProp(r, ['Total_Roster_Campana'], 0)) || 0;
-                            let r_dia = Number(getProp(r, ['Total_Roster_Dia'], 0)) || 0;
-                            let r_int = Number(getProp(r, ['HC_Actual_Roster'], 0)) || 0;
-                            let max_val = Math.max(r_camp, r_dia, r_int);
-                            if (!rosterPorCampanaGeneral[camp] || max_val > rosterPorCampanaGeneral[camp]) {
-                                rosterPorCampanaGeneral[camp] = max_val;
-                            }
-                        }
-                    });
-
-                    activeCamps.forEach(camp => {
-                         if(rosterPorCampanaGeneral[camp]) disp += rosterPorCampanaGeneral[camp];
-                    });
-                    hcDispDict[ch] = disp;
-                });
-
-                if(btn) { btn.disabled = false; btn.innerText = "▶ RUN PLAN"; }
-
-                const hcReqInbound = hcReqDict['Inbound'];
-                const hcDispInbound = hcDispDict['Inbound'];
-                
-                const hcReqOutbound = hcReqDict['Outbound'];
-                const hcDispOutbound = hcDispDict['Outbound'];
-                
-                const hcReqChat = hcReqDict['Chat'];
-                const hcDispChat = hcDispDict['Chat'];
-
-                const totalReqGlobal = hcReqInbound + hcReqOutbound + hcReqChat;
-                const totalDispGlobal = hcDispInbound + hcDispOutbound + hcDispChat;
-
-                document.getElementById('kpiHcRequeridoTitle').innerText = "Nómina a Contratar (HC)";
-                document.getElementById('kpiHcRequerido').innerText = totalReqGlobal.toLocaleString() + ' HC';
-                document.getElementById('kpiHcRequeridoSub').innerHTML = `Erlang C (Silos) + Shrinkage`;
-                
-                document.getElementById('kpiHcRosterTitle').innerText = esVistaSemanal ? "HC Actual (Roster)" : "Plantilla de Hoy";
-                document.getElementById('kpiHcRoster').innerText = totalDispGlobal.toLocaleString() + ' HC';
-
-                const gapTotal = totalDispGlobal - totalReqGlobal;
-                const gapEl = document.getElementById('kpiHcGap');
-                if (gapTotal > 0) {
-                    gapEl.innerText = `+${gapTotal} Sobran`;
-                    gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
-                } else if (gapTotal < 0) {
-                    gapEl.innerText = `${Math.abs(gapTotal)} Faltan`;
-                    gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
-                } else {
-                    gapEl.innerText = `✓ Balanceado`;
-                    gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
-                }
-
-                document.getElementById('tableHeaderRow').innerHTML = `
-                    <th class="py-3.5 px-4 text-left">Canal Operativo</th>
-                    <th class="py-3.5 px-4 text-brand-primary">Nómina a Contratar</th>
-                    <th class="py-3.5 px-4 text-brand-accentEmerald">Nómina Roster</th>
-                    <th class="py-3.5 px-4 text-center">Delta (Gap)</th>
-                `;
-
-                const tbody = document.getElementById('intervalTableBody');
-                tbody.innerHTML = '';
-                
-                const channels = [
-                    { name: '🎯 Inbound', req: hcReqInbound, disp: hcDispInbound },
-                    { name: '🚀 Outbound', req: hcReqOutbound, disp: hcDispOutbound },
-                    { name: '💬 Chat', req: hcReqChat, disp: hcDispChat },
-                    { name: '🌐 TOTAL', req: totalReqGlobal, disp: totalDispGlobal }
-                ];
-
-                channels.forEach(ch => {
-                    const gap = ch.disp - ch.req;
-                    let gapHtml = gap > 0 ? `<span class="bg-[#34D399]/20 text-[#34D399] px-2 py-0.5 rounded-md font-bold">+${gap}</span>` : 
-                                  gap < 0 ? `<span class="bg-[#FB7185]/20 text-[#FB7185] px-2 py-0.5 rounded-md font-bold">${gap}</span>` : 
-                                  `<span class="text-slate-500 font-bold">0</span>`;
-
-                    let rowClass = ch.name === '🌐 TOTAL' ? "bg-[#1E293B] font-bold border-t border-[#334155]" : "hover:bg-[#1E293B] transition-colors";
-
-                    tbody.innerHTML += `
-                        <tr class="${rowClass}">
-                            <td class="py-3.5 px-4 font-bold text-white text-left">${ch.name}</td>
-                            <td class="py-3.5 px-4 text-brand-primary font-black text-sm">${ch.req.toLocaleString()}</td>
-                            <td class="py-3.5 px-4 text-brand-accentEmerald font-black text-sm">${ch.disp.toLocaleString()}</td>
-                            <td class="py-3.5 px-4 text-center">${gapHtml}</td>
-                        </tr>
-                    `;
-                });
-
-                document.getElementById('contGapChart').classList.add('hidden');
-                document.getElementById('contGeneralChart').classList.remove('hidden');
-
-                if(generalChartInstance) generalChartInstance.destroy();
-                const ctxGen = document.getElementById('generalChart').getContext('2d');
-                generalChartInstance = new Chart(ctxGen, {
-                    type: 'bar',
-                    data: {
-                        labels: ['Inbound', 'Outbound', 'Chat'],
-                        datasets: [
-                            { label: 'HC Requerido', data: [hcReqInbound, hcReqOutbound, hcReqChat], backgroundColor: '#A78BFA', borderRadius: 4 },
-                            { label: 'HC Disponible', data: [hcDispInbound, hcDispOutbound, hcDispChat], backgroundColor: '#34D399', borderRadius: 4 }
-                        ]
-                    },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        plugins: {
-                            legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } } },
-                            tooltip: { backgroundColor: '#111827', titleColor: '#F8FAFC', bodyColor: '#cbd5e1', borderColor: '#1F2937', borderWidth: 1 }
-                        },
-                        scales: {
-                            x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 11, weight: 'bold' } } },
-                            y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono' } }, beginAtZero: true }
-                        }
-                    }
-                });
-
-                return; 
-            }
-
-            let llamadasAgrupadasGlobal = [];
-            let ahtAgrupadoGlobal = [];
-            let fteAgrupadoGlobal = [];
-            let rosterAgrupadoGlobal = [];
-
-            for (let i = 0; i < todosIntervalos.length; i++) {
-                let inter = todosIntervalos[i];
-                let invData = aggInter[inter];
-
-                let interCallSum = 0;
-                let interHtSum = 0;
-                let interReqSum = 0;
-
-                for (let c in invData.silos) {
-                    let campData = invData.silos[c];
-                    
-                    for(let d of fechasSet) {
-                        if(campData[d]) {
-                            let callsDay = campData[d].calls;
-                            let htDay = campData[d].ht;
-                            
-                            interCallSum += callsDay;
-                            interHtSum += htDay;
-                            
-                            let avgAhtD = callsDay > 0 ? htDay / callsDay : 180;
-                            let aht_efectivo = forecastMode === 'chat' ? avgAhtD / Math.max(1.0, concurrenciaVal) : avgAhtD;
-                            
-                            let fteReqDay = 0;
-                            if (callsDay >= 0.05) { 
-                                let a_erlang = (callsDay * aht_efectivo) / 1800.0;
-                                fteReqDay = calcular_agentes_requeridos_erlang_c_js(a_erlang, aht_efectivo, targetTimeObj, targetSlObj);
-                            }
-                            interReqSum += fteReqDay;
-                        }
-                    }
-                }
-
-                llamadasAgrupadasGlobal.push(interCallSum / numDias);
-                ahtAgrupadoGlobal.push(interCallSum > 0 ? interHtSum / interCallSum : 180);
-                fteAgrupadoGlobal.push(interReqSum / numDias); 
-                rosterAgrupadoGlobal.push(Math.round(invData.rosSum / numDias));
-            }
-
-            const reqAgrupadoGlobalParaPlot = fteAgrupadoGlobal.map(val => Math.ceil(val));
-            
-            // 4. Cálculo de HC Actual Promedio Bruto (Roster KPI = Top Máximo)
-            let rosterPorCampana = {};
-            globalData.forEach(r => {
-                let camp = String(getProp(r, ['Campaña', 'Campana'], 'General'));
-                let r_camp = Number(getProp(r, ['Total_Roster_Campana'], 0)) || 0;
-                let r_dia = Number(getProp(r, ['Total_Roster_Dia'], 0)) || 0;
-                let r_int = Number(getProp(r, ['HC_Actual_Roster'], 0)) || 0;
-                let max_val = Math.max(r_camp, r_dia, r_int);
-                
-                if (!rosterPorCampana[camp] || max_val > rosterPorCampana[camp]) {
-                    rosterPorCampana[camp] = max_val;
-                }
-            });
-
-            let totalRosterKPI = 0;
-            let activeCampaigns = new Set(dfFiltered.map(r => String(getProp(r, ['Campaña', 'Campana'], 'General'))));
-            activeCampaigns.forEach(camp => {
-                if(rosterPorCampana[camp]) totalRosterKPI += rosterPorCampana[camp];
-            });
-
-            const factorDescanso = usarNocturnoActual ? (7.0 / 5.0) : (7.0 / 6.0);
-            const mermaValLocal = parseFloat(document.getElementById('merma') ? document.getElementById('merma').value : 30) || 0;
-            const factorAsistencia = Math.max(0.01, 1.0 - (mermaValLocal / 100.0));
-
-            const totalFteIntervals = fteAgrupadoGlobal.reduce((a, b) => a + b, 0);
-            const totalHorasRequeridas = totalFteIntervals * 0.5;
-            const hcNominaCalculado = Math.ceil(((totalHorasRequeridas / durJornada) * factorDescanso) / factorAsistencia);
-            
-            document.getElementById('kpiHcRequeridoTitle').innerText = "Nómina a Contratar (HC)";
-            document.getElementById('kpiHcRequerido').innerText = hcNominaCalculado.toLocaleString() + ' HC';
-
-            document.getElementById('kpiHcRosterTitle').innerText = "HC Actual (Roster)";
-            document.getElementById('kpiHcRoster').innerText = totalRosterKPI.toLocaleString() + ' HC';
-
-            const gapTotal = totalRosterKPI - hcNominaCalculado;
-            const gapEl = document.getElementById('kpiHcGap');
-            if (gapTotal > 0) {
-                gapEl.innerText = `+${gapTotal} Sobran`;
-                gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#34D399]/20 text-[#34D399] font-mono-num border border-[#34D399]/30';
-            } else if (gapTotal < 0) {
-                gapEl.innerText = `${Math.abs(gapTotal)} Faltan`;
-                gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#FB7185]/20 text-[#FB7185] font-mono-num border border-[#FB7185]/30';
-            } else {
-                gapEl.innerText = `✓ OK`;
-                gapEl.className = 'text-[11px] font-bold px-2.5 py-1 rounded-md bg-[#1E293B] text-slate-300 font-mono-num border border-[#334155]';
-            }
-
-            let legendInteractions = forecastMode === 'outbound' ? 'Contactos (FCST)' : forecastMode === 'chat' ? 'Mensajes (FCST)' : 'Llamadas (FCST)';
-
-            document.getElementById('tableHeaderRow').innerHTML = `
-                <th class="py-3.5 px-4 text-left">Intervalo</th>
-                <th class="py-3.5 px-4">${legendInteractions}</th>
-                <th class="py-3.5 px-4">AHT (HH:MM:SS)</th>
-                <th class="py-3.5 px-4 text-brand-accentCyan">HC Requerido</th>
-                <th class="py-3.5 px-4 text-brand-accentEmerald">HC Actual</th>
-                <th class="py-3.5 px-4 text-center">Gap</th>
-            `;
-
-            const tbody = document.getElementById('intervalTableBody');
-            tbody.innerHTML = '';
-            
-            todosIntervalos.forEach((inter, idx) => {
-                const rowLlamadas = Math.round(llamadasAgrupadasGlobal[idx]);
-                const rowAhtSegs = ahtAgrupadoGlobal[idx];
-                const rowReq = reqAgrupadoGlobalParaPlot[idx] || 0; 
-                const rowRoster = rosterAgrupadoGlobal[idx] || 0;
-                
-                const gap = rowRoster - rowReq;
-                let gapHtml = gap > 0 ? `<span class="bg-[#34D399]/20 text-[#34D399] px-2 py-0.5 rounded-md font-bold">+${gap}</span>` : 
-                              gap < 0 ? `<span class="bg-[#FB7185]/20 text-[#FB7185] px-2 py-0.5 rounded-md font-bold">${gap}</span>` : 
-                              `<span class="text-slate-500 font-bold">0</span>`;
-
-                const tr = document.createElement('tr');
-                tr.onclick = () => toggleTableInterval(inter);
-                tr.className = `cursor-pointer transition-all duration-200 hover:bg-[#1E293B]`;
-                tr.innerHTML = `
-                    <td class="py-2.5 px-4 font-bold text-slate-200 flex items-center gap-2 text-left">
-                        <span class="text-[10px] text-brand-accentCyan drop-shadow-[0_0_2px_rgba(34,211,238,0.8)]">●</span> ${inter}
-                    </td>
-                    <td class="py-2.5 px-4 text-slate-300 font-medium">${rowLlamadas.toLocaleString()}</td>
-                    <td class="py-2.5 px-4 text-slate-300 font-medium">${formatAHT(rowAhtSegs)}</td>
-                    <td class="py-2.5 px-4 text-brand-primary font-black text-sm">${rowReq}</td>
-                    <td class="py-2.5 px-4 text-brand-accentEmerald font-black text-sm">${rowRoster}</td>
-                    <td class="py-2.5 px-4 text-center">${gapHtml}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-
-            document.getElementById('contGapChart').classList.remove('hidden');
-            if (document.getElementById('contGeneralChart')) document.getElementById('contGeneralChart').classList.add('hidden');
-
-            if (gapChartInstance) gapChartInstance.destroy();
-            const ctxGap = document.getElementById('gapChart').getContext('2d');
-            
-            gapChartInstance = new Chart(ctxGap, {
-                type: 'line',
-                data: {
-                    labels: todosIntervalos,
-                    datasets: [
-                        { label: 'HC Requerido', data: reqAgrupadoGlobalParaPlot, borderColor: '#22D3EE', backgroundColor: 'rgba(34, 211, 238, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 0, pointHoverRadius: 6 },
-                        { label: 'HC Actual', data: rosterAgrupadoGlobal, borderColor: '#34D399', backgroundColor: '#34D399', fill: false, tension: 0.4, borderWidth: 2, borderDash: [5, 5], pointRadius: 0, pointHoverRadius: 6 }
-                    ]
-                },
-                options: { 
-                    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-                    plugins: { 
-                        legend: { labels: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 }, usePointStyle: true, boxWidth: 8 } },
-                        tooltip: { backgroundColor: '#111827', titleColor: '#F8FAFC', bodyColor: '#cbd5e1', borderColor: '#1F2937', borderWidth: 1, padding: 12, boxPadding: 6, usePointStyle: true }
-                    }, 
-                    scales: { 
-                        x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 12 } }, 
-                        y: { grid: { color: '#1F2937', borderDash: [4, 4] }, ticks: { precision: 0, color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } }, beginAtZero: true } 
-                    } 
-                }
-            });
-        }
-
-        function exportarCSV() {
-            const dfFiltered = [];
-            for (let i = 0; i < globalData.length; i++) {
-                let item = globalData[i];
-                let m = String(getProp(item, ['Mes'], ''));
-                let s = getWeekNumber(getProp(item, ['Fecha'], ''));
-                let c = String(getProp(item, ['Campaña', 'Campana'], 'General'));
-                let f = String(getProp(item, ['Fecha'], '')).split(' ')[0].split('T')[0];
-                let inv = String(getProp(item, ['Intervalo'], '00:00'));
-
-                if ((selectedMeses.size === 0 || selectedMeses.has(m)) &&
-                    (selectedSemanas.size === 0 || selectedSemanas.has(s)) &&
-                    (selectedCampanas.size === 0 || selectedCampanas.has(c)) &&
-                    (selectedFechas.size === 0 || selectedFechas.has(f)) &&
-                    (selectedIntervalos.size === 0 || selectedIntervalos.has(inv))) {
-                    dfFiltered.push(item);
-                }
-            }
-
-            if (!dfFiltered || dfFiltered.length === 0) {
-                alert("No hay datos cargados para exportar.");
-                return;
-            }
-            const headers = ["Campana", "Canal", "Mes", "Fecha", "Dia_Semana", "Intervalo", "Volumen", "AHT_HH_MM_SS", "HC_Requerido", "HC_Actual", "Gap"];
-            const csvRows = [headers.join(",")];
-            
-            const targetSlObj = parseFloat(document.getElementById('targetSl') ? document.getElementById('targetSl').value : 80) || 80;
-            const targetTimeObj = parseFloat(document.getElementById('targetTime') ? document.getElementById('targetTime').value : 20) || 20;
-            const concurrenciaVal = parseFloat(document.getElementById('concurrencia') ? document.getElementById('concurrencia').value : 4) || 4;
-
-            dfFiltered.forEach(row => {
-                let calls = Number(getProp(row, ['Llamadas', 'Recibidas', 'Recibidos'], 0)) || 0;
-                let aht = Number(getProp(row, ['AHT_Segundos'], 180)) || 180;
-                let aht_efectivo = forecastMode === 'chat' ? aht / Math.max(1.0, concurrenciaVal) : aht;
-                
-                let req = 0;
-                if(calls >= 0.05) {
-                    let a_erlang = (calls * aht_efectivo) / 1800.0;
-                    req = calcular_agentes_requeridos_erlang_c_js(a_erlang, aht_efectivo, targetTimeObj, targetSlObj);
-                }
-
-                let act = Number(getProp(row, ['Total_Roster_Campana', 'Total_Roster_Dia', 'HC_Actual_Roster'], 0)) || 0;
-                let gap = act - req;
-
-                const values = [
-                    getProp(row, ['Campaña', 'Campana'], 'General'),
-                    getProp(row, ['Canal'], 'N/A'),
-                    getProp(row, ['Mes'], ''),
-                    String(getProp(row, ['Fecha'], '')).split(' ')[0].split('T')[0],
-                    getProp(row, ['Día_Semana', 'Dia_Semana'], ''),
-                    getProp(row, ['Intervalo'], '00:00'),
-                    calls,
-                    formatAHT(aht),
-                    req,
-                    act,
-                    gap
-                ];
-                csvRows.push(values.join(","));
-            });
-            const blob = new Blob([csvRows.join(String.fromCharCode(10))], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.setAttribute('href', url);
-            a.setAttribute('download', `WFM_Reporte_Ejecutivo_HC_${new Date().toISOString().slice(0,10)}.csv`);
-            a.click();
-        }
-    </script>
-</body>
-</html>
+                html += `
+                    <tr class="hover:bg-gray-900/50 transition duration-150">
+                        <td class="py-3 font-medium text-white">${row.Campaña}</td>
+                        <td class="py-3 text-gray-400">${row.Fecha}</td>
+                        <td class="py-3 font-mono">${row.Intervalo}</td>
+                        <td class="py-3 text-right font-mono">${row.Llamadas}</td>
+                        <td class="py-3 text-right font-mono text-green-400">${row.AHT}</td>
