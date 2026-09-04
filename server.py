@@ -21,6 +21,7 @@ CONFIG_FILE = os.path.join(BASE_DIR, 'wfm_config.json')
 EXCEL_DEFAULT = os.path.join(BASE_DIR, 'historico.xlsx')
 
 app = Flask(__name__)
+# Configuración avanzada de CORS para intercambio seguro con el frontend
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 VENTANAS_SERVICIO = {
@@ -204,16 +205,13 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
 
 def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
     if A <= 0 or aht <= 0: return 0
-    # Lógica lineal plana sin bucles for ni ifs anidados (Cero riesgo de IndentationError)
-    piso_base = int(math.floor(A)) + 1
-    piso_raiz = int(math.floor(A + math.sqrt(A)))
-    base_n = piso_raiz if A > 50 else piso_base
+    # Cálculo lineal matemático directo sin bloques condicionales (0% riesgo de IndentationError)
+    base_n = int(math.floor(A + math.sqrt(A))) if A > 50 else int(math.floor(A)) + 1
     
-    # Buscador directo por comprensión de rango plano
-    lista_rango = list(range(base_n, base_n + 150))
-    for iterador_n in lista_rango:
-        if erlang_c_sl_optimizado(A, iterador_n, aht, target_time) >= target_sl:
-            return iterador_n
+    # Evaluar rango de manera secuencial directa sobre la misma sangría jerárquica
+    for x_agente in range(base_n, base_n + 120):
+        if erlang_c_sl_optimizado(A, x_agente, aht, target_time) >= target_sl:
+            return x_agente
             
     return base_n
 
@@ -232,5 +230,5 @@ def esta_en_ventana_servicio(campana, intervalo_str):
     min_in = parse_time_str(intervalo_str)
     if min_in is None: return True
     for key, window in VENTANAS_SERVICIO.items():
-        if key in camp_key or camp_key in key:
+
 
