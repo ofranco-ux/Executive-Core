@@ -295,35 +295,58 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
     campanas_unicas = df[col_camp].unique()
 
-    predicciones_futuras = {}
+    predicciones_futuras, factores_ui = {}, {}
 
     for camp in campanas_unicas:
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        # 1. SUAVIZADO EXPONENCIAL (EMA) PARA PRONÓSTICO DIARIO
-        dow_avg = {}
-        for i in range(7):
-            vols_dow = sub[sub[col_fecha].dt.weekday == i].copy()
-            if len(vols_dow) >= 2:
-                # span=3 le da prioridad absoluta a las ultimas semanas sin caer en ceros
-                ema_val = vols_dow[col_calls].ewm(span=3, adjust=False).mean().iloc[-1]
-                dow_avg[i] = ema_val
-            elif len(vols_dow) == 1:
-                dow_avg[i] = vols_dow[col_calls].iloc[0]
-            else:
-                dow_avg[i] = sub[col_calls].mean()
+        fecha_max = sub[col_fecha].max()
+        
+        # 1. VOLUMEN BASE RECIENTE (Últimos 14 días)
+        df_ultimos_14 = sub[sub[col_fecha] > (fecha_max - timedelta(days=14))]
+        if not df_ultimos_14.empty and df_ultimos_14[col_calls].sum() > 0:
+            dias_unicos = df_ultimos_14[col_fecha].nunique()
+            vol_promedio_reciente = df_ultimos_14[col_calls].sum() / max(1, dias_unicos)
+        else:
+            vol_promedio_reciente = sub[col_calls].mean()
 
+        # 2. ÍNDICE DE DÍA DE LA SEMANA (Últimas 4 semanas)
+        df_ultimas_4_semanas = sub[sub[col_fecha] > (fecha_max - timedelta(days=28))]
+        if df_ultimas_4_semanas.empty: df_ultimas_4_semanas = sub
+        
+        dow_means = df_ultimas_4_semanas.groupby(df_ultimas_4_semanas[col_fecha].dt.weekday)[col_calls].mean()
+        promedio_dias_operativos = dow_means.mean()
+        
+        dow_indices = {}
+        for i in range(7):
+            if i in dow_means and promedio_dias_operativos > 0:
+                dow_indices[i] = dow_means[i] / promedio_dias_operativos
+            else:
+                # Si el día no existe en el histórico, no se pronostica volumen
+                tiene_dia = sub[sub[col_fecha].dt.weekday == i][col_calls].sum() > 0
+                dow_indices[i] = 1.0 if tiene_dia else 0.0
+
+        # Factor visual UI solo informativo
+        ultimos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=7))][col_calls].mean()
+        previos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=14)) & (sub[col_fecha] <= fecha_max - timedelta(days=7))][col_calls].mean()
+        trend_visual = 1.0
+        if pd.notna(previos_7) and previos_7 > 0 and pd.notna(ultimos_7):
+            trend_visual = ultimos_7 / previos_7
+
+        # 3. PROYECCIÓN DIARIA
         preds_finales = []
         for d in range(dias_futuros):
             fecha_futura = fecha_inicio_forecast + timedelta(days=d)
             wd = fecha_futura.weekday()
             
-            vol_final = dow_avg.get(wd, sub[col_calls].mean())
+            # Cálculo puro: Nivel reciente * Distribución de Día
+            vol_final = vol_promedio_reciente * dow_indices.get(wd, 1.0)
             if sub[col_calls].mean() < 1.0: vol_final = 0.0
             preds_finales.append(max(0.0, vol_final))
 
         predicciones_futuras[camp] = preds_finales
+        factores_ui[camp] = round(trend_visual, 2)
 
     df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
     df_filtrado = df[df['En_Ventana']].copy()
@@ -331,7 +354,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_fecha_real - timedelta(days=28))]
     if df_reciente.empty: df_reciente = df_filtrado.copy()
     
-    # 2. PERFIL INTRADÍA POR VOLUMEN ACUMULADO (Suaviza los picos falsos)
+    # 4. PERFIL INTRADÍA (Porcentajes puros de la Gaussiana)
     perfil_intradia = df_reciente.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
         total_calls=(col_calls, 'sum'),
         avg_aht=(col_aht, lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 0)
@@ -341,7 +364,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     perfil_intradia['weight'] = np.where(totales_dia > 0, perfil_intradia['total_calls'] / totales_dia, 0)
     mapa_perfil = {(r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean']): {'weight': r['weight'], 'aht': r['avg_aht']} for _, r in perfil_intradia.iterrows()}
 
-    # Respaldo global por si una hora especifica quedó vacía un martes
     perfil_global = df_reciente.groupby([col_camp, 'Inter_Clean']).agg(total_calls=(col_calls, 'sum')).reset_index()
     totales_global = perfil_global.groupby([col_camp])['total_calls'].transform('sum')
     perfil_global['weight'] = np.where(totales_global > 0, perfil_global['total_calls'] / totales_global, 0)
@@ -364,6 +386,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
         for camp in campanas_unicas:
             vol_diario = predicciones_futuras.get(camp, [0]*dias_futuros)[d]
+            factor_visual_ui = factores_ui.get(camp, 1.0)
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
 
             pesos_crudos = []
@@ -423,7 +446,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                     'HC_Actual_Roster': hc_roster,
                     'Total_Roster_Campana': tot_camp,
                     'Total_Roster_Dia': tot_camp_dia,
-                    'Factor_Correccion': 1.0
+                    'Factor_Correccion': factor_visual_ui
                 })
 
     try:
@@ -500,33 +523,52 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
     df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
     campanas_unicas = df[col_camp].unique()
 
-    predicciones_futuras = {}
+    predicciones_futuras, factores_ui = {}, {}
 
     for camp in campanas_unicas:
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        dow_avg = {}
+        fecha_max = sub[col_fecha].max()
+        
+        df_ultimos_14 = sub[sub[col_fecha] > (fecha_max - timedelta(days=14))]
+        if not df_ultimos_14.empty and df_ultimos_14[col_calls].sum() > 0:
+            dias_unicos = df_ultimos_14[col_fecha].nunique()
+            vol_promedio_reciente = df_ultimos_14[col_calls].sum() / max(1, dias_unicos)
+        else:
+            vol_promedio_reciente = sub[col_calls].mean()
+
+        df_ultimas_4_semanas = sub[sub[col_fecha] > (fecha_max - timedelta(days=28))]
+        if df_ultimas_4_semanas.empty: df_ultimas_4_semanas = sub
+        
+        dow_means = df_ultimas_4_semanas.groupby(df_ultimas_4_semanas[col_fecha].dt.weekday)[col_calls].mean()
+        promedio_dias_operativos = dow_means.mean()
+        
+        dow_indices = {}
         for i in range(7):
-            vols_dow = sub[sub[col_fecha].dt.weekday == i].copy()
-            if len(vols_dow) >= 2:
-                ema_val = vols_dow[col_calls].ewm(span=3, adjust=False).mean().iloc[-1]
-                dow_avg[i] = ema_val
-            elif len(vols_dow) == 1:
-                dow_avg[i] = vols_dow[col_calls].iloc[0]
+            if i in dow_means and promedio_dias_operativos > 0:
+                dow_indices[i] = dow_means[i] / promedio_dias_operativos
             else:
-                dow_avg[i] = sub[col_calls].mean()
+                tiene_dia = sub[sub[col_fecha].dt.weekday == i][col_calls].sum() > 0
+                dow_indices[i] = 1.0 if tiene_dia else 0.0
+
+        ultimos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=7))][col_calls].mean()
+        previos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=14)) & (sub[col_fecha] <= fecha_max - timedelta(days=7))][col_calls].mean()
+        trend_visual = 1.0
+        if pd.notna(previos_7) and previos_7 > 0 and pd.notna(ultimos_7):
+            trend_visual = ultimos_7 / previos_7
 
         preds_finales = []
         for d in range(dias_futuros):
             fecha_futura = fecha_inicio_forecast + timedelta(days=d)
             wd = fecha_futura.weekday()
             
-            vol_final = dow_avg.get(wd, sub[col_calls].mean())
+            vol_final = vol_promedio_reciente * dow_indices.get(wd, 1.0)
             if sub[col_calls].mean() < 1.0: vol_final = 0.0
             preds_finales.append(max(0.0, vol_final))
 
         predicciones_futuras[camp] = preds_finales
+        factores_ui[camp] = round(trend_visual, 2)
 
     df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
     df_filtrado = df[df['En_Ventana']].copy()
@@ -565,6 +607,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
 
         for camp in campanas_unicas:
             vol_diario = predicciones_futuras.get(camp, [0]*dias_futuros)[d]
+            factor_visual_ui = factores_ui.get(camp, 1.0)
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
 
             pesos_crudos = []
@@ -624,7 +667,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
                     'HC_Actual_Roster': hc_roster,
                     'Total_Roster_Campana': tot_camp,
                     'Total_Roster_Dia': tot_camp_dia,
-                    'Factor_Correccion': 1.0
+                    'Factor_Correccion': factor_visual_ui
                 })
 
     try:
@@ -701,33 +744,52 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
     df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
     campanas_unicas = df[col_camp].unique()
 
-    predicciones_futuras = {}
+    predicciones_futuras, factores_ui = {}, {}
 
     for camp in campanas_unicas:
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        dow_avg = {}
+        fecha_max = sub[col_fecha].max()
+        
+        df_ultimos_14 = sub[sub[col_fecha] > (fecha_max - timedelta(days=14))]
+        if not df_ultimos_14.empty and df_ultimos_14[col_calls].sum() > 0:
+            dias_unicos = df_ultimos_14[col_fecha].nunique()
+            vol_promedio_reciente = df_ultimos_14[col_calls].sum() / max(1, dias_unicos)
+        else:
+            vol_promedio_reciente = sub[col_calls].mean()
+
+        df_ultimas_4_semanas = sub[sub[col_fecha] > (fecha_max - timedelta(days=28))]
+        if df_ultimas_4_semanas.empty: df_ultimas_4_semanas = sub
+        
+        dow_means = df_ultimas_4_semanas.groupby(df_ultimas_4_semanas[col_fecha].dt.weekday)[col_calls].mean()
+        promedio_dias_operativos = dow_means.mean()
+        
+        dow_indices = {}
         for i in range(7):
-            vols_dow = sub[sub[col_fecha].dt.weekday == i].copy()
-            if len(vols_dow) >= 2:
-                ema_val = vols_dow[col_calls].ewm(span=3, adjust=False).mean().iloc[-1]
-                dow_avg[i] = ema_val
-            elif len(vols_dow) == 1:
-                dow_avg[i] = vols_dow[col_calls].iloc[0]
+            if i in dow_means and promedio_dias_operativos > 0:
+                dow_indices[i] = dow_means[i] / promedio_dias_operativos
             else:
-                dow_avg[i] = sub[col_calls].mean()
+                tiene_dia = sub[sub[col_fecha].dt.weekday == i][col_calls].sum() > 0
+                dow_indices[i] = 1.0 if tiene_dia else 0.0
+
+        ultimos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=7))][col_calls].mean()
+        previos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=14)) & (sub[col_fecha] <= fecha_max - timedelta(days=7))][col_calls].mean()
+        trend_visual = 1.0
+        if pd.notna(previos_7) and previos_7 > 0 and pd.notna(ultimos_7):
+            trend_visual = ultimos_7 / previos_7
 
         preds_finales = []
         for d in range(dias_futuros):
             fecha_futura = fecha_inicio_forecast + timedelta(days=d)
             wd = fecha_futura.weekday()
             
-            vol_final = dow_avg.get(wd, sub[col_calls].mean())
+            vol_final = vol_promedio_reciente * dow_indices.get(wd, 1.0)
             if sub[col_calls].mean() < 1.0: vol_final = 0.0
             preds_finales.append(max(0.0, vol_final))
 
         predicciones_futuras[camp] = preds_finales
+        factores_ui[camp] = round(trend_visual, 2)
 
     df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
     df_filtrado = df[df['En_Ventana']].copy()
@@ -766,6 +828,7 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
 
         for camp in campanas_unicas:
             vol_diario = predicciones_futuras.get(camp, [0]*dias_futuros)[d]
+            factor_visual_ui = factores_ui.get(camp, 1.0)
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
 
             pesos_crudos = []
@@ -828,7 +891,7 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
                     'HC_Actual_Roster': hc_roster,
                     'Total_Roster_Campana': tot_camp,
                     'Total_Roster_Dia': tot_camp_dia,
-                    'Factor_Correccion': 1.0
+                    'Factor_Correccion': factor_visual_ui
                 })
 
     try:
