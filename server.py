@@ -301,23 +301,31 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
+        # --- NUEVA LÓGICA DE PROYECCIÓN DINÁMICA ---
         dow_avg = {}
         for i in range(7):
             vols_dow = sub[sub[col_fecha].dt.weekday == i][col_calls]
             vols_dow = vols_dow[vols_dow > 0]
-            if len(vols_dow) >= 3: dow_avg[i] = vols_dow.tail(4).mean()
-            elif len(vols_dow) > 0: dow_avg[i] = vols_dow.mean()
-            else: dow_avg[i] = sub[col_calls].mean()
+            vols_list = vols_dow.tail(4).tolist()
+            
+            if len(vols_list) == 4:
+                dow_avg[i] = (vols_list[3] * 0.50) + (vols_list[2] * 0.25) + (vols_list[1] * 0.15) + (vols_list[0] * 0.10)
+            elif len(vols_list) > 0:
+                dow_avg[i] = sum(vols_list) / len(vols_list)
+            else:
+                dow_avg[i] = sub[col_calls].mean()
 
-        avg_julio = sub[(sub[col_fecha].dt.month == 7)][col_calls].mean()
-        avg_agosto = sub[(sub[col_fecha].dt.month == 8)][col_calls].mean()
+        fecha_max = sub[col_fecha].max()
+        ultimos_14 = sub[(sub[col_fecha] > fecha_max - timedelta(days=14))][col_calls].mean()
+        previos_14 = sub[(sub[col_fecha] > fecha_max - timedelta(days=28)) & (sub[col_fecha] <= fecha_max - timedelta(days=14))][col_calls].mean()
         
-        if avg_julio > 0 and avg_agosto > 0:
-            trend_rate = avg_agosto / avg_julio
+        if pd.notna(previos_14) and previos_14 > 0 and pd.notna(ultimos_14):
+            trend_rate = ultimos_14 / previos_14
         else:
             trend_rate = 1.0
             
-        trend_rate = max(0.92, min(1.08, trend_rate))
+        trend_rate = max(0.75, min(1.25, trend_rate))
+        # ---------------------------------------------
 
         preds_finales = []
         for d in range(dias_futuros):
@@ -326,8 +334,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             day_m = fecha_futura.day
             
             vol_base = dow_avg.get(wd, sub[col_calls].mean())
-            month_idx = (fecha_futura.year - fecha_inicio_forecast.year) * 12 + (fecha_futura.month - fecha_inicio_forecast.month)
-            monthly_trend = math.pow(trend_rate, month_idx)
+            dias_transcurridos = (fecha_futura - fecha_inicio_forecast).days
+            monthly_trend = math.pow(trend_rate, dias_transcurridos / 30.0)
             quincena_factor = 1.10 if day_m in [1, 15, 16, 30, 31] else 1.0
             
             vol_final = vol_base * monthly_trend * quincena_factor
@@ -507,21 +515,31 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
+        # --- NUEVA LÓGICA DE PROYECCIÓN DINÁMICA ---
         dow_avg = {}
         for i in range(7):
             vols_dow = sub[sub[col_fecha].dt.weekday == i][col_calls]
             vols_dow = vols_dow[vols_dow > 0]
-            if len(vols_dow) >= 3: dow_avg[i] = vols_dow.tail(4).mean()
-            elif len(vols_dow) > 0: dow_avg[i] = vols_dow.mean()
-            else: dow_avg[i] = sub[col_calls].mean()
-
-        avg_julio = sub[(sub[col_fecha].dt.month == 7)][col_calls].mean()
-        avg_agosto = sub[(sub[col_fecha].dt.month == 8)][col_calls].mean()
-        
-        if avg_julio > 0 and avg_agosto > 0: trend_rate = avg_agosto / avg_julio
-        else: trend_rate = 1.0
+            vols_list = vols_dow.tail(4).tolist()
             
-        trend_rate = max(0.92, min(1.08, trend_rate))
+            if len(vols_list) == 4:
+                dow_avg[i] = (vols_list[3] * 0.50) + (vols_list[2] * 0.25) + (vols_list[1] * 0.15) + (vols_list[0] * 0.10)
+            elif len(vols_list) > 0:
+                dow_avg[i] = sum(vols_list) / len(vols_list)
+            else:
+                dow_avg[i] = sub[col_calls].mean()
+
+        fecha_max = sub[col_fecha].max()
+        ultimos_14 = sub[(sub[col_fecha] > fecha_max - timedelta(days=14))][col_calls].mean()
+        previos_14 = sub[(sub[col_fecha] > fecha_max - timedelta(days=28)) & (sub[col_fecha] <= fecha_max - timedelta(days=14))][col_calls].mean()
+        
+        if pd.notna(previos_14) and previos_14 > 0 and pd.notna(ultimos_14):
+            trend_rate = ultimos_14 / previos_14
+        else:
+            trend_rate = 1.0
+            
+        trend_rate = max(0.75, min(1.25, trend_rate))
+        # ---------------------------------------------
 
         preds_finales = []
         for d in range(dias_futuros):
@@ -530,8 +548,8 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
             day_m = fecha_futura.day
             
             vol_base = dow_avg.get(wd, sub[col_calls].mean())
-            month_idx = (fecha_futura.year - fecha_inicio_forecast.year) * 12 + (fecha_futura.month - fecha_inicio_forecast.month)
-            monthly_trend = math.pow(trend_rate, month_idx)
+            dias_transcurridos = (fecha_futura - fecha_inicio_forecast).days
+            monthly_trend = math.pow(trend_rate, dias_transcurridos / 30.0)
             quincena_factor = 1.10 if day_m in [1, 15, 16, 30, 31] else 1.0
             
             vol_final = vol_base * monthly_trend * quincena_factor
@@ -710,21 +728,31 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
+        # --- NUEVA LÓGICA DE PROYECCIÓN DINÁMICA ---
         dow_avg = {}
         for i in range(7):
             vols_dow = sub[sub[col_fecha].dt.weekday == i][col_calls]
             vols_dow = vols_dow[vols_dow > 0]
-            if len(vols_dow) >= 3: dow_avg[i] = vols_dow.tail(4).mean()
-            elif len(vols_dow) > 0: dow_avg[i] = vols_dow.mean()
-            else: dow_avg[i] = sub[col_calls].mean()
-
-        avg_julio = sub[(sub[col_fecha].dt.month == 7)][col_calls].mean()
-        avg_agosto = sub[(sub[col_fecha].dt.month == 8)][col_calls].mean()
-        
-        if avg_julio > 0 and avg_agosto > 0: trend_rate = avg_agosto / avg_julio
-        else: trend_rate = 1.0
+            vols_list = vols_dow.tail(4).tolist()
             
-        trend_rate = max(0.92, min(1.08, trend_rate))
+            if len(vols_list) == 4:
+                dow_avg[i] = (vols_list[3] * 0.50) + (vols_list[2] * 0.25) + (vols_list[1] * 0.15) + (vols_list[0] * 0.10)
+            elif len(vols_list) > 0:
+                dow_avg[i] = sum(vols_list) / len(vols_list)
+            else:
+                dow_avg[i] = sub[col_calls].mean()
+
+        fecha_max = sub[col_fecha].max()
+        ultimos_14 = sub[(sub[col_fecha] > fecha_max - timedelta(days=14))][col_calls].mean()
+        previos_14 = sub[(sub[col_fecha] > fecha_max - timedelta(days=28)) & (sub[col_fecha] <= fecha_max - timedelta(days=14))][col_calls].mean()
+        
+        if pd.notna(previos_14) and previos_14 > 0 and pd.notna(ultimos_14):
+            trend_rate = ultimos_14 / previos_14
+        else:
+            trend_rate = 1.0
+            
+        trend_rate = max(0.75, min(1.25, trend_rate))
+        # ---------------------------------------------
 
         preds_finales = []
         for d in range(dias_futuros):
@@ -733,8 +761,8 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
             day_m = fecha_futura.day
             
             vol_base = dow_avg.get(wd, sub[col_calls].mean())
-            month_idx = (fecha_futura.year - fecha_inicio_forecast.year) * 12 + (fecha_futura.month - fecha_inicio_forecast.month)
-            monthly_trend = math.pow(trend_rate, month_idx)
+            dias_transcurridos = (fecha_futura - fecha_inicio_forecast).days
+            monthly_trend = math.pow(trend_rate, dias_transcurridos / 30.0)
             quincena_factor = 1.10 if day_m in [1, 15, 16, 30, 31] else 1.0
             
             vol_final = vol_base * monthly_trend * quincena_factor
