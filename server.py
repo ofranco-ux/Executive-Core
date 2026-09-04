@@ -301,28 +301,43 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        # PROMEDIO OLÍMPICO (Trimmed Mean) - Descarta valores extremos
-        dow_avg = {}
+        fecha_max = sub[col_fecha].max()
+        
+        # 1. ÍNDICE DE ESTACIONALIDAD (Últimas 4 semanas)
+        df_ultimas_4_sem = sub[sub[col_fecha] > (fecha_max - timedelta(days=28))]
+        if df_ultimas_4_sem.empty: df_ultimas_4_sem = sub
+        
+        dow_means = df_ultimas_4_sem.groupby(df_ultimas_4_sem[col_fecha].dt.weekday)[col_calls].mean()
+        promedio_global = dow_means.mean()
+        
+        dow_idx = {}
         for i in range(7):
-            vols_dow = sub[sub[col_fecha].dt.weekday == i][col_calls]
-            vols_dow = vols_dow[vols_dow > 0]
-            vols_list = vols_dow.tail(5).tolist() # Evaluamos las últimas 5 semanas
-            
-            if len(vols_list) >= 4:
-                vols_list.sort()
-                trimmed_vols = vols_list[1:-1] # Quitamos el más alto y el más bajo
-                dow_avg[i] = sum(trimmed_vols) / len(trimmed_vols)
-            elif len(vols_list) > 0:
-                dow_avg[i] = sum(vols_list) / len(vols_list)
+            if i in dow_means and promedio_global > 0:
+                dow_idx[i] = dow_means[i] / promedio_global
             else:
-                dow_avg[i] = sub[col_calls].mean()
+                dow_idx[i] = 1.0
 
+        # 2. NIVEL BASE DESESTACIONALIZADO (Alta Reactividad - Últimos 14 días)
+        df_ultimos_14 = sub[sub[col_fecha] > (fecha_max - timedelta(days=14))].copy()
+        if not df_ultimos_14.empty:
+            # Quitamos el factor del día de la semana para ver la base pura
+            df_ultimos_14['deseasonalized'] = df_ultimos_14.apply(
+                lambda r: r[col_calls] / dow_idx.get(r[col_fecha].weekday(), 1.0) 
+                if dow_idx.get(r[col_fecha].weekday(), 1.0) > 0 else r[col_calls], 
+                axis=1
+            )
+            # EMA super reactivo (span=4 da ~40% peso al último día)
+            recent_level = df_ultimos_14['deseasonalized'].ewm(span=4, adjust=False).mean().iloc[-1]
+        else:
+            recent_level = sub[col_calls].mean()
+
+        # 3. PROYECCIÓN FINAL (Nivel * Estacionalidad)
         preds_finales = []
         for d in range(dias_futuros):
             fecha_futura = fecha_inicio_forecast + timedelta(days=d)
             wd = fecha_futura.weekday()
             
-            vol_final = dow_avg.get(wd, sub[col_calls].mean())
+            vol_final = recent_level * dow_idx.get(wd, 1.0)
             if sub[col_calls].mean() < 1.0: vol_final = 0.0
             preds_finales.append(max(0.0, vol_final))
 
@@ -334,19 +349,15 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_fecha_real - timedelta(days=28))]
     if df_reciente.empty: df_reciente = df_filtrado.copy()
     
-    perfil_intradia = df_reciente.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
+    # 4. CURVA INTRADÍA GLOBAL (Para eliminar ruido de variaciones diarias)
+    perfil_global = df_reciente.groupby([col_camp, 'Inter_Clean']).agg(
         total_calls=(col_calls, 'sum'),
         avg_aht=(col_aht, lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 0)
     ).reset_index()
-
-    totales_dia = perfil_intradia.groupby([col_camp, 'Dia_Semana_Clean'])['total_calls'].transform('sum')
-    perfil_intradia['weight'] = np.where(totales_dia > 0, perfil_intradia['total_calls'] / totales_dia, 0)
-    mapa_perfil = {(r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean']): {'weight': r['weight'], 'aht': r['avg_aht']} for _, r in perfil_intradia.iterrows()}
-
-    perfil_global = df_reciente.groupby([col_camp, 'Inter_Clean']).agg(total_calls=(col_calls, 'sum')).reset_index()
+    
     totales_global = perfil_global.groupby([col_camp])['total_calls'].transform('sum')
     perfil_global['weight'] = np.where(totales_global > 0, perfil_global['total_calls'] / totales_global, 0)
-    mapa_perfil_global = {(r[col_camp], r['Inter_Clean']): r['weight'] for _, r in perfil_global.iterrows()}
+    mapa_perfil_global = {(r[col_camp], r['Inter_Clean']): {'weight': r['weight'], 'aht': r['avg_aht']} for _, r in perfil_global.iterrows()}
     
     todos_los_intervalos_crudos = [f"{int(h):02d}:{int(m):02d}" for h in range(24) for m in (0, 30)]
     intervalos_operativos_por_camp = {camp: [i for i in todos_los_intervalos_crudos if esta_en_ventana_servicio(camp, i)] for camp in campanas_unicas}
@@ -369,9 +380,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
 
             pesos_crudos = []
             for inter in intervalos_validos:
-                w = mapa_perfil.get((camp, nombre_dia, inter), {}).get('weight', 0.0)
-                if w == 0.0:
-                    w = mapa_perfil_global.get((camp, inter), 0.0)
+                w = mapa_perfil_global.get((camp, inter), {}).get('weight', 0.0)
                 pesos_crudos.append(w)
 
             suma_pesos = sum(pesos_crudos)
@@ -393,7 +402,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 calls_int = floor_calls[idx_inter]
                 calls_float = exact_calls[idx_inter] 
 
-                info_p = mapa_perfil.get((camp, nombre_dia, inter), {})
+                info_p = mapa_perfil_global.get((camp, inter), {})
                 aht_real = info_p.get('aht', 0.0)
                 
                 if aht_real > 0 and not pd.isna(aht_real):
@@ -507,28 +516,38 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        # PROMEDIO OLÍMPICO (Trimmed Mean)
-        dow_avg = {}
+        fecha_max = sub[col_fecha].max()
+        
+        df_ultimas_4_sem = sub[sub[col_fecha] > (fecha_max - timedelta(days=28))]
+        if df_ultimas_4_sem.empty: df_ultimas_4_sem = sub
+        
+        dow_means = df_ultimas_4_sem.groupby(df_ultimas_4_sem[col_fecha].dt.weekday)[col_calls].mean()
+        promedio_global = dow_means.mean()
+        
+        dow_idx = {}
         for i in range(7):
-            vols_dow = sub[sub[col_fecha].dt.weekday == i][col_calls]
-            vols_dow = vols_dow[vols_dow > 0]
-            vols_list = vols_dow.tail(5).tolist()
-            
-            if len(vols_list) >= 4:
-                vols_list.sort()
-                trimmed_vols = vols_list[1:-1]
-                dow_avg[i] = sum(trimmed_vols) / len(trimmed_vols)
-            elif len(vols_list) > 0:
-                dow_avg[i] = sum(vols_list) / len(vols_list)
+            if i in dow_means and promedio_global > 0:
+                dow_idx[i] = dow_means[i] / promedio_global
             else:
-                dow_avg[i] = sub[col_calls].mean()
+                dow_idx[i] = 1.0
+
+        df_ultimos_14 = sub[sub[col_fecha] > (fecha_max - timedelta(days=14))].copy()
+        if not df_ultimos_14.empty:
+            df_ultimos_14['deseasonalized'] = df_ultimos_14.apply(
+                lambda r: r[col_calls] / dow_idx.get(r[col_fecha].weekday(), 1.0) 
+                if dow_idx.get(r[col_fecha].weekday(), 1.0) > 0 else r[col_calls], 
+                axis=1
+            )
+            recent_level = df_ultimos_14['deseasonalized'].ewm(span=4, adjust=False).mean().iloc[-1]
+        else:
+            recent_level = sub[col_calls].mean()
 
         preds_finales = []
         for d in range(dias_futuros):
             fecha_futura = fecha_inicio_forecast + timedelta(days=d)
             wd = fecha_futura.weekday()
             
-            vol_final = dow_avg.get(wd, sub[col_calls].mean())
+            vol_final = recent_level * dow_idx.get(wd, 1.0)
             if sub[col_calls].mean() < 1.0: vol_final = 0.0
             preds_finales.append(max(0.0, vol_final))
 
@@ -540,19 +559,14 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
     df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_fecha_real - timedelta(days=28))]
     if df_reciente.empty: df_reciente = df_filtrado.copy()
     
-    perfil_intradia = df_reciente.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
+    perfil_global = df_reciente.groupby([col_camp, 'Inter_Clean']).agg(
         total_calls=(col_calls, 'sum'),
         avg_aht=(col_aht, lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 0)
     ).reset_index()
-
-    totales_dia = perfil_intradia.groupby([col_camp, 'Dia_Semana_Clean'])['total_calls'].transform('sum')
-    perfil_intradia['weight'] = np.where(totales_dia > 0, perfil_intradia['total_calls'] / totales_dia, 0)
-    mapa_perfil = {(r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean']): {'weight': r['weight'], 'aht': r['avg_aht']} for _, r in perfil_intradia.iterrows()}
-
-    perfil_global = df_reciente.groupby([col_camp, 'Inter_Clean']).agg(total_calls=(col_calls, 'sum')).reset_index()
+    
     totales_global = perfil_global.groupby([col_camp])['total_calls'].transform('sum')
     perfil_global['weight'] = np.where(totales_global > 0, perfil_global['total_calls'] / totales_global, 0)
-    mapa_perfil_global = {(r[col_camp], r['Inter_Clean']): r['weight'] for _, r in perfil_global.iterrows()}
+    mapa_perfil_global = {(r[col_camp], r['Inter_Clean']): {'weight': r['weight'], 'aht': r['avg_aht']} for _, r in perfil_global.iterrows()}
     
     todos_los_intervalos_crudos = [f"{int(h):02d}:{int(m):02d}" for h in range(24) for m in (0, 30)]
     intervalos_operativos_por_camp = {camp: [i for i in todos_los_intervalos_crudos if esta_en_ventana_servicio(camp, i)] for camp in campanas_unicas}
@@ -575,9 +589,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
 
             pesos_crudos = []
             for inter in intervalos_validos:
-                w = mapa_perfil.get((camp, nombre_dia, inter), {}).get('weight', 0.0)
-                if w == 0.0:
-                    w = mapa_perfil_global.get((camp, inter), 0.0)
+                w = mapa_perfil_global.get((camp, inter), {}).get('weight', 0.0)
                 pesos_crudos.append(w)
 
             suma_pesos = sum(pesos_crudos)
@@ -599,7 +611,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
                 calls_int = floor_calls[idx_inter]
                 calls_float = exact_calls[idx_inter] 
 
-                info_p = mapa_perfil.get((camp, nombre_dia, inter), {})
+                info_p = mapa_perfil_global.get((camp, inter), {})
                 aht_real = info_p.get('aht', 0.0)
                 
                 if aht_real > 0 and not pd.isna(aht_real):
@@ -713,28 +725,38 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        # PROMEDIO OLÍMPICO (Trimmed Mean)
-        dow_avg = {}
+        fecha_max = sub[col_fecha].max()
+        
+        df_ultimas_4_sem = sub[sub[col_fecha] > (fecha_max - timedelta(days=28))]
+        if df_ultimas_4_sem.empty: df_ultimas_4_sem = sub
+        
+        dow_means = df_ultimas_4_sem.groupby(df_ultimas_4_sem[col_fecha].dt.weekday)[col_calls].mean()
+        promedio_global = dow_means.mean()
+        
+        dow_idx = {}
         for i in range(7):
-            vols_dow = sub[sub[col_fecha].dt.weekday == i][col_calls]
-            vols_dow = vols_dow[vols_dow > 0]
-            vols_list = vols_dow.tail(5).tolist()
-            
-            if len(vols_list) >= 4:
-                vols_list.sort()
-                trimmed_vols = vols_list[1:-1]
-                dow_avg[i] = sum(trimmed_vols) / len(trimmed_vols)
-            elif len(vols_list) > 0:
-                dow_avg[i] = sum(vols_list) / len(vols_list)
+            if i in dow_means and promedio_global > 0:
+                dow_idx[i] = dow_means[i] / promedio_global
             else:
-                dow_avg[i] = sub[col_calls].mean()
+                dow_idx[i] = 1.0
+
+        df_ultimos_14 = sub[sub[col_fecha] > (fecha_max - timedelta(days=14))].copy()
+        if not df_ultimos_14.empty:
+            df_ultimos_14['deseasonalized'] = df_ultimos_14.apply(
+                lambda r: r[col_calls] / dow_idx.get(r[col_fecha].weekday(), 1.0) 
+                if dow_idx.get(r[col_fecha].weekday(), 1.0) > 0 else r[col_calls], 
+                axis=1
+            )
+            recent_level = df_ultimos_14['deseasonalized'].ewm(span=4, adjust=False).mean().iloc[-1]
+        else:
+            recent_level = sub[col_calls].mean()
 
         preds_finales = []
         for d in range(dias_futuros):
             fecha_futura = fecha_inicio_forecast + timedelta(days=d)
             wd = fecha_futura.weekday()
             
-            vol_final = dow_avg.get(wd, sub[col_calls].mean())
+            vol_final = recent_level * dow_idx.get(wd, 1.0)
             if sub[col_calls].mean() < 1.0: vol_final = 0.0
             preds_finales.append(max(0.0, vol_final))
 
@@ -746,19 +768,14 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
     df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_fecha_real - timedelta(days=28))]
     if df_reciente.empty: df_reciente = df_filtrado.copy()
     
-    perfil_intradia = df_reciente.groupby([col_camp, 'Dia_Semana_Clean', 'Inter_Clean']).agg(
+    perfil_global = df_reciente.groupby([col_camp, 'Inter_Clean']).agg(
         total_calls=(col_calls, 'sum'),
         avg_aht=(col_aht, lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 0)
     ).reset_index()
-
-    totales_dia = perfil_intradia.groupby([col_camp, 'Dia_Semana_Clean'])['total_calls'].transform('sum')
-    perfil_intradia['weight'] = np.where(totales_dia > 0, perfil_intradia['total_calls'] / totales_dia, 0)
-    mapa_perfil = {(r[col_camp], r['Dia_Semana_Clean'], r['Inter_Clean']): {'weight': r['weight'], 'aht': r['avg_aht']} for _, r in perfil_intradia.iterrows()}
-
-    perfil_global = df_reciente.groupby([col_camp, 'Inter_Clean']).agg(total_calls=(col_calls, 'sum')).reset_index()
+    
     totales_global = perfil_global.groupby([col_camp])['total_calls'].transform('sum')
     perfil_global['weight'] = np.where(totales_global > 0, perfil_global['total_calls'] / totales_global, 0)
-    mapa_perfil_global = {(r[col_camp], r['Inter_Clean']): r['weight'] for _, r in perfil_global.iterrows()}
+    mapa_perfil_global = {(r[col_camp], r['Inter_Clean']): {'weight': r['weight'], 'aht': r['avg_aht']} for _, r in perfil_global.iterrows()}
     
     todos_los_intervalos_crudos = [f"{int(h):02d}:{int(m):02d}" for h in range(24) for m in (0, 30)]
     intervalos_operativos_por_camp = {camp: [i for i in todos_los_intervalos_crudos if esta_en_ventana_servicio(camp, i)] for camp in campanas_unicas}
@@ -781,9 +798,7 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
 
             pesos_crudos = []
             for inter in intervalos_validos:
-                w = mapa_perfil.get((camp, nombre_dia, inter), {}).get('weight', 0.0)
-                if w == 0.0:
-                    w = mapa_perfil_global.get((camp, inter), 0.0)
+                w = mapa_perfil_global.get((camp, inter), {}).get('weight', 0.0)
                 pesos_crudos.append(w)
 
             suma_pesos = sum(pesos_crudos)
@@ -805,7 +820,7 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
                 calls_int = floor_calls[idx_inter]
                 calls_float = exact_calls[idx_inter] 
 
-                info_p = mapa_perfil.get((camp, nombre_dia, inter), {})
+                info_p = mapa_perfil_global.get((camp, inter), {})
                 aht_real = info_p.get('aht', 0.0)
                 
                 if aht_real > 0 and not pd.isna(aht_real):
