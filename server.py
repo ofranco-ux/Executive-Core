@@ -301,29 +301,31 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
+        # --- LÓGICA HIPER-REACTIVA ---
         dow_avg = {}
         for i in range(7):
             vols_dow = sub[sub[col_fecha].dt.weekday == i][col_calls]
             vols_dow = vols_dow[vols_dow > 0]
-            vols_list = vols_dow.tail(4).tolist()
+            vols_list = vols_dow.tail(2).tolist()
             
-            if len(vols_list) == 4:
-                dow_avg[i] = (vols_list[3] * 0.50) + (vols_list[2] * 0.25) + (vols_list[1] * 0.15) + (vols_list[0] * 0.10)
-            elif len(vols_list) > 0:
-                dow_avg[i] = sum(vols_list) / len(vols_list)
+            if len(vols_list) == 2:
+                dow_avg[i] = (vols_list[1] * 0.80) + (vols_list[0] * 0.20)
+            elif len(vols_list) == 1:
+                dow_avg[i] = vols_list[0]
             else:
                 dow_avg[i] = sub[col_calls].mean()
 
         fecha_max = sub[col_fecha].max()
-        ultimos_14 = sub[(sub[col_fecha] > fecha_max - timedelta(days=14))][col_calls].mean()
-        previos_14 = sub[(sub[col_fecha] > fecha_max - timedelta(days=28)) & (sub[col_fecha] <= fecha_max - timedelta(days=14))][col_calls].mean()
+        ultimos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=7))][col_calls].mean()
+        previos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=14)) & (sub[col_fecha] <= fecha_max - timedelta(days=7))][col_calls].mean()
         
-        if pd.notna(previos_14) and previos_14 > 0 and pd.notna(ultimos_14):
-            trend_rate = ultimos_14 / previos_14
+        if pd.notna(previos_7) and previos_7 > 0 and pd.notna(ultimos_7):
+            trend_rate = ultimos_7 / previos_7
         else:
             trend_rate = 1.0
             
-        trend_rate = max(0.75, min(1.25, trend_rate))
+        trend_rate = max(0.40, min(1.60, trend_rate))
+        # ---------------------------------------------
 
         preds_finales = []
         for d in range(dias_futuros):
@@ -515,29 +517,31 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
+        # --- LÓGICA HIPER-REACTIVA ---
         dow_avg = {}
         for i in range(7):
             vols_dow = sub[sub[col_fecha].dt.weekday == i][col_calls]
             vols_dow = vols_dow[vols_dow > 0]
-            vols_list = vols_dow.tail(4).tolist()
+            vols_list = vols_dow.tail(2).tolist()
             
-            if len(vols_list) == 4:
-                dow_avg[i] = (vols_list[3] * 0.50) + (vols_list[2] * 0.25) + (vols_list[1] * 0.15) + (vols_list[0] * 0.10)
-            elif len(vols_list) > 0:
-                dow_avg[i] = sum(vols_list) / len(vols_list)
+            if len(vols_list) == 2:
+                dow_avg[i] = (vols_list[1] * 0.80) + (vols_list[0] * 0.20)
+            elif len(vols_list) == 1:
+                dow_avg[i] = vols_list[0]
             else:
                 dow_avg[i] = sub[col_calls].mean()
 
         fecha_max = sub[col_fecha].max()
-        ultimos_14 = sub[(sub[col_fecha] > fecha_max - timedelta(days=14))][col_calls].mean()
-        previos_14 = sub[(sub[col_fecha] > fecha_max - timedelta(days=28)) & (sub[col_fecha] <= fecha_max - timedelta(days=14))][col_calls].mean()
+        ultimos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=7))][col_calls].mean()
+        previos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=14)) & (sub[col_fecha] <= fecha_max - timedelta(days=7))][col_calls].mean()
         
-        if pd.notna(previos_14) and previos_14 > 0 and pd.notna(ultimos_14):
-            trend_rate = ultimos_14 / previos_14
+        if pd.notna(previos_7) and previos_7 > 0 and pd.notna(ultimos_7):
+            trend_rate = ultimos_7 / previos_7
         else:
             trend_rate = 1.0
             
-        trend_rate = max(0.75, min(1.25, trend_rate))
+        trend_rate = max(0.40, min(1.60, trend_rate))
+        # ---------------------------------------------
 
         preds_finales = []
         for d in range(dias_futuros):
@@ -728,29 +732,31 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
+        # --- LÓGICA HIPER-REACTIVA ---
         dow_avg = {}
         for i in range(7):
             vols_dow = sub[sub[col_fecha].dt.weekday == i][col_calls]
             vols_dow = vols_dow[vols_dow > 0]
-            vols_list = vols_dow.tail(4).tolist()
+            vols_list = vols_dow.tail(2).tolist()
             
-            if len(vols_list) == 4:
-                dow_avg[i] = (vols_list[3] * 0.50) + (vols_list[2] * 0.25) + (vols_list[1] * 0.15) + (vols_list[0] * 0.10)
-            elif len(vols_list) > 0:
-                dow_avg[i] = sum(vols_list) / len(vols_list)
+            if len(vols_list) == 2:
+                dow_avg[i] = (vols_list[1] * 0.80) + (vols_list[0] * 0.20)
+            elif len(vols_list) == 1:
+                dow_avg[i] = vols_list[0]
             else:
                 dow_avg[i] = sub[col_calls].mean()
 
         fecha_max = sub[col_fecha].max()
-        ultimos_14 = sub[(sub[col_fecha] > fecha_max - timedelta(days=14))][col_calls].mean()
-        previos_14 = sub[(sub[col_fecha] > fecha_max - timedelta(days=28)) & (sub[col_fecha] <= fecha_max - timedelta(days=14))][col_calls].mean()
+        ultimos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=7))][col_calls].mean()
+        previos_7 = sub[(sub[col_fecha] > fecha_max - timedelta(days=14)) & (sub[col_fecha] <= fecha_max - timedelta(days=7))][col_calls].mean()
         
-        if pd.notna(previos_14) and previos_14 > 0 and pd.notna(ultimos_14):
-            trend_rate = ultimos_14 / previos_14
+        if pd.notna(previos_7) and previos_7 > 0 and pd.notna(ultimos_7):
+            trend_rate = ultimos_7 / previos_7
         else:
             trend_rate = 1.0
             
-        trend_rate = max(0.75, min(1.25, trend_rate))
+        trend_rate = max(0.40, min(1.60, trend_rate))
+        # ---------------------------------------------
 
         preds_finales = []
         for d in range(dias_futuros):
