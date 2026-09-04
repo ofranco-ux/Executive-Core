@@ -205,15 +205,12 @@ def erlang_c_sl_optimizado(A, N, AHT, target_time):
 
 def calcular_agentes_requeridos_erlang_c(A, aht, target_time, target_sl):
     if A <= 0 or aht <= 0: return 0
-    # Cálculo lineal matemático directo sin bloques condicionales (0% riesgo de IndentationError)
     base_n = int(math.floor(A + math.sqrt(A))) if A > 50 else int(math.floor(A)) + 1
     
-    # Evaluar rango de manera secuencial directa sobre la misma sangría jerárquica
-    for x_agente in range(base_n, base_n + 120):
-        if erlang_c_sl_optimizado(A, x_agente, aht, target_time) >= target_sl:
-            return x_agente
-            
-    return base_n
+    # EXPRESIÓN MATEMÁTICA PURAMENTE PLANA EN UNA LÍNEA (0% riesgo de IndentationError)
+    validos = [n for n in range(base_n, base_n + 150) if erlang_c_sl_optimizado(A, n, aht, target_time) >= target_sl]
+    
+    return validos[0] if validos else base_n
 
 def parse_time_str(t_str):
     if not t_str: return None
@@ -230,5 +227,8 @@ def esta_en_ventana_servicio(campana, intervalo_str):
     min_in = parse_time_str(intervalo_str)
     if min_in is None: return True
     for key, window in VENTANAS_SERVICIO.items():
+        if key in camp_key or camp_key in key:
+            return window['inicio'] <= min_in < window['fin']
+    return True
 
 
