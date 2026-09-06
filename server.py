@@ -369,7 +369,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             for i in range(diff):
                 if i < len(remainders): floor_calls[remainders[i][1]] += 1
 
-            aht_global = aht_global_campana.get(camp, 600.0)
+            aht_global = aht_global_campana.get(camp, 180.0)
             for idx_inter, inter in enumerate(intervalos_validos):
                 calls_int = floor_calls[idx_inter]
                 calls_float = exact_calls[idx_inter] 
@@ -385,12 +385,11 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 if calls_int <= 0:
                     aht = 0.0
 
-                aht_efectivo = aht / max(1.0, concurrencia)
-                a_erlang_raw = (calls_float * aht_efectivo) / 1800.0 if (aht_efectivo > 0 and calls_float > 0) else 0.0
+                # LÓGICA CORREGIDA PARA INBOUND (Sin concurrencia)
+                a_erlang = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
+                req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls_float > 0 else 0
+                req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
                 
-                req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang_raw, aht_efectivo, target_time, target_sl) if calls_float > 0 else 0
-                req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0.0
-
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
                 tot_camp = roster_total_camp.get(str(camp), 0)
                 tot_camp_dia = roster_total_dia_camp.get((str(camp), nombre_dia.capitalize()), 0)
@@ -578,9 +577,10 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
                 if calls_int <= 0:
                     aht = 0.0
 
+                # LÓGICA CORREGIDA PARA OUTBOUND (Sin concurrencia ni Erlang)
                 req_ftes = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
-                req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0.0
-
+                req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
+                
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
                 tot_camp = roster_total_camp.get(str(camp), 0)
                 tot_camp_dia = roster_total_dia_camp.get((str(camp), nombre_dia.capitalize()), 0)
@@ -768,7 +768,10 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
                 if calls_int <= 0:
                     aht = 0.0
 
-                req_ftes = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
+                aht_efectivo = aht / max(1.0, concurrencia)
+                a_erlang_raw = (calls_float * aht_efectivo) / 1800.0 if (aht_efectivo > 0 and calls_float > 0) else 0.0
+                
+                req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang_raw, aht_efectivo, target_time, target_sl) if calls_float > 0 else 0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0.0
 
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
