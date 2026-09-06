@@ -89,7 +89,7 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
     
     if len(df_train) < 14:
         promedio_seguro = df_diario_campana[col_calls].mean()
-        return [max(0.0, promedio_seguro)] * dias_futuros
+        return [max(0.0, float(promedio_seguro))] * dias_futuros
 
     features = ['lag_1', 'lag_7', 'lag_14', 'rolling_mean_7', 'rolling_mean_14', 
                 'dia_semana', 'dia_mes', 'es_quincena', 'es_festivo']
@@ -128,7 +128,8 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
             'es_festivo': 1 if fecha_actual in festivos_pais else 0
         }])
         
-        pred_vol = float(modelo.predict(X_pred[features]))
+        # AQUÍ ESTÁ LA CORRECCIÓN: Agregar [0] para extraer el escalar correctamente
+        pred_vol = float(modelo.predict(X_pred[features])[0])
         pred_vol = max(0.0, pred_vol)
         preds_finales.append(pred_vol)
         
@@ -400,7 +401,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        # Invocamos el modelo ML robusto
         preds_finales = pronosticar_con_machine_learning(sub, dias_futuros, fecha_inicio_forecast, col_fecha, col_calls)
         predicciones_futuras[camp] = preds_finales
 
@@ -410,7 +410,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_fecha_real - timedelta(days=28))]
     if df_reciente.empty: df_reciente = df_filtrado.copy()
     
-    # CURVA GLOBAL GAUSSIANA (A prueba de brincos)
     perfil_global = df_reciente.groupby([col_camp, 'Inter_Clean']).agg(
         total_calls=(col_calls, 'sum'),
         avg_aht=(col_aht, lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 0)
