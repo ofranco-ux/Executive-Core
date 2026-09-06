@@ -9,6 +9,10 @@ from flask_cors import CORS
 import pandas as pd
 import numpy as np
 
+# --- LIBRERÍAS DE MACHINE LEARNING ---
+import holidays
+from sklearn.ensemble import RandomForestRegressor
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_FILE_IN = os.path.join(BASE_DIR, 'forecast_cache_in.json')
 CACHE_FILE_OUT = os.path.join(BASE_DIR, 'forecast_cache_out.json')
@@ -38,6 +42,109 @@ VENTANAS_SERVICIO = {
     'retenciones liverpool': {'inicio': 9 * 60, 'fin': 20 * 60}
 }
 
+# =====================================================================
+# 🧠 MOTOR DE MACHINE LEARNING ROBUSTO (Con Filtro IQR y Variables Exógenas)
+# =====================================================================
+def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inicio_forecast, col_fecha, col_calls):
+    df_ml = df_diario_campana.sort_values(col_fecha).copy()
+    
+    anos_presentes = list(df_ml[col_fecha].dt.year.unique())
+    anos_presentes.append(fecha_inicio_forecast.year)
+    anos_presentes.append((fecha_inicio_forecast + timedelta(days=dias_futuros)).year)
+    anos_unicos = list(set(anos_presentes))
+    
+    festivos_pais = holidays.CountryHoliday('MX', years=anos_unicos)
+    
+    df_ml['dia_semana'] = df_ml[col_fecha].dt.weekday
+    
+    # --- FILTRO ANTI-ANOMALÍAS (Rango Intercuartílico por día de la semana) ---
+    def cap_outliers(group):
+        q1 = group.quantile(0.25)
+        q3 = group.quantile(0.75)
+        iqr = q3 - q1
+        lower = q1 - 1.5 * iqr
+        upper = q3 + 1.5 * iqr 
+        return np.clip(group, lower, upper)
+        
+    if len(df_ml) >= 14:
+        df_ml['calls_smooth'] = df_ml.groupby('dia_semana')[col_calls].transform(cap_outliers)
+    else:
+        df_ml['calls_smooth'] = df_ml[col_calls]
+    # -------------------------------------------------------------------------
+
+    # Usamos la variable "suavizada" para que el modelo aprenda tendencias limpias
+    df_ml['lag_1'] = df_ml['calls_smooth'].shift(1)
+    df_ml['lag_7'] = df_ml['calls_smooth'].shift(7)
+    df_ml['lag_14'] = df_ml['calls_smooth'].shift(14)
+    
+    df_ml['rolling_mean_7'] = df_ml['calls_smooth'].shift(1).rolling(window=7, min_periods=1).mean()
+    df_ml['rolling_mean_14'] = df_ml['calls_smooth'].shift(1).rolling(window=14, min_periods=1).mean()
+    
+    df_ml['dia_mes'] = df_ml[col_fecha].dt.day
+    # Identificar quincenas y cierres de mes explícitamente
+    df_ml['es_quincena'] = df_ml['dia_mes'].apply(lambda x: 1 if x in [14, 15, 16, 30, 31, 1] else 0)
+    df_ml['es_festivo'] = df_ml[col_fecha].apply(lambda x: 1 if x in festivos_pais else 0)
+    
+    df_train = df_ml.dropna().copy()
+    
+    if len(df_train) < 14:
+        promedio_seguro = df_diario_campana[col_calls].mean()
+        return [max(0.0, promedio_seguro)] * dias_futuros
+
+    features = ['lag_1', 'lag_7', 'lag_14', 'rolling_mean_7', 'rolling_mean_14', 
+                'dia_semana', 'dia_mes', 'es_quincena', 'es_festivo']
+    
+    X_train = df_train[features]
+    # Entrenamos predecir el volumen limpio (ignora el ruido)
+    y_train = df_train['calls_smooth'] 
+    
+    # max_depth=7 evita el sobreajuste (overfitting) a patrones raros
+    modelo = RandomForestRegressor(n_estimators=100, random_state=42, max_depth=7)
+    modelo.fit(X_train, y_train)
+    
+    historial_simulado = df_ml.to_dict('records')
+    preds_finales = []
+    fecha_actual = fecha_inicio_forecast
+    
+    for d in range(dias_futuros):
+        # Simulamos el avance del tiempo usando nuestras propias predicciones
+        vols_smooth = [r.get('calls_smooth', r[col_calls]) for r in historial_simulado]
+        
+        lag_1_val = vols_smooth[-1]
+        lag_7_val = vols_smooth[-7] if len(vols_smooth) >= 7 else lag_1_val
+        lag_14_val = vols_smooth[-14] if len(vols_smooth) >= 14 else lag_7_val
+        rm_7_val = np.mean(vols_smooth[-7:]) if len(vols_smooth) >= 7 else np.mean(vols_smooth)
+        rm_14_val = np.mean(vols_smooth[-14:]) if len(vols_smooth) >= 14 else np.mean(vols_smooth)
+        
+        X_pred = pd.DataFrame([{
+            'lag_1': lag_1_val,
+            'lag_7': lag_7_val,
+            'lag_14': lag_14_val,
+            'rolling_mean_7': rm_7_val,
+            'rolling_mean_14': rm_14_val,
+            'dia_semana': fecha_actual.weekday(),
+            'dia_mes': fecha_actual.day,
+            'es_quincena': 1 if fecha_actual.day in [14, 15, 16, 30, 31, 1] else 0,
+            'es_festivo': 1 if fecha_actual in festivos_pais else 0
+        }])
+        
+        pred_vol = float(modelo.predict(X_pred[features]))
+        pred_vol = max(0.0, pred_vol)
+        preds_finales.append(pred_vol)
+        
+        # Retroalimentar el historial para predecir mañana
+        historial_simulado.append({
+            col_fecha: fecha_actual, 
+            col_calls: pred_vol,
+            'calls_smooth': pred_vol
+        })
+        fecha_actual += timedelta(days=1)
+        
+    return preds_finales
+
+# =====================================================================
+# ⚙️ MÓDULOS AUXILIARES Y DISTRIBUCIÓN
+# =====================================================================
 def buscar_archivo_excel():
     if os.path.exists(EXCEL_DEFAULT): return EXCEL_DEFAULT
     try:
@@ -293,30 +400,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        dow_avg = {}
-        for i in range(7):
-            vols_dow = sub[(sub[col_fecha].dt.weekday == i) & (sub[col_calls] > 0)][col_calls]
-            vols_list = vols_dow.tail(5).tolist()
-            
-            if len(vols_list) >= 4:
-                vols_list.sort()
-                trimmed = vols_list[1:-1]
-                dow_avg[i] = float(np.mean(trimmed))
-            elif len(vols_list) > 0:
-                dow_avg[i] = float(np.mean(vols_list))
-            else:
-                dow_avg[i] = float(sub[col_calls].mean())
-
-        preds_finales = []
-        for d in range(dias_futuros):
-            fecha_futura = fecha_inicio_forecast + timedelta(days=d)
-            wd = fecha_futura.weekday()
-            
-            vol_final = dow_avg.get(wd, sub[col_calls].mean())
-            if pd.isna(vol_final) or sub[col_calls].mean() < 1.0: 
-                vol_final = 0.0
-            preds_finales.append(max(0.0, float(vol_final)))
-
+        # Invocamos el modelo ML robusto
+        preds_finales = pronosticar_con_machine_learning(sub, dias_futuros, fecha_inicio_forecast, col_fecha, col_calls)
         predicciones_futuras[camp] = preds_finales
 
     df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
@@ -325,6 +410,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df_reciente = df_filtrado[df_filtrado[col_fecha] >= (max_fecha_real - timedelta(days=28))]
     if df_reciente.empty: df_reciente = df_filtrado.copy()
     
+    # CURVA GLOBAL GAUSSIANA (A prueba de brincos)
     perfil_global = df_reciente.groupby([col_camp, 'Inter_Clean']).agg(
         total_calls=(col_calls, 'sum'),
         avg_aht=(col_aht, lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 0)
@@ -385,9 +471,7 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
                 if calls_int <= 0:
                     aht = 0.0
 
-                # LÓGICA CORREGIDA PARA INBOUND (Sin concurrencia)
-                a_erlang = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
-                req_ftes = calcular_agentes_requeridos_erlang_c(a_erlang, aht, target_time, target_sl) if calls_float > 0 else 0
+                req_ftes = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
                 
                 hc_roster = roster_coverage.get((str(camp), nombre_dia.capitalize(), inter), 0)
@@ -485,30 +569,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        dow_avg = {}
-        for i in range(7):
-            vols_dow = sub[(sub[col_fecha].dt.weekday == i) & (sub[col_calls] > 0)][col_calls]
-            vols_list = vols_dow.tail(5).tolist()
-            
-            if len(vols_list) >= 4:
-                vols_list.sort()
-                trimmed = vols_list[1:-1]
-                dow_avg[i] = float(np.mean(trimmed))
-            elif len(vols_list) > 0:
-                dow_avg[i] = float(np.mean(vols_list))
-            else:
-                dow_avg[i] = float(sub[col_calls].mean())
-
-        preds_finales = []
-        for d in range(dias_futuros):
-            fecha_futura = fecha_inicio_forecast + timedelta(days=d)
-            wd = fecha_futura.weekday()
-            
-            vol_final = dow_avg.get(wd, sub[col_calls].mean())
-            if pd.isna(vol_final) or sub[col_calls].mean() < 1.0: 
-                vol_final = 0.0
-            preds_finales.append(max(0.0, float(vol_final)))
-
+        preds_finales = pronosticar_con_machine_learning(sub, dias_futuros, fecha_inicio_forecast, col_fecha, col_calls)
         predicciones_futuras[camp] = preds_finales
 
     df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
@@ -577,7 +638,6 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
                 if calls_int <= 0:
                     aht = 0.0
 
-                # LÓGICA CORREGIDA PARA OUTBOUND (Sin concurrencia ni Erlang)
                 req_ftes = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
                 req_hc = math.ceil(req_ftes / factor_asistencia) if req_ftes > 0 else 0
                 
@@ -676,30 +736,7 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
         sub = df_diario[df_diario[col_camp] == camp].sort_values(col_fecha).reset_index(drop=True)
         if sub.empty: continue
         
-        dow_avg = {}
-        for i in range(7):
-            vols_dow = sub[(sub[col_fecha].dt.weekday == i) & (sub[col_calls] > 0)][col_calls]
-            vols_list = vols_dow.tail(5).tolist()
-            
-            if len(vols_list) >= 4:
-                vols_list.sort()
-                trimmed = vols_list[1:-1]
-                dow_avg[i] = float(np.mean(trimmed))
-            elif len(vols_list) > 0:
-                dow_avg[i] = float(np.mean(vols_list))
-            else:
-                dow_avg[i] = float(sub[col_calls].mean())
-
-        preds_finales = []
-        for d in range(dias_futuros):
-            fecha_futura = fecha_inicio_forecast + timedelta(days=d)
-            wd = fecha_futura.weekday()
-            
-            vol_final = dow_avg.get(wd, sub[col_calls].mean())
-            if pd.isna(vol_final) or sub[col_calls].mean() < 1.0: 
-                vol_final = 0.0
-            preds_finales.append(max(0.0, float(vol_final)))
-
+        preds_finales = pronosticar_con_machine_learning(sub, dias_futuros, fecha_inicio_forecast, col_fecha, col_calls)
         predicciones_futuras[camp] = preds_finales
 
     df['En_Ventana'] = [esta_en_ventana_servicio(c, i) for c, i in zip(df[col_camp], df['Inter_Clean'])]
