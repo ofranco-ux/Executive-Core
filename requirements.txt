@@ -5,3 +5,4 @@ flask-cors
 openpyxl
 holidays
 scikit-learn
+gunicorn
