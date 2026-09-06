@@ -593,10 +593,10 @@
                     debouncedActualizarGrafica();
                     guardarEstadoParametros();
                 } else {
-                    alert("Error: Asegúrate de que 'historico.xlsx' esté cargado.");
+                    alert("Error en Servidor Python: " + (globalData.error || "Asegúrate de que 'historico.xlsx' esté cargado."));
                 }
             } catch (e) {
-                alert("Error de conexión: " + e.message);
+                alert("Error de conexión con el Servidor: " + e.message);
             } finally {
                 btn.disabled = false;
                 btn.innerText = "▶ RUN PLAN";
