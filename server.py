@@ -88,11 +88,17 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
     fecha_actual = fecha_inicio_forecast
     
     for d in range(dias_futuros):
-        vols_smooth = [r.get('calls_smooth', r[col_calls]) for r in historial_simulado]
+        # Usamos .get(col_calls, 0) para evitar KeyError si la columna no existía en el diccionario temporal
+        vols_smooth = [r.get('calls_smooth', r.get(col_calls, 0)) for r in historial_simulado]
+        
+        lag_7_val = vols_smooth[-7] if len(vols_smooth) >= 7 else vols_smooth[-1]
+        lag_14_val = vols_smooth[-14] if len(vols_smooth) >= 14 else lag_7_val
+        rm_7_val = np.mean(vols_smooth[-7:]) if len(vols_smooth) >= 7 else np.mean(vols_smooth)
+        
         X_pred = pd.DataFrame([{
-            'lag_7': vols_smooth[-7] if len(vols_smooth) >= 7 else vols_smooth[-1],
-            'lag_14': vols_smooth[-14] if len(vols_smooth) >= 14 else (vols_smooth[-7] if len(vols_smooth) >= 7 else vols_smooth[-1]),
-            'rolling_mean_7': np.mean(vols_smooth[-7:]) if len(vols_smooth) >= 7 else np.mean(vols_smooth),
+            'lag_7': lag_7_val,
+            'lag_14': lag_14_val,
+            'rolling_mean_7': rm_7_val,
             'dia_semana': fecha_actual.weekday(),
             'dia_mes': fecha_actual.day,
             'es_quincena': 1 if fecha_actual.day in [14, 15, 16, 30, 31, 1] else 0,
@@ -101,25 +107,27 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
         
         pred_vol = float(modelo.predict(X_pred[features])[0])
         preds_ml_puras.append(max(0.0, pred_vol))
-        historial_simulado.append({'calls_smooth': pred_vol})
+        
+        # Agregamos TODAS las llaves necesarias para la siguiente iteración
+        historial_simulado.append({
+            col_fecha: fecha_actual,
+            col_calls: pred_vol,
+            'calls_smooth': pred_vol
+        })
         fecha_actual += timedelta(days=1)
         
     # --- PERFILADOR METICULOSO DE MOMENTUM ---
-    # Diferencia entre Macro-Campañas y Micro-Campañas (El "Filo")
     if vol_promedio_historico < 250:
-        # Micro-campaña (ej. Suburbia): Altamente reactiva a la última semana
         ultimos_7 = df_diario_campana.tail(7)[col_calls].mean()
         previos_14 = df_diario_campana.iloc[-21:-7][col_calls].mean() if len(df_diario_campana) > 14 else ultimos_7
         momentum = (ultimos_7 / previos_14) if previos_14 > 0 else 1.0
-        momentum = max(0.60, min(1.40, momentum)) # Permite cortes drásticos
+        momentum = max(0.60, min(1.40, momentum)) 
     else:
-        # Macro-campaña (ej. Coppel): Más estable, mira la tendencia a 14 días
         ultimos_14 = df_diario_campana.tail(14)[col_calls].mean()
         previos_28 = df_diario_campana.iloc[-42:-14][col_calls].mean() if len(df_diario_campana) > 28 else ultimos_14
         momentum = (ultimos_14 / previos_28) if previos_28 > 0 else 1.0
-        momentum = max(0.85, min(1.15, momentum)) # Candado estabilizador
+        momentum = max(0.85, min(1.15, momentum)) 
         
-    # Aplicamos el filo aprendido al patrón del ML
     preds_finales_ajustadas = [max(0.0, float(p * momentum)) for p in preds_ml_puras]
     return preds_finales_ajustadas
 
@@ -344,6 +352,12 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
     col_fecha = encontrar_columna(df_raw, ['fecha', 'date'])
 
+    # Protección de columnas por si no se detectan automáticamente
+    if not col_camp: col_camp = df_raw.columns[0]
+    if not col_fecha: col_fecha = df_raw.columns[1]
+    if not col_inter: col_inter = df_raw.columns[2]
+    if not col_calls: col_calls = df_raw.columns[3]
+
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], dayfirst=True, errors='coerce').dt.normalize()
     df_raw = df_raw.dropna(subset=[col_fecha])
@@ -439,13 +453,17 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
             for i in range(diff):
                 if i < len(remainders): floor_calls[remainders[i][1]] += 1
 
+            aht_global = aht_global_campana.get(camp, 180.0)
             for idx_inter, inter in enumerate(intervalos_validos):
                 calls_int = floor_calls[idx_inter]
                 calls_float = exact_calls[idx_inter] 
 
                 info_p = mapa_dia.get((camp, nombre_dia, inter), {})
-                aht = info_p.get('aht', 180.0)
-                if aht <= 0 or pd.isna(aht): aht = 180.0
+                aht_real = info_p.get('aht', 0.0)
+                
+                if aht_real > 0 and not pd.isna(aht_real): aht = aht_real
+                else: aht = aht_global
+
                 if calls_int <= 0: aht = 0.0
 
                 req_ftes = (calls_float * aht) / 1800.0 if (aht > 0 and calls_float > 0) else 0.0
@@ -508,6 +526,12 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
     col_camp = encontrar_columna(df_raw, ['campaña', 'campana', 'skill'])
     col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
     col_fecha = encontrar_columna(df_raw, ['fecha', 'date'])
+
+    # Protección de columnas para Outbound
+    if not col_camp: col_camp = df_raw.columns[3]
+    if not col_fecha: col_fecha = df_raw.columns[0]
+    if not col_inter: col_inter = df_raw.columns[4]
+    if not col_calls: col_calls = df_raw.columns[5]
 
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], dayfirst=True, errors='coerce').dt.normalize()
@@ -604,6 +628,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
             for i in range(diff):
                 if i < len(remainders): floor_calls[remainders[i][1]] += 1
 
+            aht_global = aht_global_campana.get(camp, 180.0)
             for idx_inter, inter in enumerate(intervalos_validos):
                 calls_int = floor_calls[idx_inter]
                 calls_float = exact_calls[idx_inter] 
@@ -612,7 +637,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
                 aht_real = info_p.get('aht', 0.0)
                 
                 if aht_real > 0 and not pd.isna(aht_real): aht = aht_real
-                else: aht = 180.0
+                else: aht = aht_global
 
                 if calls_int <= 0: aht = 0.0
 
@@ -677,6 +702,12 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
     col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
     col_fecha = encontrar_columna(df_raw, ['fecha', 'date'])
 
+    # Protección de columnas para Chat
+    if not col_camp: col_camp = df_raw.columns[3]
+    if not col_fecha: col_fecha = df_raw.columns[0]
+    if not col_inter: col_inter = df_raw.columns[4]
+    if not col_calls: col_calls = df_raw.columns[5]
+
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], dayfirst=True, errors='coerce').dt.normalize()
     df_raw = df_raw.dropna(subset=[col_fecha])
@@ -703,6 +734,8 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
     df['Dia_Semana_Clean'] = df[col_fecha].dt.weekday.apply(lambda w: dias_espanol[w])
 
     fecha_inicio_forecast = max_fecha_real + timedelta(days=1)
+    aht_global_campana = df.groupby(col_camp)[col_aht].apply(lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 600.0).to_dict()
+
     df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
     campanas_unicas = df[col_camp].unique()
 
@@ -772,6 +805,7 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
             for i in range(diff):
                 if i < len(remainders): floor_calls[remainders[i][1]] += 1
 
+            aht_global = aht_global_campana.get(camp, 600.0)
             for idx_inter, inter in enumerate(intervalos_validos):
                 calls_int = floor_calls[idx_inter]
                 calls_float = exact_calls[idx_inter] 
@@ -780,7 +814,7 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
                 aht_real = info_p.get('aht', 0.0)
                 
                 if aht_real > 0 and not pd.isna(aht_real): aht = aht_real
-                else: aht = 600.0
+                else: aht = aht_global
 
                 if calls_int <= 0: aht = 0.0
 
