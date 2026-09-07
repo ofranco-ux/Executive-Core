@@ -56,7 +56,6 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
     festivos_pais = holidays.CountryHoliday('MX', years=anos_unicos)
     df_ml['dia_semana'] = df_ml[col_fecha].dt.weekday
     
-    # Suavizado inteligente
     def cap_outliers(group):
         if len(group) < 4: return group
         q1, q3 = group.quantile(0.25), group.quantile(0.75)
@@ -88,7 +87,6 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
     fecha_actual = fecha_inicio_forecast
     
     for d in range(dias_futuros):
-        # Usamos .get(col_calls, 0) para evitar KeyError si la columna no existía en el diccionario temporal
         vols_smooth = [r.get('calls_smooth', r.get(col_calls, 0)) for r in historial_simulado]
         
         lag_7_val = vols_smooth[-7] if len(vols_smooth) >= 7 else vols_smooth[-1]
@@ -108,7 +106,6 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
         pred_vol = float(modelo.predict(X_pred[features])[0])
         preds_ml_puras.append(max(0.0, pred_vol))
         
-        # Agregamos TODAS las llaves necesarias para la siguiente iteración
         historial_simulado.append({
             col_fecha: fecha_actual,
             col_calls: pred_vol,
@@ -116,7 +113,6 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
         })
         fecha_actual += timedelta(days=1)
         
-    # --- PERFILADOR METICULOSO DE MOMENTUM ---
     if vol_promedio_historico < 250:
         ultimos_7 = df_diario_campana.tail(7)[col_calls].mean()
         previos_14 = df_diario_campana.iloc[-21:-7][col_calls].mean() if len(df_diario_campana) > 14 else ultimos_7
@@ -352,12 +348,6 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
     col_fecha = encontrar_columna(df_raw, ['fecha', 'date'])
 
-    # Protección de columnas por si no se detectan automáticamente
-    if not col_camp: col_camp = df_raw.columns[0]
-    if not col_fecha: col_fecha = df_raw.columns[1]
-    if not col_inter: col_inter = df_raw.columns[2]
-    if not col_calls: col_calls = df_raw.columns[3]
-
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], dayfirst=True, errors='coerce').dt.normalize()
     df_raw = df_raw.dropna(subset=[col_fecha])
@@ -384,6 +374,8 @@ def procesar_archivo_excel(file_source, target_sl=80.0, target_time=20.0, merma=
     df['Dia_Semana_Clean'] = df[col_fecha].dt.weekday.apply(lambda w: dias_espanol[w])
 
     fecha_inicio_forecast = max_fecha_real + timedelta(days=1)
+    aht_global_campana = df.groupby(col_camp)[col_aht].apply(lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 180.0).to_dict()
+
     df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
     campanas_unicas = df[col_camp].unique()
 
@@ -527,12 +519,6 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
     col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
     col_fecha = encontrar_columna(df_raw, ['fecha', 'date'])
 
-    # Protección de columnas para Outbound
-    if not col_camp: col_camp = df_raw.columns[3]
-    if not col_fecha: col_fecha = df_raw.columns[0]
-    if not col_inter: col_inter = df_raw.columns[4]
-    if not col_calls: col_calls = df_raw.columns[5]
-
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], dayfirst=True, errors='coerce').dt.normalize()
     df_raw = df_raw.dropna(subset=[col_fecha])
@@ -559,6 +545,8 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
     df['Dia_Semana_Clean'] = df[col_fecha].dt.weekday.apply(lambda w: dias_espanol[w])
 
     fecha_inicio_forecast = max_fecha_real + timedelta(days=1)
+    aht_global_campana = df.groupby(col_camp)[col_aht].apply(lambda x: x[x > 0].mean() if len(x[x > 0]) > 0 else 180.0).to_dict()
+
     df_diario = df.groupby([col_fecha, col_camp])[col_calls].sum().reset_index()
     campanas_unicas = df[col_camp].unique()
 
@@ -701,12 +689,6 @@ def procesar_archivo_chat(file_source, target_sl=80.0, target_time=20.0, merma=0
     col_camp = encontrar_columna(df_raw, ['campaña', 'campana', 'skill'])
     col_inter = encontrar_columna(df_raw, ['intervalo', 'hora', 'time'])
     col_fecha = encontrar_columna(df_raw, ['fecha', 'date'])
-
-    # Protección de columnas para Chat
-    if not col_camp: col_camp = df_raw.columns[3]
-    if not col_fecha: col_fecha = df_raw.columns[0]
-    if not col_inter: col_inter = df_raw.columns[4]
-    if not col_calls: col_calls = df_raw.columns[5]
 
     df_raw[col_camp] = df_raw[col_camp].astype(str).str.strip().str.title()
     df_raw[col_fecha] = pd.to_datetime(df_raw[col_fecha], dayfirst=True, errors='coerce').dt.normalize()
