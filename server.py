@@ -56,10 +56,10 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
     festivos_pais = holidays.CountryHoliday('MX', years=anos_unicos)
     df_ml['dia_semana'] = df_ml[col_fecha].dt.weekday
     
-    # 1. BASE ESTABLE: Promedio Olímpico
+    # 1. BASE ESTABLE: Promedio Olímpico (CORREGIDO EL DF AQUÍ)
     dow_olimpico = {}
     for i in range(7):
-        vols_dow = df_diario_campana[(df_diario_campana['dia_semana'] == i) & (df_diario_campana[col_calls] > 0)][col_calls]
+        vols_dow = df_ml[(df_ml['dia_semana'] == i) & (df_ml[col_calls] > 0)][col_calls]
         vols_list = vols_dow.tail(5).tolist()
         if len(vols_list) >= 4:
             vols_list.sort()
@@ -67,7 +67,7 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
         elif len(vols_list) > 0:
             dow_olimpico[i] = float(np.mean(vols_list))
         else:
-            dow_olimpico[i] = float(df_diario_campana[col_calls].mean())
+            dow_olimpico[i] = float(df_ml[col_calls].mean())
 
     # 2. SUAVIZADO Y ML
     def cap_outliers(group):
