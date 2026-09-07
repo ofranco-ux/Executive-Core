@@ -43,7 +43,7 @@ VENTANAS_SERVICIO = {
 }
 
 # =====================================================================
-# 🧠 MOTOR ML METICULOSO (Con Inercia de Corto Plazo y Lags Inmediatos)
+# 🧠 MOTOR WFM ENSAMBLADO (Machine Learning + Promedio Olímpico Adaptativo)
 # =====================================================================
 def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inicio_forecast, col_fecha, col_calls):
     df_ml = df_diario_campana.sort_values(col_fecha).copy()
@@ -56,7 +56,20 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
     festivos_pais = holidays.CountryHoliday('MX', years=anos_unicos)
     df_ml['dia_semana'] = df_ml[col_fecha].dt.weekday
     
-    # Filtro de anomalías relajado (1.5 IQR) para no matar tendencias reales de crecimiento
+    # 1. BASE ESTABLE: Promedio Olímpico
+    dow_olimpico = {}
+    for i in range(7):
+        vols_dow = df_diario_campana[(df_diario_campana['dia_semana'] == i) & (df_diario_campana[col_calls] > 0)][col_calls]
+        vols_list = vols_dow.tail(5).tolist()
+        if len(vols_list) >= 4:
+            vols_list.sort()
+            dow_olimpico[i] = float(np.mean(vols_list[1:-1]))
+        elif len(vols_list) > 0:
+            dow_olimpico[i] = float(np.mean(vols_list))
+        else:
+            dow_olimpico[i] = float(df_diario_campana[col_calls].mean())
+
+    # 2. SUAVIZADO Y ML
     def cap_outliers(group):
         if len(group) < 4: return group
         q1, q3 = group.quantile(0.25), group.quantile(0.75)
@@ -65,7 +78,6 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
         
     df_ml['calls_smooth'] = df_ml.groupby('dia_semana')[col_calls].transform(cap_outliers) if len(df_ml) >= 14 else df_ml[col_calls]
 
-    # Inyección de memoria inmediata (Ayer y Antier)
     df_ml['lag_1'] = df_ml['calls_smooth'].shift(1)
     df_ml['lag_2'] = df_ml['calls_smooth'].shift(2)
     df_ml['lag_7'] = df_ml['calls_smooth'].shift(7)
@@ -86,8 +98,7 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
 
     features = ['lag_1', 'lag_2', 'lag_7', 'lag_14', 'rolling_mean_3', 'rolling_mean_7', 'dia_semana', 'dia_mes', 'es_quincena', 'es_festivo']
     
-    # Random Forest ajustado
-    modelo = RandomForestRegressor(n_estimators=150, random_state=42, max_depth=8)
+    modelo = RandomForestRegressor(n_estimators=100, random_state=42, max_depth=7)
     modelo.fit(df_train[features], df_train['calls_smooth'])
     
     historial_simulado = df_ml.to_dict('records')
@@ -126,8 +137,13 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
             'calls_smooth': pred_vol
         })
         fecha_actual += timedelta(days=1)
-        
-    # --- ANÁLISIS DE PENDIENTE CORTA PARA ROMPER EL LÍMITE DEL RF ---
+
+    # 3. ÁRBITRO ENSEMBLE (Combinación Inteligente)
+    ultimos_14 = df_diario_campana.tail(14)[col_calls]
+    media_14 = ultimos_14.mean()
+    std_14 = ultimos_14.std()
+    cv = (std_14 / media_14) if media_14 > 0 else 0
+
     if len(df_diario_campana) >= 6:
         ultimos_3 = df_diario_campana.tail(3)[col_calls].mean()
         previos_3 = df_diario_campana.iloc[-6:-3][col_calls].mean()
@@ -135,20 +151,34 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
     else:
         tendencia_corta = 1.0
 
-    # Adaptación meticulosa según el tamaño de la campaña
     if vol_promedio_historico < 150:
         tendencia_corta = max(0.80, min(1.25, tendencia_corta))
     elif vol_promedio_historico < 500:
-        tendencia_corta = max(0.70, min(1.40, tendencia_corta)) # Amplia libertad para campañas medianas (Seg. Vial)
+        tendencia_corta = max(0.70, min(1.40, tendencia_corta)) 
     else:
-        tendencia_corta = max(0.85, min(1.15, tendencia_corta))
-        
+        tendencia_corta = max(0.90, min(1.10, tendencia_corta))
+
     preds_finales_ajustadas = []
     for d, p in enumerate(preds_ml_puras):
-        # Difuminación: El multiplicador pierde 10% de su fuerza cada día proyectado
-        # para que la campaña vuelva a su estabilidad a la larga
-        factor_dia = 1.0 + ((tendencia_corta - 1.0) * max(0.0, 1.0 - (d * 0.10)))
-        preds_finales_ajustadas.append(max(0.0, float(p * factor_dia)))
+        fecha_futura = fecha_inicio_forecast + timedelta(days=d)
+        wd = fecha_futura.weekday()
+        
+        base_oli = dow_olimpico.get(wd, media_14)
+        
+        # EL SECRETO: Evaluar estabilidad
+        if cv < 0.15 and vol_promedio_historico > 150:
+            # Campaña Estable (Coppel): Gana la matemática pura
+            peso_ml, peso_oli = 0.20, 0.80
+            factor_dia = 1.0 # Momentum apagado
+        else:
+            # Campaña Volátil (Suburbia): Gana el ML y la tendencia
+            peso_ml, peso_oli = 0.70, 0.30
+            factor_dia = 1.0 + ((tendencia_corta - 1.0) * max(0.0, 1.0 - (d * 0.15)))
+
+        pred_ensamblada = (p * peso_ml) + (base_oli * peso_oli)
+        pred_final = pred_ensamblada * factor_dia
+        
+        preds_finales_ajustadas.append(max(0.0, float(pred_final)))
         
     return preds_finales_ajustadas
 
@@ -621,7 +651,11 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
             vol_diario = predicciones_futuras.get(camp, [0]*dias_futuros)[d]
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
 
-            pesos_crudos = [mapa_perfil_global.get((camp, inter), {}).get('weight', 0.0) for inter in intervalos_validos]
+            pesos_crudos = []
+            for inter in intervalos_validos:
+                w = mapa_dia.get((camp, nombre_dia, inter), {}).get('weight', 0.0)
+                if w == 0.0: w = mapa_perfil_global.get((camp, inter), 0.0)
+                pesos_crudos.append(w)
 
             suma_pesos = sum(pesos_crudos)
             if suma_pesos > 0: pesos_norm = [p / suma_pesos for p in pesos_crudos]
