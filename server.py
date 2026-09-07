@@ -43,7 +43,7 @@ VENTANAS_SERVICIO = {
 }
 
 # =====================================================================
-# 🧠 MOTOR ML + PERFILADOR ADAPTATIVO POR CAMPAÑA (MOMENTUM)
+# 🧠 MOTOR ML METICULOSO (Con Inercia de Corto Plazo y Lags Inmediatos)
 # =====================================================================
 def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inicio_forecast, col_fecha, col_calls):
     df_ml = df_diario_campana.sort_values(col_fecha).copy()
@@ -56,20 +56,26 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
     festivos_pais = holidays.CountryHoliday('MX', years=anos_unicos)
     df_ml['dia_semana'] = df_ml[col_fecha].dt.weekday
     
+    # Filtro de anomalías relajado (1.5 IQR) para no matar tendencias reales de crecimiento
     def cap_outliers(group):
         if len(group) < 4: return group
         q1, q3 = group.quantile(0.25), group.quantile(0.75)
         iqr = q3 - q1
-        return np.clip(group, q1 - 1.0 * iqr, q3 + 1.0 * iqr)
+        return np.clip(group, q1 - 1.5 * iqr, q3 + 1.5 * iqr)
         
     df_ml['calls_smooth'] = df_ml.groupby('dia_semana')[col_calls].transform(cap_outliers) if len(df_ml) >= 14 else df_ml[col_calls]
 
+    # Inyección de memoria inmediata (Ayer y Antier)
+    df_ml['lag_1'] = df_ml['calls_smooth'].shift(1)
+    df_ml['lag_2'] = df_ml['calls_smooth'].shift(2)
     df_ml['lag_7'] = df_ml['calls_smooth'].shift(7)
     df_ml['lag_14'] = df_ml['calls_smooth'].shift(14)
+    
+    df_ml['rolling_mean_3'] = df_ml['calls_smooth'].shift(1).rolling(window=3, min_periods=1).mean()
     df_ml['rolling_mean_7'] = df_ml['calls_smooth'].shift(1).rolling(window=7, min_periods=1).mean()
     
     df_ml['dia_mes'] = df_ml[col_fecha].dt.day
-    df_ml['es_quincena'] = df_ml['dia_mes'].apply(lambda x: 1 if x in [14, 15, 16, 30, 31, 1] else 0)
+    df_ml['es_quincena'] = df_ml['dia_mes'].apply(lambda x: 1 if x in [14, 15, 16, 29, 30, 31, 1] else 0)
     df_ml['es_festivo'] = df_ml[col_fecha].apply(lambda x: 1 if x in festivos_pais else 0)
     
     df_train = df_ml.dropna().copy()
@@ -78,8 +84,10 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
     if len(df_train) < 14:
         return [max(0.0, float(vol_promedio_historico))] * dias_futuros
 
-    features = ['lag_7', 'lag_14', 'rolling_mean_7', 'dia_semana', 'dia_mes', 'es_quincena', 'es_festivo']
-    modelo = RandomForestRegressor(n_estimators=100, random_state=42, max_depth=7)
+    features = ['lag_1', 'lag_2', 'lag_7', 'lag_14', 'rolling_mean_3', 'rolling_mean_7', 'dia_semana', 'dia_mes', 'es_quincena', 'es_festivo']
+    
+    # Random Forest ajustado
+    modelo = RandomForestRegressor(n_estimators=150, random_state=42, max_depth=8)
     modelo.fit(df_train[features], df_train['calls_smooth'])
     
     historial_simulado = df_ml.to_dict('records')
@@ -89,17 +97,23 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
     for d in range(dias_futuros):
         vols_smooth = [r.get('calls_smooth', r.get(col_calls, 0)) for r in historial_simulado]
         
-        lag_7_val = vols_smooth[-7] if len(vols_smooth) >= 7 else vols_smooth[-1]
+        lag_1_val = vols_smooth[-1]
+        lag_2_val = vols_smooth[-2] if len(vols_smooth) >= 2 else lag_1_val
+        lag_7_val = vols_smooth[-7] if len(vols_smooth) >= 7 else lag_1_val
         lag_14_val = vols_smooth[-14] if len(vols_smooth) >= 14 else lag_7_val
+        rm_3_val = np.mean(vols_smooth[-3:]) if len(vols_smooth) >= 3 else np.mean(vols_smooth)
         rm_7_val = np.mean(vols_smooth[-7:]) if len(vols_smooth) >= 7 else np.mean(vols_smooth)
         
         X_pred = pd.DataFrame([{
+            'lag_1': lag_1_val,
+            'lag_2': lag_2_val,
             'lag_7': lag_7_val,
             'lag_14': lag_14_val,
+            'rolling_mean_3': rm_3_val,
             'rolling_mean_7': rm_7_val,
             'dia_semana': fecha_actual.weekday(),
             'dia_mes': fecha_actual.day,
-            'es_quincena': 1 if fecha_actual.day in [14, 15, 16, 30, 31, 1] else 0,
+            'es_quincena': 1 if fecha_actual.day in [14, 15, 16, 29, 30, 31, 1] else 0,
             'es_festivo': 1 if fecha_actual in festivos_pais else 0
         }])
         
@@ -113,22 +127,33 @@ def pronosticar_con_machine_learning(df_diario_campana, dias_futuros, fecha_inic
         })
         fecha_actual += timedelta(days=1)
         
-    if vol_promedio_historico < 250:
-        ultimos_7 = df_diario_campana.tail(7)[col_calls].mean()
-        previos_14 = df_diario_campana.iloc[-21:-7][col_calls].mean() if len(df_diario_campana) > 14 else ultimos_7
-        momentum = (ultimos_7 / previos_14) if previos_14 > 0 else 1.0
-        momentum = max(0.60, min(1.40, momentum)) 
+    # --- ANÁLISIS DE PENDIENTE CORTA PARA ROMPER EL LÍMITE DEL RF ---
+    if len(df_diario_campana) >= 6:
+        ultimos_3 = df_diario_campana.tail(3)[col_calls].mean()
+        previos_3 = df_diario_campana.iloc[-6:-3][col_calls].mean()
+        tendencia_corta = (ultimos_3 / previos_3) if previos_3 > 0 else 1.0
     else:
-        ultimos_14 = df_diario_campana.tail(14)[col_calls].mean()
-        previos_28 = df_diario_campana.iloc[-42:-14][col_calls].mean() if len(df_diario_campana) > 28 else ultimos_14
-        momentum = (ultimos_14 / previos_28) if previos_28 > 0 else 1.0
-        momentum = max(0.85, min(1.15, momentum)) 
+        tendencia_corta = 1.0
+
+    # Adaptación meticulosa según el tamaño de la campaña
+    if vol_promedio_historico < 150:
+        tendencia_corta = max(0.80, min(1.25, tendencia_corta))
+    elif vol_promedio_historico < 500:
+        tendencia_corta = max(0.70, min(1.40, tendencia_corta)) # Amplia libertad para campañas medianas (Seg. Vial)
+    else:
+        tendencia_corta = max(0.85, min(1.15, tendencia_corta))
         
-    preds_finales_ajustadas = [max(0.0, float(p * momentum)) for p in preds_ml_puras]
+    preds_finales_ajustadas = []
+    for d, p in enumerate(preds_ml_puras):
+        # Difuminación: El multiplicador pierde 10% de su fuerza cada día proyectado
+        # para que la campaña vuelva a su estabilidad a la larga
+        factor_dia = 1.0 + ((tendencia_corta - 1.0) * max(0.0, 1.0 - (d * 0.10)))
+        preds_finales_ajustadas.append(max(0.0, float(p * factor_dia)))
+        
     return preds_finales_ajustadas
 
 # =====================================================================
-# ⚙️ MÓDULOS AUXILIARES Y DISTRIBUCIÓN
+# ⚙️ MÓDULOS AUXILIARES Y DISTRIBUCIÓN INTRADÍA
 # =====================================================================
 def buscar_archivo_excel():
     if os.path.exists(EXCEL_DEFAULT): return EXCEL_DEFAULT
@@ -596,11 +621,7 @@ def procesar_archivo_outbound(file_source, merma=0.20, dias_futuros=45):
             vol_diario = predicciones_futuras.get(camp, [0]*dias_futuros)[d]
             intervalos_validos = intervalos_operativos_por_camp.get(camp, [])
 
-            pesos_crudos = []
-            for inter in intervalos_validos:
-                w = mapa_dia.get((camp, nombre_dia, inter), {}).get('weight', 0.0)
-                if w == 0.0: w = mapa_perfil_global.get((camp, inter), 0.0)
-                pesos_crudos.append(w)
+            pesos_crudos = [mapa_perfil_global.get((camp, inter), {}).get('weight', 0.0) for inter in intervalos_validos]
 
             suma_pesos = sum(pesos_crudos)
             if suma_pesos > 0: pesos_norm = [p / suma_pesos for p in pesos_crudos]
